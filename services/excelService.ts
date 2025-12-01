@@ -1,0 +1,280 @@
+import * as XLSX from 'xlsx';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
+
+export interface ImportResult {
+  success: boolean;
+  message: string;
+  count: number;
+  data?: any[];
+}
+
+// Helper to clean headers
+export const cleanHeader = (header: string) => header?.toString().trim();
+
+// Heuristic function to guess column mapping based on standard names
+export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORMANCE' | 'ATTENDANCE'): Record<string, string> => {
+    const mapping: Record<string, string> = {};
+    
+    // Helper to find a header containing one of the keywords
+    const findHeader = (keywords: string[], exclude: string[] = []) => {
+        return headers.find(h => {
+            const headerLower = h.toLowerCase();
+            const matchesKeyword = keywords.some(k => headerLower.includes(k.toLowerCase()));
+            const notExcluded = exclude.length === 0 || !exclude.some(e => headerLower.includes(e.toLowerCase()));
+            return matchesKeyword && notExcluded;
+        });
+    };
+
+    // Common search for National ID
+    const nidHeader = findHeader(['id', 'identity', 'national', 'هوية', 'سجل', 'مدني', 'إقامة', 'اقامة']);
+
+    if (fieldType === 'STUDENTS') {
+        if (nidHeader) mapping['nationalId'] = nidHeader;
+
+        // 2. Student Name
+        const nameHeader = findHeader(['name', 'student', 'الاسم', 'الطالب'], ['parent', 'father', 'ولي']);
+        if (nameHeader) mapping['name'] = nameHeader;
+
+        // 3. Grade / Stage
+        const gradeHeader = findHeader(['grade', 'level', 'stage', 'الصف', 'المستوى', 'المرحلة']);
+        if (gradeHeader) mapping['gradeLevel'] = gradeHeader;
+
+        // 4. Class / Section
+        const classHeader = findHeader(['class', 'section', 'الفصل', 'الشعبة']);
+        if (classHeader) mapping['className'] = classHeader;
+
+        // 5. Student Phone
+        const phoneHeader = findHeader(['phone', 'mobile', 'جوال', 'هاتف'], ['parent', 'father', 'ولي']);
+        if (phoneHeader) mapping['phone'] = phoneHeader;
+
+        // 6. Student Email
+        const emailHeader = findHeader(['email', 'mail', 'بريد'], ['parent', 'father', 'ولي']);
+        if (emailHeader) mapping['email'] = emailHeader;
+        
+        // 7. Parent Name
+        const parentNameHeader = findHeader(['parent', 'father', 'guardian', 'ولي', 'الاب']);
+        if (parentNameHeader) mapping['parentName'] = parentNameHeader;
+
+        // 8. Parent Phone
+        const parentPhoneHeader = findHeader(['parent phone', 'father phone', 'guardian phone', 'جوال ولي', 'هاتف ولي', 'جوال الاب']);
+        if (parentPhoneHeader) mapping['parentPhone'] = parentPhoneHeader;
+
+        // 9. Parent Email
+        const parentEmailHeader = findHeader(['parent email', 'father email', 'email parent', 'ايميل ولي', 'بريد ولي', 'ايميل الاب']);
+        if (parentEmailHeader) mapping['parentEmail'] = parentEmailHeader;
+    } 
+    else if (fieldType === 'PERFORMANCE') {
+        // Allow matching by ID
+        if (nidHeader) mapping['nationalId'] = nidHeader;
+
+        const nameHeader = findHeader(['name', 'student', 'الاسم', 'الطالب']);
+        if (nameHeader) mapping['studentName'] = nameHeader;
+
+        const subjectHeader = findHeader(['subject', 'course', 'المادة', 'المقرر']);
+        if (subjectHeader) mapping['subject'] = subjectHeader;
+
+        const scoreHeader = findHeader(['score', 'mark', 'result', 'الدرجة', 'النتيجة', 'points']);
+        if (scoreHeader) mapping['score'] = scoreHeader;
+
+        const maxHeader = findHeader(['max', 'total', 'out of', 'عظمى', 'الكلية']);
+        if (maxHeader) mapping['maxScore'] = maxHeader;
+
+        const titleHeader = findHeader(['title', 'exam', 'quiz', 'العنوان', 'التقييم']);
+        if (titleHeader) mapping['title'] = titleHeader;
+    }
+    else if (fieldType === 'ATTENDANCE') {
+        // Allow matching by ID
+        if (nidHeader) mapping['nationalId'] = nidHeader;
+
+        const nameHeader = findHeader(['name', 'student', 'الاسم', 'الطالب']);
+        if (nameHeader) mapping['studentName'] = nameHeader;
+
+        const statusHeader = findHeader(['status', 'type', 'الحالة', 'الوضع']);
+        if (statusHeader) mapping['status'] = statusHeader;
+        
+        const dateHeader = findHeader(['date', 'time', 'التاريخ', 'الوقت']);
+        if (dateHeader) mapping['date'] = dateHeader;
+    }
+
+    return mapping;
+};
+
+// Helper to parse date from various formats
+const parseDate = (dateStr: string | undefined): string => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    
+    // Handle Excel serial date
+    if (!isNaN(Number(dateStr))) {
+        const date = new Date(Math.round((Number(dateStr) - 25569) * 86400 * 1000));
+        return date.toISOString().split('T')[0];
+    }
+
+    try {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+             return date.toISOString().split('T')[0];
+        }
+    } catch (e) {
+        // ignore
+    }
+    
+    // Fallback for DD/MM/YYYY
+    if (dateStr.includes('/')) {
+        const parts = dateStr.split(' ')[0].split('/'); // Remove time if exists
+        if (parts.length === 3) {
+             return parts.reverse().join('-');
+        }
+    }
+    
+    return new Date().toISOString().split('T')[0];
+};
+
+export const processMappedData = (
+    rawRows: any[], 
+    mapping: Record<string, string>, 
+    type: 'STUDENTS' | 'PERFORMANCE' | 'ATTENDANCE',
+    existingStudents: Student[] = []
+): any[] => {
+    const results: any[] = [];
+
+    rawRows.forEach((row) => {
+        // Helper to safely get mapped value
+        const getVal = (field: string) => {
+            const header = mapping[field];
+            return header && row[header] !== undefined ? String(row[header]).trim() : undefined;
+        };
+
+        if (type === 'STUDENTS') {
+            const name = getVal('name');
+            const nationalId = getVal('nationalId');
+            if (name && nationalId) { // Require Both Name and ID for students logic
+                results.push({
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                    name: name,
+                    nationalId: nationalId,
+                    gradeLevel: getVal('gradeLevel') || 'غير محدد',
+                    className: getVal('className') || '',
+                    phone: getVal('phone'),
+                    email: getVal('email'),
+                    parentName: getVal('parentName'),
+                    parentPhone: getVal('parentPhone'),
+                    parentEmail: getVal('parentEmail')
+                });
+            }
+        } 
+        else if (type === 'PERFORMANCE' || type === 'ATTENDANCE') {
+            const nid = getVal('nationalId');
+            const studentName = getVal('studentName');
+            
+            let student: Student | undefined;
+
+            // 1. Try match by National ID
+            if (nid) {
+                student = existingStudents.find(s => s.nationalId === nid);
+            }
+            
+            // 2. Fallback to Name if ID not provided or not found
+            if (!student && studentName) {
+                student = existingStudents.find(s => s.name.trim() === studentName);
+            }
+
+            if (student) {
+                if (type === 'PERFORMANCE') {
+                    const scoreStr = getVal('score') || '0';
+                    let score = parseFloat(scoreStr);
+                    let maxScore = parseFloat(getVal('maxScore') || '20');
+
+                    // Handle "15/20" format
+                    if (scoreStr.includes('/')) {
+                        const parts = scoreStr.split('/');
+                        score = parseFloat(parts[0]);
+                        maxScore = parseFloat(parts[1]);
+                    }
+
+                    results.push({
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                        studentId: student.id,
+                        studentName: student.name,
+                        subject: getVal('subject') || 'عام',
+                        title: getVal('title') || 'تقييم',
+                        score: isNaN(score) ? 0 : score,
+                        maxScore: isNaN(maxScore) ? 20 : maxScore,
+                        date: parseDate(getVal('date'))
+                    });
+                } else {
+                     // ATTENDANCE
+                    const statusRaw = getVal('status');
+                    let status = AttendanceStatus.PRESENT;
+
+                    if (statusRaw) {
+                        if (statusRaw.includes('غائب') || statusRaw.toLowerCase().includes('absent')) status = AttendanceStatus.ABSENT;
+                        else if (statusRaw.includes('متأخر') || statusRaw.toLowerCase().includes('late')) status = AttendanceStatus.LATE;
+                        else if (statusRaw.includes('عذر') || statusRaw.toLowerCase().includes('excused')) status = AttendanceStatus.EXCUSED;
+                    }
+
+                    const date = parseDate(getVal('date'));
+
+                    results.push({
+                        id: `${student.id}-${date}`,
+                        studentId: student.id,
+                        studentName: student.name,
+                        date: date,
+                        status: status
+                    });
+                }
+            }
+        }
+    });
+
+    return results;
+};
+
+
+// --- Core Excel Functions ---
+
+export const getWorkbookStructure = async (file: File): Promise<{ sheetNames: string[], workbook: any }> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        resolve({
+            sheetNames: workbook.SheetNames,
+            workbook: workbook
+        });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+export const getSheetHeadersAndData = (workbook: any, sheetName: string): { headers: string[], data: any[] } => {
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet);
+    let headers: string[] = [];
+    if (data.length > 0) {
+        headers = Object.keys(data[0] as object);
+    }
+    return { headers, data };
+};
+
+export const fetchWorkbookStructureUrl = async (url: string): Promise<{ sheetNames: string[], workbook: any }> => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('فشل تحميل الملف من الرابط');
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      return {
+        sheetNames: workbook.SheetNames,
+        workbook: workbook
+      };
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  };
