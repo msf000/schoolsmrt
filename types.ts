@@ -1,3 +1,4 @@
+
 export interface EducationalStage {
   id: string;
   name: string; // e.g., "المرحلة الابتدائية"
@@ -105,4 +106,14 @@ export interface SubscriptionPlan {
     features: string[];
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD';
+export interface CustomTable {
+    id: string;
+    name: string;
+    createdAt: string;
+    columns: string[];
+    rows: any[];
+    sourceUrl?: string; // Link to refresh data from
+    lastUpdated?: string; // Timestamp of last refresh
+}
+
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES';

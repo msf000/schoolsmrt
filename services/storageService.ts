@@ -1,4 +1,4 @@
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -14,6 +14,8 @@ const STORAGE_KEYS = {
   // System Admin Keys
   SCHOOLS: 'app_schools',
   SYSTEM_USERS: 'app_system_users',
+  // Custom Import
+  CUSTOM_TABLES: 'app_custom_tables',
 };
 
 // --- Map local keys to Supabase tables ---
@@ -29,6 +31,7 @@ export const DB_MAP = {
     [STORAGE_KEYS.SUBJECTS]: 'subjects',
     [STORAGE_KEYS.SCHOOLS]: 'schools',
     [STORAGE_KEYS.SYSTEM_USERS]: 'system_users'
+    // Custom tables are local-only for now or mapped differently
 };
 
 // --- Generic Helper ---
@@ -342,6 +345,25 @@ export const addSystemUser = (user: SystemUser) => {
 export const deleteSystemUser = (id: string) => {
     saveItems(STORAGE_KEYS.SYSTEM_USERS, getSystemUsers().filter(u => u.id !== id));
     autoSyncDelete(STORAGE_KEYS.SYSTEM_USERS, id);
+};
+
+// --- Custom Tables ---
+export const getCustomTables = (): CustomTable[] => getItems<CustomTable>(STORAGE_KEYS.CUSTOM_TABLES);
+export const addCustomTable = (table: CustomTable) => {
+    const list = getCustomTables();
+    list.push(table);
+    saveItems(STORAGE_KEYS.CUSTOM_TABLES, list);
+};
+export const updateCustomTable = (table: CustomTable) => {
+    const list = getCustomTables();
+    const index = list.findIndex(t => t.id === table.id);
+    if (index !== -1) {
+        list[index] = table;
+        saveItems(STORAGE_KEYS.CUSTOM_TABLES, list);
+    }
+};
+export const deleteCustomTable = (id: string) => {
+    saveItems(STORAGE_KEYS.CUSTOM_TABLES, getCustomTables().filter(t => t.id !== id));
 };
 
 // --- System Admin: Backup/Restore ---

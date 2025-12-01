@@ -391,24 +391,20 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
         </div>
       )}
 
-      {/* --- IMPORT MODAL --- */}
+      {/* --- IMPORT MODAL (FULL SCREEN) --- */}
       {isImportModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
-                  <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                      <h3 className="font-bold text-gray-800">استيراد بيانات الطلاب من Excel</h3>
-                      <button onClick={() => setIsImportModalOpen(false)} className="text-gray-500 hover:text-red-500"><X size={24}/></button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto">
-                      <DataImport 
-                          existingStudents={students}
-                          onImportStudents={(data) => { onImportStudents(data); setIsImportModalOpen(false); }}
-                          onImportAttendance={() => {}} 
-                          onImportPerformance={() => {}}
-                          forcedType="STUDENTS"
-                      />
-                  </div>
-              </div>
+          <div className="fixed inset-0 z-[100] bg-white">
+              <DataImport 
+                  existingStudents={students}
+                  onImportStudents={(data, matchKey, strategy, fields) => { 
+                      onImportStudents(data); // The wrapper will handle parsing, but here we just pass data. Ideally DataImport calls the enhanced prop
+                      setIsImportModalOpen(false); 
+                  }}
+                  onImportAttendance={() => {}} 
+                  onImportPerformance={() => {}}
+                  forcedType="STUDENTS"
+                  onClose={() => setIsImportModalOpen(false)}
+              />
           </div>
       )}
 

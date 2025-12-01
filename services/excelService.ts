@@ -262,19 +262,93 @@ export const getSheetHeadersAndData = (workbook: any, sheetName: string): { head
     return { headers, data };
 };
 
-export const fetchWorkbookStructureUrl = async (url: string): Promise<{ sheetNames: string[], workbook: any }> => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('فشل تحميل الملف من الرابط');
-      
-      const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-      return {
-        sheetNames: workbook.SheetNames,
-        workbook: workbook
-      };
-    } catch (error) {
-      console.error(error);
-      throw error;
+/**
+ * Converts various cloud storage view links to direct download links.
+ */
+const normalizeDownloadUrl = (url: string): string => {
+    let cleanUrl = url.trim();
+
+    // 1. Google Sheets / Drive
+    // Convert: https://docs.google.com/spreadsheets/d/[ID]/edit...
+    // To: https://docs.google.com/spreadsheets/d/[ID]/export?format=xlsx
+    if (cleanUrl.includes('docs.google.com/spreadsheets/d/')) {
+        const match = cleanUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (match && match[1]) {
+            return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
+        }
     }
-  };
+
+    // 2. OneDrive / SharePoint
+    // Usually replacing /edit with /download or appending ?download=1 works for share links
+    if (cleanUrl.includes('onedrive.live.com') || cleanUrl.includes('sharepoint.com') || cleanUrl.includes('1drv.ms')) {
+        // If it has query params, append &download=1, else ?download=1
+        // Note: Some business links require different handling, but this covers generic share links.
+        const separator = cleanUrl.includes('?') ? '&' : '?';
+        // Avoid adding it if it already exists
+        if (!cleanUrl.includes('download=1')) {
+            return `${cleanUrl}${separator}download=1`;
+        }
+    }
+
+    // 3. Dropbox
+    if (cleanUrl.includes('dropbox.com')) {
+        return cleanUrl.replace('dl=0', 'dl=1');
+    }
+
+    return cleanUrl;
+};
+
+export const fetchWorkbookStructureUrl = async (url: string): Promise<{ sheetNames: string[], workbook: any }> => {
+    const directUrl = normalizeDownloadUrl(url);
+
+    // Increase timeout to 15s for proxies
+    const tryFetch = async (targetUrl: string) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); 
+        
+        try {
+            const response = await fetch(targetUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+            return await response.arrayBuffer();
+        } catch (e) {
+            clearTimeout(timeoutId);
+            throw e;
+        }
+    };
+
+    let arrayBuffer: ArrayBuffer | null = null;
+    let lastError: any = null;
+
+    // List of strategies to try: Direct -> Proxy 1 (CorsProxy) -> Proxy 2 (AllOrigins)
+    const strategies = [
+        { name: 'Direct', url: directUrl },
+        { name: 'CorsProxy', url: `https://corsproxy.io/?${encodeURIComponent(directUrl)}` },
+        { name: 'AllOrigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}` }
+    ];
+
+    for (const strategy of strategies) {
+        try {
+            console.log(`Trying fetch strategy: ${strategy.name}`);
+            arrayBuffer = await tryFetch(strategy.url);
+            if (arrayBuffer) break; // Success
+        } catch (e) {
+            console.warn(`${strategy.name} fetch failed:`, e);
+            lastError = e;
+        }
+    }
+
+    if (!arrayBuffer) {
+        throw new Error(`فشل تحميل الملف من الرابط. \nسبب محتمل: الرابط مقيد لصلاحيات المنظمة (مثل SharePoint الوزاري) أو محمي.\n\nالحل المقترح: قم بتحميل الملف على جهازك ثم استخدم خيار "رفع ملف" بدلاً من الرابط.\n\n(Error Detail: ${lastError?.message || 'Network Failed'})`);
+    }
+
+    try {
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        return {
+            sheetNames: workbook.SheetNames,
+            workbook: workbook
+        };
+    } catch (parseError: any) {
+        throw new Error(`الملف المحمل تالف أو ليس ملف Excel صالح. \n${parseError.message}`);
+    }
+};
