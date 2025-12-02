@@ -4,7 +4,7 @@ import {
   PieChart, Pie, Cell, ScatterChart, Scatter 
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus } from '../types';
-import { Users, Clock, AlertCircle, Award, TrendingUp } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle } from 'lucide-react';
 
 interface DashboardProps {
   students: Student[];
@@ -47,13 +47,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   }, [attendance]);
 
   // Data for Correlation Chart (Attendance vs Performance)
-  const correlationData = useMemo(() => {
+  const studentMetrics = useMemo(() => {
     return students.map(student => {
         // Calculate Attendance %
         const studentAttendance = attendance.filter(a => a.studentId === student.id);
         const totalDays = studentAttendance.length;
         const presentDays = studentAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
-        const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+        const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 100; // Default 100 if no data
 
         // Calculate Performance %
         const studentPerformance = performance.filter(p => p.studentId === student.id);
@@ -61,13 +61,17 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         const avgScore = studentPerformance.length > 0 ? (totalScore / studentPerformance.length) * 100 : 0;
 
         return {
+            id: student.id,
             name: student.name,
+            grade: student.gradeLevel,
             attendance: Math.round(attendanceRate),
             score: Math.round(avgScore),
             count: 1 // Weight for scatter
         };
-    }).filter(d => d.attendance > 0 || d.score > 0); // Only show students with data
+    });
   }, [students, attendance, performance]);
+
+  const atRiskStudents = studentMetrics.filter(s => s.attendance < 75 || (s.score < 50 && s.score > 0));
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -129,8 +133,54 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         </div>
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* At Risk Table */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                <AlertTriangle size={18} className="text-red-500"/>
+                طلاب يحتاجون للمتابعة (أداء منخفض أو غياب متكرر)
+            </h3>
+            {atRiskStudents.length > 0 ? (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-right text-sm">
+                        <thead className="bg-red-50 text-red-800">
+                            <tr>
+                                <th className="p-3 rounded-r-lg">الطالب</th>
+                                <th className="p-3">الحضور</th>
+                                <th className="p-3">الأداء الأكاديمي</th>
+                                <th className="p-3 rounded-l-lg">الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {atRiskStudents.map(s => (
+                                <tr key={s.id}>
+                                    <td className="p-3 font-bold">{s.name}</td>
+                                    <td className="p-3">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${s.attendance < 75 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                            {s.attendance}%
+                                        </span>
+                                    </td>
+                                    <td className="p-3">
+                                         <span className={`px-2 py-1 rounded text-xs font-bold ${s.score < 50 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                            {s.score}%
+                                        </span>
+                                    </td>
+                                    <td className="p-3 text-xs text-gray-500">
+                                        {s.attendance < 75 && 'غياب مرتفع'}
+                                        {s.attendance < 75 && s.score < 50 && ' و '}
+                                        {s.score < 50 && 'تحصيل ضعيف'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <p className="text-green-600 bg-green-50 p-4 rounded-lg text-center">ممتاز! لا يوجد طلاب في دائرة الخطر حالياً.</p>
+            )}
+        </div>
+
+        {/* Attendance Pie Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-80">
             <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
                 <Clock size={18} className="text-primary"/>
@@ -158,32 +208,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                 </PieChart>
             </ResponsiveContainer>
         </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-80 flex flex-col">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
-                <Award size={18} className="text-secondary"/>
-                أفضل الطلاب أداءً
-            </h3>
-            <div className="flex-1 w-full">
-                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                    data={students.slice(0, 5).map(s => {
-                        const sPerf = performance.filter(p => p.studentId === s.id);
-                        const avg = sPerf.length > 0 
-                            ? sPerf.reduce((a, b) => a + (b.score/b.maxScore)*100, 0) / sPerf.length 
-                            : 0;
-                        return { name: s.name.split(' ')[0], score: Math.round(avg) };
-                    })}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip cursor={{fill: '#f5f5f5'}} />
-                        <Bar dataKey="score" fill="#0f766e" name="متوسط الدرجات %" radius={[4, 4, 0, 0]} barSize={40} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-        </div>
       </div>
 
       {/* Charts Row 2: Correlation Analysis */}
@@ -202,8 +226,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                     <YAxis type="number" dataKey="score" name="معدل الدرجات" unit="%" domain={[0, 100]} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
-                    <Scatter name="الطلاب" data={correlationData} fill="#8884d8">
-                        {correlationData.map((entry, index) => (
+                    <Scatter name="الطلاب" data={studentMetrics.filter(d => d.attendance > 0 || d.score > 0)} fill="#8884d8">
+                        {studentMetrics.map((entry, index) => (
                              <Cell key={`cell-${index}`} fill={entry.score >= 80 ? '#0f766e' : entry.score >= 50 ? '#f59e0b' : '#ef4444'} />
                         ))}
                     </Scatter>
