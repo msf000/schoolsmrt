@@ -7,7 +7,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Process.env polyfills if needed for other libs
+      // Injecting the provided API Key directly for the environment
+      'process.env.API_KEY': JSON.stringify("AIzaSyDKU3a8J6MxFRI9I-JJu9wY-2HcgVz_YDM"),
     }
   };
 });
