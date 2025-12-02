@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { seedData, getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance } from './services/storageService';
+import { seedData, getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync } from './services/storageService';
 import { Student, AttendanceRecord, PerformanceRecord, ViewState } from './types';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
@@ -16,7 +16,8 @@ import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, B
 const App: React.FC = () => {
   // Initialize data
   useEffect(() => {
-    // seedData(); // Disabled seeding to start clean
+    // Start the Offline-Sync Listener
+    initAutoSync();
     refreshData();
   }, []);
 
@@ -120,7 +121,7 @@ const App: React.FC = () => {
           ))}
         </nav>
         <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
-             الإصدار 1.6.3
+             الإصدار 1.6.3 (Offline-First)
         </div>
       </aside>
 

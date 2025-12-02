@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, WorksColumnConfig, ExternalSource } from '../types';
-import { getWorksConfig, saveWorksConfig } from '../services/storageService';
+import { Student, PerformanceRecord, PerformanceCategory, WorksColumnConfig } from '../types';
+import { getWorksConfig, saveWorksConfig, getWorksMasterUrl, saveWorksMasterUrl, getSchools } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Settings, RefreshCw, CheckCircle, ExternalLink, Loader2, Table, AlertCircle } from 'lucide-react';
+import { Save, Settings, RefreshCw, CheckCircle, ExternalLink, Loader2, Table, AlertCircle, PlusCircle, Link as LinkIcon, Edit2, Cloud } from 'lucide-react';
 
 interface WorksTrackingProps {
   students: Student[];
@@ -34,29 +34,42 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     // Grid Data: StudentID -> ColumnKey -> { score, url }
     const [gridData, setGridData] = useState<Record<string, Record<string, { score: string, url?: string }>>>({});
     
-    const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [savedSuccess, setSavedSuccess] = useState(false);
-
-    // Auto-Gen State
     const [isGenerating, setIsGenerating] = useState(false);
-    const [sources, setSources] = useState<ExternalSource[]>([]); 
     
-    const [autoGenSourceId, setAutoGenSourceId] = useState('');
-    const [autoGenSheet, setAutoGenSheet] = useState('');
-    const [currentWorkbook, setCurrentWorkbook] = useState<any>(null);
-    const [sheetNames, setSheetNames] = useState<string[]>([]);
-    const [manualUrl, setManualUrl] = useState('');
+    // Persistent Master URL
+    const [masterUrl, setMasterUrl] = useState('');
+    const [isEditingUrl, setIsEditingUrl] = useState(false);
+    const [statusMsg, setStatusMsg] = useState('');
+    const [isCloudLink, setIsCloudLink] = useState(false);
 
     useEffect(() => {
-        // Load config
+        // 1. Try to get from Cloud (School Record) first
+        const schools = getSchools();
+        if (schools.length > 0 && schools[0].worksMasterUrl) {
+            setMasterUrl(schools[0].worksMasterUrl);
+            setIsCloudLink(true);
+        } else {
+            // 2. Fallback to Local Storage
+            setMasterUrl(getWorksMasterUrl());
+            setIsCloudLink(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        // Load local config immediately
         const config = getWorksConfig(activeTab);
         setColumnsConfig(config);
-    }, [activeTab]);
-
-    useEffect(() => {
-        // Build grid data from performance records
-        const newGrid: Record<string, Record<string, { score: string, url?: string }>> = {};
         
+        // Auto-Sync Logic if Master URL exists
+        if (masterUrl && !isGenerating) {
+            handleAutoSyncForTab(activeTab);
+        }
+    }, [activeTab, masterUrl]);
+
+    // Re-build grid when performance records or tab changes
+    useEffect(() => {
+        const newGrid: Record<string, Record<string, { score: string, url?: string }>> = {};
         performance.forEach(p => {
             if (p.category === activeTab && p.subject === selectedSubject && p.notes) {
                 if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
@@ -68,6 +81,133 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         });
         setGridData(newGrid);
     }, [performance, activeTab, selectedSubject]);
+
+    // --- AUTO SYNC LOGIC ---
+
+    const getKeywordsForCategory = (cat: PerformanceCategory): string[] => {
+        switch(cat) {
+            case 'ACTIVITY': return ['نشاط', 'activity', 'أنشطة', 'activities'];
+            case 'HOMEWORK': return ['واجب', 'homework', 'homeworks'];
+            case 'PLATFORM_EXAM': return ['منصة', 'platform', 'اختبار منصة'];
+            case 'YEAR_WORK': return ['أعمال سنة', 'year work', 'year'];
+            default: return [];
+        }
+    };
+
+    const handleAutoSyncForTab = async (category: PerformanceCategory) => {
+        setIsGenerating(true);
+        setStatusMsg('جاري مزامنة البيانات من الملف...');
+        try {
+            // 1. Fetch Workbook
+            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
+            
+            // 2. Find Matching Sheet
+            const keywords = getKeywordsForCategory(category);
+            const matchingSheet = sheetNames.find(name => 
+                keywords.some(kw => name.toLowerCase().includes(kw))
+            );
+
+            if (!matchingSheet) {
+                setStatusMsg(`⚠️ لم يتم العثور على ورقة عمل باسم "${keywords[0]}"`);
+                setIsGenerating(false);
+                return;
+            }
+
+            // 3. Process Data from that Sheet
+            await syncDataFromSheet(workbook, matchingSheet, category);
+            setStatusMsg(`✅ تم تحديث بيانات ${matchingSheet} بنجاح`);
+
+        } catch (error: any) {
+            console.error("Auto Sync Error:", error);
+            setStatusMsg(`❌ فشل المزامنة: ${error.message}`);
+        } finally {
+            setTimeout(() => setStatusMsg(''), 5000);
+            setIsGenerating(false);
+        }
+    };
+
+    const syncDataFromSheet = async (workbook: any, sheetName: string, category: PerformanceCategory) => {
+         const { headers, data } = getSheetHeadersAndData(workbook, sheetName);
+            
+        // Filter out non-grade headers
+        const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
+        const gradeHeaders = headers.filter(h => 
+            !excludeKeywords.some(kw => h.toLowerCase().includes(kw))
+        );
+
+        if (gradeHeaders.length === 0) return; // No columns to map
+
+        // Generate New Config
+        const newConfig: WorksColumnConfig[] = [];
+        gradeHeaders.forEach((header, index) => {
+            const { label, maxScore } = extractHeaderMetadata(header);
+            newConfig.push({
+                key: `excel_${category}_${index}`, // Deterministic key based on index to reuse cols if possible? Or unique. Unique is safer for now.
+                label: label,
+                maxScore: maxScore,
+                isVisible: true,
+                url: masterUrl,
+                dataSource: {
+                    sourceId: 'master',
+                    sheet: sheetName,
+                    sourceHeader: header
+                }
+            });
+        });
+
+        setColumnsConfig(newConfig);
+        saveWorksConfig(category, newConfig);
+
+        // Map Data
+        const newDataMap: any = {}; // Temporary local map to update state
+        const recordsToSave: PerformanceRecord[] = [];
+        const today = new Date().toISOString().split('T')[0];
+
+        // Clone existing grid to not lose other subjects if needed, though here we might overwrite
+        // For simplicity in this auto-sync, we rebuild records for THIS category/subject
+        
+        data.forEach(row => {
+            const nid = row['nationalId'] || row['رقم الهوية'] || row['السجل المدني'] || Object.values(row).find((v: any) => String(v).length === 10 && !isNaN(Number(v)));
+            const name = row['name'] || row['studentName'] || row['اسم الطالب'] || row['الاسم'];
+
+            let student: Student | undefined;
+            if (nid) student = students.find(s => s.nationalId === String(nid).trim());
+            if (!student && name) student = students.find(s => s.name.includes(String(name).trim()));
+
+            if (student) {
+                if (!newDataMap[student.id]) newDataMap[student.id] = {};
+
+                newConfig.forEach(col => {
+                    const headerKey = col.dataSource!.sourceHeader;
+                    const rawVal = row[headerKey];
+                    const linkVal = row[`${headerKey}_HYPERLINK`]; 
+
+                    const val = parseFloat(rawVal);
+                    if (!isNaN(val)) {
+                        newDataMap[student.id][col.key] = { score: val.toString(), url: linkVal };
+
+                        recordsToSave.push({
+                            id: `${student!.id}-${category}-${col.key}`, // Deterministic ID for upsert
+                            studentId: student!.id,
+                            subject: selectedSubject,
+                            title: col.label,
+                            category: category,
+                            score: val,
+                            maxScore: col.maxScore,
+                            date: today,
+                            notes: col.key,
+                            url: linkVal
+                        });
+                    }
+                });
+            }
+        });
+        
+        // Update DB
+        if (recordsToSave.length > 0) {
+            onAddPerformance(recordsToSave);
+        }
+    };
 
 
     const handleScoreChange = (studentId: string, colKey: string, val: string) => {
@@ -81,6 +221,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     };
 
     const handleSaveGrid = () => {
+        // ... (Manual save logic, kept for manual edits)
         const recordsToSave: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
 
@@ -91,23 +232,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                     if (cellData && cellData.score !== '' && cellData.score !== undefined) {
                          const val = parseFloat(cellData.score);
                          if (!isNaN(val)) {
-                            // Find existing to preserve ID if needed, or just upsert
-                            const existing = performance.find(p => 
-                                p.studentId === student.id && 
-                                p.category === activeTab && 
-                                p.subject === selectedSubject && 
-                                p.notes === col.key
-                            );
-
                             recordsToSave.push({
-                                id: existing ? existing.id : `${Date.now()}-${Math.random()}`,
+                                id: `${student.id}-${activeTab}-${col.key}`,
                                 studentId: student.id,
                                 subject: selectedSubject,
                                 title: col.label,
                                 category: activeTab,
                                 score: val,
                                 maxScore: col.maxScore,
-                                date: existing ? existing.date : today,
+                                date: today,
                                 notes: col.key,
                                 url: cellData.url
                             });
@@ -122,195 +255,70 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         setTimeout(() => setSavedSuccess(false), 3000);
     };
 
-    // --- AUTO GEN LOGIC ---
-    const handleConnectSource = async () => {
-        if (!manualUrl) return;
-        setIsGenerating(true);
-        try {
-            const res = await fetchWorkbookStructureUrl(manualUrl);
-            setCurrentWorkbook(res.workbook);
-            setSheetNames(res.sheetNames);
-            if(res.sheetNames.length > 0) setAutoGenSheet(res.sheetNames[0]);
-            setAutoGenSourceId('temp-source'); // Mock ID
-            setSources([{id: 'temp-source', name: 'Temporary Source', url: manualUrl}]);
-        } catch (e: any) {
-            alert(e.message);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const handleAutoGenColumns = async () => {
-        if (!autoGenSourceId || !autoGenSheet) return;
-        const source = sources.find(s => s.id === autoGenSourceId);
-        if (!source) return;
-
-        setIsGenerating(true);
-        try {
-            // 1. Fetch headers and DATA from selected sheet
-            let workbook = currentWorkbook;
-            if(!workbook) {
-                 const res = await fetchWorkbookStructureUrl(source.url);
-                 workbook = res.workbook;
-            }
-            
-            const { headers, data } = getSheetHeadersAndData(workbook, autoGenSheet);
-            
-            // 2. Filter out non-grade headers
-            const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
-            const gradeHeaders = headers.filter(h => 
-                !excludeKeywords.some(kw => h.toLowerCase().includes(kw))
-            );
-
-            if (gradeHeaders.length === 0) throw new Error("لم يتم العثور على أعمدة درجات في هذه الورقة.");
-
-            // 3. Map headers to columnsConfig
-            const newConfig = [...columnsConfig];
-            let headerIdx = 0;
-
-            for (let i = 0; i < newConfig.length; i++) {
-                if (headerIdx >= gradeHeaders.length) break; // No more headers to map
-
-                const header = gradeHeaders[headerIdx];
-                const { label, maxScore } = extractHeaderMetadata(header);
-
-                // Update column config
-                newConfig[i] = {
-                    ...newConfig[i],
-                    label: label,
-                    maxScore: maxScore,
-                    isVisible: true,
-                    url: source.url, // Display link
-                    dataSource: {
-                        sourceId: autoGenSourceId,
-                        sheet: autoGenSheet,
-                        sourceHeader: header
-                    }
-                };
-                
-                headerIdx++;
-            }
-
-            // --- STEP 4: SAVE CONFIGURATION IMMEDIATELY ---
-            setColumnsConfig(newConfig);
-            saveWorksConfig(activeTab, newConfig);
-
-            // --- STEP 5: IMPORT & SAVE DATA IMMEDIATELY ---
-            const newDataMap = { ...gridData };
-            const recordsToSave: PerformanceRecord[] = [];
-            const today = new Date().toISOString().split('T')[0];
-            let updatedCount = 0;
-
-            // Identify columns that were just auto-generated/linked to this sheet
-            const activeCols = newConfig.filter(c => c.isVisible && c.dataSource?.sheet === autoGenSheet && c.dataSource?.sourceId === autoGenSourceId);
-
-            data.forEach(row => {
-                // Match Student
-                const nid = row['nationalId'] || row['رقم الهوية'] || row['السجل المدني'] || Object.values(row).find((v: any) => String(v).length === 10 && !isNaN(Number(v)));
-                const name = row['name'] || row['studentName'] || row['اسم الطالب'] || row['الاسم'];
-
-                let student: Student | undefined;
-                if (nid) student = students.find(s => s.nationalId === String(nid).trim());
-                if (!student && name) student = students.find(s => s.name.includes(String(name).trim()));
-
-                if (student) {
-                    if (!newDataMap[student.id]) newDataMap[student.id] = {};
-
-                    activeCols.forEach(col => {
-                        const headerKey = col.dataSource!.sourceHeader;
-                        const rawVal = row[headerKey];
-                        const linkVal = row[`${headerKey}_HYPERLINK`]; 
-
-                        const val = parseFloat(rawVal);
-                        if (!isNaN(val)) {
-                            // 1. Update Local Grid State
-                            newDataMap[student.id][col.key] = {
-                                score: val.toString(),
-                                url: linkVal 
-                            };
-
-                            // 2. Prepare Record for Database
-                            const existingRecord = performance.find(p => 
-                                p.studentId === student!.id && 
-                                p.category === activeTab && 
-                                p.subject === selectedSubject && 
-                                p.notes === col.key 
-                            );
-
-                            recordsToSave.push({
-                                id: existingRecord ? existingRecord.id : Date.now().toString() + Math.random().toString(36).substr(2, 5) + updatedCount,
-                                studentId: student!.id,
-                                subject: selectedSubject,
-                                title: col.label,
-                                category: activeTab,
-                                score: val,
-                                maxScore: col.maxScore,
-                                date: existingRecord ? existingRecord.date : today,
-                                notes: col.key,
-                                url: linkVal
-                            });
-                            
-                            updatedCount++;
-                        }
-                    });
-                }
-            });
-
-            // Update UI & DB
-            setGridData(newDataMap);
-            
-            if (recordsToSave.length > 0) {
-                onAddPerformance(recordsToSave); // Saves to DB immediately
-                setSavedSuccess(true);
-                setTimeout(() => setSavedSuccess(false), 3000);
-            }
-
-            alert(`تم تهيئة الجدول واستيراد ${updatedCount} درجة وحفظ التغييرات بنجاح!`);
-            setIsConfigModalOpen(false);
-
-        } catch (error: any) {
-            alert(`فشل التوليد التلقائي: ${error.message}`);
-        } finally {
-            setIsGenerating(false);
-        }
+    const handleSaveMasterUrl = () => {
+        saveWorksMasterUrl(masterUrl);
+        setIsEditingUrl(false);
+        if (masterUrl) handleAutoSyncForTab(activeTab); // Trigger sync immediately
     };
 
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in relative">
-             <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <Table className="text-primary" />
-                        متابعة الأعمال
-                    </h2>
-                    <p className="text-gray-500 mt-2">رصد الدرجات التفصيلية (واجبات، أنشطة، اختبارات قصيرة).</p>
+             <div className="mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                            <Table className="text-primary" />
+                            متابعة الأعمال
+                        </h2>
+                        <p className="text-gray-500 mt-2">رصد الدرجات (يتم التحديث تلقائياً عند تغيير التبويب).</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                         <select 
+                            value={selectedSubject} 
+                            onChange={(e) => setSelectedSubject(e.target.value)}
+                            className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700"
+                        >
+                            <option value="رياضيات">رياضيات</option>
+                            <option value="علوم">علوم</option>
+                            <option value="لغة عربية">لغة عربية</option>
+                            <option value="لغة إنجليزية">لغة إنجليزية</option>
+                        </select>
+                        <button 
+                            onClick={handleSaveGrid}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700"
+                        >
+                             {savedSuccess ? <CheckCircle size={18} /> : <Save size={18} />}
+                            {savedSuccess ? 'تم الحفظ' : 'حفظ يدوي'}
+                        </button>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                     <select 
-                        value={selectedSubject} 
-                        onChange={(e) => setSelectedSubject(e.target.value)}
-                        className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700"
-                    >
-                        <option value="رياضيات">رياضيات</option>
-                        <option value="علوم">علوم</option>
-                        <option value="لغة عربية">لغة عربية</option>
-                        <option value="لغة إنجليزية">لغة إنجليزية</option>
-                    </select>
-                    <button 
-                        onClick={() => setIsConfigModalOpen(true)}
-                        className="bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-black"
-                    >
-                        <Settings size={18} />
-                        إعداد الأعمدة
-                    </button>
-                    <button 
-                        onClick={handleSaveGrid}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700"
-                    >
-                         {savedSuccess ? <CheckCircle size={18} /> : <Save size={18} />}
-                        {savedSuccess ? 'تم الحفظ' : 'حفظ الدرجات'}
-                    </button>
+
+                {/* Master Link Input */}
+                <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm"><LinkIcon size={16}/></div>
+                    <div className="flex-1">
+                        {isEditingUrl || !masterUrl ? (
+                            <div className="flex gap-2">
+                                <input 
+                                    className="w-full p-1 bg-white border rounded text-sm dir-ltr" 
+                                    placeholder="أدخل رابط ملف Google Drive / Excel الرئيسي هنا..."
+                                    value={masterUrl}
+                                    onChange={e => setMasterUrl(e.target.value)}
+                                />
+                                <button onClick={handleSaveMasterUrl} className="px-3 bg-blue-600 text-white rounded text-xs font-bold whitespace-nowrap">حفظ محلياً</button>
+                            </div>
+                        ) : (
+                            <div className="flex justify-between items-center">
+                                <div className="flex flex-col">
+                                    <span className="text-sm text-blue-800 font-bold truncate dir-ltr">{masterUrl}</span>
+                                    {isCloudLink && <span className="text-[10px] text-green-600 flex items-center gap-1 font-bold"><Cloud size={10}/> رابط موحد (سحابي)</span>}
+                                </div>
+                                <button onClick={() => setIsEditingUrl(true)} className="text-gray-500 hover:text-blue-600 p-1"><Edit2 size={14}/></button>
+                            </div>
+                        )}
+                    </div>
                 </div>
+                {statusMsg && <div className="text-xs mt-2 font-bold animate-pulse text-gray-600">{statusMsg}</div>}
             </div>
 
             {/* Tabs */}
@@ -319,171 +327,85 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                      <button
                         key={cat}
                         onClick={() => setActiveTab(cat)}
-                        className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors ${activeTab === cat ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors relative ${activeTab === cat ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                      >
-                         {cat === 'ACTIVITY' && 'الأنشطة'}
-                         {cat === 'HOMEWORK' && 'الواجبات'}
-                         {cat === 'PLATFORM_EXAM' && 'اختبارات المنصة'}
-                         {cat === 'YEAR_WORK' && 'أعمال السنة'}
+                         <div className="flex items-center gap-2">
+                             {cat === 'ACTIVITY' && 'الأنشطة'}
+                             {cat === 'HOMEWORK' && 'الواجبات'}
+                             {cat === 'PLATFORM_EXAM' && 'اختبارات المنصة'}
+                             {cat === 'YEAR_WORK' && 'أعمال السنة'}
+                             {activeTab === cat && isGenerating && <Loader2 size={12} className="animate-spin"/>}
+                         </div>
                      </button>
                  ))}
             </div>
 
             {/* Grid */}
             <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200">
-                <table className="w-full text-right text-sm border-collapse">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                            <th className="p-3 border-b border-l w-12 text-center">#</th>
-                            <th className="p-3 border-b border-l min-w-[200px]">اسم الطالب</th>
-                            {columnsConfig.filter(c => c.isVisible).map(col => (
-                                <th key={col.key} className="p-2 border-b border-l min-w-[100px] text-center relative group">
-                                    <div className="text-xs text-gray-500 mb-1">{col.label}</div>
-                                    <div className="text-[10px] text-gray-400">({col.maxScore})</div>
-                                    {col.url && (
-                                        <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 left-1 text-blue-400 hover:text-blue-600">
-                                            <ExternalLink size={10}/>
-                                        </a>
-                                    )}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {students.map((student, i) => (
-                            <tr key={student.id} className="hover:bg-gray-50">
-                                <td className="p-3 border-b border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
-                                <td className="p-3 border-b border-l font-bold text-gray-700">{student.name}</td>
-                                {columnsConfig.filter(c => c.isVisible).map(col => {
-                                    const cellData = gridData[student.id]?.[col.key];
-                                    return (
-                                        <td key={col.key} className="p-1 border-b border-l text-center relative">
-                                            <input 
-                                                type="number" 
-                                                className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent"
-                                                value={cellData?.score || ''}
-                                                onChange={(e) => handleScoreChange(student.id, col.key, e.target.value)}
-                                                placeholder="-"
-                                            />
-                                            {cellData?.url && (
-                                                <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full" title="يوجد رابط إثبات"></div>
-                                            )}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Config Modal */}
-            {isConfigModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-800">إعدادات الأعمدة ({activeTab})</h3>
-                            <button onClick={() => setIsConfigModalOpen(false)} className="text-gray-400 hover:text-red-500">
-                                <AlertCircle size={20}/>
-                            </button>
-                        </div>
-                        
-                        <div className="p-6 overflow-y-auto space-y-6">
-                            {/* Auto Gen Section */}
-                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                                <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
-                                    <RefreshCw size={16}/> التوليد التلقائي من ملف Excel
-                                </h4>
-                                <div className="space-y-3">
-                                    <div className="flex gap-2">
-                                        <input 
-                                            placeholder="رابط ملف Excel (SharePoint / OneDrive / Google)" 
-                                            className="flex-1 p-2 border rounded text-sm dir-ltr"
-                                            value={manualUrl}
-                                            onChange={e => setManualUrl(e.target.value)}
-                                        />
-                                        <button onClick={handleConnectSource} disabled={isGenerating} className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm">
-                                            {isGenerating ? <Loader2 className="animate-spin"/> : 'جلب الملف'}
-                                        </button>
-                                    </div>
-
-                                    {sheetNames.length > 0 && (
-                                        <div className="flex gap-2 items-center animate-fade-in">
-                                            <span className="text-sm font-bold text-gray-600">اختر الورقة:</span>
-                                            <select 
-                                                className="p-2 border rounded text-sm flex-1"
-                                                value={autoGenSheet}
-                                                onChange={e => setAutoGenSheet(e.target.value)}
-                                            >
-                                                {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
-                                            </select>
-                                            <button 
-                                                onClick={handleAutoGenColumns}
-                                                disabled={isGenerating}
-                                                className="px-4 py-2 bg-green-600 text-white rounded font-bold text-sm"
-                                            >
-                                                توليد الأعمدة واستيراد الدرجات
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Manual Config */}
-                            <div className="space-y-2">
-                                <h4 className="font-bold text-gray-700">تخصيص الأعمدة يدوياً</h4>
-                                {columnsConfig.map((col, idx) => (
-                                    <div key={col.key} className="flex items-center gap-2 p-2 border rounded hover:bg-gray-50">
-                                        <span className="text-xs text-gray-400 w-6">{idx + 1}</span>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={col.isVisible} 
-                                            onChange={(e) => {
-                                                const newConf = [...columnsConfig];
-                                                newConf[idx].isVisible = e.target.checked;
-                                                setColumnsConfig(newConf);
-                                            }}
-                                        />
-                                        <input 
-                                            className="flex-1 p-1 border rounded text-sm"
-                                            value={col.label}
-                                            onChange={(e) => {
-                                                const newConf = [...columnsConfig];
-                                                newConf[idx].label = e.target.value;
-                                                setColumnsConfig(newConf);
-                                            }}
-                                        />
-                                        <span className="text-xs text-gray-500">Max:</span>
-                                        <input 
-                                            type="number"
-                                            className="w-16 p-1 border rounded text-sm"
-                                            value={col.maxScore}
-                                            onChange={(e) => {
-                                                const newConf = [...columnsConfig];
-                                                newConf[idx].maxScore = Number(e.target.value);
-                                                setColumnsConfig(newConf);
-                                            }}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
-                            <button onClick={() => setIsConfigModalOpen(false)} className="px-4 py-2 text-gray-600 font-bold">إلغاء</button>
-                            <button 
-                                onClick={() => {
-                                    saveWorksConfig(activeTab, columnsConfig);
-                                    setIsConfigModalOpen(false);
-                                }} 
-                                className="px-4 py-2 bg-primary text-white rounded font-bold"
-                            >
-                                حفظ الإعدادات
-                            </button>
-                        </div>
+                {!masterUrl ? (
+                     <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                        <LinkIcon size={48} className="mb-4 opacity-20"/>
+                        <p className="text-lg font-bold">لم يتم ربط ملف الدرجات</p>
+                        <p className="text-sm mt-2">يرجى إضافة رابط ملف Google Drive في الأعلى (أو في إعدادات المدرسة) لتفعيل المزامنة التلقائية.</p>
+                        <button onClick={() => setIsEditingUrl(true)} className="mt-4 text-primary font-bold hover:underline">إضافة الرابط يدوياً</button>
                     </div>
-                </div>
-            )}
+                ) : columnsConfig.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                        {isGenerating ? <Loader2 size={48} className="animate-spin mb-4 opacity-20"/> : <Table size={48} className="mb-4 opacity-20"/>}
+                        <p className="text-lg font-bold">{isGenerating ? 'جاري جلب البيانات...' : 'لا توجد بيانات'}</p>
+                        <p className="text-sm mt-2">{isGenerating ? 'يرجى الانتظار بينما نقوم بمزامنة الملف.' : 'تأكد من وجود ورقة عمل في الملف تطابق اسم التبويب الحالي.'}</p>
+                        {!isGenerating && <button onClick={() => handleAutoSyncForTab(activeTab)} className="mt-4 bg-gray-100 px-4 py-2 rounded text-gray-600 text-sm font-bold hover:bg-gray-200">محاولة المزامنة يدوياً</button>}
+                    </div>
+                ) : (
+                    <table className="w-full text-right text-sm border-collapse">
+                        <thead className="bg-gray-50 sticky top-0 z-10">
+                            <tr>
+                                <th className="p-3 border-b border-l w-12 text-center">#</th>
+                                <th className="p-3 border-b border-l min-w-[200px]">اسم الطالب</th>
+                                {columnsConfig.filter(c => c.isVisible).map(col => (
+                                    <th key={col.key} className="p-2 border-b border-l min-w-[100px] text-center relative group">
+                                        <div className="text-xs text-gray-500 mb-1">{col.label}</div>
+                                        <div className="text-[10px] text-gray-400">({col.maxScore})</div>
+                                        {col.url && (
+                                            <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 left-1 text-blue-400 hover:text-blue-600">
+                                                <ExternalLink size={10}/>
+                                            </a>
+                                        )}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {students.map((student, i) => (
+                                <tr key={student.id} className="hover:bg-gray-50">
+                                    <td className="p-3 border-b border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
+                                    <td className="p-3 border-b border-l font-bold text-gray-700">{student.name}</td>
+                                    {columnsConfig.filter(c => c.isVisible).map(col => {
+                                        const cellData = gridData[student.id]?.[col.key];
+                                        return (
+                                            <td key={col.key} className="p-1 border-b border-l text-center relative">
+                                                <input 
+                                                    type="number" 
+                                                    className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent"
+                                                    value={cellData?.score || ''}
+                                                    onChange={(e) => handleScoreChange(student.id, col.key, e.target.value)}
+                                                    placeholder="-"
+                                                />
+                                                {cellData?.url && (
+                                                    <a href={cellData.url} target="_blank" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full cursor-pointer hover:scale-150 transition-transform" title="رابط المصدر"></a>
+                                                )}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+             <div className="mt-2 text-[10px] text-gray-400 text-center">
+                يتم حفظ الرابط محلياً. تأكد من أن ملف Google Drive متاح للمشاركة (Anyone with link) أو لديك صلاحية الوصول إليه.
+            </div>
         </div>
     );
 };

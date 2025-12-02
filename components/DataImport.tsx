@@ -244,14 +244,14 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
         return;
       }
 
-      const columns = Array.from(selectedCustomColumns);
+      const columns = Array.from(selectedCustomColumns) as string[];
       
       // Filter rows based on selected indices
       const rows = rawSheetData
         .filter((_, index) => selectedRowIndices.has(index))
         .map(row => {
             const newRow: any = {};
-            columns.forEach(col => newRow[col] = row[col]);
+            columns.forEach((col: string) => newRow[col] = row[col]);
             return newRow;
         });
 

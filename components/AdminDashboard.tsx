@@ -12,7 +12,7 @@ import {
 import { updateSupabaseConfig } from '../services/supabaseClient';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
-    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff 
+    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff, UserPlus, School as SchoolIcon
 } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
@@ -33,10 +33,10 @@ const AdminDashboard: React.FC = () => {
             {/* Admin Tabs */}
             <div className="flex overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100 p-1 mb-6">
                 <TabButton active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} icon={<Shield size={18} />} label="نظرة عامة" />
-                <TabButton active={activeTab === 'SCHOOLS'} onClick={() => setActiveTab('SCHOOLS')} icon={<Building size={18} />} label="إضافة مدرسة" />
+                <TabButton active={activeTab === 'SCHOOLS'} onClick={() => setActiveTab('SCHOOLS')} icon={<Building size={18} />} label="إدارة المدارس" />
                 <TabButton active={activeTab === 'USERS'} onClick={() => setActiveTab('USERS')} icon={<Users size={18} />} label="إدارة المستخدمين" />
                 <TabButton active={activeTab === 'SUBSCRIPTIONS'} onClick={() => setActiveTab('SUBSCRIPTIONS')} icon={<CreditCard size={18} />} label="الاشتراكات" />
-                <TabButton active={activeTab === 'DATABASE'} onClick={() => setActiveTab('DATABASE')} icon={<Database size={18} />} label="قاعدة البيانات والمزامنة" />
+                <TabButton active={activeTab === 'DATABASE'} onClick={() => setActiveTab('DATABASE')} icon={<Database size={18} />} label="قاعدة البيانات" />
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[500px]">
@@ -225,65 +225,126 @@ const SchoolsManager = () => {
 
 const UsersManager = () => {
     const [users, setUsers] = useState<SystemUser[]>([]);
-    const [form, setForm] = useState<Partial<SystemUser>>({ name: '', email: '', role: 'SCHOOL_MANAGER' });
+    const [schools, setSchools] = useState<School[]>([]);
+    const [form, setForm] = useState<Partial<SystemUser>>({ name: '', email: '', role: 'SCHOOL_MANAGER', schoolId: '' });
+    const [error, setError] = useState('');
 
-    useEffect(() => { setUsers(getSystemUsers()); }, []);
+    useEffect(() => { 
+        setUsers(getSystemUsers()); 
+        setSchools(getSchools());
+    }, []);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if(!form.name || !form.email) return;
+        setError('');
+
+        if(!form.name || !form.email) {
+            setError('الاسم والبريد الإلكتروني حقول إلزامية');
+            return;
+        }
+
+        // Validate School ID for roles other than SUPER_ADMIN
+        if (form.role !== 'SUPER_ADMIN' && !form.schoolId) {
+            setError('يجب اختيار المدرسة لمدراء المدارس والمعلمين');
+            return;
+        }
+
         addSystemUser({
             id: Date.now().toString(),
             name: form.name!,
             email: form.email!,
             role: form.role as any,
+            schoolId: form.role === 'SUPER_ADMIN' ? undefined : form.schoolId,
             status: 'ACTIVE'
         });
         setUsers(getSystemUsers());
-        setForm({ name: '', email: '', role: 'SCHOOL_MANAGER' });
+        setForm({ name: '', email: '', role: 'SCHOOL_MANAGER', schoolId: '' });
+    };
+
+    const getSchoolName = (id?: string) => {
+        if (!id) return '';
+        const school = schools.find(s => s.id === id);
+        return school ? school.name : 'مدرسة غير موجودة';
     };
 
     return (
         <div className="space-y-6">
-            <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-end bg-gray-50 p-4 rounded-lg border">
-                <div className="flex-1 w-full">
-                    <label className="text-xs font-bold text-gray-500">الاسم</label>
-                    <input className="w-full p-2 border rounded" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-                </div>
-                <div className="flex-1 w-full">
-                    <label className="text-xs font-bold text-gray-500">البريد الإلكتروني</label>
-                    <input className="w-full p-2 border rounded" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-                </div>
-                <div className="w-full md:w-40">
-                    <label className="text-xs font-bold text-gray-500">الدور</label>
-                    <select className="w-full p-2 border rounded bg-white" value={form.role} onChange={e => setForm({...form, role: e.target.value as any})}>
-                        <option value="SCHOOL_MANAGER">مدير مدرسة</option>
-                        <option value="SUPER_ADMIN">مدير عام</option>
-                    </select>
-                </div>
-                <button type="submit" className="bg-gray-800 text-white p-2 rounded w-full md:w-auto px-6 h-[42px]">إضافة</button>
-            </form>
+            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><UserPlus size={18}/> إضافة مستخدم جديد</h3>
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">الاسم</label>
+                        <input className="w-full p-2 border rounded" placeholder="اسم المستخدم" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">البريد الإلكتروني (لتسجيل الدخول)</label>
+                        <input className="w-full p-2 border rounded dir-ltr text-right" placeholder="user@example.com" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">الدور (الصلاحية)</label>
+                        <select className="w-full p-2 border rounded bg-white" value={form.role} onChange={e => setForm({...form, role: e.target.value as any})}>
+                            <option value="SCHOOL_MANAGER">مدير مدرسة</option>
+                            <option value="TEACHER">معلم / إداري</option>
+                            <option value="SUPER_ADMIN">مدير عام للنظام</option>
+                        </select>
+                    </div>
+                    
+                    {/* School Selection - Hidden if Super Admin */}
+                    {form.role !== 'SUPER_ADMIN' && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">المدرسة التابع لها</label>
+                            <select 
+                                className={`w-full p-2 border rounded bg-white ${!form.schoolId ? 'border-red-300' : ''}`}
+                                value={form.schoolId} 
+                                onChange={e => setForm({...form, schoolId: e.target.value})}
+                            >
+                                <option value="">-- اختر المدرسة --</option>
+                                {schools.map(school => (
+                                    <option key={school.id} value={school.id}>{school.name}</option>
+                                ))}
+                            </select>
+                            {schools.length === 0 && <p className="text-[10px] text-red-500 mt-1">لا توجد مدارس مسجلة. أضف مدرسة أولاً.</p>}
+                        </div>
+                    )}
+
+                    <div className="md:col-span-2 mt-2">
+                        <button type="submit" className="bg-gray-800 hover:bg-black text-white p-2 rounded w-full md:w-auto px-8 font-bold transition-colors">إضافة المستخدم</button>
+                        {error && <span className="text-red-500 text-sm font-bold mr-4">{error}</span>}
+                    </div>
+                </form>
+            </div>
 
             <div className="grid gap-3">
                 {users.map(user => (
-                    <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-sm">
+                    <div key={user.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg hover:shadow-sm bg-white gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600">
-                                <Users size={20} />
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${user.role === 'SUPER_ADMIN' ? 'bg-red-500' : 'bg-blue-500'}`}>
+                                {user.role === 'SUPER_ADMIN' ? <Shield size={18} /> : <Users size={18} />}
                             </div>
                             <div>
-                                <h4 className="font-bold text-gray-800">{user.name}</h4>
-                                <p className="text-xs text-gray-500">{user.email}</p>
+                                <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                                    {user.name} 
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${user.role === 'SUPER_ADMIN' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                                        {user.role === 'SUPER_ADMIN' ? 'مدير عام' : user.role === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : 'معلم'}
+                                    </span>
+                                </h4>
+                                <p className="text-xs text-gray-500 font-mono">{user.email}</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <span className={`text-xs px-2 py-1 rounded font-bold ${user.role === 'SUPER_ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                                {user.role === 'SUPER_ADMIN' ? 'مدير عام' : 'مدير مدرسة'}
-                            </span>
-                            <button onClick={() => { deleteSystemUser(user.id); setUsers(getSystemUsers()); }} className="text-gray-400 hover:text-red-500"><Trash2 size={18}/></button>
+
+                        {user.schoolId && (
+                            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded text-xs text-gray-600 border border-gray-200">
+                                <SchoolIcon size={14}/>
+                                <span>{getSchoolName(user.schoolId)}</span>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-4 mr-auto">
+                            <button onClick={() => { deleteSystemUser(user.id); setUsers(getSystemUsers()); }} className="text-gray-400 hover:text-red-500 bg-gray-50 p-2 rounded-full hover:bg-red-50 transition-colors"><Trash2 size={18}/></button>
                         </div>
                     </div>
                 ))}
+                {users.length === 0 && <div className="text-center text-gray-400 py-8">لا يوجد مستخدمين مسجلين</div>}
             </div>
         </div>
     );
@@ -321,8 +382,19 @@ const SubscriptionsManager = () => {
     );
 };
 
-// UPDATED SQL SCHEMA: Supports Reset (Drop) and TEXT IDs for compatibility
-// !!! IMPORTANT: Now includes permissive RLS Policies to allow ANON uploads !!!
+const SCHEMA_PATCH_SQL = `
+-- 🛠️ تحديث سريع (بدون حذف البيانات)
+-- إصلاح أخطاء "student_count column missing" و "category column missing"
+
+ALTER TABLE public.performance_records ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE public.performance_records ADD COLUMN IF NOT EXISTS url text;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS works_master_url text;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS student_count integer DEFAULT 0;
+
+-- تحديث كاش النظام
+NOTIFY pgrst, 'reload schema';
+`;
+
 const SUPABASE_SCHEMA_SQL = `
 -- ⚠️ تحذير: هذا السكربت سيقوم بحذف جميع البيانات الموجودة في الجداول المحددة
 -- الغرض: تنظيف قاعدة البيانات وإعادة بنائها مع سياسات الأمان الصحيحة للرفع
@@ -350,6 +422,8 @@ create table public.schools (
   phone text,
   subscription_status text default 'ACTIVE',
   student_count_limit integer default 100,
+  student_count integer default 0,
+  works_master_url text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -426,7 +500,9 @@ create table public.performance_records (
   score numeric not null,
   max_score numeric not null,
   date text default CURRENT_DATE,
-  notes text
+  notes text,
+  category text,
+  url text
 );
 
 create table public.system_users (
@@ -591,8 +667,8 @@ const DatabaseSettings = () => {
         }
     };
 
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(SUPABASE_SCHEMA_SQL);
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
         setStatus('تم نسخ كود SQL بنجاح!');
         setTimeout(() => setStatus(''), 3000);
     };
@@ -835,12 +911,29 @@ const DatabaseSettings = () => {
                 {/* Supabase SQL Generation */}
                 <div className="bg-gray-900 text-gray-100 p-6 rounded-xl border border-gray-800 shadow-lg relative overflow-hidden lg:col-span-2">
                     <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-green-400 to-blue-500"></div>
+                    
+                    {/* PATCH SECTION FOR ERROR FIX */}
+                    <div className="mb-8 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع (لإصلاح الأخطاء وإضافة السحابة)</h4>
+                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإصلاح أخطاء "student_count column missing" وإضافة الأعمدة الجديدة</p>
+                            </div>
+                            <button onClick={() => copyToClipboard(SCHEMA_PATCH_SQL)} className="text-yellow-400 hover:text-white bg-yellow-900/50 p-2 rounded hover:bg-yellow-800 transition-colors" title="نسخ الكود">
+                                <Copy size={16} />
+                            </button>
+                        </div>
+                        <pre className="text-[10px] font-mono text-yellow-200 overflow-auto pt-2 custom-scrollbar dir-ltr text-left">
+                            {SCHEMA_PATCH_SQL}
+                        </pre>
+                    </div>
+
                     <div className="flex justify-between items-start mb-4">
                         <div>
-                            <h4 className="font-bold text-white flex items-center gap-2"><Terminal size={18} className="text-green-400"/> 1. إعداد قاعدة البيانات (SQL)</h4>
-                            <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود وضعه في Supabase SQL Editor لإنشاء الجداول وحذف البيانات الوهمية</p>
+                            <h4 className="font-bold text-white flex items-center gap-2"><Terminal size={18} className="text-green-400"/> إعداد قاعدة البيانات بالكامل (SQL)</h4>
+                            <p className="text-xs text-gray-400 mt-1">تحذير: هذا الكود يحذف جميع البيانات وينشئ الجداول من جديد</p>
                         </div>
-                        <button onClick={copyToClipboard} className="text-gray-400 hover:text-white bg-gray-800 p-2 rounded hover:bg-gray-700 transition-colors" title="نسخ الكود">
+                        <button onClick={() => copyToClipboard(SUPABASE_SCHEMA_SQL)} className="text-gray-400 hover:text-white bg-gray-800 p-2 rounded hover:bg-gray-700 transition-colors" title="نسخ الكود">
                             <Copy size={16} />
                         </button>
                     </div>

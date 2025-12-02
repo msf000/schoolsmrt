@@ -114,6 +114,7 @@ export interface School {
     phone: string;
     studentCount: number;
     subscriptionStatus: 'ACTIVE' | 'EXPIRED' | 'TRIAL';
+    worksMasterUrl?: string; // New: Global Cloud Link for Works Tracking
 }
 
 export interface SystemUser {

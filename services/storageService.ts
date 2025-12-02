@@ -17,7 +17,10 @@ const STORAGE_KEYS = {
   // Custom Import
   CUSTOM_TABLES: 'app_custom_tables',
   // Works Tracking Config
-  WORKS_CONFIG: 'app_works_config'
+  WORKS_CONFIG: 'app_works_config',
+  WORKS_MASTER_URL: 'app_works_master_url', // New Key
+  // SYNC QUEUE
+  SYNC_QUEUE: 'app_sync_queue'
 };
 
 // --- Map local keys to Supabase tables ---
@@ -33,8 +36,17 @@ export const DB_MAP = {
     [STORAGE_KEYS.SUBJECTS]: 'subjects',
     [STORAGE_KEYS.SCHOOLS]: 'schools',
     [STORAGE_KEYS.SYSTEM_USERS]: 'system_users'
-    // Custom tables are local-only for now or mapped differently
 };
+
+interface SyncOperation {
+    id: string; // Unique op ID
+    storageKey: string;
+    tableName: string;
+    type: 'UPSERT' | 'DELETE';
+    data: any; // payload for upsert, or ID for delete
+    timestamp: number;
+    retryCount: number;
+}
 
 // --- Generic Helper ---
 const getItems = <T>(key: string): T[] => {
@@ -46,89 +58,144 @@ const saveItems = <T>(key: string, items: T[]): void => {
   localStorage.setItem(key, JSON.stringify(items));
 };
 
-// --- AUTO SYNC HELPERS ---
+// --- ROBUST SYNC QUEUE LOGIC ---
+
+const getSyncQueue = (): SyncOperation[] => {
+    return getItems<SyncOperation>(STORAGE_KEYS.SYNC_QUEUE);
+};
+
+const saveSyncQueue = (queue: SyncOperation[]) => {
+    saveItems(STORAGE_KEYS.SYNC_QUEUE, queue);
+};
 
 const toSnakeCase = (item: any) => {
+    if (!item || typeof item !== 'object') return item;
     const newItem: any = {};
     Object.keys(item).forEach(k => {
         const snakeKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         newItem[snakeKey] = item[k];
     });
-    // Sanitize undefined/null
     return JSON.parse(JSON.stringify(newItem));
 };
 
-// Fire-and-forget sync to cloud
-const autoSyncUpsert = (storageKey: string, data: any | any[]) => {
+// Global sync flag to prevent race conditions
+let isSyncing = false;
+
+export const processSyncQueue = async () => {
+    if (isSyncing) return;
+    if (!navigator.onLine) return; // Don't try if offline
+
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
+    isSyncing = true;
+    const queue = getSyncQueue();
+    
+    if (queue.length === 0) {
+        isSyncing = false;
+        return;
+    }
+
+    console.log(`🔄 Processing Sync Queue: ${queue.length} operations pending...`);
+
+    const newQueue: SyncOperation[] = [];
+    
+    // Process one by one to ensure order integrity
+    for (const op of queue) {
+        try {
+            if (op.type === 'UPSERT') {
+                const payload = Array.isArray(op.data) ? op.data.map(toSnakeCase) : toSnakeCase(op.data);
+                const { error } = await supabase.from(op.tableName).upsert(payload, { onConflict: 'id' });
+                if (error) throw error;
+            } else if (op.type === 'DELETE') {
+                const { error } = await supabase.from(op.tableName).delete().eq('id', op.data);
+                if (error) throw error;
+            }
+            // If success, do not add back to queue (it's removed)
+        } catch (error: any) {
+            console.error(`❌ Sync failed for op ${op.id}:`, error.message);
+            // Increment retry, keep in queue if not fatal
+            op.retryCount++;
+            if (op.retryCount < 50) { // Keep trying for a long time
+                newQueue.push(op);
+            }
+        }
+    }
+
+    saveSyncQueue(newQueue);
+    isSyncing = false;
+
+    // If items remain, try again shortly
+    if (newQueue.length > 0 && newQueue.length < queue.length) {
+        setTimeout(processSyncQueue, 2000);
+    }
+};
+
+const addToSyncQueue = (storageKey: string, type: 'UPSERT' | 'DELETE', data: any) => {
     // @ts-ignore
     const tableName = DB_MAP[storageKey];
     if (!tableName) return;
 
-    const payload = Array.isArray(data) ? data.map(toSnakeCase) : [toSnakeCase(data)];
-
-    // Non-blocking call
-    supabase.from(tableName).upsert(payload, { onConflict: 'id' }).then(({ error }) => {
-        if (error) console.warn(`Auto-sync failed for ${tableName}:`, error.message);
-        else console.log(`Auto-synced to ${tableName}`);
+    const queue = getSyncQueue();
+    queue.push({
+        id: Date.now().toString() + Math.random(),
+        storageKey,
+        tableName,
+        type,
+        data,
+        timestamp: Date.now(),
+        retryCount: 0
     });
+    saveSyncQueue(queue);
+    
+    // Trigger sync attempt immediately (fire and forget)
+    processSyncQueue();
 };
 
-const autoSyncDelete = (storageKey: string, id: string) => {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
 
-    // @ts-ignore
-    const tableName = DB_MAP[storageKey];
-    if (!tableName) return;
-
-    // Non-blocking call
-    supabase.from(tableName).delete().eq('id', id).then(({ error }) => {
-        if (error) console.warn(`Auto-delete failed for ${tableName}:`, error.message);
+// --- INITIALIZATION ---
+export const initAutoSync = () => {
+    // Listen for online status
+    window.addEventListener('online', () => {
+        console.log("🌐 Connection restored. Flushing sync queue...");
+        processSyncQueue();
     });
+
+    // Also verify periodically
+    setInterval(() => {
+        if (navigator.onLine && getSyncQueue().length > 0) {
+            processSyncQueue();
+        }
+    }, 10000); // Check every 10 seconds
+
+    // Initial check
+    processSyncQueue();
 };
 
+
+// --- CRUD Operations (Wrapped with Offline Sync) ---
 
 // --- Students ---
 export const getStudents = (): Student[] => getItems<Student>(STORAGE_KEYS.STUDENTS);
 
 export const addStudent = (student: Student): void => {
-  if (!student.nationalId) {
-      throw new Error("رقم الهوية إلزامي لإضافة الطالب.");
-  }
+  if (!student.nationalId) throw new Error("رقم الهوية إلزامي.");
   const students = getStudents();
-  const exists = students.some(s => s.nationalId === student.nationalId);
-  if (exists) throw new Error(`رقم الهوية ${student.nationalId} مسجل لطالب آخر بالفعل.`);
+  if (students.some(s => s.nationalId === student.nationalId)) throw new Error("رقم الهوية مسجل مسبقاً.");
   
   students.push(student);
   saveItems(STORAGE_KEYS.STUDENTS, students);
-  
-  // Direct Cloud Upload
-  autoSyncUpsert(STORAGE_KEYS.STUDENTS, student);
+  addToSyncQueue(STORAGE_KEYS.STUDENTS, 'UPSERT', student);
 };
 
 export const updateStudent = (updatedStudent: Student): void => {
-  if (!updatedStudent.nationalId) {
-      throw new Error("رقم الهوية لا يمكن أن يكون فارغاً.");
-  }
   const students = getStudents();
   const index = students.findIndex(s => s.id === updatedStudent.id);
   if (index !== -1) {
-     const collision = students.some(s => s.nationalId === updatedStudent.nationalId && s.id !== updatedStudent.id);
-     if (collision) throw new Error(`رقم الهوية ${updatedStudent.nationalId} مسجل لطالب آخر بالفعل.`);
-     
     students[index] = updatedStudent;
     saveItems(STORAGE_KEYS.STUDENTS, students);
-
-    // Direct Cloud Upload
-    autoSyncUpsert(STORAGE_KEYS.STUDENTS, updatedStudent);
+    addToSyncQueue(STORAGE_KEYS.STUDENTS, 'UPSERT', updatedStudent);
   }
-};
-
-export const bulkAddStudents = (newStudents: Student[]): void => {
-  bulkUpsertStudents(newStudents, 'nationalId', 'NEW');
 };
 
 export const bulkUpsertStudents = (
@@ -142,7 +209,7 @@ export const bulkUpsertStudents = (
     let updated = 0;
     let skipped = 0;
 
-    const changedRecords: Student[] = []; // Track what changed to upload
+    const changedRecords: Student[] = []; 
 
     const nationalIdMap = new Map<string, number>();
     currentStudents.forEach((s, index) => {
@@ -188,25 +255,28 @@ export const bulkUpsertStudents = (
 
     saveItems(STORAGE_KEYS.STUDENTS, currentStudents);
     
-    // Bulk Cloud Upload
+    // Bulk Queue
     if (changedRecords.length > 0) {
-        autoSyncUpsert(STORAGE_KEYS.STUDENTS, changedRecords);
+        addToSyncQueue(STORAGE_KEYS.STUDENTS, 'UPSERT', changedRecords);
     }
 
     return { added, updated, skipped };
 };
 
+export const bulkAddStudents = (newStudents: Student[]): void => {
+  bulkUpsertStudents(newStudents, 'nationalId', 'NEW');
+};
+
 export const deleteStudent = (id: string): void => {
   const students = getStudents().filter(s => s.id !== id);
   saveItems(STORAGE_KEYS.STUDENTS, students);
-  
-  // Direct Cloud Delete
-  autoSyncDelete(STORAGE_KEYS.STUDENTS, id);
+  addToSyncQueue(STORAGE_KEYS.STUDENTS, 'DELETE', id);
 };
 
 export const deleteAllStudents = (): void => {
     saveItems(STORAGE_KEYS.STUDENTS, []);
-    // Cloud wipe not auto-triggered for safety, user should use "Clear DB" in admin
+    // Note: DeleteAll is dangerous to sync blindly. 
+    // Usually admin should clear DB explicitly.
 };
 
 // --- Teachers ---
@@ -215,11 +285,11 @@ export const addTeacher = (item: Teacher) => {
     const list = getTeachers();
     list.push(item);
     saveItems(STORAGE_KEYS.TEACHERS, list);
-    autoSyncUpsert(STORAGE_KEYS.TEACHERS, item);
+    addToSyncQueue(STORAGE_KEYS.TEACHERS, 'UPSERT', item);
 };
 export const deleteTeacher = (id: string) => {
     saveItems(STORAGE_KEYS.TEACHERS, getTeachers().filter(i => i.id !== id));
-    autoSyncDelete(STORAGE_KEYS.TEACHERS, id);
+    addToSyncQueue(STORAGE_KEYS.TEACHERS, 'DELETE', id);
 };
 
 // --- Parents ---
@@ -228,171 +298,142 @@ export const addParent = (item: Parent) => {
     const list = getParents();
     list.push(item);
     saveItems(STORAGE_KEYS.PARENTS, list);
-    autoSyncUpsert(STORAGE_KEYS.PARENTS, item);
+    addToSyncQueue(STORAGE_KEYS.PARENTS, 'UPSERT', item);
 };
 export const deleteParent = (id: string) => {
     saveItems(STORAGE_KEYS.PARENTS, getParents().filter(i => i.id !== id));
-    autoSyncDelete(STORAGE_KEYS.PARENTS, id);
+    addToSyncQueue(STORAGE_KEYS.PARENTS, 'DELETE', id);
 };
 
-// --- Hierarchy: Stages ---
+// --- Hierarchy ---
 export const getStages = (): EducationalStage[] => getItems<EducationalStage>(STORAGE_KEYS.STAGES);
 export const addStage = (item: EducationalStage) => {
     const list = getStages();
     list.push(item);
     saveItems(STORAGE_KEYS.STAGES, list);
-    autoSyncUpsert(STORAGE_KEYS.STAGES, item);
+    addToSyncQueue(STORAGE_KEYS.STAGES, 'UPSERT', item);
 };
 export const deleteStage = (id: string) => {
     saveItems(STORAGE_KEYS.STAGES, getStages().filter(i => i.id !== id));
-    autoSyncDelete(STORAGE_KEYS.STAGES, id);
+    addToSyncQueue(STORAGE_KEYS.STAGES, 'DELETE', id);
 };
 
-// --- Hierarchy: Grades ---
 export const getGrades = (): GradeLevel[] => getItems<GradeLevel>(STORAGE_KEYS.GRADES);
 export const addGrade = (item: GradeLevel) => {
     const list = getGrades();
     list.push(item);
     saveItems(STORAGE_KEYS.GRADES, list);
-    autoSyncUpsert(STORAGE_KEYS.GRADES, item);
+    addToSyncQueue(STORAGE_KEYS.GRADES, 'UPSERT', item);
 };
 export const deleteGrade = (id: string) => {
     saveItems(STORAGE_KEYS.GRADES, getGrades().filter(i => i.id !== id));
-    autoSyncDelete(STORAGE_KEYS.GRADES, id);
+    addToSyncQueue(STORAGE_KEYS.GRADES, 'DELETE', id);
 };
 
-// --- Hierarchy: Classes ---
 export const getClasses = (): ClassRoom[] => getItems<ClassRoom>(STORAGE_KEYS.CLASSES);
 export const addClass = (item: ClassRoom) => {
     const list = getClasses();
     list.push(item);
     saveItems(STORAGE_KEYS.CLASSES, list);
-    autoSyncUpsert(STORAGE_KEYS.CLASSES, item);
+    addToSyncQueue(STORAGE_KEYS.CLASSES, 'UPSERT', item);
 };
 export const deleteClass = (id: string) => {
     saveItems(STORAGE_KEYS.CLASSES, getClasses().filter(i => i.id !== id));
-    autoSyncDelete(STORAGE_KEYS.CLASSES, id);
+    addToSyncQueue(STORAGE_KEYS.CLASSES, 'DELETE', id);
 };
 
-// --- Subjects ---
 export const getSubjects = (): Subject[] => getItems<Subject>(STORAGE_KEYS.SUBJECTS);
 export const addSubject = (item: Subject) => {
     const list = getSubjects();
     list.push(item);
     saveItems(STORAGE_KEYS.SUBJECTS, list);
-    autoSyncUpsert(STORAGE_KEYS.SUBJECTS, item);
+    addToSyncQueue(STORAGE_KEYS.SUBJECTS, 'UPSERT', item);
 };
 export const deleteSubject = (id: string) => {
     saveItems(STORAGE_KEYS.SUBJECTS, getSubjects().filter(i => i.id !== id));
-    autoSyncDelete(STORAGE_KEYS.SUBJECTS, id);
+    addToSyncQueue(STORAGE_KEYS.SUBJECTS, 'DELETE', id);
 };
-
 
 // --- Attendance ---
 export const getAttendance = (): AttendanceRecord[] => getItems<AttendanceRecord>(STORAGE_KEYS.ATTENDANCE);
-
 export const saveAttendance = (records: AttendanceRecord[]): void => {
   const current = getAttendance();
   const newRecordsMap = new Map(records.map(r => [`${r.studentId}-${r.date}`, r]));
   const updated = current.filter(r => !newRecordsMap.has(`${r.studentId}-${r.date}`));
   updated.push(...records);
   saveItems(STORAGE_KEYS.ATTENDANCE, updated);
-
-  // Auto Sync (This handles both updates and new inserts for the day)
-  autoSyncUpsert(STORAGE_KEYS.ATTENDANCE, records);
+  
+  addToSyncQueue(STORAGE_KEYS.ATTENDANCE, 'UPSERT', records);
 };
-
-export const bulkAddAttendance = (records: AttendanceRecord[]): void => {
-    saveAttendance(records);
-};
+export const bulkAddAttendance = (records: AttendanceRecord[]): void => saveAttendance(records);
 
 // --- Performance ---
 export const getPerformance = (): PerformanceRecord[] => getItems<PerformanceRecord>(STORAGE_KEYS.PERFORMANCE);
-
 export const addPerformance = (record: PerformanceRecord): void => {
   const current = getPerformance();
-  // If editing same record? Usually ID based. But for WORKS_TRACKING we might want to update based on student+notes(colKey)
-  // For now simple push, but WorksTracking component handles UPSERT locally
   current.push(record);
   saveItems(STORAGE_KEYS.PERFORMANCE, current);
-  autoSyncUpsert(STORAGE_KEYS.PERFORMANCE, record);
+  addToSyncQueue(STORAGE_KEYS.PERFORMANCE, 'UPSERT', record);
 };
 
 export const bulkAddPerformance = (records: PerformanceRecord[]): void => {
     let current = getPerformance();
     const newMap = new Map(records.map(r => [r.id, r]));
-    
-    // Update existing if IDs match
     current = current.map(r => newMap.has(r.id) ? newMap.get(r.id)! : r);
-    
-    // Add new ones that weren't in current
     const currentIds = new Set(current.map(r => r.id));
-    records.forEach(r => {
-        if (!currentIds.has(r.id)) current.push(r);
-    });
+    records.forEach(r => { if (!currentIds.has(r.id)) current.push(r); });
 
     saveItems(STORAGE_KEYS.PERFORMANCE, current);
-    autoSyncUpsert(STORAGE_KEYS.PERFORMANCE, records);
+    addToSyncQueue(STORAGE_KEYS.PERFORMANCE, 'UPSERT', records);
 };
 
-// --- Works Configuration (Column Settings) ---
+// --- Works Configuration ---
 export const getWorksConfig = (category: PerformanceCategory): WorksColumnConfig[] => {
     const allConfigs = getItems<Record<string, WorksColumnConfig[]>>(STORAGE_KEYS.WORKS_CONFIG);
     // @ts-ignore
-    const catConfig = allConfigs[category] || [];
-    
-    // Initialize defaults if empty (20 columns)
-    if (catConfig.length === 0) {
-        const defaults: WorksColumnConfig[] = [];
-        for (let i = 1; i <= 20; i++) {
-            defaults.push({
-                key: `col_${i}`,
-                label: `نشاط ${i}`,
-                isVisible: i <= 5, // Show first 5 by default
-                maxScore: 10,
-                url: '' // Default empty link
-            });
-        }
-        return defaults;
-    }
-    return catConfig;
+    return allConfigs[category] || [];
 };
-
 export const saveWorksConfig = (category: PerformanceCategory, config: WorksColumnConfig[]) => {
     const allConfigs = getItems<Record<string, WorksColumnConfig[]>>(STORAGE_KEYS.WORKS_CONFIG) || {};
     // @ts-ignore
     allConfigs[category] = config;
     localStorage.setItem(STORAGE_KEYS.WORKS_CONFIG, JSON.stringify(allConfigs));
-    // Configs are local only currently or could be synced via a settings table
 };
 
-// --- System Admin: Schools ---
+export const saveWorksMasterUrl = (url: string) => {
+    localStorage.setItem(STORAGE_KEYS.WORKS_MASTER_URL, url);
+};
+
+export const getWorksMasterUrl = (): string => {
+    return localStorage.getItem(STORAGE_KEYS.WORKS_MASTER_URL) || '';
+};
+
+// --- System Admin ---
 export const getSchools = (): School[] => getItems<School>(STORAGE_KEYS.SCHOOLS);
 export const addSchool = (school: School) => {
     const list = getSchools();
     list.push(school);
     saveItems(STORAGE_KEYS.SCHOOLS, list);
-    autoSyncUpsert(STORAGE_KEYS.SCHOOLS, school);
+    addToSyncQueue(STORAGE_KEYS.SCHOOLS, 'UPSERT', school);
 };
 export const deleteSchool = (id: string) => {
     saveItems(STORAGE_KEYS.SCHOOLS, getSchools().filter(s => s.id !== id));
-    autoSyncDelete(STORAGE_KEYS.SCHOOLS, id);
+    addToSyncQueue(STORAGE_KEYS.SCHOOLS, 'DELETE', id);
 };
 
-// --- System Admin: Users ---
 export const getSystemUsers = (): SystemUser[] => getItems<SystemUser>(STORAGE_KEYS.SYSTEM_USERS);
 export const addSystemUser = (user: SystemUser) => {
     const list = getSystemUsers();
     list.push(user);
     saveItems(STORAGE_KEYS.SYSTEM_USERS, list);
-    autoSyncUpsert(STORAGE_KEYS.SYSTEM_USERS, user);
+    addToSyncQueue(STORAGE_KEYS.SYSTEM_USERS, 'UPSERT', user);
 };
 export const deleteSystemUser = (id: string) => {
     saveItems(STORAGE_KEYS.SYSTEM_USERS, getSystemUsers().filter(u => u.id !== id));
-    autoSyncDelete(STORAGE_KEYS.SYSTEM_USERS, id);
+    addToSyncQueue(STORAGE_KEYS.SYSTEM_USERS, 'DELETE', id);
 };
 
-// --- Custom Tables ---
+// --- Custom Tables (Local Only) ---
 export const getCustomTables = (): CustomTable[] => getItems<CustomTable>(STORAGE_KEYS.CUSTOM_TABLES);
 export const addCustomTable = (table: CustomTable) => {
     const list = getCustomTables();
@@ -411,7 +452,7 @@ export const deleteCustomTable = (id: string) => {
     saveItems(STORAGE_KEYS.CUSTOM_TABLES, getCustomTables().filter(t => t.id !== id));
 };
 
-// --- System Admin: Backup/Restore ---
+// --- Utils ---
 export const createBackup = (): string => {
     const backup: Record<string, any> = {};
     Object.values(STORAGE_KEYS).forEach(key => {
@@ -424,13 +465,10 @@ export const restoreBackup = (jsonString: string): boolean => {
     try {
         const backup = JSON.parse(jsonString);
         Object.keys(backup).forEach(key => {
-            if (backup[key]) {
-                localStorage.setItem(key, backup[key]);
-            }
+            if (backup[key]) localStorage.setItem(key, backup[key]);
         });
         return true;
     } catch (e) {
-        console.error("Backup Restore Failed", e);
         return false;
     }
 };
@@ -439,7 +477,6 @@ export const clearDatabase = () => {
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
 };
 
-// --- Data Statistics Helper ---
 export const getStorageStatistics = () => {
     return {
         students: getItems(STORAGE_KEYS.STUDENTS).length,
@@ -459,20 +496,15 @@ export const checkConnection = async (): Promise<{ success: boolean; latency?: n
 
     const start = performance.now();
     try {
-        // Try to fetch 1 row from schools table just to check connection
-        // We use count option to be lightweight, head:true means don't return data
-        const { count, error } = await supabase.from('schools').select('*', { count: 'exact', head: true });
-        
+        const { error } = await supabase.from('schools').select('*', { count: 'exact', head: true });
         const end = performance.now();
         if (error) throw error;
-        
         return { success: true, latency: Math.round(end - start) };
     } catch (e: any) {
         return { success: false, message: e.message };
     }
 };
 
-// Helper for reverse lookup (Table Name -> Local Key)
 export const getTableDisplayName = (tableName: string) => {
     switch(tableName) {
         case 'students': return 'الطلاب';
@@ -491,56 +523,39 @@ export const getTableDisplayName = (tableName: string) => {
 };
 
 export const uploadToSupabase = async () => {
+    // Manual full sync
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase client not initialized.");
-
     const uploadOrder = [
-        STORAGE_KEYS.SCHOOLS,
-        STORAGE_KEYS.STAGES,
-        STORAGE_KEYS.GRADES,
-        STORAGE_KEYS.CLASSES,
-        STORAGE_KEYS.SUBJECTS,
-        STORAGE_KEYS.TEACHERS,
-        STORAGE_KEYS.PARENTS,
-        STORAGE_KEYS.STUDENTS,
-        STORAGE_KEYS.SYSTEM_USERS,
-        STORAGE_KEYS.ATTENDANCE,
-        STORAGE_KEYS.PERFORMANCE
+        STORAGE_KEYS.SCHOOLS, STORAGE_KEYS.STAGES, STORAGE_KEYS.GRADES, 
+        STORAGE_KEYS.CLASSES, STORAGE_KEYS.SUBJECTS, STORAGE_KEYS.TEACHERS, 
+        STORAGE_KEYS.PARENTS, STORAGE_KEYS.STUDENTS, STORAGE_KEYS.SYSTEM_USERS, 
+        STORAGE_KEYS.ATTENDANCE, STORAGE_KEYS.PERFORMANCE
     ];
 
     for (const key of uploadOrder) {
         const localData = getItems(key);
         // @ts-ignore
         const tableName = DB_MAP[key];
-
         if (localData.length > 0) {
             const transformedData = localData.map(toSnakeCase);
-
             const { error } = await supabase.from(tableName).upsert(transformedData, { onConflict: 'id' });
-            if (error) {
-                console.error(`Error uploading ${tableName}:`, error);
-                throw new Error(`فشل رفع ${tableName}: ${error.message}`);
-            }
+            if (error) throw new Error(`فشل رفع ${tableName}: ${error.message}`);
         }
     }
 };
 
 export const downloadFromSupabase = async () => {
+    // Manual full download
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase client not initialized.");
 
     const downloadOrder = Object.keys(DB_MAP); 
-
     for (const key of downloadOrder) {
         // @ts-ignore
         const tableName = DB_MAP[key];
         const { data, error } = await supabase.from(tableName).select('*');
-        
-        if (error) {
-             console.error(`Error downloading ${tableName}:`, error);
-             throw new Error(`فشل تحميل ${tableName}: ${error.message}`);
-        }
-
+        if (error) throw new Error(`فشل تحميل ${tableName}: ${error.message}`);
         if (data) {
              const transformedData = data.map((item: any) => {
                 const newItem: any = {};
@@ -558,31 +573,22 @@ export const downloadFromSupabase = async () => {
 export const getCloudStatistics = async () => {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase client not initialized.");
-
     const stats: Record<string, number> = {};
     const tables = Object.values(DB_MAP);
-
     await Promise.all(tables.map(async (table) => {
         const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
-        if (!error) {
-            stats[table] = count || 0;
-        } else {
-            stats[table] = -1; // Indicate error
-        }
+        if (!error) stats[table] = count || 0;
+        else stats[table] = -1;
     }));
-
     return stats;
 };
 
 export const fetchCloudTableData = async (tableName: string, limit: number = 20) => {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase client not initialized.");
-
     const { data, error } = await supabase.from(tableName).select('*').limit(limit).order('created_at', { ascending: false });
     if (error) throw error;
     return data;
 };
 
-export const seedData = () => {
-    // Disabled
-};
+export const seedData = () => {};

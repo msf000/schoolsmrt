@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, Student } from '../types';
+import { Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, Student, School } from '../types';
 import { 
     getTeachers, addTeacher, deleteTeacher, 
     getParents, addParent, deleteParent, 
     getClasses, addClass, deleteClass, 
     getSubjects, addSubject, deleteSubject,
     getStages, addStage, deleteStage,
-    getGrades, addGrade, deleteGrade
+    getGrades, addGrade, deleteGrade,
+    getSchools, addSchool
 } from '../services/storageService';
-import { Trash2, Plus, Book, GraduationCap, Users, User, Phone, Mail, Building2, ChevronRight, Layers, Layout, Database } from 'lucide-react';
+import { Trash2, Plus, Book, GraduationCap, Users, User, Phone, Mail, Building2, ChevronRight, Layers, Layout, Database, Save, Link as LinkIcon } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -24,7 +25,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
     onImportPerformance, 
     onImportAttendance 
 }) => {
-  const [activeTab, setActiveTab] = useState<'STRUCTURE' | 'TEACHERS' | 'PARENTS' | 'SUBJECTS' | 'IMPORT'>('STRUCTURE');
+  const [activeTab, setActiveTab] = useState<'STRUCTURE' | 'TEACHERS' | 'PARENTS' | 'SUBJECTS' | 'IMPORT' | 'SETTINGS'>('STRUCTURE');
   
   return (
     <div className="p-6 animate-fade-in space-y-6">
@@ -43,6 +44,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
           <TabButton active={activeTab === 'PARENTS'} onClick={() => setActiveTab('PARENTS')} icon={<Users size={18} />} label="أولياء الأمور" />
           <TabButton active={activeTab === 'SUBJECTS'} onClick={() => setActiveTab('SUBJECTS')} icon={<Book size={18} />} label="المواد الدراسية" />
           <TabButton active={activeTab === 'IMPORT'} onClick={() => setActiveTab('IMPORT')} icon={<Database size={18} />} label="استيراد بيانات" />
+          <TabButton active={activeTab === 'SETTINGS'} onClick={() => setActiveTab('SETTINGS')} icon={<Save size={18} />} label="إعدادات عامة" />
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[500px]">
@@ -58,6 +60,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
                   onImportAttendance={onImportAttendance}
               />
           )}
+          {activeTab === 'SETTINGS' && <SchoolSettings />}
       </div>
     </div>
   );
@@ -74,6 +77,76 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
         <span>{label}</span>
     </button>
 );
+
+// --- Settings Manager (For Cloud Link) ---
+const SchoolSettings = () => {
+    const [schools, setSchools] = useState<School[]>([]);
+    const [masterUrl, setMasterUrl] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [msg, setMsg] = useState('');
+
+    useEffect(() => {
+        const s = getSchools();
+        setSchools(s);
+        if (s.length > 0 && s[0].worksMasterUrl) {
+            setMasterUrl(s[0].worksMasterUrl);
+        }
+    }, []);
+
+    const handleSave = () => {
+        if (schools.length === 0) {
+            setMsg('❌ لا توجد مدرسة مسجلة. يرجى إضافة مدرسة من لوحة المدير العام أولاً.');
+            return;
+        }
+        
+        setIsSaving(true);
+        // Update the first school found
+        const updatedSchool = { ...schools[0], worksMasterUrl: masterUrl };
+        addSchool(updatedSchool); // upsert/add logic handles update if ID exists
+        
+        setTimeout(() => {
+            setIsSaving(false);
+            setMsg('✅ تم حفظ الرابط بنجاح! سيتم تعميمه على جميع الأجهزة بعد المزامنة.');
+            setTimeout(() => setMsg(''), 3000);
+        }, 1000);
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto py-8">
+            <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <LinkIcon className="text-blue-600"/>
+                إعدادات الربط السحابي
+            </h3>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
+                <label className="block text-sm font-bold text-gray-700 mb-2">رابط ملف الأعمال الرئيسي (Google Drive / Excel)</label>
+                <p className="text-xs text-gray-500 mb-4">هذا الرابط سيتم استخدامه في صفحة "متابعة الأعمال" لجلب البيانات تلقائياً لجميع المستخدمين.</p>
+                
+                <div className="flex gap-2">
+                    <input 
+                        type="url" 
+                        value={masterUrl} 
+                        onChange={e => setMasterUrl(e.target.value)}
+                        className="flex-1 p-3 border rounded-lg dir-ltr text-left"
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                    />
+                    <button 
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isSaving ? 'جاري الحفظ...' : 'حفظ وتعميم'}
+                    </button>
+                </div>
+                {msg && <div className="mt-3 text-sm font-bold text-center">{msg}</div>}
+            </div>
+
+            <div className="text-sm text-gray-400 text-center">
+                تأكد من أن الرابط صالح ومتاح للمشاركة (Anyone with link) لضمان عمله لدى جميع المعلمين.
+            </div>
+        </div>
+    );
+};
 
 // --- Structure Manager (Hierarchy) ---
 const StructureManager = () => {
