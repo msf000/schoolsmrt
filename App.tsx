@@ -10,7 +10,8 @@ import SchoolManagement from './components/SchoolManagement';
 import AdminDashboard from './components/AdminDashboard';
 import CustomTablesView from './components/CustomTablesView';
 import WorksTracking from './components/WorksTracking';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool } from 'lucide-react';
+import AIReports from './components/AIReports';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles } from 'lucide-react';
 
 const App: React.FC = () => {
   // Initialize data
@@ -86,6 +87,7 @@ const App: React.FC = () => {
     { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck },
     { id: 'WORKS_TRACKING', label: 'متابعة الأعمال', icon: PenTool }, 
     { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp },
+    { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles },
     { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table }, 
     { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database },
   ];
@@ -118,7 +120,7 @@ const App: React.FC = () => {
           ))}
         </nav>
         <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
-             الإصدار 1.6.2
+             الإصدار 1.6.3
         </div>
       </aside>
 
@@ -217,6 +219,13 @@ const App: React.FC = () => {
                     performance={performance} 
                     onAddPerformance={handleAddPerformance} 
                     onImportPerformance={handleBulkAddPerformance}
+                />
+            )}
+            {currentView === 'AI_REPORTS' && (
+                <AIReports 
+                    students={students} 
+                    attendance={attendance} 
+                    performance={performance} 
                 />
             )}
             {currentView === 'CUSTOM_TABLES' && (
