@@ -9,8 +9,9 @@ import DataImport from './components/DataImport';
 import SchoolManagement from './components/SchoolManagement';
 import AdminDashboard from './components/AdminDashboard';
 import CustomTablesView from './components/CustomTablesView';
-import WorksTracking from './components/WorksTracking'; 
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool } from 'lucide-react';
+import WorksTracking from './components/WorksTracking';
+import AIReports from './components/AIReports';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles } from 'lucide-react';
 
 const App: React.FC = () => {
   // Initialize data
@@ -86,6 +87,7 @@ const App: React.FC = () => {
     { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck },
     { id: 'WORKS_TRACKING', label: 'متابعة الأعمال', icon: PenTool }, 
     { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp },
+    { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles },
     { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table }, 
     { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database },
   ];
@@ -204,7 +206,6 @@ const App: React.FC = () => {
                     onImportAttendance={handleBulkAddAttendance}
                 />
             )}
-            {/* New Route */}
             {currentView === 'WORKS_TRACKING' && (
                 <WorksTracking 
                     students={students}
@@ -218,6 +219,13 @@ const App: React.FC = () => {
                     performance={performance} 
                     onAddPerformance={handleAddPerformance} 
                     onImportPerformance={handleBulkAddPerformance}
+                />
+            )}
+            {currentView === 'AI_REPORTS' && (
+                <AIReports 
+                    students={students} 
+                    attendance={attendance} 
+                    performance={performance} 
                 />
             )}
             {currentView === 'CUSTOM_TABLES' && (
