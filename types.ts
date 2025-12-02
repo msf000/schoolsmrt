@@ -68,15 +68,41 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
 }
 
+export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
+
 export interface PerformanceRecord {
   id: string;
   studentId: string;
   subject: string;
   title: string; // e.g., "Midterm Exam", "Homework 1"
+  category?: PerformanceCategory; // New field for classification
   score: number;
   maxScore: number;
   date: string;
-  notes?: string;
+  notes?: string; // Used to store Column Key (e.g., 'col_1') for Works Tracking
+  url?: string; // New: Link extracted from the source cell (e.g., student proof)
+}
+
+export interface ExternalSource {
+    id: string;
+    name: string;
+    url: string;
+    lastSynced?: string;
+}
+
+export interface DataSourceConfig {
+    sourceId: string; // Reference to ExternalSource
+    sheet: string;
+    sourceHeader: string; // The column name in the Excel file
+}
+
+export interface WorksColumnConfig {
+    key: string; // e.g., 'col_1'
+    label: string; // e.g., 'Activity 1'
+    isVisible: boolean;
+    maxScore: number;
+    url?: string; // Static Display Link (legacy/info)
+    dataSource?: DataSourceConfig; // New: Live Connection Config
 }
 
 // --- System Admin Types ---
@@ -116,4 +142,4 @@ export interface CustomTable {
     lastUpdated?: string; // Timestamp of last refresh
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES';
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES';

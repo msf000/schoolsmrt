@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Eye, Sheet, ArrowRight, Table, CheckSquare, Square, Settings, RefreshCw, Copy, PlusCircle, Link as LinkIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Merge, ArrowRightCircle, X, ChevronsRight, FileText, Database, Globe, MousePointerClick } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Eye, Sheet, ArrowRight, Table, CheckSquare, Square, Settings, RefreshCw, Copy, PlusCircle, Link as LinkIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Merge, ArrowRightCircle, X, ChevronsRight, FileText, Database, Globe, MousePointerClick, Clipboard } from 'lucide-react';
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData } from '../services/excelService';
 import { Student, CustomTable } from '../types';
 import { addCustomTable, getCustomTables, deleteCustomTable } from '../services/storageService';
@@ -10,7 +10,9 @@ interface DataImportProps {
   onImportAttendance?: (records: any[]) => void;
   existingStudents: Student[];
   forcedType?: 'STUDENTS' | 'PERFORMANCE' | 'ATTENDANCE'; 
-  onClose?: () => void; // Added close handler for standalone mode
+  onClose?: () => void;
+  // New prop: If provided, the component acts as a data fetcher and returns raw data to parent instead of saving to DB
+  onDataReady?: (data: any[]) => void; 
 }
 
 const FIELD_DEFINITIONS = {
@@ -42,9 +44,11 @@ const FIELD_DEFINITIONS = {
     ]
 };
 
-const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, existingStudents, forcedType, onClose }) => {
+const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, existingStudents, forcedType, onClose, onDataReady }) => {
   // Mode State: SYSTEM (Std/Perf/Att) vs CUSTOM (Generic Excel)
-  const [importMode, setImportMode] = useState<'SYSTEM' | 'CUSTOM'>(forcedType ? 'SYSTEM' : 'SYSTEM');
+  // If onDataReady is present, we force 'CUSTOM' mode behavior (selection wise) but with different outcome
+  const initialMode = onDataReady ? 'CUSTOM' : (forcedType ? 'SYSTEM' : 'SYSTEM');
+  const [importMode, setImportMode] = useState<'SYSTEM' | 'CUSTOM'>(initialMode);
   const [sourceMethod, setSourceMethod] = useState<'FILE' | 'URL'>('FILE');
 
   // -- Shared State --
@@ -82,10 +86,10 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
   }, [forcedType]);
 
   useEffect(() => {
-      if(importMode === 'CUSTOM') {
+      if(importMode === 'CUSTOM' && !onDataReady) {
           setExistingCustomTables(getCustomTables());
       }
-  }, [importMode]);
+  }, [importMode, onDataReady]);
 
   useEffect(() => {
       const mapped = Object.keys(columnMapping);
@@ -118,6 +122,25 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
     }
   };
 
+  const handlePasteUrl = async () => {
+      try {
+          const text = await navigator.clipboard.readText();
+          if (text) setUrl(text);
+      } catch (err) {
+          console.error('Failed to read clipboard', err);
+      }
+  };
+
+  const getUrlType = (link: string) => {
+    if (!link) return null;
+    if (link.includes('docs.google.com') || link.includes('drive.google.com')) return 'GOOGLE';
+    if (link.includes('onedrive.live.com') || link.includes('1drv.ms') || link.includes('sharepoint.com')) return 'ONEDRIVE';
+    if (link.includes('dropbox.com')) return 'DROPBOX';
+    return 'UNKNOWN';
+  };
+
+  const urlType = getUrlType(url);
+
   const handleScan = async () => {
       setLoading(true);
       setStatus(null);
@@ -135,7 +158,9 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           setSheetNames(structure.sheetNames);
           
           if (structure.sheetNames.length > 0) {
-              handleSheetSelect(structure.workbook, structure.sheetNames[0]);
+              setSelectedSheet(structure.sheetNames[0]);
+              // Don't auto select, let user choose in SHEET_SELECT
+              setStep('SHEET_SELECT'); 
           } else {
               throw new Error("الملف لا يحتوي على أوراق عمل.");
           }
@@ -146,18 +171,23 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       }
   };
 
-  const handleSheetSelect = (wb: any, sheetName: string) => {
+  const handleSheetConfirm = () => {
+      if (!workbook || !selectedSheet) return;
+      handleSheetLoad(workbook, selectedSheet);
+  };
+
+  const handleSheetLoad = (wb: any, sheetName: string) => {
       setSelectedSheet(sheetName);
       const { headers, data } = getSheetHeadersAndData(wb, sheetName);
       setFileHeaders(headers);
       setRawSheetData(data);
       
-      if (importMode === 'SYSTEM') {
+      if (importMode === 'SYSTEM' && !onDataReady) {
           const guessed = guessMapping(headers, dataType);
           setColumnMapping(guessed);
           setStep('MAPPING');
       } else {
-          // For Custom: Skip Mapping, Select ALL columns and rows by default, go to Preview
+          // For Custom OR Generic Data Ready: Skip Mapping, Select ALL columns and rows by default, go to Preview
           setSelectedCustomColumns(new Set(headers));
           setSelectedRowIndices(new Set(data.map((_, i) => i)));
           setStep('PREVIEW_SELECT');
@@ -203,7 +233,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       setSelectedCustomColumns(newSet);
   }
 
-  // Handle Custom Save
+  // Handle Custom Save / Generic Data Return
   const handleSaveCustomTable = () => {
       if (selectedCustomColumns.size === 0) {
           setStatus({ type: 'error', message: 'يرجى اختيار عمود واحد على الأقل.' });
@@ -212,10 +242,6 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       if (selectedRowIndices.size === 0) {
         setStatus({ type: 'error', message: 'يرجى اختيار صف واحد على الأقل.' });
         return;
-      }
-      if (!customTableName) {
-          setStatus({ type: 'error', message: 'يرجى تسمية الجدول.' });
-          return;
       }
 
       const columns = Array.from(selectedCustomColumns);
@@ -228,6 +254,18 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
             columns.forEach(col => newRow[col] = row[col]);
             return newRow;
         });
+
+      // === NEW: If onDataReady provided, return data and exit ===
+      if (onDataReady) {
+          onDataReady(rows);
+          if (onClose) onClose();
+          return;
+      }
+
+      if (!customTableName) {
+          setStatus({ type: 'error', message: 'يرجى تسمية الجدول.' });
+          return;
+      }
 
       const newTable: CustomTable = {
           id: Date.now().toString(),
@@ -255,7 +293,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
 
   const toggleSelectAll = () => {
       // Logic differs slightly based on mode
-      const totalCount = importMode === 'SYSTEM' ? analyzedData.length : rawSheetData.length;
+      const totalCount = importMode === 'SYSTEM' && !onDataReady ? analyzedData.length : rawSheetData.length;
       const allSelected = selectedRowIndices.size === totalCount;
       
       if (allSelected) {
@@ -263,7 +301,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       } else {
           const newSet = new Set<number>();
           // For System: use _originalIndex, For Custom: use index (0 to length)
-          if (importMode === 'SYSTEM') {
+          if (importMode === 'SYSTEM' && !onDataReady) {
               analyzedData.forEach(d => newSet.add(d._originalIndex));
           } else {
               for(let i=0; i<totalCount; i++) newSet.add(i);
@@ -284,7 +322,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
 
   // --- System Analysis (Memoized) ---
   const analyzedData = useMemo(() => {
-      if (importMode === 'CUSTOM') return []; // Process differently for Custom
+      if (importMode === 'CUSTOM' || onDataReady) return []; // Process differently for Custom
       
       let data = processedData.map((row, index) => {
           let _status: 'NEW' | 'UPDATE' | 'SKIP' = 'NEW';
@@ -337,7 +375,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           });
       }
       return data;
-  }, [processedData, existingStudents, matchKey, duplicateStrategy, dataType, sortConfig, removedIndices, allowedUpdateFields, importMode]);
+  }, [processedData, existingStudents, matchKey, duplicateStrategy, dataType, sortConfig, removedIndices, allowedUpdateFields, importMode, onDataReady]);
 
 
   // --- Render Helpers ---
@@ -405,34 +443,37 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                     )}
                     <div>
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                            <FileSpreadsheet className={importMode === 'SYSTEM' ? "text-green-600" : "text-purple-600"} />
-                            {importMode === 'SYSTEM' ? 'استيراد بيانات النظام' : 'استيراد جداول خاصة'}
+                            <FileSpreadsheet className={importMode === 'SYSTEM' && !onDataReady ? "text-green-600" : "text-purple-600"} />
+                            {onDataReady ? 'استيراد بيانات للمطابقة' : (importMode === 'SYSTEM' ? 'استيراد بيانات النظام' : 'استيراد جداول خاصة')}
                         </h2>
                         <p className="text-xs text-gray-500 mt-1">
                             {step === 'UPLOAD' && '1. المصدر واختيار الملف'}
-                            {step === 'MAPPING' && '2. تحديد الأعمدة'}
-                            {step === 'PREVIEW_SELECT' && (importMode === 'SYSTEM' ? '3. المراجعة والحفظ' : '2. تحديد الصفوف والأعمدة')}
+                            {step === 'SHEET_SELECT' && '2. اختيار ورقة العمل'}
+                            {step === 'MAPPING' && '3. تحديد الأعمدة'}
+                            {step === 'PREVIEW_SELECT' && (importMode === 'SYSTEM' && !onDataReady ? '4. المراجعة والحفظ' : '3. تحديد الصفوف والأعمدة')}
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                    <button 
-                        onClick={() => { setImportMode('SYSTEM'); resetState(); }} 
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${importMode === 'SYSTEM' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-800'}`}
-                    >
-                        بيانات الطلاب
-                    </button>
-                    <button 
-                         onClick={() => { setImportMode('CUSTOM'); resetState(); }} 
-                         className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${importMode === 'CUSTOM' ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}
-                    >
-                        استيراد خاص
-                    </button>
-                </div>
+                {!onDataReady && (
+                    <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                        <button 
+                            onClick={() => { setImportMode('SYSTEM'); resetState(); }} 
+                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${importMode === 'SYSTEM' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                            بيانات الطلاب
+                        </button>
+                        <button 
+                            onClick={() => { setImportMode('CUSTOM'); resetState(); }} 
+                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${importMode === 'CUSTOM' ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                            استيراد خاص
+                        </button>
+                    </div>
+                )}
 
                 <div className="flex items-center gap-3">
-                    {step === 'MAPPING' && importMode === 'SYSTEM' && (
+                    {step === 'MAPPING' && importMode === 'SYSTEM' && !onDataReady && (
                         <button 
                             onClick={handleProceedToPreviewSystem} 
                             disabled={loading} 
@@ -444,11 +485,14 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                     )}
                     {step === 'PREVIEW_SELECT' && (
                         <button 
-                            onClick={importMode === 'SYSTEM' ? handleFinalImportSystem : handleSaveCustomTable} 
+                            onClick={importMode === 'SYSTEM' && !onDataReady ? handleFinalImportSystem : handleSaveCustomTable} 
                             className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold"
                         >
-                            <CheckCircle size={18}/>
-                            <span>{importMode === 'SYSTEM' ? `حفظ البيانات (${selectedRowIndices.size})` : 'حفظ الجدول الخاص'}</span>
+                            {onDataReady ? <ArrowRightCircle size={18}/> : <CheckCircle size={18}/>}
+                            <span>
+                                {onDataReady ? `استخدام البيانات (${selectedRowIndices.size})` : 
+                                 (importMode === 'SYSTEM' ? `حفظ البيانات (${selectedRowIndices.size})` : 'حفظ الجدول الخاص')}
+                            </span>
                         </button>
                     )}
                 </div>
@@ -464,7 +508,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                      
                      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
                         {/* Type Selection for System Mode */}
-                        {importMode === 'SYSTEM' && !forcedType && (
+                        {importMode === 'SYSTEM' && !forcedType && !onDataReady && (
                             <div className="mb-8">
                                 <label className="block text-sm font-bold text-gray-700 mb-3">نوع البيانات المراد استيرادها</label>
                                 <div className="grid grid-cols-3 gap-4">
@@ -475,11 +519,17 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                             </div>
                         )}
 
-                        {/* Custom Mode Info */}
-                        {importMode === 'CUSTOM' && (
+                        {/* Info Boxes */}
+                        {importMode === 'CUSTOM' && !onDataReady && (
                             <div className="mb-6 bg-purple-50 text-purple-800 p-4 rounded-lg border border-purple-200">
                                 <h4 className="font-bold flex items-center gap-2 mb-1"><Database size={18}/> استيراد جداول خاصة</h4>
                                 <p className="text-sm">يمكنك هنا رفع أي ملف Excel واختيار صفوف وأعمدة محددة منه لحفظها كجدول مستقل.</p>
+                            </div>
+                        )}
+                        {onDataReady && (
+                             <div className="mb-6 bg-blue-50 text-blue-800 p-4 rounded-lg border border-blue-200">
+                                <h4 className="font-bold flex items-center gap-2 mb-1"><Table size={18}/> استيراد بيانات وتوزيعها</h4>
+                                <p className="text-sm">سيتم جلب البيانات ومحاولة مطابقة أسماء الأعمدة في الملف مع الأعمدة الموجودة في النظام.</p>
                             </div>
                         )}
 
@@ -510,17 +560,30 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                              <div className="mb-6 space-y-3">
                                 <label className="block text-sm font-bold text-gray-700">رابط الملف (مباشر)</label>
                                 <div className="flex gap-2">
-                                    <input 
-                                        type="url" 
-                                        placeholder="https://docs.google.com/spreadsheets/d/..." 
-                                        className="flex-1 p-3 border rounded-lg dir-ltr text-left"
-                                        value={url}
-                                        onChange={e => setUrl(e.target.value)}
-                                    />
+                                    <div className="relative flex-1">
+                                        <input 
+                                            type="url" 
+                                            placeholder="https://docs.google.com/spreadsheets/d/..." 
+                                            className="w-full p-3 border rounded-lg dir-ltr text-left pl-10"
+                                            value={url}
+                                            onChange={e => setUrl(e.target.value)}
+                                        />
+                                        <button 
+                                            onClick={handlePasteUrl}
+                                            className="absolute left-2 top-2.5 text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100"
+                                            title="لصق الرابط"
+                                        >
+                                            <Clipboard size={16}/>
+                                        </button>
+                                    </div>
                                     <div className="bg-blue-50 text-blue-600 p-3 rounded-lg border border-blue-100 flex items-center">
                                         <Globe size={20}/>
                                     </div>
                                 </div>
+                                
+                                {urlType === 'GOOGLE' && <span className="text-green-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> رابط Google Sheets صالح</span>}
+                                {urlType === 'ONEDRIVE' && <span className="text-blue-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> رابط OneDrive/SharePoint صالح</span>}
+
                                 <p className="text-xs text-gray-400 leading-relaxed">
                                     يدعم النظام تحويل الروابط تلقائياً من: <br/>
                                     - <b className="text-gray-600">Google Sheets</b> (تأكد أن الرابط متاح للعرض "Anyone with link"). <br/>
@@ -539,14 +602,56 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                 </div>
             )}
 
-            {/* Step 2: Mapping (System Mode ONLY) */}
-            {step === 'MAPPING' && importMode === 'SYSTEM' && (
+            {/* Step 2: Sheet Selection (NEW STEP) */}
+            {step === 'SHEET_SELECT' && (
+                <div className="max-w-2xl mx-auto mt-10 animate-fade-in">
+                    <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
+                         <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                            <FileSpreadsheet className="text-green-600"/>
+                            اختر ورقة العمل (Sheet)
+                         </h3>
+                         <p className="text-sm text-gray-500 mb-4">يحتوي الملف على {sheetNames.length} أوراق عمل. يرجى اختيار الورقة التي تحتوي على البيانات.</p>
+                         
+                         <div className="space-y-3 max-h-60 overflow-y-auto mb-8 pr-1 custom-scrollbar">
+                            {sheetNames.map(sheet => (
+                                <label key={sheet} className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all ${selectedSheet === sheet ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                    <input 
+                                        type="radio" 
+                                        name="sheet" 
+                                        value={sheet} 
+                                        checked={selectedSheet === sheet} 
+                                        onChange={() => setSelectedSheet(sheet)}
+                                        className="w-5 h-5 text-primary focus:ring-primary accent-primary"
+                                    />
+                                    <span className="font-bold text-gray-700">{sheet}</span>
+                                </label>
+                            ))}
+                         </div>
+                         
+                         <div className="flex gap-4">
+                             <button onClick={() => setStep('UPLOAD')} className="flex-1 py-3 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50">
+                                عودة
+                             </button>
+                             <button onClick={handleSheetConfirm} className="flex-2 w-full py-3 bg-primary text-white rounded-lg font-bold hover:bg-teal-800 shadow-md flex items-center justify-center gap-2">
+                                متابعة <ArrowLeft size={18}/>
+                             </button>
+                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Step 3: Mapping (System Mode ONLY) */}
+            {step === 'MAPPING' && importMode === 'SYSTEM' && !onDataReady && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                     <div className="p-4 border-b bg-gray-50 flex items-center gap-4">
-                         <div className="flex items-center gap-2">
-                             <Sheet size={18} className="text-gray-500"/>
-                             <span className="text-sm text-gray-600 font-bold">ورقة العمل:</span>
-                             <select value={selectedSheet} onChange={(e) => handleSheetSelect(workbook, e.target.value)} className="bg-white border rounded px-2 py-1 text-sm">
+                         <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border">
+                             <Sheet size={16} className="text-gray-500"/>
+                             <span className="text-sm text-gray-600 font-bold">ورقة العمل الحالية:</span>
+                             <select 
+                                value={selectedSheet} 
+                                onChange={(e) => handleSheetLoad(workbook, e.target.value)} 
+                                className="bg-transparent font-bold text-primary outline-none cursor-pointer text-sm"
+                            >
                                 {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                          </div>
@@ -575,8 +680,8 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                 </div>
             )}
 
-            {/* Step 3: Full Table Preview (SYSTEM) */}
-            {step === 'PREVIEW_SELECT' && importMode === 'SYSTEM' && (
+            {/* Step 4: Full Table Preview (SYSTEM) */}
+            {step === 'PREVIEW_SELECT' && importMode === 'SYSTEM' && !onDataReady && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
                     <div className="p-4 border-b bg-gray-50 flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
                         <div className="flex gap-4">
@@ -653,19 +758,28 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
             )}
 
             {/* Step 3: Full Table Preview (CUSTOM) - Updated Interactive Version */}
-            {step === 'PREVIEW_SELECT' && importMode === 'CUSTOM' && (
+            {step === 'PREVIEW_SELECT' && (importMode === 'CUSTOM' || onDataReady) && (
                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
                     <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <h3 className="font-bold text-purple-700 flex items-center gap-2">
-                                <Database size={18}/> تحديد البيانات
-                            </h3>
-                            <input 
-                                className="p-2 border rounded text-sm w-64 focus:ring-2 focus:ring-purple-500" 
-                                placeholder="أدخل اسم للجدول الجديد..." 
-                                value={customTableName}
-                                onChange={e => setCustomTableName(e.target.value)}
-                            />
+                             <div className="flex items-center gap-2 bg-purple-50 px-2 py-1 rounded border border-purple-100">
+                                <Sheet size={16} className="text-purple-600"/>
+                                <select 
+                                    value={selectedSheet} 
+                                    onChange={(e) => handleSheetLoad(workbook, e.target.value)} 
+                                    className="bg-transparent border-none text-sm font-bold text-purple-800 focus:ring-0 cursor-pointer"
+                                >
+                                    {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            {!onDataReady && (
+                                <input 
+                                    className="p-2 border rounded text-sm w-64 focus:ring-2 focus:ring-purple-500" 
+                                    placeholder="أدخل اسم للجدول الجديد..." 
+                                    value={customTableName}
+                                    onChange={e => setCustomTableName(e.target.value)}
+                                />
+                            )}
                         </div>
                         
                         <div className="flex items-center gap-4">

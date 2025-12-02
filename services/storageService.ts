@@ -1,4 +1,4 @@
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -16,6 +16,8 @@ const STORAGE_KEYS = {
   SYSTEM_USERS: 'app_system_users',
   // Custom Import
   CUSTOM_TABLES: 'app_custom_tables',
+  // Works Tracking Config
+  WORKS_CONFIG: 'app_works_config'
 };
 
 // --- Map local keys to Supabase tables ---
@@ -309,16 +311,59 @@ export const getPerformance = (): PerformanceRecord[] => getItems<PerformanceRec
 
 export const addPerformance = (record: PerformanceRecord): void => {
   const current = getPerformance();
+  // If editing same record? Usually ID based. But for WORKS_TRACKING we might want to update based on student+notes(colKey)
+  // For now simple push, but WorksTracking component handles UPSERT locally
   current.push(record);
   saveItems(STORAGE_KEYS.PERFORMANCE, current);
   autoSyncUpsert(STORAGE_KEYS.PERFORMANCE, record);
 };
 
 export const bulkAddPerformance = (records: PerformanceRecord[]): void => {
-    const current = getPerformance();
-    current.push(...records);
+    let current = getPerformance();
+    const newMap = new Map(records.map(r => [r.id, r]));
+    
+    // Update existing if IDs match
+    current = current.map(r => newMap.has(r.id) ? newMap.get(r.id)! : r);
+    
+    // Add new ones that weren't in current
+    const currentIds = new Set(current.map(r => r.id));
+    records.forEach(r => {
+        if (!currentIds.has(r.id)) current.push(r);
+    });
+
     saveItems(STORAGE_KEYS.PERFORMANCE, current);
     autoSyncUpsert(STORAGE_KEYS.PERFORMANCE, records);
+};
+
+// --- Works Configuration (Column Settings) ---
+export const getWorksConfig = (category: PerformanceCategory): WorksColumnConfig[] => {
+    const allConfigs = getItems<Record<string, WorksColumnConfig[]>>(STORAGE_KEYS.WORKS_CONFIG);
+    // @ts-ignore
+    const catConfig = allConfigs[category] || [];
+    
+    // Initialize defaults if empty (20 columns)
+    if (catConfig.length === 0) {
+        const defaults: WorksColumnConfig[] = [];
+        for (let i = 1; i <= 20; i++) {
+            defaults.push({
+                key: `col_${i}`,
+                label: `نشاط ${i}`,
+                isVisible: i <= 5, // Show first 5 by default
+                maxScore: 10,
+                url: '' // Default empty link
+            });
+        }
+        return defaults;
+    }
+    return catConfig;
+};
+
+export const saveWorksConfig = (category: PerformanceCategory, config: WorksColumnConfig[]) => {
+    const allConfigs = getItems<Record<string, WorksColumnConfig[]>>(STORAGE_KEYS.WORKS_CONFIG) || {};
+    // @ts-ignore
+    allConfigs[category] = config;
+    localStorage.setItem(STORAGE_KEYS.WORKS_CONFIG, JSON.stringify(allConfigs));
+    // Configs are local only currently or could be synced via a settings table
 };
 
 // --- System Admin: Schools ---

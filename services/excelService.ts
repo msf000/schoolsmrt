@@ -252,14 +252,65 @@ export const getWorkbookStructure = async (file: File): Promise<{ sheetNames: st
   });
 };
 
+/**
+ * Enhanced function to extract data AND hyperlinks
+ */
 export const getSheetHeadersAndData = (workbook: any, sheetName: string): { headers: string[], data: any[] } => {
     const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet);
-    let headers: string[] = [];
-    if (data.length > 0) {
-        headers = Object.keys(data[0] as object);
+    
+    // 1. Get Raw Data
+    const rawData = XLSX.utils.sheet_to_json(worksheet);
+    if (rawData.length === 0) return { headers: [], data: [] };
+    
+    const headers = Object.keys(rawData[0] as object);
+
+    // 2. Scan for Hyperlinks (Sheet object contains a dictionary of cell addresses)
+    // We map cell addresses (A1, B2) to hyperlinks
+    const linksMap: Record<string, string> = {}; 
+    
+    Object.keys(worksheet).forEach(cellAddress => {
+        if (cellAddress.startsWith('!')) return; // Skip metadata
+        const cell = worksheet[cellAddress];
+        if (cell.l && cell.l.Target) {
+            linksMap[cellAddress] = cell.l.Target;
+        }
+    });
+
+    // 3. Enrich Data with Link property if exists
+    // We need to know which Column Index corresponds to which Header to map address back
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+    
+    // Map column index to Header Name
+    const colIndexToHeader: Record<number, string> = {};
+    // Assuming headers are in the first row (range.s.r)
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: range.s.r, c: C });
+        const cell = worksheet[cellAddress];
+        if (cell && cell.v) {
+            colIndexToHeader[C] = String(cell.v);
+        }
     }
-    return { headers, data };
+
+    const enrichedData = rawData.map((row: any, rowIndex) => {
+        const newRow: any = { ...row };
+        // The Data rows start after header. 
+        // sheet_to_json usually skips header row, so row 0 in data is range.s.r + 1 in Excel
+        const excelRowIndex = range.s.r + 1 + rowIndex; 
+
+        Object.keys(newRow).forEach(key => {
+            // Find column index for this key
+            const colIdx = Object.keys(colIndexToHeader).find(idx => colIndexToHeader[Number(idx)] === key);
+            if (colIdx !== undefined) {
+                const cellAddr = XLSX.utils.encode_cell({ r: excelRowIndex, c: Number(colIdx) });
+                if (linksMap[cellAddr]) {
+                    newRow[`${key}_HYPERLINK`] = linksMap[cellAddr]; // Store link in separate field
+                }
+            }
+        });
+        return newRow;
+    });
+
+    return { headers, data: enrichedData };
 };
 
 /**
@@ -269,8 +320,6 @@ const normalizeDownloadUrl = (url: string): string => {
     let cleanUrl = url.trim();
 
     // 1. Google Sheets / Drive
-    // Convert: https://docs.google.com/spreadsheets/d/[ID]/edit...
-    // To: https://docs.google.com/spreadsheets/d/[ID]/export?format=xlsx
     if (cleanUrl.includes('docs.google.com/spreadsheets/d/')) {
         const match = cleanUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
         if (match && match[1]) {
@@ -279,12 +328,8 @@ const normalizeDownloadUrl = (url: string): string => {
     }
 
     // 2. OneDrive / SharePoint
-    // Usually replacing /edit with /download or appending ?download=1 works for share links
     if (cleanUrl.includes('onedrive.live.com') || cleanUrl.includes('sharepoint.com') || cleanUrl.includes('1drv.ms')) {
-        // If it has query params, append &download=1, else ?download=1
-        // Note: Some business links require different handling, but this covers generic share links.
         const separator = cleanUrl.includes('?') ? '&' : '?';
-        // Avoid adding it if it already exists
         if (!cleanUrl.includes('download=1')) {
             return `${cleanUrl}${separator}download=1`;
         }

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CustomTable } from '../types';
 import { getCustomTables, deleteCustomTable, updateCustomTable, addCustomTable } from '../services/storageService';
-import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Database, Trash2, Eye, RefreshCw, Calendar, Link as LinkIcon, Table, X, ArrowLeft, Loader2, CheckCircle, AlertTriangle, CloudDownload, Plus } from 'lucide-react';
+import { fetchWorkbookStructureUrl, getSheetHeadersAndData, getWorkbookStructure } from '../services/excelService';
+import { Database, Trash2, RefreshCw, Calendar, Link as LinkIcon, Table, X, ArrowLeft, Loader2, CheckCircle, AlertTriangle, CloudDownload, Layers, FileSpreadsheet, ArrowRight, Upload, Plus, Globe, Clipboard } from 'lucide-react';
 
 const CustomTablesView: React.FC = () => {
     const [tables, setTables] = useState<CustomTable[]>([]);
@@ -12,12 +12,36 @@ const CustomTablesView: React.FC = () => {
 
     // -- Quick Import State --
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [importConfig, setImportConfig] = useState({ name: '', url: '' });
+    const [importStep, setImportStep] = useState<1 | 2>(1); // 1: Connect/Upload, 2: Select Sheet
+    const [importMethod, setImportMethod] = useState<'URL' | 'FILE'>('URL');
+    
+    // Step 1 Data
+    const [tableName, setTableName] = useState('');
+    const [importUrl, setImportUrl] = useState('');
+    const [importFile, setImportFile] = useState<File | null>(null);
+    
+    // Step 2 Data
+    const [fetchedWorkbook, setFetchedWorkbook] = useState<any>(null);
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+    const [selectedSheet, setSelectedSheet] = useState<string>('');
+    
     const [importLoading, setImportLoading] = useState(false);
 
     useEffect(() => {
         setTables(getCustomTables());
     }, []);
+
+    const resetImportState = () => {
+        setImportStep(1);
+        setTableName('');
+        setImportUrl('');
+        setImportFile(null);
+        setFetchedWorkbook(null);
+        setAvailableSheets([]);
+        setSelectedSheet('');
+        setStatus(null);
+        setImportLoading(false);
+    };
 
     const handleDelete = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -35,18 +59,15 @@ const CustomTablesView: React.FC = () => {
         setStatus(null);
         
         try {
-            // Fetch updated data from URL
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(table.sourceUrl);
             if (sheetNames.length === 0) throw new Error("الملف فارغ");
             
-            // Assume first sheet for simplicity
+            // Try to find the original sheet name, otherwise default to first
+            // Note: We don't store sheet name currently in CustomTable type, defaulting to first or keeping structure
+            // For robust refresh, we assume the structure matches the first sheet or the one used previously.
+            // Improvement: Store 'sheetName' in CustomTable type in future.
             const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
             
-            // Update rows based on saved columns
-            // Warning: If source columns changed, this might miss data. 
-            // Ideally we stick to original columns or update columns too.
-            // Here we update columns to match new data if needed or stick to old.
-            // Let's stick to simple refresh: existing columns + new rows
             const updatedRows = data.map(row => {
                 const newRow: any = {};
                 table.columns.forEach(col => newRow[col] = row[col]);
@@ -60,7 +81,6 @@ const CustomTablesView: React.FC = () => {
             };
 
             updateCustomTable(updatedTable);
-            
             setTables(getCustomTables());
             if (viewingTable?.id === table.id) setViewingTable(updatedTable);
             
@@ -72,39 +92,31 @@ const CustomTablesView: React.FC = () => {
         }
     };
 
-    const handleQuickImport = async (e: React.FormEvent) => {
+    // Step 1: Connect to Source (URL or File) and get Structure
+    const handleConnect = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!importConfig.name || !importConfig.url) return;
-
+        if (!tableName) return;
+        
         setImportLoading(true);
         setStatus(null);
 
         try {
-            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(importConfig.url);
+            let structure;
             
-            if (sheetNames.length === 0) throw new Error("لم يتم العثور على أوراق عمل في الملف");
-            
-            // Automatically select the first sheet
-            const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            if (importMethod === 'URL') {
+                if (!importUrl) throw new Error("يرجى إدخال الرابط");
+                structure = await fetchWorkbookStructureUrl(importUrl);
+            } else {
+                if (!importFile) throw new Error("يرجى اختيار ملف");
+                structure = await getWorkbookStructure(importFile);
+            }
 
-            if (headers.length === 0) throw new Error("ورقة العمل فارغة أو لا تحتوي على عناوين");
+            if (structure.sheetNames.length === 0) throw new Error("لا توجد أوراق عمل في الملف");
 
-            const newTable: CustomTable = {
-                id: Date.now().toString(),
-                name: importConfig.name,
-                createdAt: new Date().toISOString().split('T')[0],
-                columns: headers,
-                rows: data,
-                sourceUrl: importConfig.url,
-                lastUpdated: new Date().toISOString()
-            };
-
-            addCustomTable(newTable);
-            setTables(getCustomTables());
-            
-            setStatus({ type: 'success', message: 'تم استيراد الجدول بنجاح!' });
-            setIsImportModalOpen(false);
-            setImportConfig({ name: '', url: '' });
+            setFetchedWorkbook(structure.workbook);
+            setAvailableSheets(structure.sheetNames);
+            setSelectedSheet(structure.sheetNames[0]); // Default to first
+            setImportStep(2); // Move to next step
 
         } catch (error: any) {
             setStatus({ type: 'error', message: error.message });
@@ -112,6 +124,58 @@ const CustomTablesView: React.FC = () => {
             setImportLoading(false);
         }
     };
+
+    // Step 2: Final Save with selected sheet
+    const handleFinalSave = () => {
+        if (!fetchedWorkbook || !selectedSheet) return;
+        
+        setImportLoading(true);
+        try {
+            const { headers, data } = getSheetHeadersAndData(fetchedWorkbook, selectedSheet);
+
+            if (headers.length === 0) throw new Error("ورقة العمل المختارة فارغة");
+
+            const newTable: CustomTable = {
+                id: Date.now().toString(),
+                name: tableName,
+                createdAt: new Date().toISOString().split('T')[0],
+                columns: headers,
+                rows: data,
+                sourceUrl: importMethod === 'URL' ? importUrl : undefined,
+                lastUpdated: new Date().toISOString()
+            };
+
+            addCustomTable(newTable);
+            setTables(getCustomTables());
+            setStatus({ type: 'success', message: 'تم حفظ الجدول بنجاح!' });
+            setIsImportModalOpen(false);
+            resetImportState();
+
+        } catch (error: any) {
+            setStatus({ type: 'error', message: error.message });
+        } finally {
+            setImportLoading(false);
+        }
+    };
+
+    const handlePasteUrl = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text) setImportUrl(text);
+        } catch (err) {
+            console.error('Failed to read clipboard', err);
+        }
+    };
+  
+    const getUrlType = (link: string) => {
+      if (!link) return null;
+      if (link.includes('docs.google.com') || link.includes('drive.google.com')) return 'GOOGLE';
+      if (link.includes('onedrive.live.com') || link.includes('1drv.ms') || link.includes('sharepoint.com')) return 'ONEDRIVE';
+      if (link.includes('dropbox.com')) return 'DROPBOX';
+      return 'UNKNOWN';
+    };
+  
+    const urlType = getUrlType(importUrl);
 
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in relative">
@@ -125,11 +189,11 @@ const CustomTablesView: React.FC = () => {
                 </div>
                 {!viewingTable && (
                     <button 
-                        onClick={() => setIsImportModalOpen(true)}
+                        onClick={() => { resetImportState(); setIsImportModalOpen(true); }}
                         className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold text-sm"
                     >
-                        <CloudDownload size={18} />
-                        استيراد سريع (OneDrive)
+                        <Plus size={18} />
+                        إضافة جدول جديد
                     </button>
                 )}
             </div>
@@ -243,60 +307,175 @@ const CustomTablesView: React.FC = () => {
                         <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
                             <Database size={48} className="mx-auto mb-4 opacity-20"/>
                             <p className="text-lg font-medium">لا توجد جداول خاصة محفوظة</p>
-                            <p className="text-sm mt-2">اضغط على "استيراد سريع" لإضافة جدول من رابط OneDrive أو Google Sheets</p>
+                            <p className="text-sm mt-2">اضغط على "إضافة جدول جديد" للبدء</p>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Quick Import Modal */}
+            {/* Smart Import Wizard Modal */}
             {isImportModalOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-bounce-in">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-bounce-in flex flex-col max-h-[90vh]">
                         <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                                <CloudDownload className="text-purple-600"/> استيراد سريع (سحابي)
+                                <CloudDownload className="text-purple-600"/> معالج استيراد الجداول
                             </h3>
                             <button onClick={() => setIsImportModalOpen(false)} className="text-gray-400 hover:text-red-500">
                                 <X size={20}/>
                             </button>
                         </div>
-                        <form onSubmit={handleQuickImport} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">اسم الجدول</label>
-                                <input 
-                                    autoFocus
-                                    required
-                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="مثال: درجات الشهر الأول"
-                                    value={importConfig.name}
-                                    onChange={e => setImportConfig({...importConfig, name: e.target.value})}
-                                />
+                        
+                        <div className="p-6 flex-1 overflow-y-auto">
+                            {/* Step Indicator */}
+                            <div className="flex items-center mb-6 text-sm">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${importStep === 1 ? 'bg-purple-600 text-white' : 'bg-green-100 text-green-600'}`}>
+                                    {importStep === 1 ? '1' : <CheckCircle size={16}/>}
+                                </div>
+                                <div className={`flex-1 h-1 mx-2 ${importStep === 2 ? 'bg-purple-600' : 'bg-gray-200'}`}></div>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${importStep === 2 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                    2
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">رابط الملف (OneDrive / Google Sheet)</label>
-                                <input 
-                                    type="url"
-                                    required
-                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none dir-ltr text-left font-mono text-sm"
-                                    placeholder="https://..."
-                                    value={importConfig.url}
-                                    onChange={e => setImportConfig({...importConfig, url: e.target.value})}
-                                />
-                                <p className="text-xs text-gray-400 mt-1">يدعم روابط المشاركة من ون درايف و جوجل شيت.</p>
-                            </div>
-                            
-                            <div className="pt-2">
-                                <button 
-                                    type="submit" 
-                                    disabled={importLoading}
-                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {importLoading ? <Loader2 className="animate-spin"/> : <CloudDownload size={18}/>}
-                                    {importLoading ? 'جاري جلب البيانات...' : 'استيراد وحفظ'}
-                                </button>
-                            </div>
-                        </form>
+
+                            {/* STEP 1: Connect / Upload */}
+                            {importStep === 1 && (
+                                <form onSubmit={handleConnect} className="space-y-4">
+                                    <div className="text-center mb-4">
+                                        <h4 className="font-bold text-gray-800">مصدر البيانات</h4>
+                                        <p className="text-xs text-gray-500">اختر طريقة جلب الملف</p>
+                                    </div>
+                                    
+                                    <div className="flex gap-2 mb-4 bg-gray-100 p-1 rounded-lg">
+                                        <button type="button" onClick={() => setImportMethod('URL')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${importMethod === 'URL' ? 'bg-white shadow text-purple-700' : 'text-gray-500'}`}>
+                                            رابط سحابي
+                                        </button>
+                                        <button type="button" onClick={() => setImportMethod('FILE')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${importMethod === 'FILE' ? 'bg-white shadow text-purple-700' : 'text-gray-500'}`}>
+                                            رفع ملف
+                                        </button>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">اسم الجدول *</label>
+                                        <input 
+                                            autoFocus
+                                            required
+                                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                            placeholder="مثال: درجات الشهر الأول"
+                                            value={tableName}
+                                            onChange={e => setTableName(e.target.value)}
+                                        />
+                                    </div>
+
+                                    {importMethod === 'URL' ? (
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-1">رابط الملف (OneDrive / Google Sheet) *</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="url"
+                                                    required
+                                                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none dir-ltr text-left font-mono text-sm pl-10"
+                                                    placeholder="https://..."
+                                                    value={importUrl}
+                                                    onChange={e => setImportUrl(e.target.value)}
+                                                />
+                                                 <button 
+                                                    type="button"
+                                                    onClick={handlePasteUrl}
+                                                    className="absolute left-2 top-2.5 text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100"
+                                                    title="لصق الرابط"
+                                                >
+                                                    <Clipboard size={16}/>
+                                                </button>
+                                            </div>
+                                            
+                                            {urlType === 'GOOGLE' && <span className="text-green-600 text-xs font-bold flex items-center gap-1 mt-1"><CheckCircle size={12}/> رابط Google Sheets صالح</span>}
+                                            {urlType === 'ONEDRIVE' && <span className="text-blue-600 text-xs font-bold flex items-center gap-1 mt-1"><CheckCircle size={12}/> رابط OneDrive/SharePoint صالح</span>}
+
+                                            <p className="text-xs text-gray-400 mt-1">يدعم روابط المشاركة العامة.</p>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-1">اختر الملف (Excel) *</label>
+                                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 relative">
+                                                <input 
+                                                    type="file" 
+                                                    required 
+                                                    accept=".xlsx, .xls, .csv"
+                                                    onChange={e => e.target.files && setImportFile(e.target.files[0])}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                />
+                                                <div className="flex flex-col items-center">
+                                                    <Upload className="text-gray-400 mb-2"/>
+                                                    <span className="text-sm text-gray-600 font-bold">{importFile ? importFile.name : 'اضغط لاختيار ملف'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button 
+                                        type="submit" 
+                                        disabled={importLoading}
+                                        className="w-full bg-gray-900 hover:bg-black text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
+                                    >
+                                        {importLoading ? <Loader2 className="animate-spin"/> : <ArrowRight size={18}/>}
+                                        {importLoading ? 'جاري الاتصال...' : 'التالي: اختيار الورقة'}
+                                    </button>
+                                </form>
+                            )}
+
+                            {/* STEP 2: Select Sheet */}
+                            {importStep === 2 && (
+                                <div className="space-y-6">
+                                    <div className="text-center">
+                                        <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                                            <FileSpreadsheet size={24}/>
+                                        </div>
+                                        <h4 className="font-bold text-gray-800">تم الاتصال بالملف بنجاح</h4>
+                                        <p className="text-xs text-gray-500">يحتوي الملف على {availableSheets.length} أوراق عمل</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">اختر ورقة العمل لاستيرادها:</label>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2 bg-gray-50">
+                                            {availableSheets.map(sheet => (
+                                                <label 
+                                                    key={sheet} 
+                                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${selectedSheet === sheet ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-100'}`}
+                                                >
+                                                    <input 
+                                                        type="radio" 
+                                                        name="sheetSelector" 
+                                                        value={sheet} 
+                                                        checked={selectedSheet === sheet} 
+                                                        onChange={() => setSelectedSheet(sheet)}
+                                                        className="text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                    <span className={`text-sm ${selectedSheet === sheet ? 'font-bold text-purple-800' : 'text-gray-700'}`}>{sheet}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-2">
+                                        <button 
+                                            onClick={() => setImportStep(1)}
+                                            className="flex-1 py-2 border border-gray-300 text-gray-600 rounded-lg font-bold hover:bg-gray-50"
+                                        >
+                                            عودة
+                                        </button>
+                                        <button 
+                                            onClick={handleFinalSave}
+                                            disabled={importLoading}
+                                            className="flex-2 w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            {importLoading ? <Loader2 className="animate-spin"/> : <CheckCircle size={18}/>}
+                                            {importLoading ? 'جاري الحفظ...' : 'استيراد البيانات'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

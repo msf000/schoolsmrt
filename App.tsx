@@ -9,8 +9,9 @@ import AIReports from './components/AIReports';
 import DataImport from './components/DataImport';
 import SchoolManagement from './components/SchoolManagement';
 import AdminDashboard from './components/AdminDashboard';
-import CustomTablesView from './components/CustomTablesView'; // Import New Component
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Sparkles, Menu, X, Database, Building2, ShieldCheck, Table } from 'lucide-react';
+import CustomTablesView from './components/CustomTablesView';
+import WorksTracking from './components/WorksTracking'; // Import new component
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Sparkles, Menu, X, Database, Building2, ShieldCheck, Table, PenTool } from 'lucide-react';
 
 const App: React.FC = () => {
   // Initialize data
@@ -84,9 +85,10 @@ const App: React.FC = () => {
     { id: 'ADMIN_DASHBOARD', label: 'لوحة المدير العام', icon: ShieldCheck },
     { id: 'STUDENTS', label: 'الطلاب', icon: Users },
     { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck },
-    { id: 'PERFORMANCE', label: 'الدرجات والأداء', icon: TrendingUp },
+    { id: 'WORKS_TRACKING', label: 'متابعة الأعمال', icon: PenTool }, // New Item
+    { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp },
     { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles },
-    { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table }, // New Item
+    { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table }, 
     { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database },
   ];
 
@@ -118,7 +120,7 @@ const App: React.FC = () => {
           ))}
         </nav>
         <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
-             الإصدار 1.5.0
+             الإصدار 1.6.0
         </div>
       </aside>
 
@@ -201,6 +203,15 @@ const App: React.FC = () => {
                     students={students} 
                     attendanceHistory={attendance} 
                     onSaveAttendance={handleSaveAttendance} 
+                    onImportAttendance={handleBulkAddAttendance}
+                />
+            )}
+            {/* New Route */}
+            {currentView === 'WORKS_TRACKING' && (
+                <WorksTracking 
+                    students={students}
+                    performance={performance}
+                    onAddPerformance={handleBulkAddPerformance}
                 />
             )}
             {currentView === 'PERFORMANCE' && (
@@ -208,6 +219,7 @@ const App: React.FC = () => {
                     students={students} 
                     performance={performance} 
                     onAddPerformance={handleAddPerformance} 
+                    onImportPerformance={handleBulkAddPerformance}
                 />
             )}
              {currentView === 'AI_REPORTS' && (
