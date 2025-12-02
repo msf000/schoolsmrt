@@ -4,7 +4,7 @@ import {
   PieChart, Pie, Cell, ScatterChart, Scatter 
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus } from '../types';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity } from 'lucide-react';
 
 interface DashboardProps {
   students: Student[];
@@ -73,6 +73,32 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   const atRiskStudents = studentMetrics.filter(s => s.attendance < 75 || (s.score < 50 && s.score > 0));
 
+  const recentActivity = useMemo(() => {
+      // Combine and sort latest 5 actions (Attendance or Performance)
+      const perfs = performance.map(p => ({
+          type: 'PERFORMANCE',
+          date: p.date,
+          studentName: students.find(s => s.id === p.studentId)?.name || 'طالب غير معروف',
+          detail: `حصل على ${p.score}/${p.maxScore} في ${p.subject}`,
+          timestamp: new Date(p.date).getTime()
+      }));
+
+      // Group attendance by day/student is too much, let's just pick latest ABSENT/LATE as interesting events
+      const atts = attendance
+        .filter(a => a.status !== AttendanceStatus.PRESENT)
+        .map(a => ({
+          type: 'ATTENDANCE',
+          date: a.date,
+          studentName: students.find(s => s.id === a.studentId)?.name || 'طالب غير معروف',
+          detail: `تم تسجيله ${a.status}`,
+          timestamp: new Date(a.date).getTime()
+      }));
+
+      return [...perfs, ...atts]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 5);
+  }, [attendance, performance, students]);
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -135,13 +161,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* At Risk Table */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
             <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
                 <AlertTriangle size={18} className="text-red-500"/>
-                طلاب يحتاجون للمتابعة (أداء منخفض أو غياب متكرر)
+                طلاب يحتاجون للمتابعة
             </h3>
             {atRiskStudents.length > 0 ? (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto flex-1">
                     <table className="w-full text-right text-sm">
                         <thead className="bg-red-50 text-red-800">
                             <tr>
@@ -152,7 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {atRiskStudents.map(s => (
+                            {atRiskStudents.slice(0, 5).map(s => (
                                 <tr key={s.id}>
                                     <td className="p-3 font-bold">{s.name}</td>
                                     <td className="p-3">
@@ -176,7 +202,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                     </table>
                 </div>
             ) : (
-                <p className="text-green-600 bg-green-50 p-4 rounded-lg text-center">ممتاز! لا يوجد طلاب في دائرة الخطر حالياً.</p>
+                <div className="flex-1 flex items-center justify-center">
+                    <p className="text-green-600 bg-green-50 p-4 rounded-lg text-center w-full">ممتاز! لا يوجد طلاب في دائرة الخطر حالياً.</p>
+                </div>
             )}
         </div>
 
@@ -210,30 +238,53 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         </div>
       </div>
 
-      {/* Charts Row 2: Correlation Analysis */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-         <h3 className="text-lg font-semibold mb-2 text-gray-700 flex items-center gap-2">
-            <TrendingUp size={18} className="text-blue-600"/>
-            تحليل العلاقة بين الحضور والأداء
-         </h3>
-         <p className="text-sm text-gray-500 mb-6">يوضح هذا الرسم العلاقة بين نسبة حضور الطالب (المحور الأفقي) ومعدل درجاته (المحور الرأسي).</p>
-         
-         <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" dataKey="attendance" name="نسبة الحضور" unit="%" domain={[0, 100]} />
-                    <YAxis type="number" dataKey="score" name="معدل الدرجات" unit="%" domain={[0, 100]} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Scatter name="الطلاب" data={studentMetrics.filter(d => d.attendance > 0 || d.score > 0)} fill="#8884d8">
-                        {studentMetrics.map((entry, index) => (
-                             <Cell key={`cell-${index}`} fill={entry.score >= 80 ? '#0f766e' : entry.score >= 50 ? '#f59e0b' : '#ef4444'} />
-                        ))}
-                    </Scatter>
-                </ScatterChart>
-            </ResponsiveContainer>
-         </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Correlation Chart */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96">
+            <h3 className="text-lg font-semibold mb-2 text-gray-700 flex items-center gap-2">
+                <TrendingUp size={18} className="text-blue-600"/>
+                تحليل العلاقة (الحضور vs الأداء)
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">كل نقطة تمثل طالباً. النقاط في الأعلى يميناً تمثل الطلاب المتميزين والملتزمين.</p>
+            
+            <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" dataKey="attendance" name="نسبة الحضور" unit="%" domain={[0, 100]} />
+                        <YAxis type="number" dataKey="score" name="معدل الدرجات" unit="%" domain={[0, 100]} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Scatter name="الطلاب" data={studentMetrics.filter(d => d.attendance > 0 || d.score > 0)} fill="#8884d8">
+                            {studentMetrics.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.score >= 80 ? '#0f766e' : entry.score >= 50 ? '#f59e0b' : '#ef4444'} />
+                            ))}
+                        </Scatter>
+                    </ScatterChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 overflow-hidden flex flex-col">
+            <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                <Activity size={18} className="text-purple-600"/>
+                أحدث النشاطات
+            </h3>
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                {recentActivity.length > 0 ? recentActivity.map((activity, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                        <div className={`mt-1 w-2 h-2 rounded-full ${activity.type === 'PERFORMANCE' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <div>
+                            <p className="text-sm font-bold text-gray-800">{activity.studentName}</p>
+                            <p className="text-xs text-gray-600">{activity.detail}</p>
+                            <p className="text-[10px] text-gray-400 mt-1">{activity.date}</p>
+                        </div>
+                    </div>
+                )) : (
+                    <div className="text-center text-gray-400 py-10">لا توجد نشاطات حديثة</div>
+                )}
+            </div>
+        </div>
       </div>
     </div>
   );
