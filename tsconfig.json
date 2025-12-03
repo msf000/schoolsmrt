@@ -14,12 +14,6 @@
     "noEmit": true,
     "jsx": "react-jsx",
     
-    /* Path Aliases for Compatibility */
-    "baseUrl": ".",
-    "paths": {
-      "@google/genai": ["./node_modules/google-genai"]
-    },
-
     /* Linting */
     "strict": true,
     "noUnusedLocals": false,

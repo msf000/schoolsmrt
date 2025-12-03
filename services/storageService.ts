@@ -1,29 +1,57 @@
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem, ReportHeaderConfig } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 
-// --- IN-MEMORY DATA STORE (No LocalStorage) ---
-let _students: Student[] = [];
-let _attendance: AttendanceRecord[] = [];
-let _performance: PerformanceRecord[] = [];
-let _teachers: Teacher[] = [];
-let _parents: Parent[] = [];
-let _stages: EducationalStage[] = [];
-let _grades: GradeLevel[] = [];
-let _classes: ClassRoom[] = [];
-let _subjects: Subject[] = [];
-let _schools: School[] = [];
-let _users: SystemUser[] = [];
-let _schedules: ScheduleItem[] = []; // New: Schedules
-let _customTables: CustomTable[] = [];
-let _worksConfig: Record<string, WorksColumnConfig[]> = {};
-let _worksMasterUrl: string = '';
+// --- STORAGE KEYS ---
+const STORAGE_KEYS = {
+    STUDENTS: 'sys_students',
+    ATTENDANCE: 'sys_attendance',
+    PERFORMANCE: 'sys_performance',
+    TEACHERS: 'sys_teachers',
+    PARENTS: 'sys_parents',
+    STAGES: 'sys_stages',
+    GRADES: 'sys_grades',
+    CLASSES: 'sys_classes',
+    SUBJECTS: 'sys_subjects',
+    SCHOOLS: 'sys_schools',
+    USERS: 'sys_users',
+    SCHEDULES: 'sys_schedules',
+    CUSTOM_TABLES: 'sys_custom_tables'
+};
 
-// --- CONFIGURATION KEYS (Keep only config in local storage) ---
 const CONFIG_KEYS = {
-  WORKS_CONFIG: 'app_works_config', // UI Config preferences can stay local or move to DB if preferred
+  WORKS_CONFIG: 'app_works_config',
   WORKS_MASTER_URL: 'app_works_master_url',
   REPORT_HEADER: 'app_report_header'
 };
+
+// --- HELPER: LOCAL STORAGE ---
+const loadLocal = <T>(key: string, defaultVal: T): T => {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : defaultVal;
+    } catch { return defaultVal; }
+};
+
+const saveLocal = (key: string, data: any) => {
+    try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+};
+
+// --- IN-MEMORY DATA STORE (Initialized from LocalStorage) ---
+let _students: Student[] = loadLocal(STORAGE_KEYS.STUDENTS, []);
+let _attendance: AttendanceRecord[] = loadLocal(STORAGE_KEYS.ATTENDANCE, []);
+let _performance: PerformanceRecord[] = loadLocal(STORAGE_KEYS.PERFORMANCE, []);
+let _teachers: Teacher[] = loadLocal(STORAGE_KEYS.TEACHERS, []);
+let _parents: Parent[] = loadLocal(STORAGE_KEYS.PARENTS, []);
+let _stages: EducationalStage[] = loadLocal(STORAGE_KEYS.STAGES, []);
+let _grades: GradeLevel[] = loadLocal(STORAGE_KEYS.GRADES, []);
+let _classes: ClassRoom[] = loadLocal(STORAGE_KEYS.CLASSES, []);
+let _subjects: Subject[] = loadLocal(STORAGE_KEYS.SUBJECTS, []);
+let _schools: School[] = loadLocal(STORAGE_KEYS.SCHOOLS, []);
+let _users: SystemUser[] = loadLocal(STORAGE_KEYS.USERS, []);
+let _schedules: ScheduleItem[] = loadLocal(STORAGE_KEYS.SCHEDULES, []);
+let _customTables: CustomTable[] = loadLocal(STORAGE_KEYS.CUSTOM_TABLES, []);
+let _worksConfig: Record<string, WorksColumnConfig[]> = {};
+let _worksMasterUrl: string = '';
 
 // --- DB MAPPING ---
 export const DB_MAP = {
@@ -62,9 +90,17 @@ const toCamelCase = (item: any) => {
     return newItem;
 };
 
-// --- INITIALIZATION (FETCH FROM CLOUD) ---
+// --- INITIALIZATION (FETCH FROM CLOUD + SYNC LOCAL) ---
 export const initAutoSync = async (): Promise<boolean> => {
     const supabase = getSupabaseClient();
+    
+    // Load config from local
+    const savedConfig = localStorage.getItem(CONFIG_KEYS.WORKS_CONFIG);
+    if (savedConfig) _worksConfig = JSON.parse(savedConfig);
+    
+    // Try to get master URL from School first (if loaded), else Local
+    _worksMasterUrl = localStorage.getItem(CONFIG_KEYS.WORKS_MASTER_URL) || '';
+
     if (!supabase) return false;
 
     try {
@@ -89,39 +125,35 @@ export const initAutoSync = async (): Promise<boolean> => {
         // Helper to extract data
         const load = (index: number) => results[index].data ? results[index].data!.map(toCamelCase) : [];
 
-        _schools = load(0);
-        _stages = load(1);
-        _grades = load(2);
-        _classes = load(3);
-        _subjects = load(4);
-        _teachers = load(5);
-        _parents = load(6);
-        _students = load(7);
-        _users = load(8);
-        _attendance = load(9);
-        _performance = load(10);
-        _schedules = load(11);
+        // Load to Memory AND Save to LocalStorage
+        _schools = load(0); saveLocal(STORAGE_KEYS.SCHOOLS, _schools);
+        _stages = load(1); saveLocal(STORAGE_KEYS.STAGES, _stages);
+        _grades = load(2); saveLocal(STORAGE_KEYS.GRADES, _grades);
+        _classes = load(3); saveLocal(STORAGE_KEYS.CLASSES, _classes);
+        _subjects = load(4); saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
+        _teachers = load(5); saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+        _parents = load(6); saveLocal(STORAGE_KEYS.PARENTS, _parents);
+        _students = load(7); saveLocal(STORAGE_KEYS.STUDENTS, _students);
+        _users = load(8); saveLocal(STORAGE_KEYS.USERS, _users);
+        _attendance = load(9); saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
+        _performance = load(10); saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
+        _schedules = load(11); saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
 
-        // Load local configs
-        const savedConfig = localStorage.getItem(CONFIG_KEYS.WORKS_CONFIG);
-        if (savedConfig) _worksConfig = JSON.parse(savedConfig);
-        
-        // Try to get master URL from School first, else Local
+        // Update works master url from schools if available
         if (_schools.length > 0 && _schools[0].worksMasterUrl) {
             _worksMasterUrl = _schools[0].worksMasterUrl || '';
-        } else {
-            _worksMasterUrl = localStorage.getItem(CONFIG_KEYS.WORKS_MASTER_URL) || '';
+            localStorage.setItem(CONFIG_KEYS.WORKS_MASTER_URL, _worksMasterUrl);
         }
 
-        console.log("✅ Data loaded successfully.");
+        console.log("✅ Data loaded and synced locally.");
         return true;
     } catch (error) {
-        console.error("❌ Failed to load data from cloud:", error);
+        console.error("❌ Failed to load data from cloud (using local):", error);
         return false;
     }
 };
 
-// --- CRUD OPERATIONS (Direct to Memory + Async Cloud Write) ---
+// --- CRUD OPERATIONS (Update Memory -> Local -> Cloud) ---
 
 const pushToCloud = async (tableName: string, data: any, type: 'UPSERT' | 'DELETE') => {
     const supabase = getSupabaseClient();
@@ -138,7 +170,6 @@ const pushToCloud = async (tableName: string, data: any, type: 'UPSERT' | 'DELET
         }
     } catch (err: any) {
         console.error(`Error syncing to ${tableName}:`, err.message || JSON.stringify(err));
-        // Note: In a production app, we would add a toast notification here
     }
 };
 
@@ -148,21 +179,25 @@ export const addStudent = (student: Student) => {
     if (!student.nationalId) throw new Error("رقم الهوية إلزامي.");
     if (_students.some(s => s.nationalId === student.nationalId)) throw new Error("رقم الهوية مسجل مسبقاً.");
     _students.push(student);
+    saveLocal(STORAGE_KEYS.STUDENTS, _students);
     pushToCloud('students', student, 'UPSERT');
 };
 export const updateStudent = (updatedStudent: Student) => {
     const index = _students.findIndex(s => s.id === updatedStudent.id);
     if (index !== -1) {
         _students[index] = updatedStudent;
+        saveLocal(STORAGE_KEYS.STUDENTS, _students);
         pushToCloud('students', updatedStudent, 'UPSERT');
     }
 };
 export const deleteStudent = (id: string) => {
     _students = _students.filter(s => s.id !== id);
+    saveLocal(STORAGE_KEYS.STUDENTS, _students);
     pushToCloud('students', id, 'DELETE');
 };
 export const bulkAddStudents = (newStudents: Student[]) => {
     _students.push(...newStudents);
+    saveLocal(STORAGE_KEYS.STUDENTS, _students);
     pushToCloud('students', newStudents, 'UPSERT');
 };
 export const bulkUpsertStudents = (
@@ -210,26 +245,24 @@ export const bulkUpsertStudents = (
     });
 
     if (toUpsert.length > 0) {
+        saveLocal(STORAGE_KEYS.STUDENTS, _students);
         pushToCloud('students', toUpsert, 'UPSERT');
     }
     return { added: toUpsert.length, updated: 0, skipped: 0 }; 
 };
 export const deleteAllStudents = () => {
     _students = [];
-    // Warning: This doesn't delete from Cloud automatically for safety. 
-    // To clear cloud, manual SQL is safer.
+    saveLocal(STORAGE_KEYS.STUDENTS, []);
+    // Note: Manual Cloud Clear needed for safety
 };
 
 // --- Attendance ---
 export const getAttendance = (): AttendanceRecord[] => [..._attendance];
 export const saveAttendance = (records: AttendanceRecord[]) => {
-    // Merge logic based on ID (which contains date+subject+period if used)
     const newRecordsMap = new Map(records.map(r => [r.id, r]));
-    
-    // Remove existing records that match the ID of incoming ones (Update)
     _attendance = _attendance.filter(r => !newRecordsMap.has(r.id));
-    
     _attendance.push(...records);
+    saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
     pushToCloud('attendance_records', records, 'UPSERT');
 };
 export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance(records);
@@ -238,19 +271,14 @@ export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance
 export const getPerformance = (): PerformanceRecord[] => [..._performance];
 export const addPerformance = (record: PerformanceRecord) => {
     _performance.push(record);
+    saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
     pushToCloud('performance_records', record, 'UPSERT');
 };
 export const bulkAddPerformance = (records: PerformanceRecord[]) => {
-    // UPDATED: UPSERT LOGIC
-    // Create a set of IDs being added/updated
     const incomingIds = new Set(records.map(r => r.id));
-    
-    // Filter out existing records that have the SAME id, effectively replacing them
     _performance = _performance.filter(p => !incomingIds.has(p.id));
-    
-    // Add the new/updated records
     _performance.push(...records);
-    
+    saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
     pushToCloud('performance_records', records, 'UPSERT');
 };
 
@@ -258,10 +286,12 @@ export const bulkAddPerformance = (records: PerformanceRecord[]) => {
 export const getTeachers = (): Teacher[] => [..._teachers];
 export const addTeacher = (item: Teacher) => {
     _teachers.push(item);
+    saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
     pushToCloud('teachers', item, 'UPSERT');
 };
 export const deleteTeacher = (id: string) => {
     _teachers = _teachers.filter(t => t.id !== id);
+    saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
     pushToCloud('teachers', id, 'DELETE');
 };
 
@@ -269,62 +299,64 @@ export const deleteTeacher = (id: string) => {
 export const getParents = (): Parent[] => [..._parents];
 export const addParent = (item: Parent) => {
     _parents.push(item);
+    saveLocal(STORAGE_KEYS.PARENTS, _parents);
     pushToCloud('parents', item, 'UPSERT');
 };
 export const deleteParent = (id: string) => {
     _parents = _parents.filter(p => p.id !== id);
+    saveLocal(STORAGE_KEYS.PARENTS, _parents);
     pushToCloud('parents', id, 'DELETE');
 };
 
-// --- Hierarchy (Stages, Grades, Classes, Subjects) ---
+// --- Hierarchy ---
 export const getStages = () => [..._stages];
-export const addStage = (item: EducationalStage) => { _stages.push(item); pushToCloud('educational_stages', item, 'UPSERT'); };
-export const deleteStage = (id: string) => { _stages = _stages.filter(i => i.id !== id); pushToCloud('educational_stages', id, 'DELETE'); };
+export const addStage = (item: EducationalStage) => { _stages.push(item); saveLocal(STORAGE_KEYS.STAGES, _stages); pushToCloud('educational_stages', item, 'UPSERT'); };
+export const deleteStage = (id: string) => { _stages = _stages.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.STAGES, _stages); pushToCloud('educational_stages', id, 'DELETE'); };
 
 export const getGrades = () => [..._grades];
-export const addGrade = (item: GradeLevel) => { _grades.push(item); pushToCloud('grade_levels', item, 'UPSERT'); };
-export const deleteGrade = (id: string) => { _grades = _grades.filter(i => i.id !== id); pushToCloud('grade_levels', id, 'DELETE'); };
+export const addGrade = (item: GradeLevel) => { _grades.push(item); saveLocal(STORAGE_KEYS.GRADES, _grades); pushToCloud('grade_levels', item, 'UPSERT'); };
+export const deleteGrade = (id: string) => { _grades = _grades.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.GRADES, _grades); pushToCloud('grade_levels', id, 'DELETE'); };
 
 export const getClasses = () => [..._classes];
-export const addClass = (item: ClassRoom) => { _classes.push(item); pushToCloud('classes', item, 'UPSERT'); };
-export const deleteClass = (id: string) => { _classes = _classes.filter(i => i.id !== id); pushToCloud('classes', id, 'DELETE'); };
+export const addClass = (item: ClassRoom) => { _classes.push(item); saveLocal(STORAGE_KEYS.CLASSES, _classes); pushToCloud('classes', item, 'UPSERT'); };
+export const deleteClass = (id: string) => { _classes = _classes.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.CLASSES, _classes); pushToCloud('classes', id, 'DELETE'); };
 
 export const getSubjects = () => [..._subjects];
-export const addSubject = (item: Subject) => { _subjects.push(item); pushToCloud('subjects', item, 'UPSERT'); };
-export const deleteSubject = (id: string) => { _subjects = _subjects.filter(i => i.id !== id); pushToCloud('subjects', id, 'DELETE'); };
+export const addSubject = (item: Subject) => { _subjects.push(item); saveLocal(STORAGE_KEYS.SUBJECTS, _subjects); pushToCloud('subjects', item, 'UPSERT'); };
+export const deleteSubject = (id: string) => { _subjects = _subjects.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.SUBJECTS, _subjects); pushToCloud('subjects', id, 'DELETE'); };
 
 // --- Schedules ---
 export const getSchedules = () => [..._schedules];
 export const saveScheduleItem = (item: ScheduleItem) => {
-    // Remove existing for same class/day/period if exists
     const existingIndex = _schedules.findIndex(s => s.classId === item.classId && s.day === item.day && s.period === item.period);
     if (existingIndex !== -1) {
         _schedules[existingIndex] = item;
     } else {
         _schedules.push(item);
     }
+    saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
     pushToCloud('weekly_schedules', item, 'UPSERT');
 };
 export const deleteScheduleItem = (id: string) => {
     _schedules = _schedules.filter(s => s.id !== id);
+    saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
     pushToCloud('weekly_schedules', id, 'DELETE');
 }
 
 // --- School & Users ---
 export const getSchools = () => [..._schools];
 export const addSchool = (item: School) => { 
-    // Handle update in memory
     const existingIdx = _schools.findIndex(s => s.id === item.id);
     if (existingIdx >= 0) _schools[existingIdx] = item;
     else _schools.push(item);
-    
+    saveLocal(STORAGE_KEYS.SCHOOLS, _schools);
     pushToCloud('schools', item, 'UPSERT'); 
 };
-export const deleteSchool = (id: string) => { _schools = _schools.filter(i => i.id !== id); pushToCloud('schools', id, 'DELETE'); };
+export const deleteSchool = (id: string) => { _schools = _schools.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.SCHOOLS, _schools); pushToCloud('schools', id, 'DELETE'); };
 
 export const getSystemUsers = () => [..._users];
-export const addSystemUser = (item: SystemUser) => { _users.push(item); pushToCloud('system_users', item, 'UPSERT'); };
-export const deleteSystemUser = (id: string) => { _users = _users.filter(i => i.id !== id); pushToCloud('system_users', id, 'DELETE'); };
+export const addSystemUser = (item: SystemUser) => { _users.push(item); saveLocal(STORAGE_KEYS.USERS, _users); pushToCloud('system_users', item, 'UPSERT'); };
+export const deleteSystemUser = (id: string) => { _users = _users.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.USERS, _users); pushToCloud('system_users', id, 'DELETE'); };
 
 // --- Works Config ---
 export const getWorksConfig = (category: PerformanceCategory) => _worksConfig[category] || [];
@@ -337,7 +369,6 @@ export const getWorksMasterUrl = () => _worksMasterUrl;
 export const saveWorksMasterUrl = (url: string) => {
     _worksMasterUrl = url;
     localStorage.setItem(CONFIG_KEYS.WORKS_MASTER_URL, url);
-    // Also try to update school record if exists
     if (_schools.length > 0) {
         const school = { ..._schools[0], worksMasterUrl: url };
         addSchool(school);
@@ -361,7 +392,6 @@ export const getReportHeaderConfig = (): ReportHeaderConfig => {
 
 export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
     localStorage.setItem(CONFIG_KEYS.REPORT_HEADER, JSON.stringify(config));
-    // Also try to update first school record if possible
     if (_schools.length > 0) {
         const updatedSchool = { 
             ..._schools[0], 
@@ -373,23 +403,36 @@ export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
     }
 };
 
-// --- Custom Tables (Keep Local for now or remove if strictly no local) ---
-// For now, keeping them in-memory only for session
+// --- Custom Tables ---
 export const getCustomTables = () => [..._customTables];
-export const addCustomTable = (t: CustomTable) => _customTables.push(t);
+export const addCustomTable = (t: CustomTable) => { _customTables.push(t); saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables); };
 export const updateCustomTable = (t: CustomTable) => {
     const idx = _customTables.findIndex(tbl => tbl.id === t.id);
-    if(idx !== -1) _customTables[idx] = t;
+    if(idx !== -1) { _customTables[idx] = t; saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables); }
 }
-export const deleteCustomTable = (id: string) => { _customTables = _customTables.filter(t => t.id !== id); };
+export const deleteCustomTable = (id: string) => { 
+    _customTables = _customTables.filter(t => t.id !== id); 
+    saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables); 
+};
 
 
 // --- UTILS ---
-export const seedData = () => {}; // Disabled
+export const seedData = () => {}; 
 export const clearDatabase = () => {
-    _students = []; _attendance = []; _performance = [];
-    _teachers = []; _parents = []; _stages = []; _grades = []; _classes = []; _subjects = []; _schedules = [];
-    // Don't auto delete from cloud to prevent accidents
+    _students = [];
+    _attendance = [];
+    _performance = [];
+    _teachers = [];
+    _parents = [];
+    _stages = [];
+    _grades = [];
+    _classes = [];
+    _subjects = [];
+    _schedules = [];
+    _customTables = [];
+    
+    // Clear All Keys
+    Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
 };
 
 export const getStorageStatistics = () => {
@@ -419,7 +462,6 @@ export const checkConnection = async () => {
      }
 };
 
-// Re-export specific cloud functions for AdminDashboard if needed
 export const getCloudStatistics = async () => {
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase client not initialized.");
@@ -441,7 +483,6 @@ export const fetchCloudTableData = async (tableName: string, limit: number = 20)
     return data;
 };
 
-// Legacy stubs to prevent errors
 export const createBackup = () => {
     return JSON.stringify({
         students: _students,
@@ -466,20 +507,20 @@ export const restoreBackup = (json: string): boolean => {
         const data = JSON.parse(json);
         if(!data) return false;
         
-        if (Array.isArray(data.students)) _students = data.students;
-        if (Array.isArray(data.attendance)) _attendance = data.attendance;
-        if (Array.isArray(data.performance)) _performance = data.performance;
-        if (Array.isArray(data.teachers)) _teachers = data.teachers;
-        if (Array.isArray(data.parents)) _parents = data.parents;
-        if (Array.isArray(data.stages)) _stages = data.stages;
-        if (Array.isArray(data.grades)) _grades = data.grades;
-        if (Array.isArray(data.classes)) _classes = data.classes;
-        if (Array.isArray(data.subjects)) _subjects = data.subjects;
-        if (Array.isArray(data.schools)) _schools = data.schools;
-        if (Array.isArray(data.users)) _users = data.users;
-        if (Array.isArray(data.customTables)) _customTables = data.customTables;
-        if (Array.isArray(data.schedules)) _schedules = data.schedules;
-        if (data.worksConfig) _worksConfig = data.worksConfig;
+        if (Array.isArray(data.students)) { _students = data.students; saveLocal(STORAGE_KEYS.STUDENTS, _students); }
+        if (Array.isArray(data.attendance)) { _attendance = data.attendance; saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance); }
+        if (Array.isArray(data.performance)) { _performance = data.performance; saveLocal(STORAGE_KEYS.PERFORMANCE, _performance); }
+        if (Array.isArray(data.teachers)) { _teachers = data.teachers; saveLocal(STORAGE_KEYS.TEACHERS, _teachers); }
+        if (Array.isArray(data.parents)) { _parents = data.parents; saveLocal(STORAGE_KEYS.PARENTS, _parents); }
+        if (Array.isArray(data.stages)) { _stages = data.stages; saveLocal(STORAGE_KEYS.STAGES, _stages); }
+        if (Array.isArray(data.grades)) { _grades = data.grades; saveLocal(STORAGE_KEYS.GRADES, _grades); }
+        if (Array.isArray(data.classes)) { _classes = data.classes; saveLocal(STORAGE_KEYS.CLASSES, _classes); }
+        if (Array.isArray(data.subjects)) { _subjects = data.subjects; saveLocal(STORAGE_KEYS.SUBJECTS, _subjects); }
+        if (Array.isArray(data.schools)) { _schools = data.schools; saveLocal(STORAGE_KEYS.SCHOOLS, _schools); }
+        if (Array.isArray(data.users)) { _users = data.users; saveLocal(STORAGE_KEYS.USERS, _users); }
+        if (Array.isArray(data.customTables)) { _customTables = data.customTables; saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables); }
+        if (Array.isArray(data.schedules)) { _schedules = data.schedules; saveLocal(STORAGE_KEYS.SCHEDULES, _schedules); }
+        if (data.worksConfig) { _worksConfig = data.worksConfig; localStorage.setItem(CONFIG_KEYS.WORKS_CONFIG, JSON.stringify(_worksConfig)); }
         
         return true;
     } catch (e) {
@@ -488,7 +529,31 @@ export const restoreBackup = (json: string): boolean => {
     }
 };
 
-export const uploadToSupabase = async () => {};
+export const uploadToSupabase = async () => {
+    // Basic implementation: clear cloud then push local (could be dangerous, better use UPSERT logic in real apps)
+    // For now, we assume implicit sync via usage. 
+    // This explicit function could loop all local data and upsert.
+    const tables = [
+        { name: 'schools', data: _schools },
+        { name: 'educational_stages', data: _stages },
+        { name: 'grade_levels', data: _grades },
+        { name: 'classes', data: _classes },
+        { name: 'subjects', data: _subjects },
+        { name: 'teachers', data: _teachers },
+        { name: 'parents', data: _parents },
+        { name: 'students', data: _students },
+        { name: 'system_users', data: _users },
+        { name: 'attendance_records', data: _attendance },
+        { name: 'performance_records', data: _performance },
+        { name: 'weekly_schedules', data: _schedules }
+    ];
+
+    for (const t of tables) {
+        if(t.data.length > 0) {
+            await pushToCloud(t.name, t.data, 'UPSERT');
+        }
+    }
+};
 export const downloadFromSupabase = async () => { await initAutoSync(); };
 export const getTableDisplayName = (t: string) => t;
 export const processSyncQueue = async () => {};
