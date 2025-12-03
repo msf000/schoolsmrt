@@ -13,6 +13,12 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    
+    /* Path Aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@google/genai": ["./node_modules/google-genai"]
+    },
 
     /* Linting */
     "strict": true,
