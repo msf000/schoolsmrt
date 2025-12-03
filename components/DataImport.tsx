@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Eye, Sheet, ArrowRight, Table, CheckSquare, Square, Settings, RefreshCw, Copy, PlusCircle, Link as LinkIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Merge, ArrowRightCircle, X, ChevronsRight, FileText, Database, Globe, MousePointerClick, Clipboard, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Sheet, ArrowRight, Table, CheckSquare, Square, RefreshCw, PlusCircle, AlertTriangle, Trash2, ArrowRightCircle, X, Database, Globe, MousePointerClick, Clipboard, Download } from 'lucide-react';
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData } from '../services/excelService';
 import { Student, CustomTable } from '../types';
 import { addCustomTable, getCustomTables, deleteCustomTable } from '../services/storageService';
