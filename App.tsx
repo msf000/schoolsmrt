@@ -27,17 +27,36 @@ const App: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
-  const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
+  
+  // Persist Current View State
+  const [currentView, setCurrentView] = useState<ViewState>(() => {
+      const savedView = localStorage.getItem('app_last_view');
+      // Ensure the saved view is valid, else default to DASHBOARD
+      const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT'];
+      return (savedView && validViews.includes(savedView as ViewState)) ? (savedView as ViewState) : 'DASHBOARD';
+  });
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Background Sync State
   const [isBgSyncing, setIsBgSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
+  // Persist View Effect
+  useEffect(() => {
+      if (isAuthenticated) {
+          localStorage.setItem('app_last_view', currentView);
+      }
+  }, [currentView, isAuthenticated]);
+
   // Initialize data (Fetch from Cloud)
   useEffect(() => {
     const checkAuth = () => {
-        const savedUser = localStorage.getItem('app_user');
+        // Check both Local (Remember Me) and Session (One time) storage
+        const savedUserLocal = localStorage.getItem('app_user');
+        const savedUserSession = sessionStorage.getItem('app_user');
+        const savedUser = savedUserLocal || savedUserSession;
+
         if (savedUser) {
             setCurrentUser(JSON.parse(savedUser));
             setIsAuthenticated(true);
@@ -67,14 +86,25 @@ const App: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  const handleLogin = (user: any) => {
+  const handleLogin = (user: any, rememberMe: boolean) => {
       setCurrentUser(user);
       setIsAuthenticated(true);
-      localStorage.setItem('app_user', JSON.stringify(user));
+      
+      const userStr = JSON.stringify(user);
+      if (rememberMe) {
+          localStorage.setItem('app_user', userStr);
+          sessionStorage.removeItem('app_user'); // Clear session to avoid conflicts
+      } else {
+          sessionStorage.setItem('app_user', userStr);
+          localStorage.removeItem('app_user'); // Clear local if user explicitly didn't check remember me
+      }
   };
 
   const handleLogout = () => {
       localStorage.removeItem('app_user');
+      sessionStorage.removeItem('app_user');
+      localStorage.removeItem('app_last_view'); // Clear view state on logout
+      
       setIsAuthenticated(false);
       setCurrentUser(null);
       setCurrentView('DASHBOARD');
@@ -321,7 +351,10 @@ const App: React.FC = () => {
           {navItems.map(item => (
             <button
               key={item.id}
-              onClick={() => setCurrentView(item.id as ViewState)}
+              onClick={() => {
+                  setCurrentView(item.id as ViewState);
+                  setIsMobileMenuOpen(false); // Close mobile menu if open
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                 currentView === item.id 
                   ? 'bg-primary/10 text-primary font-bold' 

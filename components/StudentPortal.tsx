@@ -13,8 +13,17 @@ interface StudentPortalProps {
 }
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
-    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION'>('EVALUATION');
+    // Restore last view from session storage or default
+    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION'>(() => {
+        const saved = sessionStorage.getItem('student_last_view');
+        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION') ? saved : 'EVALUATION';
+    });
+    
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    useEffect(() => {
+        sessionStorage.setItem('student_last_view', view);
+    }, [view]);
 
     const navItems = [
         { id: 'EVALUATION', label: 'تقييمي (المتابعة الفردية)', icon: Award },
@@ -69,7 +78,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
                 {/* Mobile Menu */}
                 {isMobileMenuOpen && (
-                    <div className="md:hidden absolute top-16 right-0 w-full bg-white border-b shadow-lg z-30 p-4 space-y-2">
+                    <div className="md:hidden absolute top-16 right-0 w-full bg-white border-b shadow-lg z-30 p-4 space-y-2 animate-slide-in-right">
                         {navItems.map(item => (
                             <button
                                 key={item.id}

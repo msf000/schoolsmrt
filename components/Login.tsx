@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
 import { getSystemUsers, getStudents } from '../services/storageService';
-import { Lock, Mail, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square } from 'lucide-react';
 
 interface LoginProps {
-  onLoginSuccess: (user: any) => void;
+  onLoginSuccess: (user: any, rememberMe: boolean) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [identifier, setIdentifier] = useState(''); // Email OR National ID
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +31,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 name: 'المدير العام', 
                 email: cleanIdentifier, 
                 role: 'SUPER_ADMIN' 
-            });
+            }, rememberMe);
             return;
         }
 
@@ -41,7 +42,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (foundUser) {
             const storedPassword = foundUser.password || '123456';
             if (password === storedPassword) {
-                onLoginSuccess(foundUser);
+                onLoginSuccess(foundUser, rememberMe);
             } else {
                 setError('كلمة المرور غير صحيحة');
                 setLoading(false);
@@ -65,7 +66,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         ...foundStudent,
                         role: 'STUDENT',
                         email: foundStudent.nationalId // Use ID as email identifier for session
-                    });
+                    }, rememberMe);
                 } else {
                     setError('كلمة المرور غير صحيحة (الافتراضية: آخر 4 أرقام من الهوية)');
                     setLoading(false);
@@ -142,6 +143,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
                     </div>
+                </div>
+
+                <div className="flex items-center">
+                    <button 
+                        type="button"
+                        onClick={() => setRememberMe(!rememberMe)}
+                        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                        {rememberMe ? <CheckSquare size={18} className="text-primary"/> : <Square size={18} className="text-gray-400"/>}
+                        تذكر بيانات دخولي
+                    </button>
                 </div>
 
                 {error && (
