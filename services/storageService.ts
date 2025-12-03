@@ -95,7 +95,7 @@ const toCamelCase = (item: any) => {
 export const initAutoSync = async (): Promise<boolean> => {
     const supabase = getSupabaseClient();
     
-    // Load config from local
+    // Load config from local initially
     const savedConfig = localStorage.getItem(CONFIG_KEYS.WORKS_CONFIG);
     if (savedConfig) _worksConfig = JSON.parse(savedConfig);
     
@@ -139,6 +139,27 @@ export const initAutoSync = async (): Promise<boolean> => {
         _attendance = load(9); saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
         _performance = load(10); saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
         _schedules = load(11); saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
+
+        // --- NEW: EXTRACT & SYNC CONFIG FROM HIDDEN RECORDS ---
+        // We look for performance records with studentId = 'SYSTEM_CONFIG'
+        const systemConfigs = _performance.filter(p => p.studentId === 'SYSTEM_CONFIG');
+        if (systemConfigs.length > 0) {
+            console.log("⚙️ Syncing System Configuration from Cloud...");
+            systemConfigs.forEach(rec => {
+                try {
+                    // ID format: CONFIG_ACTIVITY, CONFIG_HOMEWORK
+                    const parts = rec.id.split('_');
+                    if (parts.length > 1) {
+                        const cat = parts[1] as PerformanceCategory;
+                        if (rec.notes) {
+                            _worksConfig[cat] = JSON.parse(rec.notes);
+                        }
+                    }
+                } catch (e) { console.warn("Failed to parse system config", e); }
+            });
+            // Update local storage with cloud config
+            localStorage.setItem(CONFIG_KEYS.WORKS_CONFIG, JSON.stringify(_worksConfig));
+        }
 
         // Update works master url from schools if available
         if (_schools.length > 0 && _schools[0].worksMasterUrl) {
@@ -269,9 +290,18 @@ export const saveAttendance = (records: AttendanceRecord[]) => {
 export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance(records);
 
 // --- Performance ---
-export const getPerformance = (): PerformanceRecord[] => [..._performance];
+// Filter out SYSTEM_CONFIG records so they don't appear in the UI tables
+export const getPerformance = (): PerformanceRecord[] => _performance.filter(p => p.studentId !== 'SYSTEM_CONFIG');
+
 export const addPerformance = (record: PerformanceRecord) => {
-    _performance.push(record);
+    // If updating config record, we might need to replace
+    if (record.studentId === 'SYSTEM_CONFIG') {
+        const idx = _performance.findIndex(p => p.id === record.id);
+        if (idx >= 0) _performance[idx] = record;
+        else _performance.push(record);
+    } else {
+        _performance.push(record);
+    }
     saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
     pushToCloud('performance_records', record, 'UPSERT');
 };
@@ -369,9 +399,28 @@ export const deleteSystemUser = (id: string) => { _users = _users.filter(i => i.
 
 // --- Works Config ---
 export const getWorksConfig = (category: PerformanceCategory) => _worksConfig[category] || [];
+
 export const saveWorksConfig = (category: PerformanceCategory, config: WorksColumnConfig[]) => {
+    // 1. Save Config Locally
     _worksConfig[category] = config;
     localStorage.setItem(CONFIG_KEYS.WORKS_CONFIG, JSON.stringify(_worksConfig));
+
+    // 2. Sync to Cloud (Store as a hidden Performance Record)
+    // This allows students to download the config without needing a new DB table
+    const configRecord: PerformanceRecord = {
+        id: `CONFIG_${category}`,
+        studentId: 'SYSTEM_CONFIG', // Special ID to hide from normal views
+        subject: 'SYSTEM',
+        title: category,
+        category: 'OTHER',
+        score: 0,
+        maxScore: 0,
+        date: new Date().toISOString().split('T')[0],
+        notes: JSON.stringify(config), // Store config JSON here
+        url: ''
+    };
+    // Use addPerformance to handle cloud push
+    addPerformance(configRecord);
 };
 
 export const getWorksMasterUrl = () => _worksMasterUrl;

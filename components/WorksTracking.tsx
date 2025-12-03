@@ -280,10 +280,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const handleSaveConfig = () => {
-        // 1. Save Config Locally
+        // 1. Save Config Locally (and to Cloud via modified storageService)
         saveWorksConfig(activeTab, columnsConfig);
         
-        // 2. Propagate Links to Database Records (So students can see them)
+        // 2. Propagate Links to Database Records (So students can see them immediately if they have a record)
         const recordsToUpdate: PerformanceRecord[] = [];
         
         columnsConfig.forEach(col => {
@@ -302,7 +302,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             onAddPerformance(recordsToUpdate);
         }
 
-        setStatusMsg('✅ تم حفظ الإعدادات وتحديث الروابط في سجلات الطلاب.');
+        setStatusMsg('✅ تم حفظ الإعدادات، الروابط، ومزامنتها مع جميع الطلاب.');
         setTimeout(() => setStatusMsg(''), 3000);
     };
 
@@ -477,7 +477,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 {cat === 'ACTIVITY' && 'الأنشطة'}
                                 {cat === 'HOMEWORK' && 'الواجبات'}
                                 {cat === 'PLATFORM_EXAM' && 'اختبارات المنصة'}
-                                {cat === 'YEAR_WORK' && 'أعمال السنة (محسوبة)'}
+                                {cat === 'YEAR_WORK' && 'أعمال سنة (محسوبة)'}
                                 {activeTab === cat && isGenerating && <Loader2 size={12} className="animate-spin"/>}
                             </div>
                         </button>
