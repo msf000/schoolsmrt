@@ -348,12 +348,12 @@ const App: React.FC = () => {
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 md:hidden" onClick={() => setIsMobileMenuOpen(false)}>
-            <div className="absolute right-0 top-0 bottom-0 w-64 bg-white shadow-xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="absolute right-0 top-0 bottom-0 w-64 bg-white shadow-xl flex flex-col animate-slide-in-right" onClick={e => e.stopPropagation()}>
                 <div className="p-6 flex justify-between items-center border-b">
                     <h1 className="text-xl font-bold text-gray-800">القائمة</h1>
                     <button onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
                 </div>
-                <nav className="flex-1 p-4 space-y-2">
+                <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                     {navItems.map(item => (
                         <button
                         key={item.id}
@@ -393,12 +393,12 @@ const App: React.FC = () => {
                 </div>
                 <span className="font-bold text-gray-800">نظام المدرس</span>
             </div>
-            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-600">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg">
                 <Menu size={24} />
             </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto w-full">
             {currentView === 'DASHBOARD' && (
                 <Dashboard 
                     students={students} 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus } from '../types';
 import { getSchedules } from '../services/storageService';
@@ -258,12 +259,12 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       
       {/* HEADER SECTION */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <CalendarClock className="text-primary"/> 
                 تسجيل الحضور والسلوك
             </h2>
@@ -402,25 +403,26 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
 
             <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
             {filteredStudents.length > 0 ? filteredStudents.map(student => (
-                <div key={student.id} className="grid grid-cols-12 p-4 items-center hover:bg-gray-50 transition-colors group">
-                    <div className="col-span-12 md:col-span-3 font-medium mb-2 md:mb-0 flex flex-col">
+                <div key={student.id} className="grid grid-cols-12 p-3 md:p-4 items-center hover:bg-gray-50 transition-colors group gap-y-3">
+                    {/* Student Info: Full width on mobile, 3 cols on desktop */}
+                    <div className="col-span-12 md:col-span-3 font-medium flex flex-row md:flex-col items-center md:items-start justify-between md:justify-center">
                         <span className="text-gray-800 font-bold text-base">{student.name}</span>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-0 md:mt-1">
                             <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
                             {/* Behavior Status Badge */}
-                            {behaviorRecords[student.id] === BehaviorStatus.POSITIVE && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded flex items-center gap-1"><Smile size={10}/> سلوك ممتاز</span>}
-                            {behaviorRecords[student.id] === BehaviorStatus.NEGATIVE && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex items-center gap-1"><Frown size={10}/> سلوك سيء</span>}
+                            {behaviorRecords[student.id] === BehaviorStatus.POSITIVE && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded flex items-center gap-1"><Smile size={10}/> ممتاز</span>}
+                            {behaviorRecords[student.id] === BehaviorStatus.NEGATIVE && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex items-center gap-1"><Frown size={10}/> سيء</span>}
                         </div>
                     </div>
                     
-                    {/* Attendance Buttons */}
-                    <div className="col-span-12 md:col-span-5 flex flex-wrap gap-1 justify-start md:justify-center mb-2 md:mb-0">
+                    {/* Attendance Buttons: Full width on mobile, 5 cols on desktop */}
+                    <div className="col-span-12 md:col-span-5 flex gap-1.5 justify-between md:justify-center">
                         {statusOptions.map((opt) => (
                         <button
                             key={opt.value}
                             onClick={() => handleStatusChange(student.id, opt.value)}
                             className={`
-                            px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex-1 md:flex-none text-center
+                            px-2 py-3 md:py-1.5 rounded-lg text-xs font-bold border transition-all flex-1 text-center
                             ${records[student.id] === opt.value 
                                 ? `${opt.color} shadow-md transform scale-105` 
                                 : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-700'}
@@ -431,129 +433,131 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         ))}
                     </div>
 
-                    {/* Behavior & Notes */}
-                    <div className="col-span-12 md:col-span-4 flex items-center justify-end gap-3 border-r border-gray-100 pr-3 relative">
-                        <div className="flex gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
-                             <button
-                                onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)}
-                                className={`p-2 rounded transition-all ${behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white shadow-sm' : 'text-gray-400 hover:text-green-500 hover:bg-white'}`}
-                                title="سلوك إيجابي"
-                             >
-                                <Smile size={18} />
-                             </button>
-                             <button
-                                onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)}
-                                className={`p-2 rounded transition-all ${behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white shadow-sm' : 'text-gray-400 hover:text-red-500 hover:bg-white'}`}
-                                title="سلوك سلبي"
-                             >
-                                <Frown size={18} />
-                             </button>
-                        </div>
+                    {/* Behavior & Notes: Full width on mobile, 4 cols on desktop */}
+                    <div className="col-span-12 md:col-span-4 flex items-center justify-between md:justify-end gap-3 border-t md:border-t-0 md:border-r border-gray-100 pt-2 md:pt-0 md:pr-3 relative">
+                        <div className="flex gap-2 w-full md:w-auto">
+                            <div className="flex flex-1 md:flex-none gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200 justify-center">
+                                <button
+                                    onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)}
+                                    className={`flex-1 md:flex-none p-2 rounded transition-all ${behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white shadow-sm' : 'text-gray-400 hover:text-green-500 hover:bg-white'}`}
+                                    title="سلوك إيجابي"
+                                >
+                                    <Smile size={18} className="mx-auto"/>
+                                </button>
+                                <button
+                                    onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)}
+                                    className={`flex-1 md:flex-none p-2 rounded transition-all ${behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white shadow-sm' : 'text-gray-400 hover:text-red-500 hover:bg-white'}`}
+                                    title="سلوك سلبي"
+                                >
+                                    <Frown size={18} className="mx-auto"/>
+                                </button>
+                            </div>
 
-                        <div className="relative">
-                            <button 
-                                onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)}
-                                className={`flex items-center gap-1 p-2 rounded-lg text-xs font-bold border transition-all ${noteRecords[student.id] ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 'bg-white border-gray-200 text-gray-400 hover:border-blue-300'}`}
-                            >
-                                <MessageSquare size={16}/>
-                                {noteRecords[student.id] ? 'تعديل' : 'ملاحظة'}
-                            </button>
-                            
-                            {/* --- SMART POPOVER FOR NOTES --- */}
-                            {activeNoteStudent === student.id && (
-                                <div className="absolute top-full left-0 mt-2 w-72 md:w-80 bg-white shadow-2xl rounded-xl border border-gray-200 p-4 z-50 animate-fade-in">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="text-xs font-bold text-gray-500">تدوين ملاحظة سلوكية</h4>
-                                        <button onClick={() => setActiveNoteStudent(null)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
-                                    </div>
-                                    
-                                    <textarea
-                                        autoFocus
-                                        className="w-full text-sm p-2 border rounded-lg mb-3 focus:ring-2 focus:ring-primary/20 outline-none bg-gray-50"
-                                        rows={2}
-                                        placeholder="اكتب ملاحظة أو اختر من القائمة..."
-                                        value={noteRecords[student.id] || ''}
-                                        onChange={(e) => handleNoteChange(student.id, e.target.value)}
-                                    />
-
-                                    {/* Smart Lists based on Status */}
-                                    <div className="mb-2">
-                                        <div className="text-[10px] font-bold text-gray-400 mb-1 flex justify-between items-center">
-                                            <span>خيارات سريعة (اضغط للإضافة):</span>
-                                            {behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 
-                                                <span className="text-green-600">قائمة السلوك الإيجابي</span> : 
-                                             behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 
-                                                <span className="text-red-600">قائمة السلوك السلبي</span> :
-                                                <span>الكل</span>
-                                            }
+                            <div className="relative flex-1 md:flex-none">
+                                <button 
+                                    onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)}
+                                    className={`w-full flex items-center justify-center gap-1 p-2 rounded-lg text-xs font-bold border transition-all h-full ${noteRecords[student.id] ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 'bg-white border-gray-200 text-gray-400 hover:border-blue-300'}`}
+                                >
+                                    <MessageSquare size={16}/>
+                                    {noteRecords[student.id] ? 'تعديل' : 'ملاحظة'}
+                                </button>
+                                
+                                {/* --- SMART POPOVER FOR NOTES --- */}
+                                {activeNoteStudent === student.id && (
+                                    <div className="absolute bottom-full left-0 md:top-full md:bottom-auto mb-2 md:mt-2 w-[calc(100vw-3rem)] md:w-80 bg-white shadow-2xl rounded-xl border border-gray-200 p-4 z-50 animate-fade-in right-0 md:right-auto md:left-0">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h4 className="text-xs font-bold text-gray-500">تدوين ملاحظة سلوكية</h4>
+                                            <button onClick={() => setActiveNoteStudent(null)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
                                         </div>
-                                        <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar p-1">
-                                            {/* Logic: If Positive, show Positive tags. If Negative, show Negative. Else show both. */}
-                                            {(behaviorRecords[student.id] !== BehaviorStatus.NEGATIVE) && positiveList.map(tag => (
-                                                <div key={tag} className="group relative">
-                                                    <button 
-                                                        onClick={() => appendNote(student.id, tag)}
-                                                        className="px-2 py-1 bg-green-50 hover:bg-green-100 text-green-700 text-[10px] rounded border border-green-100 transition-colors flex items-center gap-1"
-                                                    >
-                                                        <Tag size={10}/> {tag}
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => handleDeleteTag('POS', tag, e)} 
-                                                        className="absolute -top-1 -left-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-sm z-10"
-                                                        title="حذف من القائمة"
-                                                    >
-                                                        <X size={8}/>
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            {(behaviorRecords[student.id] !== BehaviorStatus.POSITIVE) && negativeList.map(tag => (
-                                                <div key={tag} className="group relative">
-                                                    <button 
-                                                        onClick={() => appendNote(student.id, tag)}
-                                                        className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-[10px] rounded border border-red-100 transition-colors flex items-center gap-1"
-                                                    >
-                                                        <Tag size={10}/> {tag}
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => handleDeleteTag('NEG', tag, e)} 
-                                                        className="absolute -top-1 -left-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-sm z-10"
-                                                        title="حذف من القائمة"
-                                                    >
-                                                        <X size={8}/>
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Add New Tag */}
-                                    <div className="flex gap-1 border-t pt-2 mt-2">
-                                        <input 
-                                            type="text" 
-                                            className="flex-1 p-1 text-xs border rounded outline-none focus:border-gray-400" 
-                                            placeholder="أضف عبارة جديدة للقائمة..."
-                                            value={newNoteInput}
-                                            onChange={(e) => setNewNoteInput(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if(e.key === 'Enter') handleAddNewTag(behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'NEG' : 'POS');
-                                            }}
+                                        
+                                        <textarea
+                                            autoFocus
+                                            className="w-full text-sm p-2 border rounded-lg mb-3 focus:ring-2 focus:ring-primary/20 outline-none bg-gray-50"
+                                            rows={2}
+                                            placeholder="اكتب ملاحظة أو اختر من القائمة..."
+                                            value={noteRecords[student.id] || ''}
+                                            onChange={(e) => handleNoteChange(student.id, e.target.value)}
                                         />
-                                        <button 
-                                            onClick={() => handleAddNewTag(behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'NEG' : 'POS')}
-                                            disabled={!newNoteInput}
-                                            className="bg-gray-800 text-white p-1.5 rounded hover:bg-black disabled:opacity-50 transition-colors"
-                                            title="إضافة للقائمة الدائمة"
-                                        >
-                                            <Plus size={14}/>
-                                        </button>
-                                    </div>
 
-                                    <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-dashed">
-                                        <button onClick={() => handleNoteChange(student.id, '')} className="text-xs text-red-500 hover:underline px-2">مسح النص</button>
-                                        <button onClick={() => setActiveNoteStudent(null)} className="text-xs bg-primary text-white px-4 py-1.5 rounded-lg hover:bg-teal-700 font-bold shadow-sm">حفظ وإغلاق</button>
+                                        {/* Smart Lists based on Status */}
+                                        <div className="mb-2">
+                                            <div className="text-[10px] font-bold text-gray-400 mb-1 flex justify-between items-center">
+                                                <span>خيارات سريعة (اضغط للإضافة):</span>
+                                                {behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 
+                                                    <span className="text-green-600">قائمة السلوك الإيجابي</span> : 
+                                                behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 
+                                                    <span className="text-red-600">قائمة السلوك السلبي</span> :
+                                                    <span>الكل</span>
+                                                }
+                                            </div>
+                                            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar p-1">
+                                                {/* Logic: If Positive, show Positive tags. If Negative, show Negative. Else show both. */}
+                                                {(behaviorRecords[student.id] !== BehaviorStatus.NEGATIVE) && positiveList.map(tag => (
+                                                    <div key={tag} className="group relative">
+                                                        <button 
+                                                            onClick={() => appendNote(student.id, tag)}
+                                                            className="px-2 py-1 bg-green-50 hover:bg-green-100 text-green-700 text-[10px] rounded border border-green-100 transition-colors flex items-center gap-1"
+                                                        >
+                                                            <Tag size={10}/> {tag}
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => handleDeleteTag('POS', tag, e)} 
+                                                            className="absolute -top-1 -left-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-sm z-10"
+                                                            title="حذف من القائمة"
+                                                        >
+                                                            <X size={8}/>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {(behaviorRecords[student.id] !== BehaviorStatus.POSITIVE) && negativeList.map(tag => (
+                                                    <div key={tag} className="group relative">
+                                                        <button 
+                                                            onClick={() => appendNote(student.id, tag)}
+                                                            className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-[10px] rounded border border-red-100 transition-colors flex items-center gap-1"
+                                                        >
+                                                            <Tag size={10}/> {tag}
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => handleDeleteTag('NEG', tag, e)} 
+                                                            className="absolute -top-1 -left-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-sm z-10"
+                                                            title="حذف من القائمة"
+                                                        >
+                                                            <X size={8}/>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Add New Tag */}
+                                        <div className="flex gap-1 border-t pt-2 mt-2">
+                                            <input 
+                                                type="text" 
+                                                className="flex-1 p-1 text-xs border rounded outline-none focus:border-gray-400" 
+                                                placeholder="أضف عبارة جديدة للقائمة..."
+                                                value={newNoteInput}
+                                                onChange={(e) => setNewNoteInput(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if(e.key === 'Enter') handleAddNewTag(behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'NEG' : 'POS');
+                                                }}
+                                            />
+                                            <button 
+                                                onClick={() => handleAddNewTag(behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'NEG' : 'POS')}
+                                                disabled={!newNoteInput}
+                                                className="bg-gray-800 text-white p-1.5 rounded hover:bg-black disabled:opacity-50 transition-colors"
+                                                title="إضافة للقائمة الدائمة"
+                                            >
+                                                <Plus size={14}/>
+                                            </button>
+                                        </div>
+
+                                        <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-dashed">
+                                            <button onClick={() => handleNoteChange(student.id, '')} className="text-xs text-red-500 hover:underline px-2">مسح النص</button>
+                                            <button onClick={() => setActiveNoteStudent(null)} className="text-xs bg-primary text-white px-4 py-1.5 rounded-lg hover:bg-teal-700 font-bold shadow-sm">حفظ وإغلاق</button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -567,17 +571,17 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
             </div>
 
             {/* Sticky Footer for Save */}
-            <div className="p-4 bg-gray-50 border-t flex justify-between items-center">
+            <div className="p-4 bg-gray-50 border-t flex justify-between items-center sticky bottom-0 z-20 shadow-inner">
                  <button onClick={handleBackToSchedule} className="text-gray-500 hover:text-gray-800 text-sm font-bold px-4">
-                    إلغاء وعودة
+                    إلغاء
                  </button>
                  <button 
                     onClick={handleSave}
                     disabled={filteredStudents.length === 0}
-                    className="bg-primary hover:bg-teal-800 disabled:bg-gray-400 text-white px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg transition-all transform active:scale-95 font-bold"
+                    className="bg-primary hover:bg-teal-800 disabled:bg-gray-400 text-white px-6 md:px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg transition-all transform active:scale-95 font-bold"
                  >
                     {saved ? <CheckCircle2 size={20} /> : <Save size={20} />}
-                    <span>{saved ? 'تم الحفظ بنجاح' : `حفظ التحضير والسلوك (الحصة ${selectedPeriod})`}</span>
+                    <span>{saved ? 'تم الحفظ' : `حفظ التحضير`}</span>
                  </button>
             </div>
         </div>

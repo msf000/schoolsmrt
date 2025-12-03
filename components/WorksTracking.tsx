@@ -135,7 +135,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const gradeHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
         if (gradeHeaders.length === 0) return;
 
-        // 1. Load EXISTING Config to preserve URLs
+        // 1. Load EXISTING Config to preserve URLs created manually
         const currentConfig = getWorksConfig(category);
 
         const newConfig: WorksColumnConfig[] = [];
@@ -145,7 +145,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             
             // Check if we have an existing manual configuration for this column
             const existingCol = currentConfig.find(c => c.key === key);
-            // PRESERVE MANUAL URL: If exists, use it. Otherwise empty. Ignore Excel Link.
+            // PRESERVE MANUAL URL: If exists, use it. Otherwise empty.
+            // Do NOT use masterUrl as default link for the activity itself.
             const preservedUrl = existingCol ? existingCol.url : ''; 
 
             newConfig.push({
@@ -180,12 +181,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 newConfig.forEach(col => {
                     const headerKey = col.dataSource!.sourceHeader;
                     const rawVal = row[headerKey];
-                    // We ignore Excel hyperlinks here as requested
+                    // IGNORE EXCEL HYPERLINKS COMPLETELY
                     // const linkVal = row[`${headerKey}_HYPERLINK`]; 
                     
                     const val = parseFloat(rawVal);
                     if (!isNaN(val)) {
-                        // Apply the column's manual URL to the record
+                        // Apply the column's manual URL to the record. 
+                        // If no manual URL is set, the record gets an empty URL.
                         newDataMap[student.id][col.key] = { score: val.toString(), url: col.url }; 
                         recordsToSave.push({
                             id: `${student!.id}-${category}-${col.key}`,
@@ -197,7 +199,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             maxScore: col.maxScore,
                             date: today,
                             notes: col.key,
-                            url: col.url // Use the Manual URL from config
+                            url: col.url // Use the Manual URL from config only
                         });
                     }
                 });
@@ -311,7 +313,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const totalHWCount = hwConfig.length;
         
         return (
-            <table className="w-full text-right text-sm border-collapse">
+            <table className="w-full text-right text-sm border-collapse whitespace-nowrap">
                 <thead className="bg-gray-100 text-gray-800 sticky top-0 z-10 shadow-sm">
                     <tr>
                         <th className="p-3 border-b border-l w-12 text-center bg-gray-200">#</th>
@@ -382,7 +384,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     return (
-        <div className="p-6 h-full flex flex-col animate-fade-in relative bg-gray-50">
+        <div className="p-4 md:p-6 h-full flex flex-col animate-fade-in relative bg-gray-50">
              
              {/* MAIN TOP TABS */}
              <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-6 flex gap-2">
@@ -390,13 +392,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     onClick={() => setActiveMode('GRADING')}
                     className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'GRADING' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
                  >
-                     <Table size={18}/> رصد الدرجات
+                     <Table size={18}/> <span className="hidden md:inline">رصد الدرجات</span><span className="md:hidden">الرصد</span>
                  </button>
                  <button 
                     onClick={() => setActiveMode('MANAGEMENT')}
                     className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'MANAGEMENT' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
                  >
-                     <Settings size={18}/> إدارة الأنشطة والروابط
+                     <Settings size={18}/> <span className="hidden md:inline">إدارة الأنشطة والروابط</span><span className="md:hidden">الإعدادات</span>
                  </button>
              </div>
 
@@ -409,12 +411,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </h2>
                     <p className="text-gray-500 text-sm mt-1">
                         {activeMode === 'GRADING' 
-                            ? 'أدخل الدرجات في الخلايا أدناه. يتم الحفظ تلقائياً عند الضغط على "حفظ".' 
-                            : 'قم بإضافة أو تعديل أسماء الأنشطة والاختبارات، وإضافة روابط (PDF/Forms) لتظهر للطلاب.'}
+                            ? 'أدخل الدرجات في الخلايا أدناه.' 
+                            : 'تعديل أسماء الأنشطة والروابط.'}
                     </p>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
                     {/* Subject Selector (Only relevant in grading usually, but maybe management too if we split config per subject later) */}
                     <select 
                         value={selectedSubject} 
@@ -425,7 +427,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </select>
 
                     {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && (
-                        <button onClick={handleSaveGrid} className="bg-green-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700">
+                        <button onClick={handleSaveGrid} className="bg-green-600 text-white px-6 py-2 rounded-lg flex justify-center items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700">
                             {savedSuccess ? <CheckCircle size={18} /> : <Save size={18} />} {savedSuccess ? 'تم الحفظ' : 'حفظ الدرجات'}
                         </button>
                     )}
@@ -434,18 +436,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             {/* Cloud Link Box (Only in Grading Mode) */}
             {activeMode === 'GRADING' && (
-                <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm"><LinkIcon size={16}/></div>
-                    <div className="flex-1">
+                <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg flex flex-col md:flex-row items-start md:items-center gap-3 mb-6">
+                    <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm hidden md:block"><LinkIcon size={16}/></div>
+                    <div className="flex-1 w-full">
                         {isEditingUrl || !masterUrl ? (
-                            <div className="flex gap-2">
-                                <input className="w-full p-1 bg-white border rounded text-sm dir-ltr" placeholder="أدخل رابط ملف Google Drive / Excel الرئيسي هنا..." value={masterUrl} onChange={e => setMasterUrl(e.target.value)} />
-                                <button onClick={handleSaveMasterUrl} className="px-3 bg-blue-600 text-white rounded text-xs font-bold whitespace-nowrap">حفظ محلياً</button>
+                            <div className="flex gap-2 w-full">
+                                <input className="w-full p-1 bg-white border rounded text-sm dir-ltr" placeholder="رابط ملف Excel (للمزامنة)..." value={masterUrl} onChange={e => setMasterUrl(e.target.value)} />
+                                <button onClick={handleSaveMasterUrl} className="px-3 bg-blue-600 text-white rounded text-xs font-bold whitespace-nowrap">حفظ</button>
                             </div>
                         ) : (
-                            <div className="flex justify-between items-center">
-                                <div className="flex flex-col">
-                                    <span className="text-sm text-blue-800 font-bold truncate dir-ltr">{masterUrl}</span>
+                            <div className="flex justify-between items-center w-full">
+                                <div className="flex flex-col overflow-hidden">
+                                    <span className="text-sm text-blue-800 font-bold truncate dir-ltr max-w-[200px] md:max-w-md">{masterUrl}</span>
                                     {isCloudLink && <span className="text-[10px] text-green-600 flex items-center gap-1 font-bold"><Cloud size={10}/> رابط موحد (سحابي)</span>}
                                 </div>
                                 <button onClick={() => setIsEditingUrl(true)} className="text-gray-500 hover:text-blue-600 p-1"><Edit2 size={14}/></button>
@@ -458,14 +460,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             {statusMsg && <div className="mb-4 text-sm font-bold text-center bg-green-100 text-green-800 p-2 rounded-lg animate-pulse">{statusMsg}</div>}
 
             {/* SUB TABS */}
-            <div className="flex flex-wrap gap-2 border-b border-gray-200 mb-4 pb-1">
+            <div className="flex overflow-x-auto gap-2 border-b border-gray-200 mb-4 pb-1 custom-scrollbar">
                 {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => {
                     if (activeMode === 'MANAGEMENT' && cat === 'YEAR_WORK') return null; // No config for Year Work
                     return (
                         <button 
                             key={cat} 
                             onClick={() => setActiveTab(cat)} 
-                            className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors relative ${activeTab === cat ? 'bg-white text-gray-800 border border-b-0 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
+                            className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors relative whitespace-nowrap flex-shrink-0 ${activeTab === cat ? 'bg-white text-gray-800 border border-b-0 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
                         >
                             <div className="flex items-center gap-2">
                                 {cat === 'ACTIVITY' && <Activity size={16}/>}
@@ -489,34 +491,34 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 <div className="flex justify-end mb-2">
                     <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
                         <Target size={16} className="text-amber-600"/>
-                        <span className="text-xs font-bold text-amber-800">العدد المستهدف للأنشطة:</span>
+                        <span className="text-xs font-bold text-amber-800">الهدف:</span>
                         <input type="number" min="1" value={activityTarget} onChange={(e) => handleActivityTargetChange(e.target.value)} className="w-16 p-1 text-center border rounded text-sm font-bold bg-white focus:ring-1 focus:ring-amber-500"/>
                     </div>
                 </div>
             )}
 
-            <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px]">
+            <div className="flex-1 bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px] flex flex-col">
                 
                 {/* --- CONFIGURATION MODE --- */}
                 {activeMode === 'MANAGEMENT' && (
-                    <div className="p-6">
+                    <div className="p-6 flex-1 overflow-auto">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-gray-700">إعداد أعمدة {activeTab === 'ACTIVITY' ? 'الأنشطة' : activeTab === 'HOMEWORK' ? 'الواجبات' : 'الاختبارات'}</h3>
-                            <button onClick={handleAddColumn} className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-100 shadow-sm">
-                                <Plus size={16}/> إضافة عنوان جديد
+                            <h3 className="font-bold text-gray-700 text-sm md:text-base">إعداد أعمدة {activeTab === 'ACTIVITY' ? 'الأنشطة' : activeTab === 'HOMEWORK' ? 'الواجبات' : 'الاختبارات'}</h3>
+                            <button onClick={handleAddColumn} className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg font-bold text-xs md:text-sm hover:bg-purple-100 shadow-sm whitespace-nowrap">
+                                <Plus size={16}/> إضافة
                             </button>
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-right border-collapse">
+                            <table className="w-full text-right border-collapse min-w-[600px]">
                                 <thead className="bg-gray-50 text-gray-600 font-bold border-b text-sm">
                                     <tr>
                                         <th className="p-4 w-12 text-center">#</th>
-                                        <th className="p-4 w-1/4">اسم النشاط / التقييم</th>
-                                        <th className="p-4 w-32">الدرجة العظمى</th>
+                                        <th className="p-4 w-1/4">اسم النشاط</th>
+                                        <th className="p-4 w-24">العظمى</th>
                                         <th className="p-4">رابط النشاط (يظهر للطالب)</th>
-                                        <th className="p-4 w-24 text-center">إظهار</th>
-                                        <th className="p-4 w-24 text-center">حذف</th>
+                                        <th className="p-4 w-16 text-center">إظهار</th>
+                                        <th className="p-4 w-16 text-center">حذف</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y text-sm">
@@ -580,7 +582,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     {columnsConfig.length === 0 && (
                                         <tr><td colSpan={6} className="p-12 text-center text-gray-400 bg-gray-50/50 rounded-lg border-2 border-dashed border-gray-200 m-4">
                                             <Settings size={32} className="mx-auto mb-2 opacity-50"/>
-                                            لا توجد أنشطة مضافة. اضغط "إضافة عنوان جديد" للبدء.
+                                            لا توجد أنشطة مضافة. اضغط "إضافة" للبدء.
                                         </td></tr>
                                     )}
                                 </tbody>
@@ -600,8 +602,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                 {/* --- GRADING MODE --- */}
                 {activeMode === 'GRADING' && (
-                    <>
-                        {activeTab === 'YEAR_WORK' ? renderYearWorkTable() : !masterUrl && columnsConfig.length === 0 ? (
+                    <div className="flex-1 overflow-auto relative">
+                        {activeTab === 'YEAR_WORK' ? (
+                            <div className="overflow-x-auto h-full">
+                                {renderYearWorkTable()}
+                            </div>
+                        ) : !masterUrl && columnsConfig.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                                 <LinkIcon size={48} className="mb-4 opacity-20"/>
                                 <p className="text-lg font-bold">لم يتم إعداد الأنشطة</p>
@@ -623,13 +629,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 )}
                             </div>
                         ) : (
-                            <table className="w-full text-right text-sm border-collapse">
-                                <thead className="bg-gray-50 sticky top-0 z-10">
+                            <div className="overflow-x-auto h-full pb-2">
+                                <table className="w-full text-right text-sm border-collapse whitespace-nowrap">
+                                <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                                     <tr>
-                                        <th className="p-3 border-b border-l w-12 text-center">#</th>
-                                        <th className="p-3 border-b border-l min-w-[200px]">اسم الطالب</th>
+                                        <th className="p-3 border-b border-l w-12 text-center bg-gray-50">#</th>
+                                        <th className="p-3 border-b border-l min-w-[180px] bg-gray-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
                                         {columnsConfig.filter(c => c.isVisible).map(col => (
-                                            <th key={col.key} className="p-2 border-b border-l min-w-[100px] text-center relative group">
+                                            <th key={col.key} className="p-2 border-b border-l min-w-[100px] text-center relative group bg-gray-50">
                                                 <div className="text-xs text-gray-500 mb-1">{col.label}</div>
                                                 <div className="text-[10px] text-gray-400">({col.maxScore})</div>
                                                 {col.url && <a href={col.url} target="_blank" className="absolute top-1 left-1 text-blue-400 hover:text-blue-600"><ExternalLink size={10}/></a>}
@@ -661,7 +668,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             const cellData = gridData[student.id]?.[col.key];
                                             return (
                                                 <td key={col.key} className="p-1 border-b border-l text-center relative">
-                                                    <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent" value={cellData?.score || ''} onChange={(e) => handleScoreChange(student.id, col.key, e.target.value)} placeholder="-"/>
+                                                    <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={cellData?.score || ''} onChange={(e) => handleScoreChange(student.id, col.key, e.target.value)} placeholder="-"/>
                                                     {cellData?.url && <a href={cellData.url} target="_blank" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></a>}
                                                 </td>
                                             );
@@ -714,7 +721,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         return (
                                         <tr key={student.id} className="hover:bg-gray-50">
                                             <td className="p-3 border-b border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
-                                            <td className="p-3 border-b border-l font-bold text-gray-700">{student.name}</td>
+                                            <td className="p-3 border-b border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r">{student.name}</td>
                                             {renderedCells}
                                             {activeTab === 'ACTIVITY' && activityStats}
                                             {activeTab === 'HOMEWORK' && homeworkStats}
@@ -723,8 +730,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     )})}
                                 </tbody>
                             </table>
+                            </div>
                         )}
-                    </>
+                    </div>
                 )}
             </div>
              <div className="mt-2 text-[10px] text-gray-400 text-center">
