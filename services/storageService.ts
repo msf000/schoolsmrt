@@ -410,10 +410,17 @@ export const updateSystemUser = (item: SystemUser) => {
 export const deleteSystemUser = (id: string) => { _users = _users.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.USERS, _users); pushToCloud('system_users', id, 'DELETE'); };
 
 // --- Legacy Config (Can be removed later, kept for backward compat if needed) ---
-export const getWorksConfig = (category: PerformanceCategory) => {
+export const getWorksConfig = (category: PerformanceCategory): WorksColumnConfig[] => {
     // Deprecated: Just map assignments to old format for UI compatibility if needed temporarily
-    // But we will use getAssignments directly in new UI
-    return [];
+    const assignments = getAssignments(category);
+    return assignments.map(a => ({
+        key: a.id,
+        label: a.title,
+        isVisible: a.isVisible,
+        maxScore: a.maxScore,
+        url: a.url,
+        // dataSource: ... 
+    }));
 };
 export const saveWorksConfig = (category: PerformanceCategory, config: WorksColumnConfig[]) => {};
 

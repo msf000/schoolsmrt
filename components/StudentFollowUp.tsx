@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus } from '../types';
-import { getSubjects, getWorksConfig } from '../services/storageService';
-import { FileText, Printer, Search, ArrowRight, Target, Settings, ChevronDown, Check, X, Smile, Frown, AlertCircle } from 'lucide-react';
+import { getSubjects, getAssignments } from '../services/storageService';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentFollowUpProps {
@@ -81,15 +81,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const student = students.find(s => s.id === selectedStudentId);
 
     // Filter Columns (Exclude Attendance from Activity Columns)
-    const rawActivityCols = getWorksConfig('ACTIVITY').filter(c => c.isVisible);
+    // Updated to use Assignments table
+    const rawActivityCols = getAssignments('ACTIVITY').filter(c => c.isVisible);
     const activityCols = rawActivityCols.filter(c => 
-        !c.label.includes('حضور') && 
-        !c.label.toLowerCase().includes('attendance') &&
-        !c.label.includes('غياب')
+        !c.title.includes('حضور') && 
+        !c.title.toLowerCase().includes('attendance') &&
+        !c.title.includes('غياب')
     );
 
-    const homeworkCols = getWorksConfig('HOMEWORK').filter(c => c.isVisible);
-    const examCols = getWorksConfig('PLATFORM_EXAM').filter(c => c.isVisible);
+    const homeworkCols = getAssignments('HOMEWORK').filter(c => c.isVisible);
+    const examCols = getAssignments('PLATFORM_EXAM').filter(c => c.isVisible);
 
     // Calculation Logic
     const calculateStats = () => {
@@ -105,14 +106,14 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         // 2. Homework
         const studentHWs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
         const totalHWCount = homeworkCols.length;
-        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
+        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size; // notes stores assignmentId
         const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 0;
         const gradeHW = (hwPercent / 100) * 10;
 
         // 3. Activity
         const studentActs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
         let actSum = 0;
-        const validColKeys = new Set(activityCols.map(c => c.key));
+        const validColKeys = new Set(activityCols.map(c => c.id));
         studentActs.forEach(p => {
              if (p.notes && validColKeys.has(p.notes)) {
                  actSum += p.score;
@@ -338,7 +339,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                         <tr className="bg-[#009da0] text-white">
                                             <th className="p-2 border border-teal-600 min-w-[80px] bg-teal-800">المجموع</th>
                                             {activityCols.map(col => (
-                                                <th key={col.key} className="p-2 border border-teal-600">{col.label}</th>
+                                                <th key={col.id} className="p-2 border border-teal-600">{col.title}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -346,9 +347,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                         <tr className="bg-gray-50">
                                             <td className="p-2 border border-gray-300 font-black text-lg text-teal-800 bg-teal-50">{stats.actSum}</td>
                                             {activityCols.map(col => {
-                                                const rec = stats.studentActs.find(p => p.notes === col.key);
+                                                const rec = stats.studentActs.find(p => p.notes === col.id);
                                                 return (
-                                                    <td key={col.key} className="p-2 border border-gray-300">
+                                                    <td key={col.id} className="p-2 border border-gray-300">
                                                         {rec ? rec.score : ''}
                                                     </td>
                                                 );
@@ -385,11 +386,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                         </td>
                                     </tr>
                                     {homeworkCols.map(col => {
-                                         const isDone = stats.studentHWs.some(p => p.notes === col.key && p.score > 0);
+                                         const isDone = stats.studentHWs.some(p => p.notes === col.id && p.score > 0);
                                          return (
-                                             <tr key={col.key}>
+                                             <tr key={col.id}>
                                                  <td className={`p-2 border border-gray-300 text-right ${isDone ? 'bg-green-50' : 'bg-red-50'}`}>
-                                                     {col.label} {isDone ? '✅' : '❌'}
+                                                     {col.title} {isDone ? '✅' : '❌'}
                                                  </td>
                                              </tr>
                                          )
@@ -415,11 +416,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                         </td>
                                     </tr>
                                     {examCols.map(col => {
-                                        const rec = stats.studentExams.find(p => p.notes === col.key);
+                                        const rec = stats.studentExams.find(p => p.notes === col.id);
                                         return (
-                                            <tr key={col.key}>
+                                            <tr key={col.id}>
                                                 <td className="p-2 border border-gray-300 bg-gray-50 flex justify-between px-4">
-                                                    <span>{col.label}</span>
+                                                    <span>{col.title}</span>
                                                     <span className="font-bold">{rec ? rec.score : '-'}</span>
                                                 </td>
                                             </tr>

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, saveWorksConfig, getWorksConfig } from './services/storageService';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
-import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, WorksColumnConfig } from './types';
+import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, Assignment } from './types';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -139,25 +139,41 @@ const App: React.FC = () => {
                   const { headers, data } = getSheetHeadersAndData(workbook, matchingSheet);
                   const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
                   const validHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
-                  const currentConfig = getWorksConfig(category);
+                  const currentAssignments = getAssignments(category);
+                  const newAssignments: Assignment[] = [];
 
                   if (validHeaders.length > 0) {
-                      const newConfig: WorksColumnConfig[] = validHeaders.map((header, index) => {
+                      validHeaders.forEach((header, index) => {
                           const { label, maxScore } = extractHeaderMetadata(header);
-                          const key = `excel_${category}_${index}`;
-                          const existingCol = currentConfig.find(c => c.key === key);
-                          const manualUrl = existingCol ? existingCol.url : '';
+                          
+                          // Find existing assignment by metadata or title
+                          let existing = currentAssignments.find(a => {
+                                try {
+                                    const meta = JSON.parse(a.sourceMetadata || '{}');
+                                    return meta.sheet === matchingSheet && meta.header === header;
+                                } catch { return false; }
+                          });
+                          
+                          if (!existing) {
+                              existing = currentAssignments.find(a => a.title === label);
+                          }
 
-                          return {
-                              key: key,
-                              label: label,
+                          const assignmentData: Assignment = {
+                              id: existing ? existing.id : `assign_${category}_bg_${Date.now()}_${index}`,
+                              title: label,
+                              category: category,
                               maxScore: maxScore,
                               isVisible: true,
-                              url: manualUrl,
-                              dataSource: { sourceId: 'master', sheet: matchingSheet, sourceHeader: header }
+                              url: existing ? existing.url : '',
+                              sourceMetadata: JSON.stringify({ sheet: matchingSheet, header: header }),
+                              orderIndex: index
                           };
+                          newAssignments.push(assignmentData);
                       });
-                      saveWorksConfig(category, newConfig);
+                      
+                      if (newAssignments.length > 0) {
+                          bulkSaveAssignments(newAssignments);
+                      }
 
                       const recordsToUpsert: PerformanceRecord[] = [];
                       const today = new Date().toISOString().split('T')[0];
@@ -175,25 +191,29 @@ const App: React.FC = () => {
                           }
 
                           if (student) {
-                              newConfig.forEach(col => {
-                                  const headerKey = col.dataSource!.sourceHeader;
-                                  const rawVal = row[headerKey];
-                                  const val = parseFloat(rawVal);
-                                  
-                                  if (!isNaN(val)) {
-                                      const recordId = `${student!.id}-${category}-${col.key}`;
-                                      recordsToUpsert.push({
-                                          id: recordId,
-                                          studentId: student!.id,
-                                          subject: defaultSubject,
-                                          title: col.label,
-                                          category: category,
-                                          score: val,
-                                          maxScore: col.maxScore,
-                                          date: today,
-                                          notes: col.key,
-                                          url: col.url
-                                      });
+                              newAssignments.forEach(assign => {
+                                  // Parse metadata to find header key
+                                  const meta = JSON.parse(assign.sourceMetadata || '{}');
+                                  const headerKey = meta.header;
+                                  if (headerKey) {
+                                      const rawVal = row[headerKey];
+                                      const val = parseFloat(rawVal);
+                                      
+                                      if (!isNaN(val)) {
+                                          const recordId = `${student!.id}-${category}-${assign.id}`;
+                                          recordsToUpsert.push({
+                                              id: recordId,
+                                              studentId: student!.id,
+                                              subject: defaultSubject,
+                                              title: assign.title,
+                                              category: category,
+                                              score: val,
+                                              maxScore: assign.maxScore,
+                                              date: today,
+                                              notes: assign.id, // Store assignment ID
+                                              url: assign.url
+                                          });
+                                      }
                                   }
                               });
                           }
