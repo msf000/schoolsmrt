@@ -126,16 +126,25 @@ const App: React.FC = () => {
                   const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
                   const validHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
                   
+                  // Load CURRENT config to preserve manual URLs
+                  const currentConfig = getWorksConfig(category);
+
                   if (validHeaders.length > 0) {
                       // 1. Update Config (If new columns added in Excel)
                       const newConfig: WorksColumnConfig[] = validHeaders.map((header, index) => {
                           const { label, maxScore } = extractHeaderMetadata(header);
+                          const key = `excel_${category}_${index}`;
+                          
+                          // Find existing manual URL configuration
+                          const existingCol = currentConfig.find(c => c.key === key);
+                          const manualUrl = existingCol ? existingCol.url : '';
+
                           return {
-                              key: `excel_${category}_${index}`,
+                              key: key,
                               label: label,
                               maxScore: maxScore,
                               isVisible: true,
-                              url: masterUrl,
+                              url: manualUrl, // Preserved Manual URL
                               dataSource: { sourceId: 'master', sheet: matchingSheet, sourceHeader: header }
                           };
                       });
@@ -161,7 +170,7 @@ const App: React.FC = () => {
                               newConfig.forEach(col => {
                                   const headerKey = col.dataSource!.sourceHeader;
                                   const rawVal = row[headerKey];
-                                  const linkVal = row[`${headerKey}_HYPERLINK`]; 
+                                  // IGNORE EXCEL HYPERLINKS - Use Config URL
                                   const val = parseFloat(rawVal);
                                   
                                   if (!isNaN(val)) {
@@ -177,7 +186,7 @@ const App: React.FC = () => {
                                           maxScore: col.maxScore,
                                           date: today,
                                           notes: col.key, // Keeps track of column key
-                                          url: linkVal
+                                          url: col.url // Strict: Only use manual config URL
                                       });
                                   }
                               });

@@ -146,7 +146,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             // Check if we have an existing manual configuration for this column
             const existingCol = currentConfig.find(c => c.key === key);
             // PRESERVE MANUAL URL: If exists, use it. Otherwise empty.
-            // Do NOT use masterUrl as default link for the activity itself.
+            // Strict: Do not ever pull URL from excel.
             const preservedUrl = existingCol ? existingCol.url : ''; 
 
             newConfig.push({
@@ -154,7 +154,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 label: label,
                 maxScore: maxScore,
                 isVisible: true,
-                url: preservedUrl, // Use the preserved manual URL
+                url: preservedUrl, 
                 dataSource: { sourceId: 'master', sheet: sheetName, sourceHeader: header }
             });
         });
@@ -181,8 +181,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 newConfig.forEach(col => {
                     const headerKey = col.dataSource!.sourceHeader;
                     const rawVal = row[headerKey];
-                    // IGNORE EXCEL HYPERLINKS COMPLETELY
-                    // const linkVal = row[`${headerKey}_HYPERLINK`]; 
+                    // STRICTLY IGNORE HYPERLINKS
                     
                     const val = parseFloat(rawVal);
                     if (!isNaN(val)) {
@@ -199,7 +198,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             maxScore: col.maxScore,
                             date: today,
                             notes: col.key,
-                            url: col.url // Use the Manual URL from config only
+                            url: col.url // Strict: Use the Manual URL from config only
                         });
                     }
                 });
@@ -288,11 +287,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const recordsToUpdate: PerformanceRecord[] = [];
         
         columnsConfig.forEach(col => {
-            // Find existing records for this column
+            // Find existing records for this column category/key
             const relevantRecords = performance.filter(p => p.category === activeTab && p.notes === col.key);
             
             relevantRecords.forEach(rec => {
-                // Force update URL to match the Config URL (Manual)
+                // Force update URL to match the Config URL (Manual), ignoring whatever was there before
                 if (rec.url !== col.url) {
                     recordsToUpdate.push({ ...rec, url: col.url });
                 }
