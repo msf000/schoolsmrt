@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface AttendanceProps {
@@ -49,6 +49,9 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
 
   const [saved, setSaved] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  
+  // --- Excuse Manager State ---
+  const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
 
   // Filters & State
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
@@ -142,6 +145,26 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     setNoteRecords(initialNotes);
     setSaved(false);
   }, [selectedDate, selectedPeriod, selectedClass, filteredStudents, attendanceHistory]);
+
+  // --- Logic for Excuses ---
+  const pendingExcuses = useMemo(() => {
+      return attendanceHistory.filter(r => 
+          (r.status === AttendanceStatus.ABSENT || r.status === AttendanceStatus.LATE) &&
+          (r.excuseNote || r.excuseFile)
+      ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [attendanceHistory]);
+
+  const handleAcceptExcuse = (record: AttendanceRecord) => {
+      const updated = { ...record, status: AttendanceStatus.EXCUSED };
+      onSaveAttendance([updated]);
+  };
+
+  const handleRejectExcuse = (record: AttendanceRecord) => {
+      if(confirm('هل أنت متأكد من رفض العذر؟ سيتم حذف الملاحظة والمرفق.')) {
+          const updated = { ...record, excuseNote: '', excuseFile: '' };
+          onSaveAttendance([updated]);
+      }
+  };
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     setRecords(prev => ({ ...prev, [studentId]: status }));
@@ -279,6 +302,21 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+             
+             {/* Excuse Inbox Button */}
+             <button 
+                onClick={() => setIsExcuseModalOpen(true)}
+                className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold relative"
+             >
+                <Inbox size={18} className={pendingExcuses.length > 0 ? "text-red-500" : "text-gray-400"} />
+                <span>صندوق الأعذار</span>
+                {pendingExcuses.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full animate-bounce">
+                        {pendingExcuses.length}
+                    </span>
+                )}
+             </button>
+
              <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border group hover:border-primary transition-colors flex-1 xl:flex-none">
                 <Calendar size={20} className="text-gray-500 group-hover:text-primary" />
                 <input 
@@ -601,6 +639,80 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                   forcedType="ATTENDANCE"
                   onClose={() => setIsImportModalOpen(false)}
               />
+          </div>
+      )}
+
+      {/* --- EXCUSE MANAGEMENT MODAL --- */}
+      {isExcuseModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                  <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                          <Inbox className="text-red-500" /> إدارة الأعذار والمبررات
+                      </h3>
+                      <button onClick={() => setIsExcuseModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                  </div>
+                  
+                  <div className="p-6 flex-1 overflow-y-auto bg-gray-50">
+                      {pendingExcuses.length > 0 ? (
+                          <div className="space-y-4">
+                              {pendingExcuses.map(record => {
+                                  const student = students.find(s => s.id === record.studentId);
+                                  return (
+                                      <div key={record.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                          <div className="flex justify-between items-start mb-3">
+                                              <div className="flex items-center gap-3">
+                                                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-600">
+                                                      {student?.name.charAt(0)}
+                                                  </div>
+                                                  <div>
+                                                      <h4 className="font-bold text-gray-800">{student?.name}</h4>
+                                                      <p className="text-xs text-gray-500">{formatDualDate(record.date)} • {record.status === 'ABSENT' ? 'غائب' : 'متأخر'}</p>
+                                                  </div>
+                                              </div>
+                                              {record.excuseFile && (
+                                                  <a 
+                                                      href={record.excuseFile} 
+                                                      download="excuse_proof" 
+                                                      className="text-blue-600 bg-blue-50 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 hover:bg-blue-100 transition-colors"
+                                                  >
+                                                      <Download size={12}/> تحميل المرفق
+                                                  </a>
+                                              )}
+                                          </div>
+                                          
+                                          <div className="bg-gray-50 p-3 rounded-lg text-sm text-gray-700 mb-4 border border-gray-100 flex items-start gap-2">
+                                              <FileText size={16} className="text-gray-400 mt-0.5 shrink-0"/>
+                                              <p>{record.excuseNote || 'لا يوجد نص للعذر'}</p>
+                                          </div>
+
+                                          <div className="flex gap-3">
+                                              <button 
+                                                  onClick={() => handleAcceptExcuse(record)}
+                                                  className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2"
+                                              >
+                                                  <Check size={16}/> قبول (تحويل لـ بعذر)
+                                              </button>
+                                              <button 
+                                                  onClick={() => handleRejectExcuse(record)}
+                                                  className="flex-1 bg-white border border-red-200 text-red-600 py-2 rounded-lg font-bold text-sm hover:bg-red-50 flex items-center justify-center gap-2"
+                                              >
+                                                  <X size={16}/> رفض وحذف
+                                              </button>
+                                          </div>
+                                      </div>
+                                  )
+                              })}
+                          </div>
+                      ) : (
+                          <div className="h-64 flex flex-col items-center justify-center text-gray-400">
+                              <Inbox size={48} className="mb-4 opacity-20"/>
+                              <p className="font-bold">لا توجد أعذار معلقة</p>
+                              <p className="text-sm">جميع الأعذار تم مراجعتها</p>
+                          </div>
+                      )}
+                  </div>
+              </div>
           </div>
       )}
     </div>

@@ -98,6 +98,18 @@ export interface AttendanceRecord {
 
 export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
 
+// NEW: Dedicated Assignment Table
+export interface Assignment {
+    id: string; // Unique ID (used as key in WorksTracking)
+    title: string;
+    category: PerformanceCategory;
+    maxScore: number;
+    url?: string;
+    isVisible: boolean;
+    orderIndex?: number;
+    sourceMetadata?: string; // JSON string for excel source info
+}
+
 export interface PerformanceRecord {
   id: string;
   studentId: string;
@@ -107,8 +119,8 @@ export interface PerformanceRecord {
   score: number;
   maxScore: number;
   date: string;
-  notes?: string; // Used to store Column Key (e.g., 'col_1') for Works Tracking
-  url?: string; // New: Link extracted from the source cell (e.g., student proof)
+  notes?: string; // Used to store Column Key / Assignment ID for linking
+  url?: string; // Legacy: kept for compatibility, but Assignment.url is preferred
 }
 
 export interface ExternalSource {

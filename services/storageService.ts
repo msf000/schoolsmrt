@@ -1,5 +1,5 @@
 
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem, ReportHeaderConfig } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem, ReportHeaderConfig, Assignment } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 
 // --- STORAGE KEYS ---
@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
     STUDENTS: 'sys_students',
     ATTENDANCE: 'sys_attendance',
     PERFORMANCE: 'sys_performance',
+    ASSIGNMENTS: 'sys_assignments', // NEW
     TEACHERS: 'sys_teachers',
     PARENTS: 'sys_parents',
     STAGES: 'sys_stages',
@@ -41,6 +42,7 @@ const saveLocal = (key: string, data: any) => {
 let _students: Student[] = loadLocal(STORAGE_KEYS.STUDENTS, []);
 let _attendance: AttendanceRecord[] = loadLocal(STORAGE_KEYS.ATTENDANCE, []);
 let _performance: PerformanceRecord[] = loadLocal(STORAGE_KEYS.PERFORMANCE, []);
+let _assignments: Assignment[] = loadLocal(STORAGE_KEYS.ASSIGNMENTS, []); // NEW
 let _teachers: Teacher[] = loadLocal(STORAGE_KEYS.TEACHERS, []);
 let _parents: Parent[] = loadLocal(STORAGE_KEYS.PARENTS, []);
 let _stages: EducationalStage[] = loadLocal(STORAGE_KEYS.STAGES, []);
@@ -59,6 +61,7 @@ export const DB_MAP = {
     'students': 'students',
     'attendance_records': 'attendance_records',
     'performance_records': 'performance_records',
+    'assignments': 'assignments', // NEW
     'teachers': 'teachers',
     'parents': 'parents',
     'educational_stages': 'educational_stages',
@@ -95,10 +98,6 @@ const toCamelCase = (item: any) => {
 export const initAutoSync = async (): Promise<boolean> => {
     const supabase = getSupabaseClient();
     
-    // Load config from local initially
-    const savedConfig = localStorage.getItem(CONFIG_KEYS.WORKS_CONFIG);
-    if (savedConfig) _worksConfig = JSON.parse(savedConfig);
-    
     // Try to get master URL from School first (if loaded), else Local
     _worksMasterUrl = localStorage.getItem(CONFIG_KEYS.WORKS_MASTER_URL) || '';
 
@@ -120,7 +119,8 @@ export const initAutoSync = async (): Promise<boolean> => {
             supabase.from('system_users').select('*'),
             supabase.from('attendance_records').select('*'),
             supabase.from('performance_records').select('*'),
-            supabase.from('weekly_schedules').select('*')
+            supabase.from('weekly_schedules').select('*'),
+            supabase.from('assignments').select('*') // NEW
         ]);
 
         // Helper to extract data
@@ -139,27 +139,7 @@ export const initAutoSync = async (): Promise<boolean> => {
         _attendance = load(9); saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
         _performance = load(10); saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
         _schedules = load(11); saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
-
-        // --- NEW: EXTRACT & SYNC CONFIG FROM HIDDEN RECORDS ---
-        // We look for performance records with studentId = 'SYSTEM_CONFIG'
-        const systemConfigs = _performance.filter(p => p.studentId === 'SYSTEM_CONFIG');
-        if (systemConfigs.length > 0) {
-            console.log("⚙️ Syncing System Configuration from Cloud...");
-            systemConfigs.forEach(rec => {
-                try {
-                    // ID format: CONFIG_ACTIVITY, CONFIG_HOMEWORK
-                    const parts = rec.id.split('_');
-                    if (parts.length > 1) {
-                        const cat = parts[1] as PerformanceCategory;
-                        if (rec.notes) {
-                            _worksConfig[cat] = JSON.parse(rec.notes);
-                        }
-                    }
-                } catch (e) { console.warn("Failed to parse system config", e); }
-            });
-            // Update local storage with cloud config
-            localStorage.setItem(CONFIG_KEYS.WORKS_CONFIG, JSON.stringify(_worksConfig));
-        }
+        _assignments = load(12); saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments); // NEW
 
         // Update works master url from schools if available
         if (_schools.length > 0 && _schools[0].worksMasterUrl) {
@@ -289,9 +269,41 @@ export const saveAttendance = (records: AttendanceRecord[]) => {
 };
 export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance(records);
 
+// --- Assignments (NEW) ---
+export const getAssignments = (category?: PerformanceCategory): Assignment[] => {
+    if (category) return _assignments.filter(a => a.category === category);
+    return [..._assignments];
+};
+
+export const saveAssignment = (assignment: Assignment) => {
+    const idx = _assignments.findIndex(a => a.id === assignment.id);
+    if (idx !== -1) _assignments[idx] = assignment;
+    else _assignments.push(assignment);
+    
+    saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    pushToCloud('assignments', assignment, 'UPSERT');
+};
+
+export const bulkSaveAssignments = (assignments: Assignment[]) => {
+    // Upsert logic
+    assignments.forEach(assign => {
+        const idx = _assignments.findIndex(a => a.id === assign.id);
+        if (idx !== -1) _assignments[idx] = assign;
+        else _assignments.push(assign);
+    });
+    saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    pushToCloud('assignments', assignments, 'UPSERT');
+};
+
+export const deleteAssignment = (id: string) => {
+    _assignments = _assignments.filter(a => a.id !== id);
+    saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    pushToCloud('assignments', id, 'DELETE');
+    // NOTE: Should we also delete related performance records? Optional for now.
+};
+
 // --- Performance ---
-// Filter out SYSTEM_CONFIG records so they don't appear in the UI tables
-export const getPerformance = (): PerformanceRecord[] => _performance.filter(p => p.studentId !== 'SYSTEM_CONFIG');
+export const getPerformance = (): PerformanceRecord[] => _performance;
 
 export const addPerformance = (record: PerformanceRecord) => {
     // If updating config record, we might need to replace
@@ -397,31 +409,13 @@ export const updateSystemUser = (item: SystemUser) => {
 };
 export const deleteSystemUser = (id: string) => { _users = _users.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.USERS, _users); pushToCloud('system_users', id, 'DELETE'); };
 
-// --- Works Config ---
-export const getWorksConfig = (category: PerformanceCategory) => _worksConfig[category] || [];
-
-export const saveWorksConfig = (category: PerformanceCategory, config: WorksColumnConfig[]) => {
-    // 1. Save Config Locally
-    _worksConfig[category] = config;
-    localStorage.setItem(CONFIG_KEYS.WORKS_CONFIG, JSON.stringify(_worksConfig));
-
-    // 2. Sync to Cloud (Store as a hidden Performance Record)
-    // This allows students to download the config without needing a new DB table
-    const configRecord: PerformanceRecord = {
-        id: `CONFIG_${category}`,
-        studentId: 'SYSTEM_CONFIG', // Special ID to hide from normal views
-        subject: 'SYSTEM',
-        title: category,
-        category: 'OTHER',
-        score: 0,
-        maxScore: 0,
-        date: new Date().toISOString().split('T')[0],
-        notes: JSON.stringify(config), // Store config JSON here
-        url: ''
-    };
-    // Use addPerformance to handle cloud push
-    addPerformance(configRecord);
+// --- Legacy Config (Can be removed later, kept for backward compat if needed) ---
+export const getWorksConfig = (category: PerformanceCategory) => {
+    // Deprecated: Just map assignments to old format for UI compatibility if needed temporarily
+    // But we will use getAssignments directly in new UI
+    return [];
 };
+export const saveWorksConfig = (category: PerformanceCategory, config: WorksColumnConfig[]) => {};
 
 export const getWorksMasterUrl = () => _worksMasterUrl;
 export const saveWorksMasterUrl = (url: string) => {
@@ -488,6 +482,7 @@ export const clearDatabase = () => {
     _subjects = [];
     _schedules = [];
     _customTables = [];
+    _assignments = []; // NEW
     
     // Clear All Keys
     Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
@@ -503,6 +498,7 @@ export const getStorageStatistics = () => {
         classes: _classes.length,
         schools: _schools.length,
         users: _users.length,
+        assignments: _assignments.length // NEW
     };
 };
 
@@ -555,7 +551,7 @@ export const createBackup = () => {
         schools: _schools,
         users: _users,
         customTables: _customTables,
-        worksConfig: _worksConfig,
+        assignments: _assignments,
         schedules: _schedules
     });
 };
@@ -578,7 +574,7 @@ export const restoreBackup = (json: string): boolean => {
         if (Array.isArray(data.users)) { _users = data.users; saveLocal(STORAGE_KEYS.USERS, _users); }
         if (Array.isArray(data.customTables)) { _customTables = data.customTables; saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables); }
         if (Array.isArray(data.schedules)) { _schedules = data.schedules; saveLocal(STORAGE_KEYS.SCHEDULES, _schedules); }
-        if (data.worksConfig) { _worksConfig = data.worksConfig; localStorage.setItem(CONFIG_KEYS.WORKS_CONFIG, JSON.stringify(_worksConfig)); }
+        if (Array.isArray(data.assignments)) { _assignments = data.assignments; saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments); }
         
         return true;
     } catch (e) {
@@ -603,7 +599,8 @@ export const uploadToSupabase = async () => {
         { name: 'system_users', data: _users },
         { name: 'attendance_records', data: _attendance },
         { name: 'performance_records', data: _performance },
-        { name: 'weekly_schedules', data: _schedules }
+        { name: 'weekly_schedules', data: _schedules },
+        { name: 'assignments', data: _assignments } // NEW
     ];
 
     for (const t of tables) {

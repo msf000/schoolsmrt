@@ -516,24 +516,22 @@ const SubscriptionsManager = () => {
 };
 
 const SCHEMA_PATCH_SQL = `
--- 🛠️ إصلاح خطأ الربط وتحديث هيكل البيانات (Period & Behavior & Password)
+-- 🛠️ إضافة جدول assignments (الروابط والأنشطة)
 
--- 1. السماح بحفظ الجداول باستخدام "اسم الفصل" كنص
-ALTER TABLE public.weekly_schedules DROP CONSTRAINT IF EXISTS weekly_schedules_class_id_fkey;
+CREATE TABLE IF NOT EXISTS public.assignments (
+  id text primary key,
+  title text not null,
+  category text not null,
+  max_score numeric default 10,
+  url text,
+  is_visible boolean default true,
+  order_index integer,
+  source_metadata text,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
 
--- 2. إضافة أعمدة الحصة والسلوك لسجل الحضور
-ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS period integer;
-ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS behavior_status text;
-ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS behavior_note text;
--- NEW: إضافة أعمدة الأعذار
-ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS excuse_note text;
-ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS excuse_file text;
-
--- 3. إضافة عمود كلمة المرور للمستخدمين
-ALTER TABLE public.system_users ADD COLUMN IF NOT EXISTS password text;
-
--- 4. إضافة عمود كلمة المرور للطلاب (Student Login)
-ALTER TABLE public.students ADD COLUMN IF NOT EXISTS password text;
+ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON public.assignments FOR ALL USING (true) WITH CHECK (true);
 
 -- تحديث كاش النظام
 NOTIFY pgrst, 'reload schema';
@@ -556,6 +554,7 @@ DROP TABLE IF EXISTS public.teachers CASCADE;
 DROP TABLE IF EXISTS public.parents CASCADE;
 DROP TABLE IF EXISTS public.system_users CASCADE;
 DROP TABLE IF EXISTS public.schools CASCADE;
+DROP TABLE IF EXISTS public.assignments CASCADE; -- NEW
 
 -- 2. إنشاء الجداول
 
@@ -644,6 +643,18 @@ create table public.attendance_records (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+create table public.assignments ( -- NEW TABLE FOR LINKS & CONFIG
+  id text primary key,
+  title text not null,
+  category text not null,
+  max_score numeric default 10,
+  url text, -- The link!
+  is_visible boolean default true,
+  order_index integer,
+  source_metadata text,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
 create table public.performance_records (
   id text primary key,
   student_id text references public.students(id) on delete cascade,
@@ -652,7 +663,7 @@ create table public.performance_records (
   score numeric not null,
   max_score numeric not null,
   date text default CURRENT_DATE,
-  notes text,
+  notes text, -- Stores Assignment ID
   category text,
   url text
 );
@@ -717,6 +728,9 @@ CREATE POLICY "Public Access" ON public.weekly_schedules FOR ALL USING (true) WI
 
 ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Access" ON public.system_users FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON public.assignments FOR ALL USING (true) WITH CHECK (true);
 `;
 
 const DatabaseSettings = () => {
@@ -948,6 +962,7 @@ const DatabaseSettings = () => {
                             <StatComparison label="المعلمين" table="teachers" local={localStats.teachers} cloud={cloudStats?.teachers} />
                             <StatComparison label="الحضور" table="attendance_records" local={localStats.attendance} cloud={cloudStats?.attendance_records} />
                             <StatComparison label="الأداء" table="performance_records" local={localStats.performance} cloud={cloudStats?.performance_records} />
+                            <StatComparison label="الروابط" table="assignments" local={localStats.assignments} cloud={cloudStats?.assignments} />
                             <StatComparison label="المدارس" table="schools" local={localStats.schools} cloud={cloudStats?.schools} />
                             <StatComparison label="المستخدمين" table="system_users" local={localStats.users} cloud={cloudStats?.system_users} />
                         </div>
@@ -1081,8 +1096,8 @@ const DatabaseSettings = () => {
                     <div className="mb-8 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع (لإصلاح الأخطاء وإضافة السلوك)</h4>
-                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإضافة أعمدة السلوك والملاحظات وكلمة المرور في قاعدة البيانات</p>
+                                <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع (لإضافة جدول assignments)</h4>
+                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإضافة الجدول الجديد في Supabase</p>
                             </div>
                             <button onClick={() => copyToClipboard(SCHEMA_PATCH_SQL)} className="text-yellow-400 hover:text-white bg-yellow-900/50 p-2 rounded hover:bg-yellow-800 transition-colors" title="نسخ الكود">
                                 <Copy size={16} />

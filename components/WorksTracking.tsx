@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, WorksColumnConfig, Subject, AttendanceRecord, AttendanceStatus } from '../types';
-import { getWorksConfig, saveWorksConfig, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, bulkAddPerformance } from '../services/storageService';
+import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus } from '../types';
+import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, bulkAddPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, CheckCircle, ExternalLink, Loader2, Table, AlertCircle, Link as LinkIcon, Edit2, Cloud, PieChart, Calculator, TrendingUp, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, Globe, List, Layout, PenTool } from 'lucide-react';
 
@@ -33,8 +33,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [selectedSubject, setSelectedSubject] = useState('');
     const [activeTab, setActiveTab] = useState<PerformanceCategory>('ACTIVITY'); // Sub-tab for category
     
-    const [columnsConfig, setColumnsConfig] = useState<WorksColumnConfig[]>([]);
-    const [gridData, setGridData] = useState<Record<string, Record<string, { score: string, url?: string }>>>({});
+    // NEW: Using Assignments Table
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
+    const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); // studentId -> assignmentId -> score
     const [activityTarget, setActivityTarget] = useState<number>(13); 
     
     // Status States
@@ -65,22 +66,27 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     }, []);
 
     useEffect(() => {
-        const config = getWorksConfig(activeTab);
-        setColumnsConfig(config);
+        // Load Assignments for current tab
+        const allAssignments = getAssignments(activeTab);
+        setAssignments(allAssignments);
         
         // Auto-sync logic (only in grading mode and if empty)
-        if (activeMode === 'GRADING' && masterUrl && config.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
+        if (activeMode === 'GRADING' && masterUrl && allAssignments.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
             handleAutoSyncForTab(activeTab);
         }
     }, [activeTab, masterUrl, activeMode]);
 
     useEffect(() => {
         if (activeTab === 'YEAR_WORK') return;
-        const newGrid: Record<string, Record<string, { score: string, url?: string }>> = {};
+        
+        // Build Grid Data: Map Student Performance to Assignment ID
+        // Note: performance.notes stores assignmentId now
+        const newGrid: Record<string, Record<string, string>> = {};
+        
         performance.forEach(p => {
             if (p.category === activeTab && p.subject === selectedSubject && p.notes) {
                 if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
-                newGrid[p.studentId][p.notes] = { score: p.score.toString(), url: p.url };
+                newGrid[p.studentId][p.notes] = p.score.toString();
             }
         });
         setGridData(newGrid);
@@ -135,34 +141,43 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const gradeHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
         if (gradeHeaders.length === 0) return;
 
-        // 1. Load EXISTING Config to preserve URLs created manually
-        const currentConfig = getWorksConfig(category);
+        // 1. Get Existing Assignments to avoid duplicates or update them
+        const currentAssignments = getAssignments(category);
+        const newAssignments: Assignment[] = [];
 
-        const newConfig: WorksColumnConfig[] = [];
         gradeHeaders.forEach((header, index) => {
             const { label, maxScore } = extractHeaderMetadata(header);
-            const key = `excel_${category}_${index}`;
             
-            // Check if we have an existing manual configuration for this column
-            const existingCol = currentConfig.find(c => c.key === key);
-            // PRESERVE MANUAL URL: If exists, use it. Otherwise empty.
-            // Strict: Do not ever pull URL from excel.
-            const preservedUrl = existingCol ? existingCol.url : ''; 
+            // Try to find existing assignment by source metadata (sheet + header)
+            let existing = currentAssignments.find(a => {
+                try {
+                    const meta = JSON.parse(a.sourceMetadata || '{}');
+                    return meta.sheet === sheetName && meta.header === header;
+                } catch { return false; }
+            });
 
-            newConfig.push({
-                key: key,
-                label: label,
+            if (!existing) {
+                // If not found by metadata, try by name (fuzzy match) to avoid creating duplicates on first sync
+                existing = currentAssignments.find(a => a.title === label);
+            }
+
+            const assignmentData: Assignment = {
+                id: existing ? existing.id : `assign_${category}_${Date.now()}_${index}`,
+                title: label,
+                category: category,
                 maxScore: maxScore,
                 isVisible: true,
-                url: preservedUrl, 
-                dataSource: { sourceId: 'master', sheet: sheetName, sourceHeader: header }
-            });
+                url: existing ? existing.url : '', // Preserve URL if exists
+                sourceMetadata: JSON.stringify({ sheet: sheetName, header: header }),
+                orderIndex: index
+            };
+            
+            saveAssignment(assignmentData);
+            newAssignments.push(assignmentData);
         });
         
-        setColumnsConfig(newConfig);
-        saveWorksConfig(category, newConfig);
+        setAssignments(newAssignments);
 
-        const newDataMap: any = {};
         const recordsToSave: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
         
@@ -177,28 +192,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                  if (!student && cleanName.length > 4) student = students.find(s => s.name.trim().includes(cleanName));
             }
             if (student) {
-                if (!newDataMap[student.id]) newDataMap[student.id] = {};
-                newConfig.forEach(col => {
-                    const headerKey = col.dataSource!.sourceHeader;
+                newAssignments.forEach(assign => {
+                    const meta = JSON.parse(assign.sourceMetadata || '{}');
+                    const headerKey = meta.header;
                     const rawVal = row[headerKey];
-                    // STRICTLY IGNORE HYPERLINKS
                     
                     const val = parseFloat(rawVal);
                     if (!isNaN(val)) {
-                        // Apply the column's manual URL to the record. 
-                        // If no manual URL is set, the record gets an empty URL.
-                        newDataMap[student.id][col.key] = { score: val.toString(), url: col.url }; 
                         recordsToSave.push({
-                            id: `${student!.id}-${category}-${col.key}`,
+                            id: `${student!.id}-${category}-${assign.id}`,
                             studentId: student!.id,
                             subject: selectedSubject,
-                            title: col.label,
+                            title: assign.title,
                             category: category,
                             score: val,
-                            maxScore: col.maxScore,
+                            maxScore: assign.maxScore,
                             date: today,
-                            notes: col.key,
-                            url: col.url // Strict: Use the Manual URL from config only
+                            notes: assign.id, // Store Assignment ID
+                            url: assign.url // Store Assignment URL just in case
                         });
                     }
                 });
@@ -208,10 +219,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     // --- Entry Logic ---
-    const handleScoreChange = (studentId: string, colKey: string, val: string) => {
+    const handleScoreChange = (studentId: string, assignId: string, val: string) => {
         setGridData(prev => ({
             ...prev,
-            [studentId]: { ...prev[studentId], [colKey]: { ...prev[studentId]?.[colKey], score: val } }
+            [studentId]: { ...prev[studentId], [assignId]: val }
         }));
     };
 
@@ -219,24 +230,25 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return;
         const recordsToSave: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
+        
         students.forEach(student => {
-            columnsConfig.forEach(col => {
-                if (col.isVisible) {
-                    const cellData = gridData[student.id]?.[col.key];
-                    if (cellData && cellData.score !== '' && cellData.score !== undefined) {
-                         const val = parseFloat(cellData.score);
+            assignments.forEach(assign => {
+                if (assign.isVisible) {
+                    const scoreVal = gridData[student.id]?.[assign.id];
+                    if (scoreVal !== undefined && scoreVal !== '') {
+                         const val = parseFloat(scoreVal);
                          if (!isNaN(val)) {
                             recordsToSave.push({
-                                id: `${student.id}-${activeTab}-${col.key}`,
+                                id: `${student.id}-${activeTab}-${assign.id}`,
                                 studentId: student.id,
                                 subject: selectedSubject,
-                                title: col.label,
+                                title: assign.title,
                                 category: activeTab,
                                 score: val,
-                                maxScore: col.maxScore,
+                                maxScore: assign.maxScore,
                                 date: today,
-                                notes: col.key,
-                                url: col.url // Enforce column manual URL
+                                notes: assign.id, // Link via Assignment ID
+                                url: assign.url 
                             });
                          }
                     }
@@ -256,59 +268,46 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // --- Management Logic ---
     const handleAddColumn = () => {
-        const newCol: WorksColumnConfig = {
-            key: `manual_${Date.now()}`,
-            label: 'عنوان جديد',
+        const newAssign: Assignment = {
+            id: `manual_${Date.now()}`,
+            title: 'عنوان جديد',
+            category: activeTab,
             maxScore: 10,
             isVisible: true,
-            url: ''
+            url: '',
+            orderIndex: assignments.length
         };
-        setColumnsConfig([...columnsConfig, newCol]);
+        saveAssignment(newAssign);
+        setAssignments([...assignments, newAssign]);
     };
 
-    const handleUpdateColumn = (index: number, field: keyof WorksColumnConfig, value: any) => {
-        const updated = [...columnsConfig];
+    const handleUpdateColumn = (index: number, field: keyof Assignment, value: any) => {
+        const updated = [...assignments];
         updated[index] = { ...updated[index], [field]: value };
-        setColumnsConfig(updated);
+        setAssignments(updated);
+        // Save immediately for better UX in management mode
+        // saveAssignment(updated[index]); 
     };
 
     const handleDeleteColumn = (index: number) => {
-        if (confirm('هل أنت متأكد من حذف هذا النشاط؟ ستفقد الدرجات المرتبطة به إذا لم يتم حفظها مسبقاً.')) {
-            const updated = columnsConfig.filter((_, i) => i !== index);
-            setColumnsConfig(updated);
+        if (confirm('هل أنت متأكد من حذف هذا النشاط؟ ستفقد الدرجات المرتبطة به.')) {
+            const toDelete = assignments[index];
+            deleteAssignment(toDelete.id);
+            setAssignments(assignments.filter((_, i) => i !== index));
         }
     };
 
     const handleSaveConfig = () => {
-        // 1. Save Config Locally (and to Cloud via modified storageService)
-        saveWorksConfig(activeTab, columnsConfig);
+        // Save all assignments changes
+        assignments.forEach(a => saveAssignment(a));
         
-        // 2. Propagate Links to Database Records (So students can see them immediately if they have a record)
-        const recordsToUpdate: PerformanceRecord[] = [];
-        
-        columnsConfig.forEach(col => {
-            // Find existing records for this column category/key
-            const relevantRecords = performance.filter(p => p.category === activeTab && p.notes === col.key);
-            
-            relevantRecords.forEach(rec => {
-                // Force update URL to match the Config URL (Manual), ignoring whatever was there before
-                if (rec.url !== col.url) {
-                    recordsToUpdate.push({ ...rec, url: col.url });
-                }
-            });
-        });
-
-        if (recordsToUpdate.length > 0) {
-            onAddPerformance(recordsToUpdate);
-        }
-
-        setStatusMsg('✅ تم حفظ الإعدادات، الروابط، ومزامنتها مع جميع الطلاب.');
+        setStatusMsg('✅ تم حفظ الإعدادات، وتحديث الروابط في قاعدة البيانات.');
         setTimeout(() => setStatusMsg(''), 3000);
     };
 
     // --- RENDERERS ---
     const renderYearWorkTable = () => {
-        const hwConfig = getWorksConfig('HOMEWORK').filter(c => c.isVisible);
+        const hwConfig = getAssignments('HOMEWORK').filter(c => c.isVisible);
         const totalHWCount = hwConfig.length;
         
         return (
@@ -411,7 +410,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <p className="text-gray-500 text-sm mt-1">
                         {activeMode === 'GRADING' 
                             ? 'أدخل الدرجات في الخلايا أدناه.' 
-                            : 'تعديل أسماء الأنشطة والروابط.'}
+                            : 'تعديل أسماء الأنشطة والروابط (يتم الحفظ مركزياً).'}
                     </p>
                 </div>
                 
@@ -521,14 +520,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y text-sm">
-                                    {columnsConfig.map((col, index) => (
-                                        <tr key={col.key} className="hover:bg-gray-50 transition-colors">
+                                    {assignments.map((col, index) => (
+                                        <tr key={col.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="p-4 text-center text-gray-400 font-bold">{index + 1}</td>
                                             <td className="p-4">
                                                 <input 
                                                     className="w-full p-2 border rounded focus:ring-2 focus:ring-purple-500 outline-none font-bold text-gray-700"
-                                                    value={col.label}
-                                                    onChange={(e) => handleUpdateColumn(index, 'label', e.target.value)}
+                                                    value={col.title}
+                                                    onChange={(e) => handleUpdateColumn(index, 'title', e.target.value)}
                                                     placeholder="مثال: واجب 1"
                                                 />
                                             </td>
@@ -578,7 +577,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             </td>
                                         </tr>
                                     ))}
-                                    {columnsConfig.length === 0 && (
+                                    {assignments.length === 0 && (
                                         <tr><td colSpan={6} className="p-12 text-center text-gray-400 bg-gray-50/50 rounded-lg border-2 border-dashed border-gray-200 m-4">
                                             <Settings size={32} className="mx-auto mb-2 opacity-50"/>
                                             لا توجد أنشطة مضافة. اضغط "إضافة" للبدء.
@@ -593,7 +592,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 onClick={handleSaveConfig} 
                                 className="px-8 py-3 bg-gray-900 text-white font-bold rounded-lg hover:bg-black shadow-lg flex items-center gap-2 transform transition-transform active:scale-95"
                             >
-                                <Save size={18}/> حفظ وتحديث الروابط للجميع
+                                <Save size={18}/> حفظ التغييرات وتحديث الطلاب
                             </button>
                         </div>
                     </div>
@@ -606,7 +605,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <div className="overflow-x-auto h-full">
                                 {renderYearWorkTable()}
                             </div>
-                        ) : !masterUrl && columnsConfig.length === 0 ? (
+                        ) : !masterUrl && assignments.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                                 <LinkIcon size={48} className="mb-4 opacity-20"/>
                                 <p className="text-lg font-bold">لم يتم إعداد الأنشطة</p>
@@ -616,7 +615,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     <button onClick={() => setActiveMode('MANAGEMENT')} className="text-purple-600 font-bold hover:underline">إعداد يدوي</button>
                                 </div>
                             </div>
-                        ) : columnsConfig.length === 0 ? (
+                        ) : assignments.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                                 {isGenerating ? <Loader2 size={48} className="animate-spin mb-4 opacity-20"/> : <Table size={48} className="mb-4 opacity-20"/>}
                                 <p className="text-lg font-bold">{isGenerating ? 'جاري جلب البيانات...' : 'لا توجد بيانات للعرض'}</p>
@@ -634,9 +633,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     <tr>
                                         <th className="p-3 border-b border-l w-12 text-center bg-gray-50">#</th>
                                         <th className="p-3 border-b border-l min-w-[180px] bg-gray-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
-                                        {columnsConfig.filter(c => c.isVisible).map(col => (
-                                            <th key={col.key} className="p-2 border-b border-l min-w-[100px] text-center relative group bg-gray-50">
-                                                <div className="text-xs text-gray-500 mb-1">{col.label}</div>
+                                        {assignments.filter(c => c.isVisible).map(col => (
+                                            <th key={col.id} className="p-2 border-b border-l min-w-[100px] text-center relative group bg-gray-50">
+                                                <div className="text-xs text-gray-500 mb-1">{col.title}</div>
                                                 <div className="text-[10px] text-gray-400">({col.maxScore})</div>
                                                 {col.url && <a href={col.url} target="_blank" className="absolute top-1 left-1 text-blue-400 hover:text-blue-600"><ExternalLink size={10}/></a>}
                                             </th>
@@ -663,12 +662,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </thead>
                                 <tbody>
                                     {students.map((student, i) => {
-                                        const renderedCells = columnsConfig.filter(c => c.isVisible).map(col => {
-                                            const cellData = gridData[student.id]?.[col.key];
+                                        const renderedCells = assignments.filter(c => c.isVisible).map(col => {
+                                            const scoreVal = gridData[student.id]?.[col.id];
                                             return (
-                                                <td key={col.key} className="p-1 border-b border-l text-center relative">
-                                                    <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={cellData?.score || ''} onChange={(e) => handleScoreChange(student.id, col.key, e.target.value)} placeholder="-"/>
-                                                    {cellData?.url && <a href={cellData.url} target="_blank" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></a>}
+                                                <td key={col.id} className="p-1 border-b border-l text-center relative">
+                                                    <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={scoreVal || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-"/>
+                                                    {col.url && <a href={col.url} target="_blank" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></a>}
                                                 </td>
                                             );
                                         });
@@ -677,9 +676,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         let activityStats = null;
                                         if (activeTab === 'ACTIVITY') {
                                             let totalScore = 0;
-                                            columnsConfig.filter(c => c.isVisible).forEach(col => {
-                                                const val = parseFloat(gridData[student.id]?.[col.key]?.score || '0');
-                                                if(!col.label.includes('حضور') && !isNaN(val)) totalScore += val;
+                                            assignments.filter(c => c.isVisible).forEach(col => {
+                                                const val = parseFloat(gridData[student.id]?.[col.id] || '0');
+                                                if(!col.title.includes('حضور') && !isNaN(val)) totalScore += val;
                                             });
                                             const completionPct = activityTarget > 0 ? Math.round((totalScore / activityTarget) * 100) : 0;
                                             activityStats = (
@@ -692,8 +691,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         // Homework Stats
                                         let homeworkStats = null;
                                         if (activeTab === 'HOMEWORK') {
-                                            const totalItems = columnsConfig.filter(c => c.isVisible).length;
-                                            const completedCount = columnsConfig.filter(c => c.isVisible && gridData[student.id]?.[c.key]?.score).length;
+                                            const totalItems = assignments.filter(c => c.isVisible).length;
+                                            const completedCount = assignments.filter(c => c.isVisible && gridData[student.id]?.[c.id]).length;
                                             const percentage = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
                                             homeworkStats = (
                                                 <>
@@ -705,7 +704,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         // Platform Stats
                                         let platformStats = null;
                                         if (activeTab === 'PLATFORM_EXAM') {
-                                            const validScores = columnsConfig.filter(c => c.isVisible).map(c => parseFloat(gridData[student.id]?.[c.key]?.score || 'NaN')).filter(v => !isNaN(v));
+                                            const validScores = assignments.filter(c => c.isVisible).map(c => parseFloat(gridData[student.id]?.[c.id] || 'NaN')).filter(v => !isNaN(v));
                                             const count = validScores.length;
                                             const average = count > 0 ? (validScores.reduce((a,b)=>a+b,0) / count) : 0;
                                             const weighted = count > 0 ? (average / 15) * 20 : 0;

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getWorksConfig } from '../services/storageService';
+import { updateStudent, saveAttendance, getSubjects, getAssignments } from '../services/storageService';
 import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
@@ -384,13 +384,13 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
 
     // Calculate Summary Stats (Mirroring StudentFollowUp logic)
     const stats = useMemo(() => {
-        // Configs for columns
-        const homeworkCols = getWorksConfig('HOMEWORK').filter(c => c.isVisible);
-        const rawActivityCols = getWorksConfig('ACTIVITY').filter(c => c.isVisible);
-        const examCols = getWorksConfig('PLATFORM_EXAM').filter(c => c.isVisible);
+        // Configs for columns - NEW: Use Assignments
+        const homeworkCols = getAssignments('HOMEWORK').filter(c => c.isVisible);
+        const rawActivityCols = getAssignments('ACTIVITY').filter(c => c.isVisible);
+        const examCols = getAssignments('PLATFORM_EXAM').filter(c => c.isVisible);
         
         // Exclude attendance from activity sum if needed
-        const activityCols = rawActivityCols.filter(c => !c.label.includes('حضور') && !c.label.toLowerCase().includes('attendance'));
+        const activityCols = rawActivityCols.filter(c => !c.title.includes('حضور') && !c.title.toLowerCase().includes('attendance'));
 
         // Filter for this student & subject
         const myPerf = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject);
@@ -398,7 +398,7 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
 
         // 1. Homework (Max 10)
         const studentHWs = myPerf.filter(p => p.category === 'HOMEWORK');
-        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
+        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size; // notes stores assignmentId
         const totalHWCount = homeworkCols.length;
         const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 0;
         const gradeHW = (hwPercent / 100) * 10;
@@ -406,7 +406,7 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
         // 2. Activity (Max 15)
         const studentActs = myPerf.filter(p => p.category === 'ACTIVITY');
         let actSum = 0;
-        const validColKeys = new Set(activityCols.map(c => c.key));
+        const validColKeys = new Set(activityCols.map(c => c.id));
         studentActs.forEach(p => {
              if (p.notes && validColKeys.has(p.notes)) {
                  actSum += p.score;
@@ -572,15 +572,15 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {stats.homeworkCols.map((col) => {
-                                        const isDone = stats.studentHWs.some(p => p.notes === col.key && p.score > 0);
+                                        const isDone = stats.studentHWs.some(p => p.notes === col.id && p.score > 0);
                                         return (
-                                            <tr key={col.key} className="hover:bg-gray-50">
+                                            <tr key={col.id} className="hover:bg-gray-50">
                                                 <td className="p-3 text-gray-700 font-medium">
                                                     {col.url ? (
                                                         <a href={col.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
-                                                            {col.label} <ExternalLink size={10}/>
+                                                            {col.title} <ExternalLink size={10}/>
                                                         </a>
-                                                    ) : col.label}
+                                                    ) : col.title}
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     {isDone ? (
@@ -624,19 +624,19 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {stats.activityCols.map((col) => {
-                                        const rec = stats.studentActs.find(p => p.notes === col.key);
+                                        const rec = stats.studentActs.find(p => p.notes === col.id);
                                         const score = rec ? rec.score : 0;
-                                        // Prioritize record URL, fallback to config URL
-                                        const linkUrl = rec?.url || col.url; 
+                                        // Prioritize Assignment URL
+                                        const linkUrl = col.url; 
                                         
                                         return (
-                                            <tr key={col.key} className="hover:bg-gray-50">
+                                            <tr key={col.id} className="hover:bg-gray-50">
                                                 <td className="p-3 text-gray-700 font-medium">
                                                     {linkUrl ? (
                                                         <a href={linkUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
-                                                            {col.label} <ExternalLink size={10}/>
+                                                            {col.title} <ExternalLink size={10}/>
                                                         </a>
-                                                    ) : col.label}
+                                                    ) : col.title}
                                                 </td>
                                                 <td className="p-3 text-center font-bold text-amber-700 font-mono">
                                                     {score > 0 ? score : '-'}
@@ -673,17 +673,17 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {stats.examCols.map((col) => {
-                                        const rec = stats.studentExams.find(p => p.notes === col.key);
+                                        const rec = stats.studentExams.find(p => p.notes === col.id);
                                         const score = rec ? rec.score : 0;
                                         const max = col.maxScore || 20;
                                         return (
-                                            <tr key={col.key} className="hover:bg-gray-50">
+                                            <tr key={col.id} className="hover:bg-gray-50">
                                                 <td className="p-3 text-gray-700 font-medium">
                                                     {col.url ? (
                                                         <a href={col.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
-                                                            {col.label} <ExternalLink size={10}/>
+                                                            {col.title} <ExternalLink size={10}/>
                                                         </a>
-                                                    ) : col.label}
+                                                    ) : col.title}
                                                 </td>
                                                 <td className="p-3 text-center font-bold text-purple-700 font-mono">{score}</td>
                                                 <td className="p-3 text-center text-gray-400 text-xs font-mono">{max}</td>
