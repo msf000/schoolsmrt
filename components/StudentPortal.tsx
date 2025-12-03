@@ -34,7 +34,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     return (
         <div className="flex h-screen bg-gray-50 overflow-hidden text-right font-sans" dir="rtl">
             {/* Sidebar Desktop */}
-            <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200 shadow-sm z-20">
+            <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200 shadow-sm z-30">
                 <div className="p-6 border-b border-gray-100 flex flex-col items-center justify-center">
                     <div className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-3 shadow-lg ring-4 ring-teal-50">
                         {currentUser.name.charAt(0)}
@@ -65,39 +65,56 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 </div>
             </aside>
 
-            {/* Mobile Header */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="md:hidden bg-white p-4 border-b flex justify-between items-center shadow-sm z-20">
+            {/* Mobile Menu Overlay (Fixed) */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/50 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}>
+                    <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col animate-slide-in-right" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 flex justify-between items-center border-b bg-teal-600 text-white">
+                            <h1 className="text-xl font-bold">بوابة الطالب</h1>
+                            <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-white/20 rounded-full"><X size={24} /></button>
+                        </div>
+                        <div className="p-4 border-b bg-teal-50 flex items-center gap-3">
+                             <div className="w-10 h-10 bg-teal-200 rounded-full flex items-center justify-center text-teal-800 font-bold">
+                                {currentUser.name.charAt(0)}
+                            </div>
+                            <div>
+                                <p className="font-bold text-gray-800">{currentUser.name}</p>
+                                <p className="text-xs text-gray-500">{currentUser.className}</p>
+                            </div>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+                            {navItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => { setView(item.id as any); setIsMobileMenuOpen(false); }}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                                        view === item.id ? 'bg-teal-100 text-teal-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <item.icon size={20} />
+                                    <span>{item.label}</span>
+                                </button>
+                            ))}
+                            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 border-t mt-2 hover:bg-red-50 rounded-xl transition-colors">
+                                <LogOut size={20} /> <span>تسجيل الخروج</span>
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+            )}
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col overflow-hidden w-full h-full relative">
+                <header className="md:hidden bg-white p-4 border-b flex justify-between items-center shadow-sm z-20 shrink-0">
                     <div className="font-bold text-gray-800 flex items-center gap-2">
                         <Award className="text-teal-600"/> بوابة الطالب
                     </div>
-                    <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600">
-                        {isMobileMenuOpen ? <X/> : <Menu/>}
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                        <Menu size={24}/>
                     </button>
                 </header>
 
-                {/* Mobile Menu */}
-                {isMobileMenuOpen && (
-                    <div className="md:hidden absolute top-16 right-0 w-full bg-white border-b shadow-lg z-30 p-4 space-y-2 animate-slide-in-right">
-                        {navItems.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => { setView(item.id as any); setIsMobileMenuOpen(false); }}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                                    view === item.id ? 'bg-teal-50 text-teal-700 font-bold' : 'text-gray-600'
-                                }`}
-                            >
-                                <item.icon size={20} />
-                                <span>{item.label}</span>
-                            </button>
-                        ))}
-                        <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 border-t mt-2">
-                            <LogOut size={20} /> <span>تسجيل الخروج</span>
-                        </button>
-                    </div>
-                )}
-
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-50 custom-scrollbar w-full">
                     {view === 'PROFILE' && <StudentProfile student={currentUser} />}
                     {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} />}
                     {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} />}

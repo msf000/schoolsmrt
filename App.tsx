@@ -31,7 +31,6 @@ const App: React.FC = () => {
   // Persist Current View State
   const [currentView, setCurrentView] = useState<ViewState>(() => {
       const savedView = localStorage.getItem('app_last_view');
-      // Ensure the saved view is valid, else default to DASHBOARD
       const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT'];
       return (savedView && validViews.includes(savedView as ViewState)) ? (savedView as ViewState) : 'DASHBOARD';
   });
@@ -42,17 +41,14 @@ const App: React.FC = () => {
   const [isBgSyncing, setIsBgSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
-  // Persist View Effect
   useEffect(() => {
       if (isAuthenticated) {
           localStorage.setItem('app_last_view', currentView);
       }
   }, [currentView, isAuthenticated]);
 
-  // Initialize data (Fetch from Cloud)
   useEffect(() => {
     const checkAuth = () => {
-        // Check both Local (Remember Me) and Session (One time) storage
         const savedUserLocal = localStorage.getItem('app_user');
         const savedUserSession = sessionStorage.getItem('app_user');
         const savedUser = savedUserLocal || savedUserSession;
@@ -68,17 +64,13 @@ const App: React.FC = () => {
     const initialize = async () => {
         setIsLoading(true);
         checkAuth();
-        // This will fetch from Supabase and populate the service's memory
         await initAutoSync();
         refreshData();
         setIsLoading(false);
-        
-        // Start Background Sync Logic after initial load
         setTimeout(() => syncWorksDataBackground(), 2000);
     };
     initialize();
 
-    // Set up periodic sync (every 5 minutes)
     const intervalId = setInterval(() => {
         syncWorksDataBackground();
     }, 5 * 60 * 1000);
@@ -89,35 +81,29 @@ const App: React.FC = () => {
   const handleLogin = (user: any, rememberMe: boolean) => {
       setCurrentUser(user);
       setIsAuthenticated(true);
-      
       const userStr = JSON.stringify(user);
       if (rememberMe) {
           localStorage.setItem('app_user', userStr);
-          sessionStorage.removeItem('app_user'); // Clear session to avoid conflicts
+          sessionStorage.removeItem('app_user');
       } else {
           sessionStorage.setItem('app_user', userStr);
-          localStorage.removeItem('app_user'); // Clear local if user explicitly didn't check remember me
+          localStorage.removeItem('app_user');
       }
   };
 
   const handleLogout = () => {
       localStorage.removeItem('app_user');
       sessionStorage.removeItem('app_user');
-      localStorage.removeItem('app_last_view'); // Clear view state on logout
-      
+      localStorage.removeItem('app_last_view');
       setIsAuthenticated(false);
       setCurrentUser(null);
       setCurrentView('DASHBOARD');
   };
 
-  // --- Background Sync Function for Works Tracking ---
   const syncWorksDataBackground = async () => {
       const masterUrl = getWorksMasterUrl();
       if (!masterUrl || isBgSyncing) return;
-
-      console.log('🔄 Starting Background Works Sync...');
       setIsBgSyncing(true);
-
       try {
           const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
           const categories: PerformanceCategory[] = ['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM'];
@@ -125,7 +111,6 @@ const App: React.FC = () => {
           const subjects = getSubjects();
           const defaultSubject = subjects.length > 0 ? subjects[0].name : 'عام';
 
-          // Helper to get Keywords
           const getKeywords = (cat: PerformanceCategory) => {
               switch(cat) {
                   case 'ACTIVITY': return ['نشاط', 'activity', 'أنشطة'];
@@ -135,7 +120,6 @@ const App: React.FC = () => {
               }
           };
 
-          // Helper to parse header
           const extractHeaderMetadata = (header: string) => {
               let maxScore = 10;
               let label = header;
@@ -155,17 +139,12 @@ const App: React.FC = () => {
                   const { headers, data } = getSheetHeadersAndData(workbook, matchingSheet);
                   const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
                   const validHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
-                  
-                  // Load CURRENT config to preserve manual URLs
                   const currentConfig = getWorksConfig(category);
 
                   if (validHeaders.length > 0) {
-                      // 1. Update Config (If new columns added in Excel)
                       const newConfig: WorksColumnConfig[] = validHeaders.map((header, index) => {
                           const { label, maxScore } = extractHeaderMetadata(header);
                           const key = `excel_${category}_${index}`;
-                          
-                          // Find existing manual URL configuration
                           const existingCol = currentConfig.find(c => c.key === key);
                           const manualUrl = existingCol ? existingCol.url : '';
 
@@ -174,13 +153,12 @@ const App: React.FC = () => {
                               label: label,
                               maxScore: maxScore,
                               isVisible: true,
-                              url: manualUrl, // Preserved Manual URL
+                              url: manualUrl,
                               dataSource: { sourceId: 'master', sheet: matchingSheet, sourceHeader: header }
                           };
                       });
                       saveWorksConfig(category, newConfig);
 
-                      // 2. Map and Upsert Data
                       const recordsToUpsert: PerformanceRecord[] = [];
                       const today = new Date().toISOString().split('T')[0];
 
@@ -200,11 +178,9 @@ const App: React.FC = () => {
                               newConfig.forEach(col => {
                                   const headerKey = col.dataSource!.sourceHeader;
                                   const rawVal = row[headerKey];
-                                  // IGNORE EXCEL HYPERLINKS - Use Config URL
                                   const val = parseFloat(rawVal);
                                   
                                   if (!isNaN(val)) {
-                                      // Deterministic ID for Upsert
                                       const recordId = `${student!.id}-${category}-${col.key}`;
                                       recordsToUpsert.push({
                                           id: recordId,
@@ -215,8 +191,8 @@ const App: React.FC = () => {
                                           score: val,
                                           maxScore: col.maxScore,
                                           date: today,
-                                          notes: col.key, // Keeps track of column key
-                                          url: col.url // Strict: Only use manual config URL
+                                          notes: col.key,
+                                          url: col.url
                                       });
                                   }
                               });
@@ -224,14 +200,14 @@ const App: React.FC = () => {
                       });
 
                       if (recordsToUpsert.length > 0) {
-                          bulkAddPerformance(recordsToUpsert); // This now acts as UPSERT
+                          bulkAddPerformance(recordsToUpsert);
                       }
                   }
               }
           }
 
           setLastSyncTime(new Date().toLocaleTimeString('ar-EG'));
-          refreshData(); // Refresh UI state
+          refreshData();
       } catch (e) {
           console.error("Background sync failed:", e);
       } finally {
@@ -245,50 +221,18 @@ const App: React.FC = () => {
     setPerformance(getPerformance());
   };
 
-  const handleAddStudent = (s: Student) => {
-    addStudent(s);
-    refreshData();
-  };
-
-  const handleUpdateStudent = (s: Student) => {
-    updateStudent(s);
-    refreshData();
-  };
-
-  // Modified to accept strategies
+  const handleAddStudent = (s: Student) => { addStudent(s); refreshData(); };
+  const handleUpdateStudent = (s: Student) => { updateStudent(s); refreshData(); };
   const handleBulkAddStudents = (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
-    if (matchKey && strategy) {
-        bulkUpsertStudents(list, matchKey, strategy, updateFields);
-    } else {
-        bulkAddStudents(list);
-    }
+    if (matchKey && strategy) bulkUpsertStudents(list, matchKey, strategy, updateFields);
+    else bulkAddStudents(list);
     refreshData();
   };
-
-  const handleDeleteStudent = (id: string) => {
-    deleteStudent(id);
-    refreshData();
-  };
-
-  const handleSaveAttendance = (recs: AttendanceRecord[]) => {
-    saveAttendance(recs);
-    refreshData();
-  };
-
-  const handleBulkAddAttendance = (list: AttendanceRecord[]) => {
-      bulkAddAttendance(list);
-      refreshData();
-  };
-
-  const handleAddPerformance = (rec: PerformanceRecord) => {
-    addPerformance(rec);
-    refreshData();
-  };
-
-  const handleBulkAddPerformance = (list: PerformanceRecord[]) => {
-      bulkAddPerformance(list);
-      refreshData();
-  };
+  const handleDeleteStudent = (id: string) => { deleteStudent(id); refreshData(); };
+  const handleSaveAttendance = (recs: AttendanceRecord[]) => { saveAttendance(recs); refreshData(); };
+  const handleBulkAddAttendance = (list: AttendanceRecord[]) => { bulkAddAttendance(list); refreshData(); };
+  const handleAddPerformance = (rec: PerformanceRecord) => { addPerformance(rec); refreshData(); };
+  const handleBulkAddPerformance = (list: PerformanceRecord[]) => { bulkAddPerformance(list); refreshData(); };
 
   const navItems = [
     { id: 'DASHBOARD', label: 'لوحة التحكم', icon: LayoutDashboard },
@@ -318,26 +262,17 @@ const App: React.FC = () => {
       );
   }
 
-  if (!isAuthenticated) {
-      return <Login onLoginSuccess={handleLogin} />;
-  }
+  if (!isAuthenticated) return <Login onLoginSuccess={handleLogin} />;
 
-  // --- STUDENT VIEW ---
   if (currentUser?.role === 'STUDENT') {
-      return <StudentPortal 
-                currentUser={currentUser} 
-                attendance={attendance} 
-                performance={performance}
-                onLogout={handleLogout} 
-             />;
+      return <StudentPortal currentUser={currentUser} attendance={attendance} performance={performance} onLogout={handleLogout} />;
   }
 
-  // --- ADMIN/TEACHER VIEW ---
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden text-right">
       
       {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200">
+      <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200 shadow-sm z-30">
         <div className="p-6 border-b border-gray-100 flex items-center justify-center">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold ml-3">
                 م
@@ -351,31 +286,19 @@ const App: React.FC = () => {
           {navItems.map(item => (
             <button
               key={item.id}
-              onClick={() => {
-                  setCurrentView(item.id as ViewState);
-                  setIsMobileMenuOpen(false); // Close mobile menu if open
-              }}
+              onClick={() => { setCurrentView(item.id as ViewState); setIsMobileMenuOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                currentView === item.id 
-                  ? 'bg-primary/10 text-primary font-bold' 
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                currentView === item.id ? 'bg-primary/10 text-primary font-bold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
               <item.icon size={20} />
               <span>{item.label}</span>
             </button>
           ))}
-          
-          <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100"
-            >
-              <LogOut size={20} />
-              <span>تسجيل الخروج</span>
-            </button>
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100">
+              <LogOut size={20} /> <span>تسجيل الخروج</span>
+          </button>
         </nav>
-        
-        {/* Status */}
         <div className="p-4 border-t border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between text-xs mb-1">
                  <span className="font-bold text-gray-600">مزامنة تلقائية</span>
@@ -387,38 +310,29 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Menu Overlay - High Z-Index to stay on top */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 md:hidden" onClick={() => setIsMobileMenuOpen(false)}>
-            <div className="absolute right-0 top-0 bottom-0 w-64 bg-white shadow-xl flex flex-col animate-slide-in-right" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] bg-black/50 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}>
+            <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col animate-slide-in-right" onClick={e => e.stopPropagation()}>
                 <div className="p-6 flex justify-between items-center border-b">
                     <h1 className="text-xl font-bold text-gray-800">القائمة</h1>
-                    <button onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-gray-100 rounded-full"><X size={24} /></button>
                 </div>
-                <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
                     {navItems.map(item => (
                         <button
                         key={item.id}
-                        onClick={() => {
-                            setCurrentView(item.id as ViewState);
-                            setIsMobileMenuOpen(false);
-                        }}
+                        onClick={() => { setCurrentView(item.id as ViewState); setIsMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                            currentView === item.id 
-                            ? 'bg-primary/10 text-primary font-bold' 
-                            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                            currentView === item.id ? 'bg-primary/10 text-primary font-bold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                         }`}
                         >
                         <item.icon size={20} />
                         <span>{item.label}</span>
                         </button>
                     ))}
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100"
-                        >
-                        <LogOut size={20} />
-                        <span>تسجيل الخروج</span>
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100">
+                        <LogOut size={20} /> <span>تسجيل الخروج</span>
                     </button>
                 </nav>
             </div>
@@ -426,13 +340,10 @@ const App: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile Header */}
-        <header className="md:hidden bg-white p-4 border-b flex justify-between items-center">
+      <main className="flex-1 flex flex-col overflow-hidden h-full w-full relative">
+        <header className="md:hidden bg-white p-4 border-b flex justify-between items-center z-20 shadow-sm shrink-0">
             <div className="flex items-center gap-2">
-                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold">
-                    م
-                </div>
+                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold">م</div>
                 <span className="font-bold text-gray-800">نظام المدرس</span>
             </div>
             <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg">
@@ -440,89 +351,19 @@ const App: React.FC = () => {
             </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto w-full">
-            {currentView === 'DASHBOARD' && (
-                <Dashboard 
-                    students={students} 
-                    attendance={attendance} 
-                    performance={performance} 
-                />
-            )}
-             {currentView === 'SCHOOL_MANAGEMENT' && (
-                <SchoolManagement 
-                    students={students}
-                    onImportStudents={handleBulkAddStudents}
-                    onImportPerformance={handleBulkAddPerformance}
-                    onImportAttendance={handleBulkAddAttendance}
-                />
-            )}
-             {currentView === 'ADMIN_DASHBOARD' && (
-                <AdminDashboard />
-            )}
-            {currentView === 'STUDENTS' && (
-                <Students 
-                    students={students} 
-                    onAddStudent={handleAddStudent} 
-                    onUpdateStudent={handleUpdateStudent}
-                    onDeleteStudent={handleDeleteStudent} 
-                    onImportStudents={handleBulkAddStudents}
-                />
-            )}
-            {currentView === 'ATTENDANCE' && (
-                <Attendance 
-                    students={students} 
-                    attendanceHistory={attendance} 
-                    onSaveAttendance={handleSaveAttendance} 
-                    onImportAttendance={handleBulkAddAttendance}
-                />
-            )}
-            {currentView === 'MONTHLY_REPORT' && (
-                <MonthlyReport 
-                    students={students} 
-                    attendance={attendance}
-                />
-            )}
-            {currentView === 'WORKS_TRACKING' && (
-                <WorksTracking 
-                    students={students}
-                    performance={performance}
-                    attendance={attendance}
-                    onAddPerformance={handleBulkAddPerformance}
-                />
-            )}
-             {currentView === 'STUDENT_FOLLOWUP' && (
-                <StudentFollowUp 
-                    students={students}
-                    performance={performance}
-                    attendance={attendance}
-                />
-            )}
-            {currentView === 'PERFORMANCE' && (
-                <Performance 
-                    students={students} 
-                    performance={performance} 
-                    onAddPerformance={handleAddPerformance} 
-                    onImportPerformance={handleBulkAddPerformance}
-                />
-            )}
-            {currentView === 'AI_REPORTS' && (
-                <AIReports 
-                    students={students} 
-                    attendance={attendance} 
-                    performance={performance} 
-                />
-            )}
-            {currentView === 'CUSTOM_TABLES' && (
-                <CustomTablesView />
-            )}
-            {currentView === 'DATA_IMPORT' && (
-                <DataImport 
-                    onImportStudents={handleBulkAddStudents}
-                    onImportPerformance={handleBulkAddPerformance}
-                    onImportAttendance={handleBulkAddAttendance}
-                    existingStudents={students}
-                />
-            )}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden w-full custom-scrollbar bg-gray-50">
+            {currentView === 'DASHBOARD' && <Dashboard students={students} attendance={attendance} performance={performance} />}
+            {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance}/>}
+            {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
+            {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleBulkAddStudents}/>}
+            {currentView === 'ATTENDANCE' && <Attendance students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={handleBulkAddAttendance}/>}
+            {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}
+            {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance}/>}
+            {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance}/>}
+            {currentView === 'PERFORMANCE' && <Performance students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance}/>}
+            {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance}/>}
+            {currentView === 'CUSTOM_TABLES' && <CustomTablesView />}
+            {currentView === 'DATA_IMPORT' && <DataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} existingStudents={students}/>}
         </div>
       </main>
     </div>
