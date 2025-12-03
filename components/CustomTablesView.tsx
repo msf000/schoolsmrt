@@ -3,6 +3,7 @@ import { CustomTable } from '../types';
 import { getCustomTables, deleteCustomTable, updateCustomTable, addCustomTable } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData, getWorkbookStructure } from '../services/excelService';
 import { Database, Trash2, RefreshCw, Calendar, Link as LinkIcon, Table, X, ArrowLeft, Loader2, CheckCircle, AlertTriangle, CloudDownload, Layers, FileSpreadsheet, ArrowRight, Upload, Plus, Globe, Clipboard } from 'lucide-react';
+import { formatDualDate } from '../services/dateService';
 
 const CustomTablesView: React.FC = () => {
     const [tables, setTables] = useState<CustomTable[]>([]);
@@ -208,9 +209,9 @@ const CustomTablesView: React.FC = () => {
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800">{viewingTable.name}</h3>
                                 <div className="flex items-center gap-3 text-xs text-gray-500">
-                                    <span className="flex items-center gap-1"><Calendar size={12}/> تم الإنشاء: {viewingTable.createdAt}</span>
+                                    <span className="flex items-center gap-1"><Calendar size={12}/> تم الإنشاء: {formatDualDate(viewingTable.createdAt)}</span>
                                     <span className="flex items-center gap-1"><Table size={12}/> {viewingTable.rows.length} سجل</span>
-                                    {viewingTable.lastUpdated && <span className="text-green-600">تم التحديث: {new Date(viewingTable.lastUpdated).toLocaleString('ar-EG')}</span>}
+                                    {viewingTable.lastUpdated && <span className="text-green-600 flex items-center gap-1"><RefreshCw size={12}/> تم التحديث: {formatDualDate(viewingTable.lastUpdated)}</span>}
                                 </div>
                             </div>
                         </div>
@@ -293,7 +294,7 @@ const CustomTablesView: React.FC = () => {
                             
                             <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 p-2 rounded">
                                 <Calendar size={12}/>
-                                <span>تاريخ: {table.createdAt}</span>
+                                <span>تاريخ: {formatDualDate(table.createdAt)}</span>
                                 {table.sourceUrl && (
                                     <>
                                         <span className="mx-1">•</span>

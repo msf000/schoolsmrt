@@ -1,20 +1,51 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# نظام المدرس الذكي (Smart School System)
 
-# Run and deploy your AI Studio app
+نظام شامل لإدارة المدارس، متابعة الطلاب، تسجيل الحضور، ورصد الدرجات مع دعم كامل للعمل بدون اتصال (Offline-First) والمزامنة السحابية عبر Supabase.
 
-This contains everything you need to run your app locally.
+## المميزات الرئيسية
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Qpls4SIZ0azPIa_eVBjWqpsGIxpha28u
+- **إدارة الطلاب:** إضافة وتعديل وحذف بيانات الطلاب وأولياء الأمور.
+- **تسجيل الحضور:** واجهة سهلة لتسجيل الحضور اليومي مع إحصائيات فورية.
+- **رصد الدرجات:** متابعة الأداء الأكاديمي (اختبارات، واجبات، مشاركة).
+- **العمل بدون إنترنت:** يتم حفظ البيانات محلياً ومزامنتها عند توفر الاتصال.
+- **تقارير الذكاء الاصطناعي:** تحليل أداء الطلاب باستخدام Google Gemini API.
+- **استيراد البيانات:** دعم استيراد ملفات Excel للطلاب والدرجات.
+- **لوحة المدير العام:** إدارة المدارس والمستخدمين وصلاحياتهم.
 
-## Run Locally
+## التقنيات المستخدمة
 
-**Prerequisites:**  Node.js
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS
+- **Database (Local):** LocalStorage (Custom Storage Service)
+- **Database (Cloud):** Supabase
+- **AI:** Google Gemini API
+- **Charts:** Recharts
+- **Icons:** Lucide React
 
+## التثبيت والتشغيل
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. **تثبيت الحزم:**
+   ```bash
+   npm install
+   ```
+
+2. **تشغيل المشروع:**
+   ```bash
+   npm run dev
+   ```
+
+3. **بناء المشروع للإنتاج:**
+   ```bash
+   npm run build
+   ```
+
+## إعداد قاعدة البيانات (Supabase)
+
+للاستفادة من المزامنة السحابية:
+1. أنشئ مشروع جديد في Supabase.
+2. اذهب إلى لوحة التحكم في التطبيق -> "لوحة المدير العام" -> "قاعدة البيانات".
+3. انسخ كود SQL الموجود هناك ونفذه في Supabase SQL Editor لإنشاء الجداول.
+4. أدخل رابط المشروع ومفتاح API في إعدادات التطبيق.
+
+## الحقوق
+
+تم تطوير هذا النظام لغرض إدارة المدارس بشكل ذكي وفعال.

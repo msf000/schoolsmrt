@@ -1,20 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, Student, School } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Teacher, Parent, ClassRoom, Subject, Student, School, ScheduleItem, DayOfWeek } from '../types';
 import { 
     getTeachers, addTeacher, deleteTeacher, 
     getParents, addParent, deleteParent, 
-    getClasses, addClass, deleteClass, 
     getSubjects, addSubject, deleteSubject,
-    getStages, addStage, deleteStage,
-    getGrades, addGrade, deleteGrade,
-    getSchools, addSchool
+    getSchools, addSchool,
+    getSchedules, saveScheduleItem, deleteScheduleItem
 } from '../services/storageService';
-import { Trash2, Plus, Book, GraduationCap, Users, User, Phone, Mail, Building2, ChevronRight, Layers, Layout, Database, Save, Link as LinkIcon } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
     students: Student[];
-    onImportStudents: (students: Student[]) => void;
+    onImportStudents: (students: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => void;
     onImportPerformance: (records: any[]) => void;
     onImportAttendance: (records: any[]) => void;
 }
@@ -25,7 +23,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
     onImportPerformance, 
     onImportAttendance 
 }) => {
-  const [activeTab, setActiveTab] = useState<'STRUCTURE' | 'TEACHERS' | 'PARENTS' | 'SUBJECTS' | 'IMPORT' | 'SETTINGS'>('STRUCTURE');
+  // Removed 'STRUCTURE' from tabs
+  const [activeTab, setActiveTab] = useState<'TIMETABLE' | 'TEACHERS' | 'PARENTS' | 'SUBJECTS' | 'IMPORT' | 'SETTINGS'>('TIMETABLE');
   
   return (
     <div className="p-6 animate-fade-in space-y-6">
@@ -34,12 +33,12 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
             <Building2 className="text-primary" />
             إدارة المدرسة
         </h2>
-        <p className="text-gray-500 mt-2">إعداد الهيكل الأكاديمي، المعلمين، والبيانات الأساسية.</p>
+        <p className="text-gray-500 mt-2">إدارة الجدول الدراسي، المعلمين، والمواد.</p>
       </div>
 
       {/* Tabs */}
       <div className="flex overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100 p-1 mb-6">
-          <TabButton active={activeTab === 'STRUCTURE'} onClick={() => setActiveTab('STRUCTURE')} icon={<Layout size={18} />} label="الهيكل الأكاديمي" />
+          <TabButton active={activeTab === 'TIMETABLE'} onClick={() => setActiveTab('TIMETABLE')} icon={<Calendar size={18} />} label="الجدول الدراسي" />
           <TabButton active={activeTab === 'TEACHERS'} onClick={() => setActiveTab('TEACHERS')} icon={<User size={18} />} label="المعلمين" />
           <TabButton active={activeTab === 'PARENTS'} onClick={() => setActiveTab('PARENTS')} icon={<Users size={18} />} label="أولياء الأمور" />
           <TabButton active={activeTab === 'SUBJECTS'} onClick={() => setActiveTab('SUBJECTS')} icon={<Book size={18} />} label="المواد الدراسية" />
@@ -48,7 +47,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[500px]">
-          {activeTab === 'STRUCTURE' && <StructureManager />}
+          {activeTab === 'TIMETABLE' && <TimetableManager students={students} />}
           {activeTab === 'TEACHERS' && <TeachersManager />}
           {activeTab === 'PARENTS' && <ParentsManager />}
           {activeTab === 'SUBJECTS' && <SubjectsManager />}
@@ -77,6 +76,348 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
         <span>{label}</span>
     </button>
 );
+
+// --- Timetable Manager ---
+
+// Helper for colors
+const COLORS = [
+  'bg-red-100 text-red-800 border-red-200 hover:bg-red-200',
+  'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200',
+  'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200',
+  'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200',
+  'bg-lime-100 text-lime-800 border-lime-200 hover:bg-lime-200',
+  'bg-green-100 text-green-800 border-green-200 hover:bg-green-200',
+  'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200',
+  'bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-200',
+  'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200',
+  'bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-200',
+  'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200',
+  'bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200',
+  'bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-200',
+  'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200',
+  'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-200',
+  'bg-pink-100 text-pink-800 border-pink-200 hover:bg-pink-200',
+  'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-200',
+];
+
+const getColorClass = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % COLORS.length;
+    return COLORS[index];
+}
+
+const TimetableManager = ({ students }: { students: Student[] }) => {
+    const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    const [viewMode, setViewMode] = useState<'SINGLE_CLASS' | 'MASTER_VIEW'>('SINGLE_CLASS');
+    
+    // Selectors
+    const [selectedGrade, setSelectedGrade] = useState('');
+    const [selectedClassName, setSelectedClassName] = useState('');
+    const [selectedSubject, setSelectedSubject] = useState('');
+    const [msg, setMsg] = useState<{text: string, type: 'error'|'success' | 'warning'} | null>(null);
+
+    const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    useEffect(() => {
+        setSubjects(getSubjects());
+        setSchedules(getSchedules());
+    }, []);
+
+    // 1. Extract Unique Grades from Students
+    const uniqueGrades = useMemo(() => {
+        const grades = new Set<string>();
+        students.forEach(s => {
+            if (s.gradeLevel) grades.add(s.gradeLevel);
+        });
+        return Array.from(grades).sort();
+    }, [students]);
+
+    // 2. Extract Unique Classes based on selected Grade
+    const uniqueClasses = useMemo(() => {
+        const classes = new Set<string>();
+        students.forEach(s => {
+            // If grade selected, filter by it. Else show all unique class names.
+            if (!selectedGrade || s.gradeLevel === selectedGrade) {
+                if (s.className) classes.add(s.className);
+            }
+        });
+        return Array.from(classes).sort();
+    }, [students, selectedGrade]);
+
+    // Helper to get effective ID for saving schedule (using class name as ID)
+    const getScheduleClassId = () => {
+        return selectedClassName; 
+    };
+
+    const checkForConflicts = (day: DayOfWeek, period: number, currentClassId: string): ScheduleItem | undefined => {
+        // Conflict means: User (Teacher) is already teaching ANOTHER class at this time
+        // We assume the current user operates the system for themselves
+        return schedules.find(s => 
+            s.day === day && 
+            s.period === period && 
+            s.classId !== currentClassId
+        );
+    };
+
+    const handleCellClick = (day: DayOfWeek, period: number) => {
+        if (!selectedClassName || !selectedSubject) {
+            setMsg({ text: 'يرجى اختيار الفصل والمادة أولاً من القائمة العلوية', type: 'error' });
+            setTimeout(() => setMsg(null), 3000);
+            return;
+        }
+
+        const classId = getScheduleClassId();
+
+        // 1. Check for Conflicts
+        const conflict = checkForConflicts(day, period, classId);
+        if (conflict) {
+            if (!window.confirm(`⚠️ تنبيه تعارض جدول!\n\nأنت تقوم بتدريس مادة "${conflict.subjectName}" للفصل "${conflict.classId}" في هذا الوقت (يوم ${dayNameAr[day]} الحصة ${period}).\n\nهل أنت متأكد من أنك تريد إضافة هذه الحصة أيضاً؟ (سيكون لديك حصتين في نفس الوقت)`)) {
+                return;
+            }
+        }
+
+        const item: ScheduleItem = {
+            id: `${classId}-${day}-${period}`,
+            classId: classId, // Store Name as ID
+            day: day,
+            period: period,
+            subjectName: selectedSubject
+        };
+
+        saveScheduleItem(item);
+        setSchedules(getSchedules());
+        setMsg({ text: 'تم تحديث الحصة بنجاح', type: 'success' });
+        setTimeout(() => setMsg(null), 1500);
+    };
+
+    const handleCellClear = (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if(window.confirm('هل أنت متأكد من حذف هذه الحصة؟')) {
+            deleteScheduleItem(id);
+            setSchedules(getSchedules());
+        }
+    }
+
+    const dayNameAr: Record<string, string> = {
+        'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس'
+    };
+
+    return (
+        <div className="space-y-6">
+            
+            {/* Header / Mode Switcher */}
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
+                <div>
+                    <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                        {viewMode === 'SINGLE_CLASS' ? <Calendar className="text-primary"/> : <Layers className="text-purple-600"/>}
+                        {viewMode === 'SINGLE_CLASS' ? 'جدول الفصول الدراسية' : 'جدول المعلم الشامل'}
+                    </h3>
+                    <p className="text-gray-400 text-xs mt-1">
+                        {viewMode === 'SINGLE_CLASS' ? 'عرض وتعديل جدول كل فصل على حدة' : 'نظرة عامة على جميع حصصك في المدرسة'}
+                    </p>
+                </div>
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                    <button 
+                        onClick={() => setViewMode('SINGLE_CLASS')} 
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${viewMode === 'SINGLE_CLASS' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
+                    >
+                        جدول الفصل
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('MASTER_VIEW')} 
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${viewMode === 'MASTER_VIEW' ? 'bg-white shadow text-purple-600' : 'text-gray-500'}`}
+                    >
+                        الجدول الشامل
+                    </button>
+                </div>
+            </div>
+
+            {/* --- SINGLE CLASS VIEW --- */}
+            {viewMode === 'SINGLE_CLASS' && (
+                <div className="animate-fade-in space-y-6">
+                    <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end bg-gray-50 p-4 rounded-lg border">
+                        
+                        {/* Grade Filter */}
+                        <div className="w-full md:w-auto">
+                            <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
+                                <Filter size={12}/> تصفية حسب الصف
+                            </label>
+                            <select 
+                                className="w-full md:w-48 p-2 border rounded-lg bg-gray-50 text-sm focus:bg-white transition-colors"
+                                value={selectedGrade}
+                                onChange={e => { setSelectedGrade(e.target.value); setSelectedClassName(''); }}
+                            >
+                                <option value="">-- كل الصفوف --</option>
+                                {uniqueGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="w-full md:w-auto">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">اختر الفصل الدراسي <span className="text-red-500">*</span></label>
+                            <select 
+                                className={`w-full md:w-64 p-2 border rounded-lg bg-white ${!selectedClassName ? 'border-primary ring-1 ring-primary/20' : ''}`}
+                                value={selectedClassName} 
+                                onChange={e => setSelectedClassName(e.target.value)}
+                            >
+                                <option value="">-- اختر الفصل --</option>
+                                {uniqueClasses.map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {selectedClassName && (
+                            <div className="w-full md:w-auto">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">المادة (حدد ثم اضغط في الجدول)</label>
+                                <select 
+                                    className="w-full md:w-64 p-2 border rounded-lg bg-white border-primary ring-1 ring-primary/20" 
+                                    value={selectedSubject} 
+                                    onChange={e => setSelectedSubject(e.target.value)}
+                                >
+                                    <option value="">-- اختر المادة --</option>
+                                    {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {msg && (
+                        <div className={`p-3 rounded-lg text-sm font-bold text-center border animate-bounce ${msg.type === 'error' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                            {msg.text}
+                        </div>
+                    )}
+
+                    {selectedClassName ? (
+                        <div className="overflow-x-auto rounded-lg border border-gray-200">
+                            <table className="w-full text-center border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-100 text-gray-700">
+                                        <th className="p-3 border text-sm w-32">اليوم / الحصة</th>
+                                        {periods.map(p => <th key={p} className="p-3 border text-sm">الحصة {p}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {days.map(day => (
+                                        <tr key={day} className="hover:bg-gray-50">
+                                            <td className="p-3 border font-bold bg-gray-50">{dayNameAr[day]}</td>
+                                            {periods.map(period => {
+                                                const session = schedules.find(s => s.classId === selectedClassName && s.day === day && s.period === period);
+                                                const hasConflict = checkForConflicts(day, period, selectedClassName);
+                                                
+                                                return (
+                                                    <td 
+                                                        key={period} 
+                                                        onClick={() => handleCellClick(day, period)}
+                                                        className={`p-1 border cursor-pointer relative h-20 w-32 align-top transition-colors ${!session ? 'hover:bg-blue-50' : ''}`}
+                                                    >
+                                                        {session ? (
+                                                            <div className={`w-full h-full rounded-md p-1 flex flex-col items-center justify-center relative group shadow-sm border ${getColorClass(session.subjectName)}`}>
+                                                                <span className="font-bold text-sm text-center line-clamp-2">{session.subjectName}</span>
+                                                                
+                                                                {/* Edit/Delete Overlay */}
+                                                                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity rounded-md backdrop-blur-[1px]">
+                                                                    <button 
+                                                                        onClick={(e) => handleCellClear(e, session.id)} 
+                                                                        className="bg-white text-red-500 p-1.5 rounded-full shadow hover:bg-red-50"
+                                                                        title="حذف"
+                                                                    >
+                                                                        <Trash2 size={14}/>
+                                                                    </button>
+                                                                    <div className="bg-white text-blue-500 p-1.5 rounded-full shadow" title="اضغط لتغيير المادة">
+                                                                        <Edit2 size={14}/>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-full h-full flex flex-col items-center justify-center">
+                                                                <span className="text-gray-200 text-2xl select-none group-hover:text-blue-300">+</span>
+                                                                {hasConflict && (
+                                                                    <span className="text-[9px] text-red-400 font-bold bg-red-50 px-1 rounded border border-red-100 mt-1">
+                                                                        مشغول: {hasConflict.classId}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 text-gray-400 flex flex-col items-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                            <Calendar size={48} className="mb-4 opacity-20"/>
+                            <p className="font-bold text-gray-600">جدول الحصص الدراسي</p>
+                            <p className="text-sm mt-2">يرجى اختيار الفصل الدراسي من القائمة أعلاه لعرض وتعديل الجدول</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* --- TEACHER MASTER VIEW --- */}
+            {viewMode === 'MASTER_VIEW' && (
+                <div className="animate-fade-in bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="p-4 bg-purple-50 border-b border-purple-100">
+                        <div className="flex items-center gap-2 text-purple-800 font-bold text-sm">
+                            <AlertCircle size={16}/>
+                            هذا الجدول يعرض جميع حصصك موزعة على أيام الأسبوع.
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-center border-collapse">
+                            <thead>
+                                <tr className="bg-gray-100 text-gray-700">
+                                    <th className="p-4 border text-sm w-32 font-bold">اليوم</th>
+                                    {periods.map(p => <th key={p} className="p-4 border text-sm font-bold bg-gray-50">الحصة {p}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {days.map(day => (
+                                    <tr key={day} className="hover:bg-gray-50">
+                                        <td className="p-4 border font-bold bg-gray-50 text-gray-800">{dayNameAr[day]}</td>
+                                        {periods.map(period => {
+                                            // In master view, we find ANY schedule for this day/period
+                                            const sessions = schedules.filter(s => s.day === day && s.period === period);
+                                            const hasConflict = sessions.length > 1;
+                                            
+                                            return (
+                                                <td key={period} className="p-1 border h-24 w-40 align-top">
+                                                    {sessions.length > 0 ? (
+                                                        <div className="flex flex-col gap-1 h-full justify-center">
+                                                            {sessions.map(session => (
+                                                                <div 
+                                                                    key={session.id}
+                                                                    className={`p-1.5 rounded-lg text-xs border shadow-sm flex flex-col items-center justify-center ${hasConflict ? 'bg-red-100 text-red-800 border-red-300 animate-pulse' : getColorClass(session.classId)}`}
+                                                                >
+                                                                    <div className="font-bold text-sm mb-0.5">{session.classId}</div>
+                                                                    <div className="opacity-90">{session.subjectName}</div>
+                                                                    {hasConflict && <div className="text-[9px] font-black text-red-600 mt-1 flex items-center gap-1"><AlertCircle size={8}/> تعارض!</div>}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-200 text-sm select-none">-</span>
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- Settings Manager (For Cloud Link) ---
 const SchoolSettings = () => {
@@ -143,128 +484,6 @@ const SchoolSettings = () => {
 
             <div className="text-sm text-gray-400 text-center">
                 تأكد من أن الرابط صالح ومتاح للمشاركة (Anyone with link) لضمان عمله لدى جميع المعلمين.
-            </div>
-        </div>
-    );
-};
-
-// --- Structure Manager (Hierarchy) ---
-const StructureManager = () => {
-    const [stages, setStages] = useState<EducationalStage[]>([]);
-    const [grades, setGrades] = useState<GradeLevel[]>([]);
-    const [classes, setClasses] = useState<ClassRoom[]>([]);
-    
-    const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
-    const [selectedGradeId, setSelectedGradeId] = useState<string | null>(null);
-
-    // Inputs
-    const [newStage, setNewStage] = useState('');
-    const [newGrade, setNewGrade] = useState('');
-    const [newClass, setNewClass] = useState('');
-
-    useEffect(() => {
-        setStages(getStages());
-        setGrades(getGrades());
-        setClasses(getClasses());
-    }, []);
-
-    // Handlers
-    const handleAddStage = (e: React.FormEvent) => {
-        e.preventDefault();
-        if(!newStage) return;
-        addStage({ id: Date.now().toString(), name: newStage });
-        setStages(getStages());
-        setNewStage('');
-    };
-
-    const handleAddGrade = (e: React.FormEvent) => {
-        e.preventDefault();
-        if(!newGrade || !selectedStageId) return;
-        addGrade({ id: Date.now().toString(), stageId: selectedStageId, name: newGrade });
-        setGrades(getGrades());
-        setNewGrade('');
-    };
-
-    const handleAddClass = (e: React.FormEvent) => {
-        e.preventDefault();
-        if(!newClass || !selectedGradeId) return;
-        addClass({ id: Date.now().toString(), gradeLevelId: selectedGradeId, name: newClass });
-        setClasses(getClasses());
-        setNewClass('');
-    };
-
-    // Filtered lists
-    const currentGrades = grades.filter(g => g.stageId === selectedStageId);
-    const currentClasses = classes.filter(c => c.gradeLevelId === selectedGradeId);
-
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
-            {/* Column 1: Stages */}
-            <div className="bg-gray-50 rounded-lg p-4 border flex flex-col h-96">
-                <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><Layers size={18}/> المراحل الدراسية</h3>
-                <form onSubmit={handleAddStage} className="flex gap-2 mb-4">
-                    <input className="flex-1 p-2 border rounded text-sm" placeholder="مثال: الابتدائية" value={newStage} onChange={e=>setNewStage(e.target.value)} />
-                    <button type="submit" className="bg-primary text-white p-2 rounded"><Plus size={16}/></button>
-                </form>
-                <div className="flex-1 overflow-y-auto space-y-2">
-                    {stages.map(stage => (
-                        <div 
-                            key={stage.id} 
-                            onClick={() => { setSelectedStageId(stage.id); setSelectedGradeId(null); }}
-                            className={`p-3 rounded-lg cursor-pointer flex justify-between items-center transition-colors ${selectedStageId === stage.id ? 'bg-primary text-white shadow' : 'bg-white hover:bg-gray-100 border'}`}
-                        >
-                            <span>{stage.name}</span>
-                            <div className="flex items-center gap-1">
-                                {selectedStageId === stage.id && <ChevronRight size={16} />}
-                                <button onClick={(e) => { e.stopPropagation(); deleteStage(stage.id); setStages(getStages()); }} className="p-1 hover:bg-red-500/20 rounded"><Trash2 size={14}/></button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Column 2: Grades */}
-            <div className={`bg-gray-50 rounded-lg p-4 border flex flex-col h-96 transition-opacity ${!selectedStageId ? 'opacity-50 pointer-events-none' : ''}`}>
-                <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><GraduationCap size={18}/> الصفوف الدراسية</h3>
-                <form onSubmit={handleAddGrade} className="flex gap-2 mb-4">
-                    <input className="flex-1 p-2 border rounded text-sm" placeholder="مثال: الصف الأول" value={newGrade} onChange={e=>setNewGrade(e.target.value)} />
-                    <button type="submit" className="bg-primary text-white p-2 rounded"><Plus size={16}/></button>
-                </form>
-                <div className="flex-1 overflow-y-auto space-y-2">
-                    {selectedStageId ? currentGrades.map(grade => (
-                        <div 
-                            key={grade.id} 
-                            onClick={() => setSelectedGradeId(grade.id)}
-                            className={`p-3 rounded-lg cursor-pointer flex justify-between items-center transition-colors ${selectedGradeId === grade.id ? 'bg-primary text-white shadow' : 'bg-white hover:bg-gray-100 border'}`}
-                        >
-                            <span>{grade.name}</span>
-                             <div className="flex items-center gap-1">
-                                {selectedGradeId === grade.id && <ChevronRight size={16} />}
-                                <button onClick={(e) => { e.stopPropagation(); deleteGrade(grade.id); setGrades(getGrades()); }} className="p-1 hover:bg-red-500/20 rounded"><Trash2 size={14}/></button>
-                            </div>
-                        </div>
-                    )) : <p className="text-gray-400 text-sm text-center mt-10">اختر مرحلة أولاً</p>}
-                </div>
-            </div>
-
-            {/* Column 3: Classes */}
-            <div className={`bg-gray-50 rounded-lg p-4 border flex flex-col h-96 transition-opacity ${!selectedGradeId ? 'opacity-50 pointer-events-none' : ''}`}>
-                <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><Layout size={18}/> الفصول</h3>
-                <form onSubmit={handleAddClass} className="flex gap-2 mb-4">
-                    <input className="flex-1 p-2 border rounded text-sm" placeholder="مثال: 1/أ" value={newClass} onChange={e=>setNewClass(e.target.value)} />
-                    <button type="submit" className="bg-primary text-white p-2 rounded"><Plus size={16}/></button>
-                </form>
-                <div className="flex-1 overflow-y-auto space-y-2">
-                    {selectedGradeId ? currentClasses.map(cls => (
-                        <div 
-                            key={cls.id} 
-                            className="p-3 rounded-lg flex justify-between items-center bg-white border"
-                        >
-                            <span>{cls.name}</span>
-                            <button onClick={() => { deleteClass(cls.id); setClasses(getClasses()); }} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
-                        </div>
-                    )) : <p className="text-gray-400 text-sm text-center mt-10">اختر صفاً أولاً</p>}
-                </div>
             </div>
         </div>
     );

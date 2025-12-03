@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { seedData, getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync } from './services/storageService';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync } from './services/storageService';
 import { Student, AttendanceRecord, PerformanceRecord, ViewState } from './types';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
@@ -10,22 +10,29 @@ import SchoolManagement from './components/SchoolManagement';
 import AdminDashboard from './components/AdminDashboard';
 import CustomTablesView from './components/CustomTablesView';
 import WorksTracking from './components/WorksTracking';
+import StudentFollowUp from './components/StudentFollowUp';
 import AIReports from './components/AIReports';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText } from 'lucide-react';
 
 const App: React.FC = () => {
-  // Initialize data
-  useEffect(() => {
-    // Start the Offline-Sync Listener
-    initAutoSync();
-    refreshData();
-  }, []);
-
+  const [isLoading, setIsLoading] = useState(true);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Initialize data (Fetch from Cloud)
+  useEffect(() => {
+    const initialize = async () => {
+        setIsLoading(true);
+        // This will fetch from Supabase and populate the service's memory
+        await initAutoSync();
+        refreshData();
+        setIsLoading(false);
+    };
+    initialize();
+  }, []);
 
   const refreshData = () => {
     setStudents(getStudents());
@@ -46,10 +53,8 @@ const App: React.FC = () => {
   // Modified to accept strategies
   const handleBulkAddStudents = (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
     if (matchKey && strategy) {
-        // Use Upsert Logic with optional selective update fields
         bulkUpsertStudents(list, matchKey, strategy, updateFields);
     } else {
-        // Fallback to simple add
         bulkAddStudents(list);
     }
     refreshData();
@@ -86,12 +91,26 @@ const App: React.FC = () => {
     { id: 'ADMIN_DASHBOARD', label: 'لوحة المدير العام', icon: ShieldCheck },
     { id: 'STUDENTS', label: 'الطلاب', icon: Users },
     { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck },
-    { id: 'WORKS_TRACKING', label: 'متابعة الأعمال', icon: PenTool }, 
+    { id: 'WORKS_TRACKING', label: 'متابعة الأعمال (عام)', icon: PenTool }, 
+    { id: 'STUDENT_FOLLOWUP', label: 'متابعة فردية', icon: FileText }, 
     { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp },
     { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles },
     { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table }, 
     { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database },
   ];
+
+  if (isLoading) {
+      return (
+          <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+              <Loader2 size={64} className="text-primary animate-spin mb-4" />
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Cloud size={24} className="text-blue-500"/>
+                  جاري الاتصال بقاعدة البيانات السحابية...
+              </h2>
+              <p className="text-gray-500 mt-2">يرجى الانتظار، يتم جلب أحدث البيانات.</p>
+          </div>
+      );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden text-right">
@@ -121,7 +140,7 @@ const App: React.FC = () => {
           ))}
         </nav>
         <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
-             الإصدار 1.6.3 (Offline-First)
+             الإصدار 1.6.5 (Cloud-Only)
         </div>
       </aside>
 
@@ -211,7 +230,15 @@ const App: React.FC = () => {
                 <WorksTracking 
                     students={students}
                     performance={performance}
+                    attendance={attendance}
                     onAddPerformance={handleBulkAddPerformance}
+                />
+            )}
+             {currentView === 'STUDENT_FOLLOWUP' && (
+                <StudentFollowUp 
+                    students={students}
+                    performance={performance}
+                    attendance={attendance}
                 />
             )}
             {currentView === 'PERFORMANCE' && (

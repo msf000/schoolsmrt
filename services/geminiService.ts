@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { Student, AttendanceRecord, PerformanceRecord } from "../types";
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -13,9 +13,9 @@ export const generateStudentAnalysis = async (
   const studentAttendance = attendance.filter(a => a.studentId === student.id);
   const studentPerformance = performance.filter(p => p.studentId === student.id);
 
-  const presentCount = studentAttendance.filter(a => a.status === 'حاضر').length;
-  const absentCount = studentAttendance.filter(a => a.status === 'غائب').length;
-  const lateCount = studentAttendance.filter(a => a.status === 'متأخر').length;
+  const presentCount = studentAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
+  const absentCount = studentAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
+  const lateCount = studentAttendance.filter(a => a.status === AttendanceStatus.LATE).length;
 
   const performanceSummary = studentPerformance.map(p => 
     `- مادة: ${p.subject}, العنوان: ${p.title}, الدرجة: ${p.score}/${p.maxScore}`

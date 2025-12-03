@@ -383,13 +383,13 @@ const SubscriptionsManager = () => {
 };
 
 const SCHEMA_PATCH_SQL = `
--- 🛠️ تحديث سريع (بدون حذف البيانات)
--- إصلاح أخطاء "student_count column missing" و "category column missing"
+-- 🛠️ إصلاح خطأ الربط (Foreign Key Constraint)
+-- السماح بحفظ الجداول باستخدام "اسم الفصل" كنص بدلاً من ربطه بجدول الهيكل الأكاديمي
 
-ALTER TABLE public.performance_records ADD COLUMN IF NOT EXISTS category text;
-ALTER TABLE public.performance_records ADD COLUMN IF NOT EXISTS url text;
-ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS works_master_url text;
-ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS student_count integer DEFAULT 0;
+ALTER TABLE public.weekly_schedules DROP CONSTRAINT IF EXISTS weekly_schedules_class_id_fkey;
+
+-- تأكد من وجود الأعمدة المطلوبة
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS period integer;
 
 -- تحديث كاش النظام
 NOTIFY pgrst, 'reload schema';
@@ -403,6 +403,7 @@ const SUPABASE_SCHEMA_SQL = `
 DROP TABLE IF EXISTS public.performance_records CASCADE;
 DROP TABLE IF EXISTS public.attendance_records CASCADE;
 DROP TABLE IF EXISTS public.students CASCADE;
+DROP TABLE IF EXISTS public.weekly_schedules CASCADE;
 DROP TABLE IF EXISTS public.classes CASCADE;
 DROP TABLE IF EXISTS public.grade_levels CASCADE;
 DROP TABLE IF EXISTS public.educational_stages CASCADE;
@@ -489,6 +490,8 @@ create table public.attendance_records (
   student_id text references public.students(id) on delete cascade,
   date text not null,
   status text check (status in ('PRESENT', 'ABSENT', 'LATE', 'EXCUSED')),
+  subject text,
+  period integer,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -503,6 +506,15 @@ create table public.performance_records (
   notes text,
   category text,
   url text
+);
+
+create table public.weekly_schedules (
+  id text primary key,
+  class_id text not null, -- No FK to classes to support flat structure
+  day text not null,
+  period integer not null,
+  subject_name text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
 create table public.system_users (
@@ -549,6 +561,9 @@ CREATE POLICY "Public Access" ON public.attendance_records FOR ALL USING (true) 
 
 ALTER TABLE public.performance_records ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Access" ON public.performance_records FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.weekly_schedules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON public.weekly_schedules FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Access" ON public.system_users FOR ALL USING (true) WITH CHECK (true);

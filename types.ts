@@ -54,11 +54,22 @@ export interface Subject {
   name: string;
 }
 
+// --- Schedule Types ---
+export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+
+export interface ScheduleItem {
+  id: string;
+  classId: string;
+  day: DayOfWeek;
+  period: number; // 1 to 8 usually
+  subjectName: string;
+}
+
 export enum AttendanceStatus {
-  PRESENT = 'حاضر',
-  ABSENT = 'غائب',
-  LATE = 'متأخر',
-  EXCUSED = 'عذر مقبول'
+  PRESENT = 'PRESENT',
+  ABSENT = 'ABSENT',
+  LATE = 'LATE',
+  EXCUSED = 'EXCUSED'
 }
 
 export interface AttendanceRecord {
@@ -66,6 +77,8 @@ export interface AttendanceRecord {
   studentId: string;
   date: string; // ISO Date string YYYY-MM-DD
   status: AttendanceStatus;
+  subject?: string; // Subject name
+  period?: number; // Added: Period number (1, 2, 3...)
 }
 
 export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
@@ -143,4 +156,4 @@ export interface CustomTable {
     lastUpdated?: string; // Timestamp of last refresh
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES';
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES';

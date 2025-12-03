@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Eye, Sheet, ArrowRight, Table, CheckSquare, Square, Settings, RefreshCw, Copy, PlusCircle, Link as LinkIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Merge, ArrowRightCircle, X, ChevronsRight, FileText, Database, Globe, MousePointerClick, Clipboard } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Eye, Sheet, ArrowRight, Table, CheckSquare, Square, Settings, RefreshCw, Copy, PlusCircle, Link as LinkIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Merge, ArrowRightCircle, X, ChevronsRight, FileText, Database, Globe, MousePointerClick, Clipboard, Download } from 'lucide-react';
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData } from '../services/excelService';
 import { Student, CustomTable } from '../types';
 import { addCustomTable, getCustomTables, deleteCustomTable } from '../services/storageService';
+import * as XLSX from 'xlsx';
 
 interface DataImportProps {
   onImportStudents: (students: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => void;
@@ -39,8 +40,8 @@ const FIELD_DEFINITIONS = {
     ATTENDANCE: [
         { key: 'nationalId', label: 'رقم الهوية (للمطابقة - مفضل)', required: false },
         { key: 'studentName', label: 'اسم الطالب (بديل للمطابقة)', required: false },
-        { key: 'status', label: 'الحالة (حاضر/غائب)', required: true },
-        { key: 'date', label: 'التاريخ', required: false },
+        { key: 'status', label: 'الحالة (حاضر/غائب/متأخر)', required: true },
+        { key: 'date', label: 'التاريخ (DD/MM/YYYY)', required: false },
     ]
 };
 
@@ -129,6 +130,52 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       } catch (err) {
           console.error('Failed to read clipboard', err);
       }
+  };
+
+  // --- Template Downloader ---
+  const handleDownloadTemplate = () => {
+      let headers: any[] = [];
+      let filename = 'Template.xlsx';
+
+      if (dataType === 'ATTENDANCE') {
+          filename = 'قالب_الحضور_والغياب.xlsx';
+          // Sample data row
+          headers = [{
+              'رقم الهوية': '1012345678',
+              'اسم الطالب': 'أحمد محمد',
+              'الحالة': 'حاضر',
+              'التاريخ': '25/10/2023'
+          }, {
+              'رقم الهوية': '1087654321',
+              'اسم الطالب': 'سعيد علي',
+              'الحالة': 'غائب',
+              'التاريخ': '25/10/2023'
+          }];
+      } else if (dataType === 'PERFORMANCE') {
+          filename = 'قالب_الدرجات.xlsx';
+          headers = [{
+              'رقم الهوية': '1012345678',
+              'اسم الطالب': 'أحمد محمد',
+              'المادة': 'رياضيات',
+              'عنوان التقييم': 'اختبار 1',
+              'الدرجة': 18,
+              'الدرجة العظمى': 20
+          }];
+      } else if (dataType === 'STUDENTS') {
+          filename = 'قالب_بيانات_الطلاب.xlsx';
+          headers = [{
+              'رقم الهوية': '10xxxxxxxx',
+              'اسم الطالب': 'الاسم الثلاثي',
+              'الصف': 'الصف الأول',
+              'الفصل': '1/أ',
+              'جوال الطالب': '05xxxxxxxx'
+          }];
+      }
+
+      const ws = XLSX.utils.json_to_sheet(headers);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "بيانات");
+      XLSX.writeFile(wb, filename);
   };
 
   const getUrlType = (link: string) => {
@@ -544,17 +591,27 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                         </div>
 
                         {sourceMethod === 'FILE' ? (
-                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group mb-6">
-                                <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                <div className="flex flex-col items-center gap-4 group-hover:scale-105 transition-transform">
-                                    <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center">
-                                        <Upload size={32} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-700">{file ? file.name : 'اسحب الملف هنا أو اضغط للاختيار'}</h3>
-                                        <p className="text-sm text-gray-400 mt-1">يدعم ملفات Excel (.xlsx) و CSV</p>
+                            <div className="space-y-4">
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group mb-2">
+                                    <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                    <div className="flex flex-col items-center gap-4 group-hover:scale-105 transition-transform">
+                                        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center">
+                                            <Upload size={32} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-700">{file ? file.name : 'اسحب الملف هنا أو اضغط للاختيار'}</h3>
+                                            <p className="text-sm text-gray-400 mt-1">يدعم ملفات Excel (.xlsx) و CSV</p>
+                                        </div>
                                     </div>
                                 </div>
+                                
+                                {importMode === 'SYSTEM' && !onDataReady && (
+                                    <div className="text-center">
+                                        <button onClick={handleDownloadTemplate} className="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center justify-center gap-1 mx-auto font-bold">
+                                            <Download size={14}/> تحميل قالب Excel جاهز لبيانات {dataType === 'ATTENDANCE' ? 'الحضور' : dataType === 'STUDENTS' ? 'الطلاب' : 'الدرجات'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                              <div className="mb-6 space-y-3">

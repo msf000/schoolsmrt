@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus } from '../types';
 import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity } from 'lucide-react';
+import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
   students: Student[];
@@ -277,7 +278,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                         <div>
                             <p className="text-sm font-bold text-gray-800">{activity.studentName}</p>
                             <p className="text-xs text-gray-600">{activity.detail}</p>
-                            <p className="text-[10px] text-gray-400 mt-1">{activity.date}</p>
+                            <p className="text-[10px] text-gray-400 mt-1">{formatDualDate(activity.date)}</p>
                         </div>
                     </div>
                 )) : (

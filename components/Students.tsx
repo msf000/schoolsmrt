@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Student, EducationalStage, GradeLevel, ClassRoom } from '../types';
-import { getStages, getGrades, getClasses, deleteAllStudents } from '../services/storageService';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Student } from '../types';
+import { deleteAllStudents } from '../services/storageService';
 import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import DataImport from './DataImport';
 
@@ -13,10 +13,7 @@ interface StudentsProps {
 }
 
 const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents }) => {
-  const [stages, setStages] = useState<EducationalStage[]>([]);
-  const [grades, setGrades] = useState<GradeLevel[]>([]);
-  const [classes, setClasses] = useState<ClassRoom[]>([]);
-
+  
   // States
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -25,13 +22,16 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
 
+  // Derive unique grades/classes for suggestions (DataList)
+  const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
+  const existingClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))), [students]);
+
   // Form State
   const initialFormState = {
     name: '',
     nationalId: '',
-    stageId: '',
-    gradeId: '',
-    classId: '',
+    gradeLevel: '',
+    className: '',
     email: '',
     phone: '',
     parentName: '',
@@ -39,12 +39,6 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
     parentEmail: ''
   };
   const [formData, setFormData] = useState(initialFormState);
-
-  useEffect(() => {
-    setStages(getStages());
-    setGrades(getGrades());
-    setClasses(getClasses());
-  }, [isFormModalOpen]);
 
   // Open Add Modal
   const openAddModal = () => {
@@ -56,16 +50,11 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
   // Open Edit Modal
   const openEditModal = (student: Student) => {
       setEditingStudent(student);
-      const cls = classes.find(c => c.id === student.classId);
-      const grd = grades.find(g => g.name === student.gradeLevel); 
-      const stg = grd ? stages.find(s => s.id === grd.stageId) : null;
-
       setFormData({
           name: student.name,
           nationalId: student.nationalId || '',
-          stageId: stg?.id || '',
-          gradeId: grd?.id || '',
-          classId: student.classId || '',
+          gradeLevel: student.gradeLevel || '',
+          className: student.className || '',
           email: student.email || '',
           phone: student.phone || '',
           parentName: student.parentName || '',
@@ -79,19 +68,15 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
     e.preventDefault();
     if (!formData.name || !formData.nationalId) return;
 
-    const selectedClass = classes.find(c => c.id === formData.classId);
-    const selectedGrade = grades.find(g => g.id === formData.gradeId);
-    
-    const gradeDisplay = selectedGrade ? selectedGrade.name : (editingStudent?.gradeLevel || '');
-    const classDisplay = selectedClass ? selectedClass.name : (editingStudent?.className || '');
-
+    // Use name as ID if no ID provided in edit, or new ID in create
+    // Also use the input values directly
     const studentData: Student = {
       id: editingStudent ? editingStudent.id : Date.now().toString(),
       name: formData.name,
       nationalId: formData.nationalId,
-      classId: formData.classId,
-      gradeLevel: gradeDisplay,
-      className: classDisplay,
+      classId: formData.className, // Using name as ID for simplicity in new flat structure
+      gradeLevel: formData.gradeLevel,
+      className: formData.className,
       email: formData.email,
       phone: formData.phone,
       parentName: formData.parentName,
@@ -121,9 +106,6 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
   const filteredStudents = students.filter(s => 
     s.name.includes(searchTerm) || (s.gradeLevel && s.gradeLevel.includes(searchTerm)) || (s.nationalId && s.nationalId.includes(searchTerm))
   );
-
-  const availableGrades = grades.filter(g => g.stageId === formData.stageId);
-  const availableClasses = classes.filter(c => c.gradeLevelId === formData.gradeId);
 
   return (
     <div className="p-6 space-y-6">
@@ -272,44 +254,33 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
               </div>
 
               <div className="bg-gray-50 p-4 rounded-lg border">
-                  <h4 className="text-sm font-bold text-primary mb-3">البيانات الأكاديمية</h4>
-                  <div className="grid grid-cols-3 gap-2">
+                  <h4 className="text-sm font-bold text-primary mb-3">البيانات الأكاديمية (اكتب أو اختر)</h4>
+                  <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">المرحلة</label>
-                        <select 
-                            className="w-full p-2 border rounded text-sm bg-white"
-                            value={formData.stageId}
-                            onChange={(e) => setFormData({...formData, stageId: e.target.value, gradeId: '', classId: ''})}
-                        >
-                            <option value="">اختر</option>
-                            {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">الصف الدراسي (مثال: الصف الأول)</label>
+                        <input 
+                            list="gradeOptions"
+                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                            value={formData.gradeLevel}
+                            onChange={(e) => setFormData({...formData, gradeLevel: e.target.value})}
+                            placeholder="اكتب الصف..."
+                        />
+                        <datalist id="gradeOptions">
+                            {existingGrades.map(g => <option key={g} value={g} />)}
+                        </datalist>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">الصف</label>
-                        <select 
-                            className="w-full p-2 border rounded text-sm bg-white"
-                            value={formData.gradeId}
-                            onChange={(e) => setFormData({...formData, gradeId: e.target.value, classId: ''})}
-                            disabled={!formData.stageId}
-                        >
-                            <option value="">اختر</option>
-                            {availableGrades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">الفصل</label>
-                        <select 
-                            className="w-full p-2 border rounded text-sm bg-white"
-                            value={formData.classId}
-                            onChange={(e) => setFormData({...formData, classId: e.target.value})}
-                            disabled={!formData.gradeId && !editingStudent} 
-                        >
-                            <option value="">اختر</option>
-                            {availableClasses.length > 0 ? availableClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>) : 
-                             classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)
-                            }
-                        </select>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">الفصل (مثال: 1/أ)</label>
+                        <input 
+                            list="classOptions"
+                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                            value={formData.className}
+                            onChange={(e) => setFormData({...formData, className: e.target.value})}
+                            placeholder="اكتب الفصل..."
+                        />
+                        <datalist id="classOptions">
+                            {existingClasses.map(c => <option key={c} value={c} />)}
+                        </datalist>
                       </div>
                   </div>
               </div>
@@ -397,7 +368,7 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
               <DataImport 
                   existingStudents={students}
                   onImportStudents={(data, matchKey, strategy, fields) => { 
-                      onImportStudents(data); // The wrapper will handle parsing, but here we just pass data. Ideally DataImport calls the enhanced prop
+                      onImportStudents(data); 
                       setIsImportModalOpen(false); 
                   }}
                   onImportAttendance={() => {}} 

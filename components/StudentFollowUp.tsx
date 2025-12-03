@@ -1,0 +1,326 @@
+import React, { useState, useEffect } from 'react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject } from '../types';
+import { getSubjects, getWorksConfig } from '../services/storageService';
+import { FileText, Printer, Search, ArrowRight, Target, Settings } from 'lucide-react';
+
+interface StudentFollowUpProps {
+  students: Student[];
+  performance: PerformanceRecord[];
+  attendance: AttendanceRecord[];
+}
+
+const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance }) => {
+    const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+    const [selectedSubject, setSelectedSubject] = useState<string>('');
+    const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [activityTarget, setActivityTarget] = useState<number>(10);
+
+    useEffect(() => {
+        const subs = getSubjects();
+        setSubjects(subs);
+        if (subs.length > 0) setSelectedSubject(subs[0].name);
+        else setSelectedSubject('عام');
+
+        // Load persisted target
+        const savedTarget = localStorage.getItem('works_activity_target');
+        if (savedTarget) setActivityTarget(parseInt(savedTarget));
+    }, []);
+
+    const handleTargetChange = (val: string) => {
+        const num = parseInt(val);
+        if (!isNaN(num) && num > 0) {
+            setActivityTarget(num);
+            localStorage.setItem('works_activity_target', num.toString());
+        }
+    };
+
+    // Filter Logic
+    const student = students.find(s => s.id === selectedStudentId);
+
+    // Filter Columns (Exclude Attendance from Activity Columns)
+    const rawActivityCols = getWorksConfig('ACTIVITY').filter(c => c.isVisible);
+    // Explicitly filter out columns that might be attendance related to satisfy user request
+    const activityCols = rawActivityCols.filter(c => 
+        !c.label.includes('حضور') && 
+        !c.label.toLowerCase().includes('attendance') &&
+        !c.label.includes('غياب')
+    );
+
+    const homeworkCols = getWorksConfig('HOMEWORK').filter(c => c.isVisible);
+    const examCols = getWorksConfig('PLATFORM_EXAM').filter(c => c.isVisible);
+
+    // Calculation Logic
+    const calculateStats = () => {
+        if (!student) return null;
+
+        // 1. Attendance
+        const studentAtt = attendance.filter(a => a.studentId === student.id);
+        const presentCount = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        const totalDays = studentAtt.length;
+        const attPercent = totalDays > 0 ? (presentCount / totalDays) * 100 : 100;
+        const gradePart = (attPercent / 100) * 15;
+
+        // 2. Homework
+        const studentHWs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
+        const totalHWCount = homeworkCols.length;
+        // Count distinct homeworks based on column keys (notes) that have a score > 0
+        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
+        const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 0;
+        const gradeHW = (hwPercent / 100) * 10;
+
+        // 3. Activity (Sum ONLY the filtered activity columns)
+        const studentActs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
+        let actSum = 0;
+        
+        // Only sum up scores that belong to the filtered activityCols
+        const validColKeys = new Set(activityCols.map(c => c.key));
+        
+        studentActs.forEach(p => {
+             // Check if this performance record belongs to a valid activity column
+             if (p.notes && validColKeys.has(p.notes)) {
+                 actSum += p.score;
+             }
+        });
+
+        const activityRatio = activityTarget > 0 ? (actSum / activityTarget) : 0;
+        const gradeAct = Math.min(activityRatio * 15, 15);
+        const actPercent = Math.min(activityRatio * 100, 100);
+
+        // 4. Platform Exams
+        const studentExams = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject);
+        let examScoreSum = 0;
+        let examMaxSum = 0;
+        studentExams.forEach(p => {
+            examScoreSum += p.score;
+            examMaxSum += p.maxScore > 0 ? p.maxScore : 20;
+        });
+        const examWeightedRaw = examMaxSum > 0 ? (examScoreSum / examMaxSum) * 20 : 0;
+        const examWeighted = Math.min(examWeightedRaw, 20);
+
+        // 5. Totals
+        const totalTasks = gradeHW + gradeAct + gradePart;
+        const totalPeriod = totalTasks + examWeighted;
+
+        return {
+            attPercent, gradePart,
+            hwPercent, distinctHWs, totalHWCount, gradeHW,
+            actSum, gradeAct, actPercent,
+            examWeighted,
+            totalTasks, totalPeriod,
+            studentActs, studentHWs, studentExams
+        };
+    };
+
+    const stats = calculateStats();
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    return (
+        <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50 overflow-auto">
+            {/* Control Bar (Hidden in Print) */}
+            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <FileText className="text-teal-600" />
+                        متابعة فردية للطلاب
+                    </h2>
+                </div>
+                
+                <div className="flex flex-wrap gap-3 items-center">
+                     {/* Activity Target Input */}
+                    <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                        <Target size={16} className="text-amber-600"/>
+                        <span className="text-xs font-bold text-amber-800">هدف الأنشطة:</span>
+                        <input 
+                            type="number" 
+                            min="1"
+                            value={activityTarget}
+                            onChange={(e) => handleTargetChange(e.target.value)}
+                            className="w-16 p-1 text-center border rounded text-sm font-bold bg-white focus:ring-1 focus:ring-amber-500"
+                            title="سيتم حفظ هذا الرقم واستخدامه لحساب نسبة الأنشطة"
+                        />
+                    </div>
+
+                     <select 
+                        value={selectedStudentId}
+                        onChange={(e) => setSelectedStudentId(e.target.value)}
+                        className="p-2 border rounded-lg bg-white shadow-sm w-56 outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                    >
+                        <option value="">-- اختر الطالب --</option>
+                        {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <select 
+                        value={selectedSubject} 
+                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none text-sm"
+                    >
+                        {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
+                    </select>
+                    <button onClick={handlePrint} disabled={!selectedStudentId} className="bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-black disabled:opacity-50 text-sm font-bold">
+                        <Printer size={16}/> طباعة
+                    </button>
+                </div>
+            </div>
+
+            {/* Report Content */}
+            {student && stats ? (
+                <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto">
+                    
+                    {/* Header Title */}
+                    <div className="text-center mb-8">
+                        <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject} الفصل الأول 1447هـ</h1>
+                    </div>
+
+                    {/* Main Summary Table */}
+                    <div className="overflow-x-auto mb-8">
+                        <table className="w-full text-center border-collapse text-sm">
+                            <thead>
+                                <tr className="bg-[#008080] text-white">
+                                    <th className="p-2 border border-teal-600 w-1/4">اسم الطالب</th>
+                                    <th className="p-2 border border-teal-600">الفصل</th>
+                                    <th className="p-2 border border-teal-600">نسبة الحضور</th>
+                                    <th className="p-2 border border-teal-600">نسبة حل الواجبات</th>
+                                    <th className="p-2 border border-teal-600">مجموع الأنشطة</th>
+                                    <th className="p-2 border border-teal-600">درجة الواجبات</th>
+                                    <th className="p-2 border border-teal-600">درجة الأنشطة</th>
+                                    <th className="p-2 border border-teal-600">درجة المشاركة</th>
+                                    <th className="p-2 border border-teal-600">مجموع أعمال الفترة</th>
+                                    <th className="p-2 border border-teal-600">مجموع اختبارات المنصة</th>
+                                    <th className="p-2 border border-teal-600 bg-[#004d4d]">المجموع الكلي</th>
+                                </tr>
+                                <tr className="bg-white text-gray-800 text-xs">
+                                     <td className="p-2 border border-gray-300 font-bold">{student.name}</td>
+                                     <td className="p-2 border border-gray-300">{student.className}</td>
+                                     <td className="p-2 border border-gray-300 dir-ltr">{Math.round(stats.attPercent)}%</td>
+                                     <td className="p-2 border border-gray-300 dir-ltr">{Math.round(stats.hwPercent)}%</td>
+                                     <td className="p-2 border border-gray-300 font-bold text-teal-700">{stats.actSum}</td>
+                                     <td className="p-2 border border-gray-300 font-bold">{stats.gradeHW.toFixed(1)}</td>
+                                     <td className="p-2 border border-gray-300 font-bold">{stats.gradeAct.toFixed(1)}</td>
+                                     <td className="p-2 border border-gray-300 font-bold">{stats.gradePart.toFixed(1)}</td>
+                                     <td className="p-2 border border-gray-300 font-black bg-gray-100">#####</td>
+                                     <td className="p-2 border border-gray-300 font-bold">{stats.examWeighted.toFixed(1)}</td>
+                                     <td className="p-2 border border-gray-300 font-black bg-gray-800 text-white">{stats.totalPeriod.toFixed(1)}</td>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+
+                    {/* Activities Breakdown */}
+                    <div className="mb-8">
+                        <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2">متابعة الأنشطة</div>
+                        {activityCols.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-center border-collapse text-sm">
+                                    <thead>
+                                        <tr className="bg-[#009da0] text-white">
+                                            <th className="p-2 border border-teal-600 min-w-[80px] bg-teal-800">المجموع</th>
+                                            {activityCols.map(col => (
+                                                <th key={col.key} className="p-2 border border-teal-600">{col.label}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr className="bg-gray-50">
+                                            <td className="p-2 border border-gray-300 font-black text-lg text-teal-800 bg-teal-50">{stats.actSum}</td>
+                                            {activityCols.map(col => {
+                                                const rec = stats.studentActs.find(p => p.notes === col.key);
+                                                return (
+                                                    <td key={col.key} className="p-2 border border-gray-300">
+                                                        {rec ? rec.score : ''}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="text-center p-4 border border-dashed text-gray-400">لا توجد أعمدة أنشطة معرفة حالياً.</div>
+                        )}
+                    </div>
+
+                    {/* Homeworks & Exams Section */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Homeworks */}
+                        <div>
+                            <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2">واجبات مدرستي</div>
+                            <table className="w-full text-center border-collapse text-sm">
+                                <thead>
+                                    <tr className="bg-[#20b2aa] text-white">
+                                        <th className="p-2 border border-teal-600 w-1/3">نسبة حل الواجبات</th>
+                                        <th className="p-2 border border-teal-600 w-1/3">عدد الواجبات المكتملة</th>
+                                        <th className="p-2 border border-teal-600 w-1/3 bg-[#008080]">الواجبات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td className="p-4 border border-gray-300 font-bold text-lg" rowSpan={homeworkCols.length + 1}>
+                                            {Math.round(stats.hwPercent)}%
+                                        </td>
+                                        <td className="p-4 border border-gray-300 font-bold text-lg" rowSpan={homeworkCols.length + 1}>
+                                            {stats.distinctHWs} / {stats.totalHWCount}
+                                        </td>
+                                    </tr>
+                                    {homeworkCols.map(col => {
+                                         const isDone = stats.studentHWs.some(p => p.notes === col.key && p.score > 0);
+                                         return (
+                                             <tr key={col.key}>
+                                                 <td className={`p-2 border border-gray-300 text-right ${isDone ? 'bg-green-50' : 'bg-red-50'}`}>
+                                                     {col.label} {isDone ? '✅' : '❌'}
+                                                 </td>
+                                             </tr>
+                                         )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Platform Exams */}
+                        <div>
+                             <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2">اختبارات مدرستي</div>
+                             <table className="w-full text-center border-collapse text-sm">
+                                <thead>
+                                    <tr className="bg-[#4682b4] text-white">
+                                        <th className="p-2 border border-blue-800">الموزونة</th>
+                                        <th className="p-2 border border-blue-800">اختبار ...</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td className="p-4 border border-gray-300 font-bold text-lg" rowSpan={examCols.length + 1}>
+                                            {stats.examWeighted.toFixed(1)}
+                                        </td>
+                                    </tr>
+                                    {examCols.map(col => {
+                                        const rec = stats.studentExams.find(p => p.notes === col.key);
+                                        return (
+                                            <tr key={col.key}>
+                                                <td className="p-2 border border-gray-300 bg-gray-50 flex justify-between px-4">
+                                                    <span>{col.label}</span>
+                                                    <span className="font-bold">{rec ? rec.score : '-'}</span>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                     {examCols.length === 0 && (
+                                         <tr><td className="p-4 text-gray-400">لا توجد اختبارات مسجلة</td></tr>
+                                     )}
+                                </tbody>
+                             </table>
+                        </div>
+                    </div>
+
+                </div>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
+                    <Search size={48} className="mb-4 opacity-20" />
+                    <p className="text-xl font-bold">الرجاء اختيار طالب لعرض التقرير</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default StudentFollowUp;

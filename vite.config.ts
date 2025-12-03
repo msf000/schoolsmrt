@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       // Prioritize Vercel/System env variables, fallback to hardcoded strings if missing
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || "AIzaSyDKU3a8J6MxFRI9I-JJu9wY-2HcgVz_YDM"),
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || "AIzaSyDitKffPRLn5kzdVZtw9Y9se1vdejoZWdc"),
       'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || ""),
       'process.env.SUPABASE_KEY': JSON.stringify(process.env.SUPABASE_KEY || ""),
     }

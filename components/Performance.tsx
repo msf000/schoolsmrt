@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord } from '../types';
-import { PlusCircle, FileText, Check, FileSpreadsheet } from 'lucide-react';
+import { formatDualDate } from '../services/dateService';
+import { PlusCircle, FileText, Check, FileSpreadsheet, Filter } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface PerformanceProps {
@@ -11,7 +12,7 @@ interface PerformanceProps {
 }
 
 const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onImportPerformance }) => {
-  const [studentId, setStudentId] = useState(students[0]?.id || '');
+  const [studentId, setStudentId] = useState('');
   const [subject, setSubject] = useState('رياضيات');
   const [title, setTitle] = useState('');
   const [score, setScore] = useState('');
@@ -19,6 +20,39 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [notes, setNotes] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Filters for Data Entry
+  const [selectedGrade, setSelectedGrade] = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
+
+  // Extract unique values from students
+  const uniqueGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
+  const uniqueClasses = useMemo(() => {
+      const classes = new Set<string>();
+      students.forEach(s => {
+          if (!selectedGrade || s.gradeLevel === selectedGrade) {
+              if (s.className) classes.add(s.className);
+          }
+      });
+      return Array.from(classes).sort();
+  }, [students, selectedGrade]);
+
+  // Filter students for the dropdown
+  const filteredStudents = useMemo(() => {
+    return students.filter(student => {
+        if (selectedClass && student.className !== selectedClass) return false;
+        if (selectedGrade && student.gradeLevel !== selectedGrade) return false;
+        return true;
+    });
+  }, [students, selectedGrade, selectedClass]);
+
+  // Set default student when list changes
+  useEffect(() => {
+      if (filteredStudents.length > 0 && !filteredStudents.find(s => s.id === studentId)) {
+          setStudentId(filteredStudents[0].id);
+      }
+  }, [filteredStudents, studentId]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +87,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
           case 'ACTIVITY': return <span className="bg-blue-50 text-blue-600 px-1 rounded text-[10px]">نشاط</span>;
           case 'PLATFORM_EXAM': return <span className="bg-purple-50 text-purple-600 px-1 rounded text-[10px]">منصة</span>;
           case 'HOMEWORK': return <span className="bg-orange-50 text-orange-600 px-1 rounded text-[10px]">واجب</span>;
-          default: return null;
+          case 'YEAR_WORK': return <span className="bg-teal-50 text-teal-600 px-1 rounded text-[10px]">أعمال سنة</span>;
+          default: return <span className="bg-gray-50 text-gray-600 px-1 rounded text-[10px]">عام</span>;
       }
   }
 
@@ -77,18 +112,39 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Entry Form */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="font-bold text-lg mb-4 text-gray-700">إضافة درجة جديدة يدوياً</h3>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-lg text-gray-700">إضافة درجة جديدة يدوياً</h3>
+                <span className="text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                    التاريخ: {formatDualDate(new Date())}
+                </span>
+            </div>
+            
+            {/* Quick Filters */}
+            <div className="bg-gray-50 p-3 rounded-lg mb-4 grid grid-cols-2 gap-2 border border-gray-200">
+                <div className="col-span-2 text-xs font-bold text-gray-500 flex items-center gap-1 mb-1">
+                    <Filter size={12}/> تصفية قائمة الطلاب
+                </div>
+                <select className="p-1 border rounded text-xs" value={selectedGrade} onChange={e => {setSelectedGrade(e.target.value); setSelectedClass('');}}>
+                    <option value="">الصف: الكل</option>
+                    {uniqueGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+                <select className="p-1 border rounded text-xs" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+                    <option value="">الفصل: الكل</option>
+                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">اختر الطالب</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">اختر الطالب ({filteredStudents.length})</label>
                 <select 
                 className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none bg-white"
                 value={studentId}
                 onChange={(e) => setStudentId(e.target.value)}
                 >
-                {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
+                {filteredStudents.length > 0 ? filteredStudents.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.className})</option>
+                )) : <option value="">لا يوجد طلاب مطابقين للفلترة</option>}
                 </select>
             </div>
 
@@ -105,6 +161,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                     <option value="لغة عربية">لغة عربية</option>
                     <option value="لغة إنجليزية">لغة إنجليزية</option>
                     <option value="تربية إسلامية">تربية إسلامية</option>
+                    <option value="اجتماعيات">اجتماعيات</option>
+                    <option value="حاسب">حاسب</option>
                 </select>
                 </div>
                 <div>
@@ -154,7 +212,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
 
             <button 
                 type="submit" 
-                className="w-full py-3 bg-primary text-white rounded-lg hover:bg-teal-800 transition-colors font-medium flex justify-center items-center gap-2"
+                disabled={!studentId}
+                className="w-full py-3 bg-primary text-white rounded-lg hover:bg-teal-800 transition-colors font-medium flex justify-center items-center gap-2 disabled:bg-gray-300"
             >
                 {isSuccess ? <Check size={20} /> : null}
                 {isSuccess ? 'تمت الإضافة!' : 'تسجيل الدرجة'}
@@ -177,7 +236,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                     <div className="flex justify-between items-start">
                     <div>
                         <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                            {student?.name}
+                            {student?.name || 'طالب محذوف'}
                             {getCategoryBadge(p.category)}
                         </h4>
                         <p className="text-sm text-gray-500">{p.subject} - {p.title}</p>
@@ -186,7 +245,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                         <span className="inline-block bg-blue-50 text-blue-700 px-2 py-1 rounded text-sm font-bold">
                         {p.score} / {p.maxScore}
                         </span>
-                        <p className="text-xs text-gray-400 mt-1">{p.date}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{formatDualDate(p.date)}</p>
                     </div>
                     </div>
                 </div>
