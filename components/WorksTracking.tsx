@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, WorksColumnConfig, Subject, AttendanceRecord, AttendanceStatus } from '../types';
-import { getWorksConfig, saveWorksConfig, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
+import { getWorksConfig, saveWorksConfig, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, bulkAddPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, AlertCircle, Link as LinkIcon, Edit2, Cloud, PieChart, Calculator, TrendingUp, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, AlertCircle, Link as LinkIcon, Edit2, Cloud, PieChart, Calculator, TrendingUp, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, Globe, List, Layout, PenTool } from 'lucide-react';
 
 interface WorksTrackingProps {
   students: Student[];
@@ -25,18 +25,19 @@ const extractHeaderMetadata = (header: string): { label: string, maxScore: numbe
 };
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance }) => {
-    // State
+    // Main View State: GRADING vs MANAGEMENT
+    const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>('GRADING');
+
+    // Shared State
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [selectedSubject, setSelectedSubject] = useState('');
-    const [activeTab, setActiveTab] = useState<PerformanceCategory>('ACTIVITY');
+    const [activeTab, setActiveTab] = useState<PerformanceCategory>('ACTIVITY'); // Sub-tab for category
     
-    // View Mode: ENTRY (Grading) or CONFIG (Setup)
-    const [viewMode, setViewMode] = useState<'ENTRY' | 'CONFIG'>('ENTRY');
-
     const [columnsConfig, setColumnsConfig] = useState<WorksColumnConfig[]>([]);
-    
     const [gridData, setGridData] = useState<Record<string, Record<string, { score: string, url?: string }>>>({});
-    const [activityTarget, setActivityTarget] = useState<number>(10);
+    const [activityTarget, setActivityTarget] = useState<number>(13); 
+    
+    // Status States
     const [savedSuccess, setSavedSuccess] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [masterUrl, setMasterUrl] = useState('');
@@ -66,11 +67,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     useEffect(() => {
         const config = getWorksConfig(activeTab);
         setColumnsConfig(config);
-        // Only auto-sync if we are in Entry mode and have a URL, and config is empty
-        if (viewMode === 'ENTRY' && masterUrl && config.length === 0 && !isGenerating) {
+        
+        // Auto-sync logic (only in grading mode and if empty)
+        if (activeMode === 'GRADING' && masterUrl && config.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
             handleAutoSyncForTab(activeTab);
         }
-    }, [activeTab, masterUrl]);
+    }, [activeTab, masterUrl, activeMode]);
 
     useEffect(() => {
         if (activeTab === 'YEAR_WORK') return;
@@ -92,6 +94,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
+    // --- Sync Logic ---
     const getKeywordsForCategory = (cat: PerformanceCategory): string[] => {
         switch(cat) {
             case 'ACTIVITY': return ['نشاط', 'activity', 'أنشطة', 'activities'];
@@ -189,6 +192,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (recordsToSave.length > 0) onAddPerformance(recordsToSave);
     };
 
+    // --- Entry Logic ---
     const handleScoreChange = (studentId: string, colKey: string, val: string) => {
         setGridData(prev => ({
             ...prev,
@@ -235,11 +239,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (masterUrl) handleAutoSyncForTab(activeTab);
     };
 
-    // --- Configuration Logic ---
+    // --- Management Logic ---
     const handleAddColumn = () => {
         const newCol: WorksColumnConfig = {
             key: `manual_${Date.now()}`,
-            label: 'نشاط جديد',
+            label: 'عنوان جديد',
             maxScore: 10,
             isVisible: true,
             url: ''
@@ -261,13 +265,38 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const handleSaveConfig = () => {
+        // 1. Save Config Locally
         saveWorksConfig(activeTab, columnsConfig);
-        setViewMode('ENTRY'); // Switch back to grid
-        setStatusMsg('✅ تم حفظ إعدادات الأنشطة بنجاح');
+        
+        // 2. Propagate Links to Database Records (So students can see them)
+        // Find all performance records that match the columns with URLs and update them
+        const recordsToUpdate: PerformanceRecord[] = [];
+        const today = new Date().toISOString().split('T')[0];
+
+        // We only update records if there are actual changes to URLs
+        columnsConfig.forEach(col => {
+            if (col.url) {
+                // Find existing records for this column (by notes key)
+                const relevantRecords = performance.filter(p => p.category === activeTab && p.notes === col.key);
+                
+                relevantRecords.forEach(rec => {
+                    // Update URL if missing or different
+                    if (rec.url !== col.url) {
+                        recordsToUpdate.push({ ...rec, url: col.url });
+                    }
+                });
+            }
+        });
+
+        if (recordsToUpdate.length > 0) {
+            onAddPerformance(recordsToUpdate); // This performs upsert
+        }
+
+        setStatusMsg('✅ تم حفظ الإعدادات وتحديث الروابط في سجلات الطلاب.');
         setTimeout(() => setStatusMsg(''), 3000);
     };
 
-    // --- SUMMARY TABLE RENDERER ---
+    // --- RENDERERS ---
     const renderYearWorkTable = () => {
         const hwConfig = getWorksConfig('HOMEWORK').filter(c => c.isVisible);
         const totalHWCount = hwConfig.length;
@@ -344,79 +373,97 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     return (
-        <div className="p-6 h-full flex flex-col animate-fade-in relative">
-             <div className="mb-6">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                            <Table className="text-primary" />
-                            متابعة الأعمال
-                        </h2>
-                        <p className="text-gray-500 mt-2">رصد الدرجات (يتم التحديث تلقائياً عند تغيير التبويب).</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                         <select 
-                            value={selectedSubject} 
-                            onChange={(e) => setSelectedSubject(e.target.value)}
-                            className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-primary/50"
-                        >
-                            {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
-                        </select>
-                        
-                        {activeTab !== 'YEAR_WORK' && (
-                            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-                                <button 
-                                    onClick={() => setViewMode('ENTRY')}
-                                    className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${viewMode === 'ENTRY' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
-                                >
-                                    رصد الدرجات
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('CONFIG')}
-                                    className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${viewMode === 'CONFIG' ? 'bg-white shadow text-purple-700' : 'text-gray-500'}`}
-                                >
-                                    <Settings size={14}/> إعداد الأنشطة
-                                </button>
-                            </div>
-                        )}
+        <div className="p-6 h-full flex flex-col animate-fade-in relative bg-gray-50">
+             
+             {/* MAIN TOP TABS */}
+             <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-6 flex gap-2">
+                 <button 
+                    onClick={() => setActiveMode('GRADING')}
+                    className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'GRADING' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
+                 >
+                     <Table size={18}/> رصد الدرجات
+                 </button>
+                 <button 
+                    onClick={() => setActiveMode('MANAGEMENT')}
+                    className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'MANAGEMENT' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
+                 >
+                     <Settings size={18}/> إدارة الأنشطة والروابط
+                 </button>
+             </div>
 
-                        {activeTab !== 'YEAR_WORK' && viewMode === 'ENTRY' && (
-                            <button onClick={handleSaveGrid} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700">
-                                {savedSuccess ? <CheckCircle size={18} /> : <Save size={18} />} {savedSuccess ? 'تم الحفظ' : 'حفظ الدرجات'}
-                            </button>
+             {/* Header Section (Common) */}
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        {activeMode === 'GRADING' ? <List className="text-primary"/> : <PenTool className="text-purple-600"/>}
+                        {activeMode === 'GRADING' ? 'رصد الدرجات' : 'إدارة أسماء الأنشطة والروابط'}
+                    </h2>
+                    <p className="text-gray-500 text-sm mt-1">
+                        {activeMode === 'GRADING' 
+                            ? 'أدخل الدرجات في الخلايا أدناه. يتم الحفظ تلقائياً عند الضغط على "حفظ".' 
+                            : 'قم بإضافة أو تعديل أسماء الأنشطة والاختبارات، وإضافة روابط (PDF/Forms) لتظهر للطلاب.'}
+                    </p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                    {/* Subject Selector (Only relevant in grading usually, but maybe management too if we split config per subject later) */}
+                    <select 
+                        value={selectedSubject} 
+                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                    >
+                        {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
+                    </select>
+
+                    {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && (
+                        <button onClick={handleSaveGrid} className="bg-green-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700">
+                            {savedSuccess ? <CheckCircle size={18} /> : <Save size={18} />} {savedSuccess ? 'تم الحفظ' : 'حفظ الدرجات'}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Cloud Link Box (Only in Grading Mode) */}
+            {activeMode === 'GRADING' && (
+                <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm"><LinkIcon size={16}/></div>
+                    <div className="flex-1">
+                        {isEditingUrl || !masterUrl ? (
+                            <div className="flex gap-2">
+                                <input className="w-full p-1 bg-white border rounded text-sm dir-ltr" placeholder="أدخل رابط ملف Google Drive / Excel الرئيسي هنا..." value={masterUrl} onChange={e => setMasterUrl(e.target.value)} />
+                                <button onClick={handleSaveMasterUrl} className="px-3 bg-blue-600 text-white rounded text-xs font-bold whitespace-nowrap">حفظ محلياً</button>
+                            </div>
+                        ) : (
+                            <div className="flex justify-between items-center">
+                                <div className="flex flex-col">
+                                    <span className="text-sm text-blue-800 font-bold truncate dir-ltr">{masterUrl}</span>
+                                    {isCloudLink && <span className="text-[10px] text-green-600 flex items-center gap-1 font-bold"><Cloud size={10}/> رابط موحد (سحابي)</span>}
+                                </div>
+                                <button onClick={() => setIsEditingUrl(true)} className="text-gray-500 hover:text-blue-600 p-1"><Edit2 size={14}/></button>
+                            </div>
                         )}
                     </div>
                 </div>
+            )}
+            
+            {statusMsg && <div className="mb-4 text-sm font-bold text-center bg-green-100 text-green-800 p-2 rounded-lg animate-pulse">{statusMsg}</div>}
 
-                {viewMode === 'ENTRY' && (
-                    <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg flex items-center gap-3">
-                        <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm"><LinkIcon size={16}/></div>
-                        <div className="flex-1">
-                            {isEditingUrl || !masterUrl ? (
-                                <div className="flex gap-2">
-                                    <input className="w-full p-1 bg-white border rounded text-sm dir-ltr" placeholder="أدخل رابط ملف Google Drive / Excel الرئيسي هنا..." value={masterUrl} onChange={e => setMasterUrl(e.target.value)} />
-                                    <button onClick={handleSaveMasterUrl} className="px-3 bg-blue-600 text-white rounded text-xs font-bold whitespace-nowrap">حفظ محلياً</button>
-                                </div>
-                            ) : (
-                                <div className="flex justify-between items-center">
-                                    <div className="flex flex-col">
-                                        <span className="text-sm text-blue-800 font-bold truncate dir-ltr">{masterUrl}</span>
-                                        {isCloudLink && <span className="text-[10px] text-green-600 flex items-center gap-1 font-bold"><Cloud size={10}/> رابط موحد (سحابي)</span>}
-                                    </div>
-                                    <button onClick={() => setIsEditingUrl(true)} className="text-gray-500 hover:text-blue-600 p-1"><Edit2 size={14}/></button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-                {statusMsg && <div className="text-xs mt-2 font-bold animate-pulse text-gray-600">{statusMsg}</div>}
-            </div>
-
-            <div className="flex flex-col md:flex-row justify-between items-end border-b mb-4 gap-4">
-                <div className="flex gap-2">
-                    {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => (
-                        <button key={cat} onClick={() => { setActiveTab(cat); setViewMode('ENTRY'); }} className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors relative ${activeTab === cat ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {/* SUB TABS */}
+            <div className="flex flex-wrap gap-2 border-b border-gray-200 mb-4 pb-1">
+                {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => {
+                    if (activeMode === 'MANAGEMENT' && cat === 'YEAR_WORK') return null; // No config for Year Work
+                    return (
+                        <button 
+                            key={cat} 
+                            onClick={() => setActiveTab(cat)} 
+                            className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors relative ${activeTab === cat ? 'bg-white text-gray-800 border border-b-0 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
+                        >
                             <div className="flex items-center gap-2">
+                                {cat === 'ACTIVITY' && <Activity size={16}/>}
+                                {cat === 'HOMEWORK' && <List size={16}/>}
+                                {cat === 'PLATFORM_EXAM' && <TrendingUp size={16}/>}
+                                {cat === 'YEAR_WORK' && <Layout size={16}/>}
+                                
                                 {cat === 'ACTIVITY' && 'الأنشطة'}
                                 {cat === 'HOMEWORK' && 'الواجبات'}
                                 {cat === 'PLATFORM_EXAM' && 'اختبارات المنصة'}
@@ -424,51 +471,52 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 {activeTab === cat && isGenerating && <Loader2 size={12} className="animate-spin"/>}
                             </div>
                         </button>
-                    ))}
-                </div>
-                {activeTab === 'ACTIVITY' && viewMode === 'ENTRY' && (
-                    <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200 mb-1">
+                    )
+                })}
+            </div>
+
+            {/* Activity Target Control (Visible in both modes for Activity tab) */}
+            {activeTab === 'ACTIVITY' && (
+                <div className="flex justify-end mb-2">
+                    <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
                         <Target size={16} className="text-amber-600"/>
                         <span className="text-xs font-bold text-amber-800">العدد المستهدف للأنشطة:</span>
                         <input type="number" min="1" value={activityTarget} onChange={(e) => handleActivityTargetChange(e.target.value)} className="w-16 p-1 text-center border rounded text-sm font-bold bg-white focus:ring-1 focus:ring-amber-500"/>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
-            <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative">
+            <div className="flex-1 overflow-auto bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px]">
                 
-                {/* CONFIGURATION MODE */}
-                {viewMode === 'CONFIG' && activeTab !== 'YEAR_WORK' && (
+                {/* --- CONFIGURATION MODE --- */}
+                {activeMode === 'MANAGEMENT' && (
                     <div className="p-6">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                                <Settings size={20} className="text-purple-600"/> 
-                                إعداد قائمة {activeTab === 'ACTIVITY' ? 'الأنشطة' : activeTab === 'HOMEWORK' ? 'الواجبات' : 'الاختبارات'}
-                            </h3>
-                            <button onClick={handleAddColumn} className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 shadow-sm">
-                                <Plus size={16}/> إضافة بند جديد
+                            <h3 className="font-bold text-gray-700">إعداد أعمدة {activeTab === 'ACTIVITY' ? 'الأنشطة' : activeTab === 'HOMEWORK' ? 'الواجبات' : 'الاختبارات'}</h3>
+                            <button onClick={handleAddColumn} className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-100 shadow-sm">
+                                <Plus size={16}/> إضافة عنوان جديد
                             </button>
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-right">
-                                <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                            <table className="w-full text-right border-collapse">
+                                <thead className="bg-gray-50 text-gray-600 font-bold border-b text-sm">
                                     <tr>
                                         <th className="p-4 w-12 text-center">#</th>
-                                        <th className="p-4">اسم النشاط / التقييم</th>
+                                        <th className="p-4 w-1/4">اسم النشاط / التقييم</th>
                                         <th className="p-4 w-32">الدرجة العظمى</th>
-                                        <th className="p-4">رابط النشاط (اختياري)</th>
+                                        <th className="p-4">رابط النشاط (يظهر للطالب)</th>
                                         <th className="p-4 w-24 text-center">إظهار</th>
                                         <th className="p-4 w-24 text-center">حذف</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y">
+                                <tbody className="divide-y text-sm">
                                     {columnsConfig.map((col, index) => (
-                                        <tr key={col.key} className="hover:bg-gray-50">
-                                            <td className="p-4 text-center text-gray-400">{index + 1}</td>
+                                        <tr key={col.key} className="hover:bg-gray-50 transition-colors">
+                                            <td className="p-4 text-center text-gray-400 font-bold">{index + 1}</td>
                                             <td className="p-4">
                                                 <input 
-                                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-purple-500 outline-none"
+                                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-purple-500 outline-none font-bold text-gray-700"
                                                     value={col.label}
                                                     onChange={(e) => handleUpdateColumn(index, 'label', e.target.value)}
                                                     placeholder="مثال: واجب 1"
@@ -483,20 +531,28 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 />
                                             </td>
                                             <td className="p-4">
-                                                <div className="relative">
-                                                    <LinkIcon size={16} className="absolute top-3 left-3 text-gray-400"/>
+                                                <div className="flex items-center gap-2 border rounded p-1 bg-white focus-within:ring-2 focus-within:ring-purple-500">
+                                                    <div className="bg-gray-100 p-1.5 rounded text-gray-500">
+                                                        <LinkIcon size={16}/>
+                                                    </div>
                                                     <input 
-                                                        className="w-full p-2 pl-10 border rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm dir-ltr text-left font-mono"
+                                                        className="w-full outline-none text-sm dir-ltr text-left font-mono text-blue-600"
                                                         value={col.url || ''}
                                                         onChange={(e) => handleUpdateColumn(index, 'url', e.target.value)}
                                                         placeholder="https://..."
                                                     />
+                                                    {col.url && (
+                                                        <a href={col.url} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="تجربة الرابط">
+                                                            <ExternalLink size={16}/>
+                                                        </a>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="p-4 text-center">
                                                 <button 
                                                     onClick={() => handleUpdateColumn(index, 'isVisible', !col.isVisible)}
                                                     className={`p-2 rounded-full transition-colors ${col.isVisible ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}
+                                                    title={col.isVisible ? 'إخفاء' : 'إظهار'}
                                                 >
                                                     {col.isVisible ? <Eye size={18}/> : <EyeOff size={18}/>}
                                                 </button>
@@ -505,6 +561,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 <button 
                                                     onClick={() => handleDeleteColumn(index)}
                                                     className="p-2 rounded-full text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                    title="حذف"
                                                 >
                                                     <Trash2 size={18}/>
                                                 </button>
@@ -512,21 +569,28 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         </tr>
                                     ))}
                                     {columnsConfig.length === 0 && (
-                                        <tr><td colSpan={6} className="p-8 text-center text-gray-400">لا توجد أنشطة مضافة. اضغط "إضافة بند جديد" للبدء.</td></tr>
+                                        <tr><td colSpan={6} className="p-12 text-center text-gray-400 bg-gray-50/50 rounded-lg border-2 border-dashed border-gray-200 m-4">
+                                            <Settings size={32} className="mx-auto mb-2 opacity-50"/>
+                                            لا توجد أنشطة مضافة. اضغط "إضافة عنوان جديد" للبدء.
+                                        </td></tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
 
-                        <div className="mt-6 flex justify-end gap-3 border-t pt-4">
-                            <button onClick={() => setViewMode('ENTRY')} className="px-6 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg">إلغاء</button>
-                            <button onClick={handleSaveConfig} className="px-8 py-2 bg-gray-900 text-white font-bold rounded-lg hover:bg-black shadow-lg">حفظ التغييرات</button>
+                        <div className="mt-6 pt-4 border-t flex justify-end">
+                            <button 
+                                onClick={handleSaveConfig} 
+                                className="px-8 py-3 bg-gray-900 text-white font-bold rounded-lg hover:bg-black shadow-lg flex items-center gap-2 transform transition-transform active:scale-95"
+                            >
+                                <Save size={18}/> حفظ وتحديث الروابط للجميع
+                            </button>
                         </div>
                     </div>
                 )}
 
-                {/* ENTRY MODE */}
-                {viewMode === 'ENTRY' && (
+                {/* --- GRADING MODE --- */}
+                {activeMode === 'GRADING' && (
                     <>
                         {activeTab === 'YEAR_WORK' ? renderYearWorkTable() : !masterUrl && columnsConfig.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -535,7 +599,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <div className="flex gap-4 mt-4">
                                     <button onClick={() => setIsEditingUrl(true)} className="text-primary font-bold hover:underline">ربط ملف Excel</button>
                                     <span className="text-gray-300">|</span>
-                                    <button onClick={() => setViewMode('CONFIG')} className="text-purple-600 font-bold hover:underline">إعداد يدوي</button>
+                                    <button onClick={() => setActiveMode('MANAGEMENT')} className="text-purple-600 font-bold hover:underline">إعداد يدوي</button>
                                 </div>
                             </div>
                         ) : columnsConfig.length === 0 ? (
@@ -545,7 +609,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 {!isGenerating && (
                                     <div className="flex gap-3 mt-4">
                                         <button onClick={() => handleAutoSyncForTab(activeTab)} className="bg-gray-100 px-4 py-2 rounded text-gray-600 text-sm font-bold hover:bg-gray-200">مزامنة من الملف</button>
-                                        <button onClick={() => setViewMode('CONFIG')} className="bg-purple-50 px-4 py-2 rounded text-purple-700 text-sm font-bold hover:bg-purple-100">إضافة يدوية</button>
+                                        <button onClick={() => setActiveMode('MANAGEMENT')} className="bg-purple-50 px-4 py-2 rounded text-purple-700 text-sm font-bold hover:bg-purple-100">إضافة يدوية</button>
                                     </div>
                                 )}
                             </div>

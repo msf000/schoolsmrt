@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus } from '../types';
 import { getSubjects, getWorksConfig } from '../services/storageService';
@@ -14,7 +15,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [selectedSubject, setSelectedSubject] = useState<string>('');
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [activityTarget, setActivityTarget] = useState<number>(10);
+    const [activityTarget, setActivityTarget] = useState<number>(13); // Default to 13
 
     // Smart Search State
     const [searchTerm, setSearchTerm] = useState('');

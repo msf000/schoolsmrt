@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
 import { updateStudent, saveAttendance, getSubjects, getWorksConfig } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
@@ -345,7 +345,7 @@ const StudentAttendanceView = ({ student, attendance }: { student: Student, atte
 const StudentEvaluationView = ({ student, performance, attendance }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[] }) => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const subjects = getSubjects();
-    const [activityTarget, setActivityTarget] = useState<number>(10);
+    const [activityTarget, setActivityTarget] = useState<number>(13); // Default to 13
 
     useEffect(() => {
         if(subjects.length > 0) setSelectedSubject(subjects[0].name);
@@ -418,8 +418,10 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
             totalPeriod,
             posBehavior, negBehavior,
             homeworkCols, // Detailed cols
+            activityCols, // Detailed cols
             examCols, // Detailed cols
             studentHWs, // Details records
+            studentActs, // Detailed records
             studentExams // Detailed records
         };
     }, [performance, attendance, student.id, selectedSubject, activityTarget]);
@@ -522,7 +524,7 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
             </div>
 
             {/* DETAILED BREAKDOWN SECTION */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* 1. HOMEWORK DETAILS */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
@@ -547,7 +549,13 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
                                         const isDone = stats.studentHWs.some(p => p.notes === col.key && p.score > 0);
                                         return (
                                             <tr key={col.key} className="hover:bg-gray-50">
-                                                <td className="p-3 text-gray-700 font-medium">{col.label}</td>
+                                                <td className="p-3 text-gray-700 font-medium">
+                                                    {col.url ? (
+                                                        <a href={col.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
+                                                            {col.label} <ExternalLink size={10}/>
+                                                        </a>
+                                                    ) : col.label}
+                                                </td>
                                                 <td className="p-3 text-center">
                                                     {isDone ? (
                                                         <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2 py-1 rounded text-xs font-bold border border-green-100">
@@ -570,7 +578,55 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
                     </div>
                 </div>
 
-                {/* 2. PLATFORM EXAMS DETAILS */}
+                {/* 2. ACTIVITY DETAILS (NEW) */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
+                    <div className="p-4 border-b bg-amber-50 text-amber-800 font-bold flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <ActivityIcon size={18}/>
+                            تفاصيل الأنشطة
+                        </div>
+                        <span className="text-xs bg-white px-2 py-1 rounded-full border border-amber-100">مجموع النقاط: {stats.actSum}</span>
+                    </div>
+                    <div className="flex-1 overflow-auto max-h-80 custom-scrollbar">
+                        {stats.activityCols.length > 0 ? (
+                            <table className="w-full text-sm text-right">
+                                <thead className="bg-gray-50 text-gray-600 font-bold sticky top-0">
+                                    <tr>
+                                        <th className="p-3 border-b">اسم النشاط</th>
+                                        <th className="p-3 border-b w-24 text-center">الدرجة</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {stats.activityCols.map((col) => {
+                                        const rec = stats.studentActs.find(p => p.notes === col.key);
+                                        const score = rec ? rec.score : 0;
+                                        // Prioritize record URL, fallback to config URL
+                                        const linkUrl = rec?.url || col.url; 
+                                        
+                                        return (
+                                            <tr key={col.key} className="hover:bg-gray-50">
+                                                <td className="p-3 text-gray-700 font-medium">
+                                                    {linkUrl ? (
+                                                        <a href={linkUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
+                                                            {col.label} <ExternalLink size={10}/>
+                                                        </a>
+                                                    ) : col.label}
+                                                </td>
+                                                <td className="p-3 text-center font-bold text-amber-700 font-mono">
+                                                    {score > 0 ? score : '-'}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <div className="p-8 text-center text-gray-400">لا توجد أنشطة مسجلة</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* 3. PLATFORM EXAMS DETAILS */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
                     <div className="p-4 border-b bg-purple-50 text-purple-800 font-bold flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -596,7 +652,13 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
                                         const max = col.maxScore || 20;
                                         return (
                                             <tr key={col.key} className="hover:bg-gray-50">
-                                                <td className="p-3 text-gray-700 font-medium">{col.label}</td>
+                                                <td className="p-3 text-gray-700 font-medium">
+                                                    {col.url ? (
+                                                        <a href={col.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
+                                                            {col.label} <ExternalLink size={10}/>
+                                                        </a>
+                                                    ) : col.label}
+                                                </td>
                                                 <td className="p-3 text-center font-bold text-purple-700 font-mono">{score}</td>
                                                 <td className="p-3 text-center text-gray-400 text-xs font-mono">{max}</td>
                                             </tr>
