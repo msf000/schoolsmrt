@@ -130,23 +130,34 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const syncDataFromSheet = async (workbook: any, sheetName: string, category: PerformanceCategory) => {
-         const { headers, data } = getSheetHeadersAndData(workbook, sheetName);
+        const { headers, data } = getSheetHeadersAndData(workbook, sheetName);
         const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
         const gradeHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
         if (gradeHeaders.length === 0) return;
 
+        // 1. Load EXISTING Config to preserve URLs
+        const currentConfig = getWorksConfig(category);
+
         const newConfig: WorksColumnConfig[] = [];
         gradeHeaders.forEach((header, index) => {
             const { label, maxScore } = extractHeaderMetadata(header);
+            const key = `excel_${category}_${index}`;
+            
+            // Check if we have an existing manual configuration for this column
+            const existingCol = currentConfig.find(c => c.key === key);
+            // PRESERVE MANUAL URL: If exists, use it. Otherwise empty. Ignore Excel Link.
+            const preservedUrl = existingCol ? existingCol.url : ''; 
+
             newConfig.push({
-                key: `excel_${category}_${index}`,
+                key: key,
                 label: label,
                 maxScore: maxScore,
                 isVisible: true,
-                url: masterUrl,
+                url: preservedUrl, // Use the preserved manual URL
                 dataSource: { sourceId: 'master', sheet: sheetName, sourceHeader: header }
             });
         });
+        
         setColumnsConfig(newConfig);
         saveWorksConfig(category, newConfig);
 
@@ -169,10 +180,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 newConfig.forEach(col => {
                     const headerKey = col.dataSource!.sourceHeader;
                     const rawVal = row[headerKey];
-                    const linkVal = row[`${headerKey}_HYPERLINK`]; 
+                    // We ignore Excel hyperlinks here as requested
+                    // const linkVal = row[`${headerKey}_HYPERLINK`]; 
+                    
                     const val = parseFloat(rawVal);
                     if (!isNaN(val)) {
-                        newDataMap[student.id][col.key] = { score: val.toString(), url: linkVal };
+                        // Apply the column's manual URL to the record
+                        newDataMap[student.id][col.key] = { score: val.toString(), url: col.url }; 
                         recordsToSave.push({
                             id: `${student!.id}-${category}-${col.key}`,
                             studentId: student!.id,
@@ -183,7 +197,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             maxScore: col.maxScore,
                             date: today,
                             notes: col.key,
-                            url: linkVal
+                            url: col.url // Use the Manual URL from config
                         });
                     }
                 });
@@ -221,7 +235,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 maxScore: col.maxScore,
                                 date: today,
                                 notes: col.key,
-                                url: col.url || cellData.url // Use column default url if cell specific not found
+                                url: col.url // Enforce column manual URL
                             });
                          }
                     }
@@ -269,27 +283,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         saveWorksConfig(activeTab, columnsConfig);
         
         // 2. Propagate Links to Database Records (So students can see them)
-        // Find all performance records that match the columns with URLs and update them
         const recordsToUpdate: PerformanceRecord[] = [];
-        const today = new Date().toISOString().split('T')[0];
-
-        // We only update records if there are actual changes to URLs
+        
         columnsConfig.forEach(col => {
-            if (col.url) {
-                // Find existing records for this column (by notes key)
-                const relevantRecords = performance.filter(p => p.category === activeTab && p.notes === col.key);
-                
-                relevantRecords.forEach(rec => {
-                    // Update URL if missing or different
-                    if (rec.url !== col.url) {
-                        recordsToUpdate.push({ ...rec, url: col.url });
-                    }
-                });
-            }
+            // Find existing records for this column
+            const relevantRecords = performance.filter(p => p.category === activeTab && p.notes === col.key);
+            
+            relevantRecords.forEach(rec => {
+                // Force update URL to match the Config URL (Manual)
+                if (rec.url !== col.url) {
+                    recordsToUpdate.push({ ...rec, url: col.url });
+                }
+            });
         });
 
         if (recordsToUpdate.length > 0) {
-            onAddPerformance(recordsToUpdate); // This performs upsert
+            onAddPerformance(recordsToUpdate);
         }
 
         setStatusMsg('✅ تم حفظ الإعدادات وتحديث الروابط في سجلات الطلاب.');
