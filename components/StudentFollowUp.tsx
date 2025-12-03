@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject } from '../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus } from '../types';
 import { getSubjects, getWorksConfig } from '../services/storageService';
-import { FileText, Printer, Search, ArrowRight, Target, Settings } from 'lucide-react';
+import { FileText, Printer, Search, ArrowRight, Target, Settings, ChevronDown, Check, X, Smile, Frown, AlertCircle } from 'lucide-react';
+import { formatDualDate } from '../services/dateService';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -15,6 +16,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [activityTarget, setActivityTarget] = useState<number>(10);
 
+    // Smart Search State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         const subs = getSubjects();
         setSubjects(subs);
@@ -24,6 +30,15 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         // Load persisted target
         const savedTarget = localStorage.getItem('works_activity_target');
         if (savedTarget) setActivityTarget(parseInt(savedTarget));
+
+        // Click outside to close dropdown
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const handleTargetChange = (val: string) => {
@@ -34,12 +49,38 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         }
     };
 
+    // 1. Sort Students Alphabetically
+    const sortedStudents = useMemo(() => {
+        return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    }, [students]);
+
+    // 2. Filter Students based on Search Term
+    const filteredStudents = useMemo(() => {
+        if (!searchTerm) return sortedStudents;
+        return sortedStudents.filter(s => 
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            (s.nationalId && s.nationalId.includes(searchTerm))
+        );
+    }, [sortedStudents, searchTerm]);
+
+    const handleStudentSelect = (student: Student) => {
+        setSelectedStudentId(student.id);
+        setSearchTerm(student.name);
+        setIsDropdownOpen(false);
+    };
+
+    const clearSelection = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedStudentId('');
+        setSearchTerm('');
+        setIsDropdownOpen(true);
+    };
+
     // Filter Logic
     const student = students.find(s => s.id === selectedStudentId);
 
     // Filter Columns (Exclude Attendance from Activity Columns)
     const rawActivityCols = getWorksConfig('ACTIVITY').filter(c => c.isVisible);
-    // Explicitly filter out columns that might be attendance related to satisfy user request
     const activityCols = rawActivityCols.filter(c => 
         !c.label.includes('حضور') && 
         !c.label.toLowerCase().includes('attendance') &&
@@ -63,20 +104,15 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         // 2. Homework
         const studentHWs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
         const totalHWCount = homeworkCols.length;
-        // Count distinct homeworks based on column keys (notes) that have a score > 0
         const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
         const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 0;
         const gradeHW = (hwPercent / 100) * 10;
 
-        // 3. Activity (Sum ONLY the filtered activity columns)
+        // 3. Activity
         const studentActs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
         let actSum = 0;
-        
-        // Only sum up scores that belong to the filtered activityCols
         const validColKeys = new Set(activityCols.map(c => c.key));
-        
         studentActs.forEach(p => {
-             // Check if this performance record belongs to a valid activity column
              if (p.notes && validColKeys.has(p.notes)) {
                  actSum += p.score;
              }
@@ -101,13 +137,19 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const totalTasks = gradeHW + gradeAct + gradePart;
         const totalPeriod = totalTasks + examWeighted;
 
+        // 6. Behavior Logs (Only those with status or notes)
+        const behaviorLogs = studentAtt
+            .filter(a => (a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL) || a.behaviorNote)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
         return {
             attPercent, gradePart,
             hwPercent, distinctHWs, totalHWCount, gradeHW,
             actSum, gradeAct, actPercent,
             examWeighted,
             totalTasks, totalPeriod,
-            studentActs, studentHWs, studentExams
+            studentActs, studentHWs, studentExams,
+            behaviorLogs
         };
     };
 
@@ -120,7 +162,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50 overflow-auto">
             {/* Control Bar (Hidden in Print) */}
-            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden bg-white p-4 rounded-xl shadow-sm border border-gray-200 z-20 relative">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         <FileText className="text-teal-600" />
@@ -143,14 +185,53 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         />
                     </div>
 
-                     <select 
-                        value={selectedStudentId}
-                        onChange={(e) => setSelectedStudentId(e.target.value)}
-                        className="p-2 border rounded-lg bg-white shadow-sm w-56 outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-                    >
-                        <option value="">-- اختر الطالب --</option>
-                        {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    {/* SMART SEARCH DROPDOWN */}
+                    <div className="relative w-64" ref={dropdownRef}>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="ابحث باسم الطالب..."
+                                value={searchTerm}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    setIsDropdownOpen(true);
+                                    if(selectedStudentId) setSelectedStudentId(''); // Clear selection if user types
+                                }}
+                                onFocus={() => setIsDropdownOpen(true)}
+                                className={`w-full p-2 pl-8 pr-3 border rounded-lg shadow-sm outline-none focus:ring-2 focus:ring-teal-500 text-sm ${selectedStudentId ? 'bg-teal-50 border-teal-200 font-bold text-teal-800' : 'bg-white'}`}
+                            />
+                            {selectedStudentId ? (
+                                <button onClick={clearSelection} className="absolute left-2 top-2.5 text-teal-600 hover:text-red-500">
+                                    <X size={16} />
+                                </button>
+                            ) : (
+                                <Search className="absolute left-2 top-2.5 text-gray-400" size={16} />
+                            )}
+                        </div>
+
+                        {isDropdownOpen && (
+                            <div className="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-50 animate-fade-in custom-scrollbar">
+                                {filteredStudents.length > 0 ? (
+                                    filteredStudents.map(s => (
+                                        <div 
+                                            key={s.id}
+                                            onClick={() => handleStudentSelect(s)}
+                                            className="px-4 py-2 hover:bg-teal-50 cursor-pointer flex justify-between items-center text-sm border-b border-gray-50 last:border-0"
+                                        >
+                                            <div>
+                                                <div className="font-bold text-gray-800">{s.name}</div>
+                                                <div className="text-xs text-gray-400">{s.className}</div>
+                                            </div>
+                                            {selectedStudentId === s.id && <Check size={14} className="text-teal-600"/>}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="p-3 text-center text-gray-400 text-xs">لا توجد نتائج مطابقة</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     <select 
                         value={selectedSubject} 
                         onChange={(e) => setSelectedSubject(e.target.value)}
@@ -158,6 +239,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     >
                         {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
                     </select>
+                    
                     <button onClick={handlePrint} disabled={!selectedStudentId} className="bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-black disabled:opacity-50 text-sm font-bold">
                         <Printer size={16}/> طباعة
                     </button>
@@ -166,7 +248,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
             {/* Report Content */}
             {student && stats ? (
-                <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto">
+                <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto z-0">
                     
                     {/* Header Title */}
                     <div className="text-center mb-8">
@@ -206,6 +288,44 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                             </thead>
                         </table>
                     </div>
+
+                    {/* Behavior Logs (NEW SECTION) */}
+                    {stats.behaviorLogs.length > 0 && (
+                        <div className="mb-8">
+                            <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2 flex items-center justify-center gap-2">
+                                <AlertCircle size={20} className="text-gray-600"/>
+                                سجل السلوك والمواظبة
+                            </div>
+                            <div className="overflow-hidden border border-gray-200 rounded-lg">
+                                <table className="w-full text-right text-sm">
+                                    <thead className="bg-gray-50 text-gray-700">
+                                        <tr>
+                                            <th className="p-3 w-32 font-bold">التاريخ</th>
+                                            <th className="p-3 w-32 font-bold">الحصة</th>
+                                            <th className="p-3 w-40 font-bold">حالة السلوك</th>
+                                            <th className="p-3 font-bold">الملاحظات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {stats.behaviorLogs.map((log) => (
+                                            <tr key={log.id} className="hover:bg-gray-50">
+                                                <td className="p-3 text-gray-600 text-xs font-mono">{formatDualDate(log.date)}</td>
+                                                <td className="p-3 text-gray-600 text-xs">{log.period ? `الحصة ${log.period}` : '-'}</td>
+                                                <td className="p-3">
+                                                    {log.behaviorStatus === BehaviorStatus.POSITIVE && <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2 py-1 rounded text-xs font-bold"><Smile size={14}/> إيجابي</span>}
+                                                    {log.behaviorStatus === BehaviorStatus.NEGATIVE && <span className="inline-flex items-center gap-1 text-red-700 bg-red-50 px-2 py-1 rounded text-xs font-bold"><Frown size={14}/> سلبي</span>}
+                                                    {(!log.behaviorStatus || log.behaviorStatus === BehaviorStatus.NEUTRAL) && <span className="text-gray-400 text-xs">-</span>}
+                                                </td>
+                                                <td className="p-3 text-gray-700 font-medium">
+                                                    {log.behaviorNote || <span className="text-gray-300 text-xs italic">لا توجد ملاحظات</span>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Activities Breakdown */}
                     <div className="mb-8">
@@ -317,6 +437,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                 <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
                     <Search size={48} className="mb-4 opacity-20" />
                     <p className="text-xl font-bold">الرجاء اختيار طالب لعرض التقرير</p>
+                    <p className="text-sm mt-2">يمكنك البحث باسم الطالب في القائمة أعلاه</p>
                 </div>
             )}
         </div>

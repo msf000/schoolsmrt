@@ -383,13 +383,15 @@ const SubscriptionsManager = () => {
 };
 
 const SCHEMA_PATCH_SQL = `
--- 🛠️ إصلاح خطأ الربط (Foreign Key Constraint)
--- السماح بحفظ الجداول باستخدام "اسم الفصل" كنص بدلاً من ربطه بجدول الهيكل الأكاديمي
+-- 🛠️ إصلاح خطأ الربط وتحديث هيكل البيانات (Period & Behavior)
 
+-- 1. السماح بحفظ الجداول باستخدام "اسم الفصل" كنص
 ALTER TABLE public.weekly_schedules DROP CONSTRAINT IF EXISTS weekly_schedules_class_id_fkey;
 
--- تأكد من وجود الأعمدة المطلوبة
+-- 2. إضافة أعمدة الحصة والسلوك لسجل الحضور
 ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS period integer;
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS behavior_status text;
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS behavior_note text;
 
 -- تحديث كاش النظام
 NOTIFY pgrst, 'reload schema';
@@ -492,6 +494,8 @@ create table public.attendance_records (
   status text check (status in ('PRESENT', 'ABSENT', 'LATE', 'EXCUSED')),
   subject text,
   period integer,
+  behavior_status text,
+  behavior_note text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -931,8 +935,8 @@ const DatabaseSettings = () => {
                     <div className="mb-8 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع (لإصلاح الأخطاء وإضافة السحابة)</h4>
-                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإصلاح أخطاء "student_count column missing" وإضافة الأعمدة الجديدة</p>
+                                <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع (لإصلاح الأخطاء وإضافة السلوك)</h4>
+                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإضافة أعمدة السلوك والملاحظات في قاعدة البيانات</p>
                             </div>
                             <button onClick={() => copyToClipboard(SCHEMA_PATCH_SQL)} className="text-yellow-400 hover:text-white bg-yellow-900/50 p-2 rounded hover:bg-yellow-800 transition-colors" title="نسخ الكود">
                                 <Copy size={16} />

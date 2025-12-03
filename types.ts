@@ -72,6 +72,12 @@ export enum AttendanceStatus {
   EXCUSED = 'EXCUSED'
 }
 
+export enum BehaviorStatus {
+  POSITIVE = 'POSITIVE', // Good behavior
+  NEGATIVE = 'NEGATIVE', // Disruptive/Bad
+  NEUTRAL = 'NEUTRAL'    // Normal
+}
+
 export interface AttendanceRecord {
   id: string;
   studentId: string;
@@ -79,6 +85,10 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   subject?: string; // Subject name
   period?: number; // Added: Period number (1, 2, 3...)
+  
+  // New Behavior Fields
+  behaviorStatus?: BehaviorStatus; 
+  behaviorNote?: string;
 }
 
 export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
@@ -122,6 +132,7 @@ export interface WorksColumnConfig {
 export interface School {
     id: string;
     name: string;
+    educationAdministration?: string; // New: e.g., "Riyadh Education"
     type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL';
     managerName: string;
     phone: string;
@@ -156,4 +167,14 @@ export interface CustomTable {
     lastUpdated?: string; // Timestamp of last refresh
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES';
+export interface ReportHeaderConfig {
+    schoolName: string;
+    educationAdmin: string;
+    teacherName: string;
+    schoolManager: string; // New
+    academicYear: string; // New: e.g., 1446
+    term: string; // New: e.g., First Term
+    logoBase64?: string; // New: To store image locally
+}
+
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT';

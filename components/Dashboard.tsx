@@ -3,8 +3,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, ScatterChart, Scatter 
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus } from '../types';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     ].filter(d => d.value > 0);
   }, [attendance]);
 
-  // Data for Correlation Chart (Attendance vs Performance)
+  // Data for Correlation Chart & Risk Analysis
   const studentMetrics = useMemo(() => {
     return students.map(student => {
         // Calculate Attendance %
@@ -61,21 +61,26 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         const totalScore = studentPerformance.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
         const avgScore = studentPerformance.length > 0 ? (totalScore / studentPerformance.length) * 100 : 0;
 
+        // Calculate Negative Behavior Count
+        const negativeBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
+
         return {
             id: student.id,
             name: student.name,
             grade: student.gradeLevel,
             attendance: Math.round(attendanceRate),
             score: Math.round(avgScore),
-            count: 1 // Weight for scatter
+            negativeBehaviors,
+            count: 1
         };
     });
   }, [students, attendance, performance]);
 
-  const atRiskStudents = studentMetrics.filter(s => s.attendance < 75 || (s.score < 50 && s.score > 0));
+  // Risk Logic: Low Attendance OR Low Score OR High Negative Behavior
+  const atRiskStudents = studentMetrics.filter(s => s.attendance < 75 || (s.score < 50 && s.score > 0) || s.negativeBehaviors >= 3);
 
   const recentActivity = useMemo(() => {
-      // Combine and sort latest 5 actions (Attendance or Performance)
+      // Combine and sort latest 7 actions
       const perfs = performance.map(p => ({
           type: 'PERFORMANCE',
           date: p.date,
@@ -84,20 +89,37 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           timestamp: new Date(p.date).getTime()
       }));
 
-      // Group attendance by day/student is too much, let's just pick latest ABSENT/LATE as interesting events
       const atts = attendance
-        .filter(a => a.status !== AttendanceStatus.PRESENT)
-        .map(a => ({
-          type: 'ATTENDANCE',
-          date: a.date,
-          studentName: students.find(s => s.id === a.studentId)?.name || 'طالب غير معروف',
-          detail: `تم تسجيله ${a.status}`,
-          timestamp: new Date(a.date).getTime()
-      }));
+        .filter(a => a.status !== AttendanceStatus.PRESENT || (a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL))
+        .map(a => {
+          let detail = '';
+          let type = 'ATTENDANCE';
+          
+          if (a.status !== AttendanceStatus.PRESENT) {
+              const statusText = a.status === AttendanceStatus.ABSENT ? 'غائب' : a.status === AttendanceStatus.LATE ? 'متأخر' : 'عذر';
+              detail = `تم تسجيله ${statusText}`;
+          }
+          
+          if (a.behaviorStatus === BehaviorStatus.POSITIVE) {
+              type = 'BEHAVIOR_POS';
+              detail = a.behaviorNote ? `سلوك إيجابي: ${a.behaviorNote}` : 'تسجيل سلوك إيجابي';
+          } else if (a.behaviorStatus === BehaviorStatus.NEGATIVE) {
+              type = 'BEHAVIOR_NEG';
+              detail = a.behaviorNote ? `سلوك سلبي: ${a.behaviorNote}` : 'تسجيل سلوك سلبي';
+          }
+
+          return {
+            type: type,
+            date: a.date,
+            studentName: students.find(s => s.id === a.studentId)?.name || 'طالب غير معروف',
+            detail: detail,
+            timestamp: new Date(a.date).getTime()
+          };
+      });
 
       return [...perfs, ...atts]
         .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 5);
+        .slice(0, 7);
   }, [attendance, performance, students]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -173,29 +195,29 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                         <thead className="bg-red-50 text-red-800">
                             <tr>
                                 <th className="p-3 rounded-r-lg">الطالب</th>
-                                <th className="p-3">الحضور</th>
-                                <th className="p-3">الأداء الأكاديمي</th>
-                                <th className="p-3 rounded-l-lg">الحالة</th>
+                                <th className="p-3 text-center">الحضور</th>
+                                <th className="p-3 text-center">الأداء</th>
+                                <th className="p-3 rounded-l-lg">ملاحظات النظام</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
                             {atRiskStudents.slice(0, 5).map(s => (
                                 <tr key={s.id}>
                                     <td className="p-3 font-bold">{s.name}</td>
-                                    <td className="p-3">
+                                    <td className="p-3 text-center">
                                         <span className={`px-2 py-1 rounded text-xs font-bold ${s.attendance < 75 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                             {s.attendance}%
                                         </span>
                                     </td>
-                                    <td className="p-3">
+                                    <td className="p-3 text-center">
                                          <span className={`px-2 py-1 rounded text-xs font-bold ${s.score < 50 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                             {s.score}%
                                         </span>
                                     </td>
                                     <td className="p-3 text-xs text-gray-500">
-                                        {s.attendance < 75 && 'غياب مرتفع'}
-                                        {s.attendance < 75 && s.score < 50 && ' و '}
-                                        {s.score < 50 && 'تحصيل ضعيف'}
+                                        {s.attendance < 75 && <span className="ml-1 text-red-600">غياب مرتفع.</span>}
+                                        {s.score < 50 && <span className="ml-1 text-orange-600">تحصيل ضعيف.</span>}
+                                        {s.negativeBehaviors >= 3 && <span className="text-red-700 font-bold bg-red-50 px-1 rounded">سلوكيات سلبية ({s.negativeBehaviors}).</span>}
                                     </td>
                                 </tr>
                             ))}
@@ -274,7 +296,16 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
                 {recentActivity.length > 0 ? recentActivity.map((activity, idx) => (
                     <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
-                        <div className={`mt-1 w-2 h-2 rounded-full ${activity.type === 'PERFORMANCE' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <div className={`mt-1 min-w-[24px] h-6 flex items-center justify-center rounded-full 
+                            ${activity.type === 'PERFORMANCE' ? 'bg-blue-100 text-blue-600' : 
+                              activity.type === 'BEHAVIOR_POS' ? 'bg-green-100 text-green-600' : 
+                              activity.type === 'BEHAVIOR_NEG' ? 'bg-red-100 text-red-600' : 
+                              'bg-gray-200 text-gray-600'}`}>
+                            {activity.type === 'PERFORMANCE' && <Award size={14}/>}
+                            {activity.type === 'BEHAVIOR_POS' && <Smile size={14}/>}
+                            {activity.type === 'BEHAVIOR_NEG' && <Frown size={14}/>}
+                            {activity.type === 'ATTENDANCE' && <Clock size={14}/>}
+                        </div>
                         <div>
                             <p className="text-sm font-bold text-gray-800">{activity.studentName}</p>
                             <p className="text-xs text-gray-600">{activity.detail}</p>

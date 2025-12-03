@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Teacher, Parent, ClassRoom, Subject, Student, School, ScheduleItem, DayOfWeek } from '../types';
+import { Teacher, Parent, ClassRoom, Subject, Student, School, ScheduleItem, DayOfWeek, ReportHeaderConfig } from '../types';
 import { 
     getTeachers, addTeacher, deleteTeacher, 
     getParents, addParent, deleteParent, 
     getSubjects, addSubject, deleteSubject,
     getSchools, addSchool,
-    getSchedules, saveScheduleItem, deleteScheduleItem
+    getSchedules, saveScheduleItem, deleteScheduleItem,
+    getReportHeaderConfig, saveReportHeaderConfig,
+    saveWorksMasterUrl, getWorksMasterUrl
 } from '../services/storageService';
-import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers, GraduationCap, MapPin, Upload } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -419,71 +421,198 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
     );
 };
 
-// --- Settings Manager (For Cloud Link) ---
+// --- Settings Manager (For Cloud Link and Report Headers) ---
 const SchoolSettings = () => {
-    const [schools, setSchools] = useState<School[]>([]);
+    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig>({ 
+        schoolName: '', educationAdmin: '', teacherName: '', 
+        schoolManager: '', academicYear: '', term: '', logoBase64: '' 
+    });
     const [masterUrl, setMasterUrl] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [msg, setMsg] = useState('');
 
     useEffect(() => {
-        const s = getSchools();
-        setSchools(s);
-        if (s.length > 0 && s[0].worksMasterUrl) {
-            setMasterUrl(s[0].worksMasterUrl);
-        }
+        setHeaderConfig(getReportHeaderConfig());
+        setMasterUrl(getWorksMasterUrl());
     }, []);
 
     const handleSave = () => {
-        if (schools.length === 0) {
-            setMsg('❌ لا توجد مدرسة مسجلة. يرجى إضافة مدرسة من لوحة المدير العام أولاً.');
-            return;
-        }
-        
         setIsSaving(true);
-        // Update the first school found
-        const updatedSchool = { ...schools[0], worksMasterUrl: masterUrl };
-        addSchool(updatedSchool); // upsert/add logic handles update if ID exists
+        saveReportHeaderConfig(headerConfig);
+        saveWorksMasterUrl(masterUrl);
         
         setTimeout(() => {
             setIsSaving(false);
-            setMsg('✅ تم حفظ الرابط بنجاح! سيتم تعميمه على جميع الأجهزة بعد المزامنة.');
+            setMsg('✅ تم حفظ الإعدادات بنجاح! سيتم تطبيقها على التقارير والنظام.');
             setTimeout(() => setMsg(''), 3000);
-        }, 1000);
+        }, 800);
+    };
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setHeaderConfig(prev => ({ ...prev, logoBase64: reader.result as string }));
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     return (
-        <div className="max-w-2xl mx-auto py-8">
-            <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <LinkIcon className="text-blue-600"/>
-                إعدادات الربط السحابي
-            </h3>
+        <div className="max-w-4xl mx-auto py-4 space-y-8">
             
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-                <label className="block text-sm font-bold text-gray-700 mb-2">رابط ملف الأعمال الرئيسي (Google Drive / Excel)</label>
-                <p className="text-xs text-gray-500 mb-4">هذا الرابط سيتم استخدامه في صفحة "متابعة الأعمال" لجلب البيانات تلقائياً لجميع المستخدمين.</p>
+            {/* Report Header Config Section */}
+            <div>
+                <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <GraduationCap className="text-purple-600"/>
+                    إعدادات الترويسة والتقارير
+                </h3>
                 
-                <div className="flex gap-2">
-                    <input 
-                        type="url" 
-                        value={masterUrl} 
-                        onChange={e => setMasterUrl(e.target.value)}
-                        className="flex-1 p-3 border rounded-lg dir-ltr text-left"
-                        placeholder="https://docs.google.com/spreadsheets/d/..."
-                    />
-                    <button 
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 disabled:opacity-50"
-                    >
-                        {isSaving ? 'جاري الحفظ...' : 'حفظ وتعميم'}
-                    </button>
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+                    
+                    {/* Right Side: Text Inputs */}
+                    <div className="md:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">إدارة التعليم (المنطقة / المحافظة)</label>
+                            <div className="relative">
+                                <MapPin className="absolute right-3 top-3 text-purple-400" size={18}/>
+                                <input 
+                                    type="text" 
+                                    value={headerConfig.educationAdmin} 
+                                    onChange={e => setHeaderConfig({...headerConfig, educationAdmin: e.target.value})}
+                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="مثال: الرياض / جدة"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">اسم المدرسة</label>
+                            <div className="relative">
+                                <Building2 className="absolute right-3 top-3 text-purple-400" size={18}/>
+                                <input 
+                                    type="text" 
+                                    value={headerConfig.schoolName} 
+                                    onChange={e => setHeaderConfig({...headerConfig, schoolName: e.target.value})}
+                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="مثال: ثانوية الملك فهد"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">مدير المدرسة</label>
+                            <div className="relative">
+                                <User className="absolute right-3 top-3 text-purple-400" size={18}/>
+                                <input 
+                                    type="text" 
+                                    value={headerConfig.schoolManager} 
+                                    onChange={e => setHeaderConfig({...headerConfig, schoolManager: e.target.value})}
+                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="اسم المدير"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">العام الدراسي</label>
+                            <div className="relative">
+                                <Calendar className="absolute right-3 top-3 text-purple-400" size={18}/>
+                                <input 
+                                    type="text" 
+                                    value={headerConfig.academicYear} 
+                                    onChange={e => setHeaderConfig({...headerConfig, academicYear: e.target.value})}
+                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="مثال: 1447هـ"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">الفصل الدراسي</label>
+                            <select 
+                                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white"
+                                value={headerConfig.term}
+                                onChange={e => setHeaderConfig({...headerConfig, term: e.target.value})}
+                            >
+                                <option value="الفصل الدراسي الأول">الفصل الدراسي الأول</option>
+                                <option value="الفصل الدراسي الثاني">الفصل الدراسي الثاني</option>
+                                <option value="الفصل الدراسي الثالث">الفصل الدراسي الثالث</option>
+                            </select>
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">اسم المعلم (الظاهر في التقارير)</label>
+                            <div className="relative">
+                                <User className="absolute right-3 top-3 text-purple-400" size={18}/>
+                                <input 
+                                    type="text" 
+                                    value={headerConfig.teacherName} 
+                                    onChange={e => setHeaderConfig({...headerConfig, teacherName: e.target.value})}
+                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="أدخل اسمك هنا"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Left Side: Logo Upload */}
+                    <div className="md:col-span-4 flex flex-col items-center justify-center p-4 border-2 border-dashed border-purple-300 rounded-xl bg-white hover:bg-purple-50 transition-colors relative">
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleLogoUpload}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        />
+                        {headerConfig.logoBase64 ? (
+                            <div className="relative w-full flex flex-col items-center">
+                                <img src={headerConfig.logoBase64} alt="شعار المدرسة" className="max-h-32 object-contain mb-2" />
+                                <span className="text-xs text-purple-600 font-bold bg-white px-2 py-1 rounded shadow">اضغط لتغيير الشعار</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center text-gray-400">
+                                <Upload size={40} className="mb-2"/>
+                                <span className="font-bold">رفع شعار المدرسة</span>
+                                <span className="text-xs mt-1">PNG, JPG (حد أقصى 1MB)</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                {msg && <div className="mt-3 text-sm font-bold text-center">{msg}</div>}
             </div>
 
-            <div className="text-sm text-gray-400 text-center">
-                تأكد من أن الرابط صالح ومتاح للمشاركة (Anyone with link) لضمان عمله لدى جميع المعلمين.
+            {/* Cloud Link Config Section */}
+            <div>
+                <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <LinkIcon className="text-blue-600"/>
+                    إعدادات الربط السحابي (Excel/Google Sheets)
+                </h3>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">رابط ملف الأعمال الرئيسي</label>
+                    <p className="text-xs text-gray-500 mb-4">هذا الرابط يستخدم لجلب درجات الطلاب والأنشطة تلقائياً من ملف خارجي.</p>
+                    
+                    <div className="flex gap-2">
+                        <input 
+                            type="url" 
+                            value={masterUrl} 
+                            onChange={e => setMasterUrl(e.target.value)}
+                            className="flex-1 p-3 border rounded-lg dir-ltr text-left"
+                            placeholder="https://docs.google.com/spreadsheets/d/..."
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-col items-center justify-center pt-4 border-t">
+                <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="bg-gray-800 hover:bg-black text-white px-12 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 shadow-lg text-lg transform transition-transform active:scale-95"
+                >
+                    {isSaving ? 'جاري الحفظ...' : 'حفظ كافة الإعدادات'}
+                </button>
+                {msg && <div className="mt-4 text-sm font-bold text-green-600 bg-green-50 px-4 py-2 rounded-lg border border-green-200 animate-bounce">{msg}</div>}
             </div>
         </div>
     );

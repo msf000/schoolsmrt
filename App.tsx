@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync } from './services/storageService';
-import { Student, AttendanceRecord, PerformanceRecord, ViewState } from './types';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, saveWorksConfig, getWorksConfig } from './services/storageService';
+import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
+import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, WorksColumnConfig } from './types';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -12,7 +13,8 @@ import CustomTablesView from './components/CustomTablesView';
 import WorksTracking from './components/WorksTracking';
 import StudentFollowUp from './components/StudentFollowUp';
 import AIReports from './components/AIReports';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText } from 'lucide-react';
+import MonthlyReport from './components/MonthlyReport';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -21,6 +23,10 @@ const App: React.FC = () => {
   const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Background Sync State
+  const [isBgSyncing, setIsBgSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
   // Initialize data (Fetch from Cloud)
   useEffect(() => {
@@ -30,9 +36,139 @@ const App: React.FC = () => {
         await initAutoSync();
         refreshData();
         setIsLoading(false);
+        
+        // Start Background Sync Logic after initial load
+        setTimeout(() => syncWorksDataBackground(), 2000);
     };
     initialize();
+
+    // Set up periodic sync (every 5 minutes)
+    const intervalId = setInterval(() => {
+        syncWorksDataBackground();
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(intervalId);
   }, []);
+
+  // --- Background Sync Function for Works Tracking ---
+  const syncWorksDataBackground = async () => {
+      const masterUrl = getWorksMasterUrl();
+      if (!masterUrl || isBgSyncing) return;
+
+      console.log('🔄 Starting Background Works Sync...');
+      setIsBgSyncing(true);
+
+      try {
+          const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
+          const categories: PerformanceCategory[] = ['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM'];
+          const currentStudents = getStudents();
+          const subjects = getSubjects();
+          const defaultSubject = subjects.length > 0 ? subjects[0].name : 'عام';
+
+          // Helper to get Keywords
+          const getKeywords = (cat: PerformanceCategory) => {
+              switch(cat) {
+                  case 'ACTIVITY': return ['نشاط', 'activity', 'أنشطة'];
+                  case 'HOMEWORK': return ['واجب', 'homework', 'homeworks'];
+                  case 'PLATFORM_EXAM': return ['منصة', 'platform', 'اختبار منصة'];
+                  default: return [];
+              }
+          };
+
+          // Helper to parse header
+          const extractHeaderMetadata = (header: string) => {
+              let maxScore = 10;
+              let label = header;
+              const match = header.match(/\((\d+)\)/);
+              if (match) {
+                  maxScore = parseInt(match[1]);
+                  label = header.replace(/\(\d+\)/, '').trim();
+              }
+              return { label, maxScore };
+          };
+
+          for (const category of categories) {
+              const keywords = getKeywords(category);
+              const matchingSheet = sheetNames.find(name => keywords.some(kw => name.toLowerCase().includes(kw)));
+              
+              if (matchingSheet) {
+                  const { headers, data } = getSheetHeadersAndData(workbook, matchingSheet);
+                  const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
+                  const validHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
+                  
+                  if (validHeaders.length > 0) {
+                      // 1. Update Config (If new columns added in Excel)
+                      const newConfig: WorksColumnConfig[] = validHeaders.map((header, index) => {
+                          const { label, maxScore } = extractHeaderMetadata(header);
+                          return {
+                              key: `excel_${category}_${index}`,
+                              label: label,
+                              maxScore: maxScore,
+                              isVisible: true,
+                              url: masterUrl,
+                              dataSource: { sourceId: 'master', sheet: matchingSheet, sourceHeader: header }
+                          };
+                      });
+                      saveWorksConfig(category, newConfig);
+
+                      // 2. Map and Upsert Data
+                      const recordsToUpsert: PerformanceRecord[] = [];
+                      const today = new Date().toISOString().split('T')[0];
+
+                      data.forEach(row => {
+                          const nid = row['nationalId'] || row['رقم الهوية'] || row['السجل المدني'] || Object.values(row).find((v: any) => String(v).length === 10 && !isNaN(Number(v)));
+                          const name = row['name'] || row['studentName'] || row['اسم الطالب'] || row['الاسم'];
+                          let student: Student | undefined;
+                          
+                          if (nid) student = currentStudents.find(s => s.nationalId === String(nid).trim());
+                          if (!student && name) {
+                               const cleanName = String(name).trim();
+                               student = currentStudents.find(s => s.name.trim() === cleanName);
+                               if (!student && cleanName.length > 4) student = currentStudents.find(s => s.name.trim().includes(cleanName));
+                          }
+
+                          if (student) {
+                              newConfig.forEach(col => {
+                                  const headerKey = col.dataSource!.sourceHeader;
+                                  const rawVal = row[headerKey];
+                                  const linkVal = row[`${headerKey}_HYPERLINK`]; 
+                                  const val = parseFloat(rawVal);
+                                  
+                                  if (!isNaN(val)) {
+                                      // Deterministic ID for Upsert
+                                      const recordId = `${student!.id}-${category}-${col.key}`;
+                                      recordsToUpsert.push({
+                                          id: recordId,
+                                          studentId: student!.id,
+                                          subject: defaultSubject,
+                                          title: col.label,
+                                          category: category,
+                                          score: val,
+                                          maxScore: col.maxScore,
+                                          date: today,
+                                          notes: col.key, // Keeps track of column key
+                                          url: linkVal
+                                      });
+                                  }
+                              });
+                          }
+                      });
+
+                      if (recordsToUpsert.length > 0) {
+                          bulkAddPerformance(recordsToUpsert); // This now acts as UPSERT
+                      }
+                  }
+              }
+          }
+
+          setLastSyncTime(new Date().toLocaleTimeString('ar-EG'));
+          refreshData(); // Refresh UI state
+      } catch (e) {
+          console.error("Background sync failed:", e);
+      } finally {
+          setIsBgSyncing(false);
+      }
+  };
 
   const refreshData = () => {
     setStudents(getStudents());
@@ -91,6 +227,7 @@ const App: React.FC = () => {
     { id: 'ADMIN_DASHBOARD', label: 'لوحة المدير العام', icon: ShieldCheck },
     { id: 'STUDENTS', label: 'الطلاب', icon: Users },
     { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck },
+    { id: 'MONTHLY_REPORT', label: 'تقرير الحضور الشهري', icon: CalendarDays },
     { id: 'WORKS_TRACKING', label: 'متابعة الأعمال (عام)', icon: PenTool }, 
     { id: 'STUDENT_FOLLOWUP', label: 'متابعة فردية', icon: FileText }, 
     { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp },
@@ -139,8 +276,16 @@ const App: React.FC = () => {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
-             الإصدار 1.6.5 (Cloud-Only)
+        
+        {/* Sync Status Indicator */}
+        <div className="p-4 border-t border-gray-100 bg-gray-50">
+            <div className="flex items-center justify-between text-xs mb-1">
+                 <span className="font-bold text-gray-600">مزامنة الأعمال التلقائية</span>
+                 {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : <CheckCircle size={12} className="text-green-500"/>}
+            </div>
+            <p className="text-[10px] text-gray-400">
+                {isBgSyncing ? 'جاري جلب البيانات...' : lastSyncTime ? `آخر تحديث: ${lastSyncTime}` : 'في وضع الانتظار'}
+            </p>
         </div>
       </aside>
 
@@ -224,6 +369,12 @@ const App: React.FC = () => {
                     attendanceHistory={attendance} 
                     onSaveAttendance={handleSaveAttendance} 
                     onImportAttendance={handleBulkAddAttendance}
+                />
+            )}
+            {currentView === 'MONTHLY_REPORT' && (
+                <MonthlyReport 
+                    students={students} 
+                    attendance={attendance}
                 />
             )}
             {currentView === 'WORKS_TRACKING' && (

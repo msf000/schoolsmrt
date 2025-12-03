@@ -1,4 +1,4 @@
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem, ReportHeaderConfig } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 
 // --- IN-MEMORY DATA STORE (No LocalStorage) ---
@@ -21,7 +21,8 @@ let _worksMasterUrl: string = '';
 // --- CONFIGURATION KEYS (Keep only config in local storage) ---
 const CONFIG_KEYS = {
   WORKS_CONFIG: 'app_works_config', // UI Config preferences can stay local or move to DB if preferred
-  WORKS_MASTER_URL: 'app_works_master_url'
+  WORKS_MASTER_URL: 'app_works_master_url',
+  REPORT_HEADER: 'app_report_header'
 };
 
 // --- DB MAPPING ---
@@ -240,7 +241,16 @@ export const addPerformance = (record: PerformanceRecord) => {
     pushToCloud('performance_records', record, 'UPSERT');
 };
 export const bulkAddPerformance = (records: PerformanceRecord[]) => {
+    // UPDATED: UPSERT LOGIC
+    // Create a set of IDs being added/updated
+    const incomingIds = new Set(records.map(r => r.id));
+    
+    // Filter out existing records that have the SAME id, effectively replacing them
+    _performance = _performance.filter(p => !incomingIds.has(p.id));
+    
+    // Add the new/updated records
     _performance.push(...records);
+    
     pushToCloud('performance_records', records, 'UPSERT');
 };
 
@@ -331,6 +341,35 @@ export const saveWorksMasterUrl = (url: string) => {
     if (_schools.length > 0) {
         const school = { ..._schools[0], worksMasterUrl: url };
         addSchool(school);
+    }
+};
+
+// --- Report Header Config ---
+export const getReportHeaderConfig = (): ReportHeaderConfig => {
+    const saved = localStorage.getItem(CONFIG_KEYS.REPORT_HEADER);
+    const defaults = {
+        schoolName: _schools.length > 0 ? _schools[0].name : '',
+        educationAdmin: _schools.length > 0 ? (_schools[0].educationAdministration || '') : '',
+        teacherName: '',
+        schoolManager: _schools.length > 0 ? (_schools[0].managerName || '') : '',
+        academicYear: '1447',
+        term: 'الفصل الدراسي الأول',
+        logoBase64: ''
+    };
+    return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+};
+
+export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
+    localStorage.setItem(CONFIG_KEYS.REPORT_HEADER, JSON.stringify(config));
+    // Also try to update first school record if possible
+    if (_schools.length > 0) {
+        const updatedSchool = { 
+            ..._schools[0], 
+            name: config.schoolName,
+            educationAdministration: config.educationAdmin,
+            managerName: config.schoolManager
+        };
+        addSchool(updatedSchool);
     }
 };
 
