@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CustomTable } from '../types';
 import { getCustomTables, deleteCustomTable, updateCustomTable, addCustomTable } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData, getWorkbookStructure } from '../services/excelService';
-import { Database, Trash2, RefreshCw, Calendar, Link as LinkIcon, Table, X, ArrowLeft, Loader2, CheckCircle, AlertTriangle, CloudDownload, Layers, FileSpreadsheet, ArrowRight, Upload, Plus, Globe, Clipboard } from 'lucide-react';
+import { Database, Trash2, RefreshCw, Calendar, Link as LinkIcon, Table, X, ArrowLeft, Loader2, CheckCircle, AlertTriangle, DownloadCloud, Layers, FileSpreadsheet, ArrowRight, Upload, Plus, Globe, Clipboard } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 const CustomTablesView: React.FC = () => {
@@ -320,7 +320,7 @@ const CustomTablesView: React.FC = () => {
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-bounce-in flex flex-col max-h-[90vh]">
                         <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                                <CloudDownload className="text-purple-600"/> معالج استيراد الجداول
+                                <DownloadCloud className="text-purple-600"/> معالج استيراد الجداول
                             </h3>
                             <button onClick={() => setIsImportModalOpen(false)} className="text-gray-400 hover:text-red-500">
                                 <X size={20}/>
