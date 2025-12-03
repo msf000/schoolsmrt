@@ -39,21 +39,20 @@ const saveLocal = (key: string, data: any) => {
 };
 
 // --- IN-MEMORY DATA STORE (Initialized from LocalStorage) ---
-let _students: Student[] = loadLocal(STORAGE_KEYS.STUDENTS, []);
-let _attendance: AttendanceRecord[] = loadLocal(STORAGE_KEYS.ATTENDANCE, []);
-let _performance: PerformanceRecord[] = loadLocal(STORAGE_KEYS.PERFORMANCE, []);
-let _assignments: Assignment[] = loadLocal(STORAGE_KEYS.ASSIGNMENTS, []); // NEW
-let _teachers: Teacher[] = loadLocal(STORAGE_KEYS.TEACHERS, []);
-let _parents: Parent[] = loadLocal(STORAGE_KEYS.PARENTS, []);
-let _stages: EducationalStage[] = loadLocal(STORAGE_KEYS.STAGES, []);
-let _grades: GradeLevel[] = loadLocal(STORAGE_KEYS.GRADES, []);
-let _classes: ClassRoom[] = loadLocal(STORAGE_KEYS.CLASSES, []);
-let _subjects: Subject[] = loadLocal(STORAGE_KEYS.SUBJECTS, []);
-let _schools: School[] = loadLocal(STORAGE_KEYS.SCHOOLS, []);
-let _users: SystemUser[] = loadLocal(STORAGE_KEYS.USERS, []);
-let _schedules: ScheduleItem[] = loadLocal(STORAGE_KEYS.SCHEDULES, []);
-let _customTables: CustomTable[] = loadLocal(STORAGE_KEYS.CUSTOM_TABLES, []);
-let _worksConfig: Record<string, WorksColumnConfig[]> = {};
+let _students: Student[] = loadLocal<Student[]>(STORAGE_KEYS.STUDENTS, []);
+let _attendance: AttendanceRecord[] = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+let _performance: PerformanceRecord[] = loadLocal<PerformanceRecord[]>(STORAGE_KEYS.PERFORMANCE, []);
+let _assignments: Assignment[] = loadLocal<Assignment[]>(STORAGE_KEYS.ASSIGNMENTS, []); // NEW
+let _teachers: Teacher[] = loadLocal<Teacher[]>(STORAGE_KEYS.TEACHERS, []);
+let _parents: Parent[] = loadLocal<Parent[]>(STORAGE_KEYS.PARENTS, []);
+let _stages: EducationalStage[] = loadLocal<EducationalStage[]>(STORAGE_KEYS.STAGES, []);
+let _grades: GradeLevel[] = loadLocal<GradeLevel[]>(STORAGE_KEYS.GRADES, []);
+let _classes: ClassRoom[] = loadLocal<ClassRoom[]>(STORAGE_KEYS.CLASSES, []);
+let _subjects: Subject[] = loadLocal<Subject[]>(STORAGE_KEYS.SUBJECTS, []);
+let _schools: School[] = loadLocal<School[]>(STORAGE_KEYS.SCHOOLS, []);
+let _users: SystemUser[] = loadLocal<SystemUser[]>(STORAGE_KEYS.USERS, []);
+let _schedules: ScheduleItem[] = loadLocal<ScheduleItem[]>(STORAGE_KEYS.SCHEDULES, []);
+let _customTables: CustomTable[] = loadLocal<CustomTable[]>(STORAGE_KEYS.CUSTOM_TABLES, []);
 let _worksMasterUrl: string = '';
 
 // --- DB MAPPING ---
@@ -299,7 +298,6 @@ export const deleteAssignment = (id: string) => {
     _assignments = _assignments.filter(a => a.id !== id);
     saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
     pushToCloud('assignments', id, 'DELETE');
-    // NOTE: Should we also delete related performance records? Optional for now.
 };
 
 // --- Performance ---
