@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, saveWorksConfig, getWorksConfig } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
@@ -14,10 +15,15 @@ import WorksTracking from './components/WorksTracking';
 import StudentFollowUp from './components/StudentFollowUp';
 import AIReports from './components/AIReports';
 import MonthlyReport from './components/MonthlyReport';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays } from 'lucide-react';
+import Login from './components/Login';
+import StudentPortal from './components/StudentPortal';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
@@ -30,8 +36,19 @@ const App: React.FC = () => {
 
   // Initialize data (Fetch from Cloud)
   useEffect(() => {
+    const checkAuth = () => {
+        const savedUser = localStorage.getItem('app_user');
+        if (savedUser) {
+            setCurrentUser(JSON.parse(savedUser));
+            setIsAuthenticated(true);
+        } else {
+            setIsAuthenticated(false);
+        }
+    };
+
     const initialize = async () => {
         setIsLoading(true);
+        checkAuth();
         // This will fetch from Supabase and populate the service's memory
         await initAutoSync();
         refreshData();
@@ -49,6 +66,19 @@ const App: React.FC = () => {
 
     return () => clearInterval(intervalId);
   }, []);
+
+  const handleLogin = (user: any) => {
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      localStorage.setItem('app_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+      localStorage.removeItem('app_user');
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      setCurrentView('DASHBOARD');
+  };
 
   // --- Background Sync Function for Works Tracking ---
   const syncWorksDataBackground = async () => {
@@ -249,6 +279,21 @@ const App: React.FC = () => {
       );
   }
 
+  if (!isAuthenticated) {
+      return <Login onLoginSuccess={handleLogin} />;
+  }
+
+  // --- STUDENT VIEW ---
+  if (currentUser?.role === 'STUDENT') {
+      return <StudentPortal 
+                currentUser={currentUser} 
+                attendance={attendance} 
+                performance={performance}
+                onLogout={handleLogout} 
+             />;
+  }
+
+  // --- ADMIN/TEACHER VIEW ---
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden text-right">
       
@@ -258,9 +303,12 @@ const App: React.FC = () => {
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold ml-3">
                 م
             </div>
-            <h1 className="text-xl font-bold text-gray-800">نظام المدرس</h1>
+            <div>
+                <h1 className="text-xl font-bold text-gray-800">نظام المدرس</h1>
+                <p className="text-[10px] text-gray-500">{currentUser?.name || 'مستخدم'}</p>
+            </div>
         </div>
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           {navItems.map(item => (
             <button
               key={item.id}
@@ -275,12 +323,20 @@ const App: React.FC = () => {
               <span>{item.label}</span>
             </button>
           ))}
+          
+          <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100"
+            >
+              <LogOut size={20} />
+              <span>تسجيل الخروج</span>
+            </button>
         </nav>
         
-        {/* Sync Status Indicator */}
+        {/* Status */}
         <div className="p-4 border-t border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between text-xs mb-1">
-                 <span className="font-bold text-gray-600">مزامنة الأعمال التلقائية</span>
+                 <span className="font-bold text-gray-600">مزامنة تلقائية</span>
                  {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : <CheckCircle size={12} className="text-green-500"/>}
             </div>
             <p className="text-[10px] text-gray-400">
@@ -315,6 +371,13 @@ const App: React.FC = () => {
                         <span>{item.label}</span>
                         </button>
                     ))}
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100"
+                        >
+                        <LogOut size={20} />
+                        <span>تسجيل الخروج</span>
+                    </button>
                 </nav>
             </div>
         </div>

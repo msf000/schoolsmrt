@@ -20,6 +20,7 @@ export interface Student {
   id: string;
   name: string;
   nationalId?: string; // New: National ID / Identity Number
+  password?: string; // New: Student Login Password
   classId?: string; // Link to ClassRoom
   // Denormalized fields for easier display if class is deleted, or for imports
   gradeLevel?: string; 
@@ -89,6 +90,10 @@ export interface AttendanceRecord {
   // New Behavior Fields
   behaviorStatus?: BehaviorStatus; 
   behaviorNote?: string;
+
+  // New Excuse Fields
+  excuseNote?: string; // Student's written excuse
+  excuseFile?: string; // Base64 string of the image/pdf
 }
 
 export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
@@ -144,8 +149,9 @@ export interface School {
 export interface SystemUser {
     id: string;
     name: string;
-    email: string;
-    role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER';
+    email: string; // OR National ID for Students
+    password?: string; // New: Password field
+    role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT';
     schoolId?: string; // If null, super admin
     status: 'ACTIVE' | 'INACTIVE';
 }

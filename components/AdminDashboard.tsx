@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { School, SystemUser, SubscriptionPlan } from '../types';
 import { 
     getSchools, addSchool, deleteSchool, 
-    getSystemUsers, addSystemUser, deleteSystemUser, 
+    getSystemUsers, addSystemUser, deleteSystemUser, updateSystemUser,
     createBackup, restoreBackup, clearDatabase,
     uploadToSupabase, downloadFromSupabase,
     getStorageStatistics, checkConnection,
@@ -12,7 +13,7 @@ import {
 import { updateSupabaseConfig } from '../services/supabaseClient';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
-    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff, UserPlus, School as SchoolIcon
+    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff, UserPlus, School as SchoolIcon, Lock, Edit, X
 } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
@@ -226,8 +227,12 @@ const SchoolsManager = () => {
 const UsersManager = () => {
     const [users, setUsers] = useState<SystemUser[]>([]);
     const [schools, setSchools] = useState<School[]>([]);
-    const [form, setForm] = useState<Partial<SystemUser>>({ name: '', email: '', role: 'SCHOOL_MANAGER', schoolId: '' });
+    const [form, setForm] = useState<Partial<SystemUser>>({ name: '', email: '', password: '', role: 'SCHOOL_MANAGER', schoolId: '' });
     const [error, setError] = useState('');
+    
+    // Edit & View States
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [viewingUser, setViewingUser] = useState<SystemUser | null>(null);
 
     useEffect(() => { 
         setUsers(getSystemUsers()); 
@@ -238,8 +243,8 @@ const UsersManager = () => {
         e.preventDefault();
         setError('');
 
-        if(!form.name || !form.email) {
-            setError('الاسم والبريد الإلكتروني حقول إلزامية');
+        if(!form.name || !form.email || !form.password) {
+            setError('الاسم، البريد الإلكتروني، وكلمة المرور حقول إلزامية');
             return;
         }
 
@@ -249,16 +254,53 @@ const UsersManager = () => {
             return;
         }
 
-        addSystemUser({
-            id: Date.now().toString(),
-            name: form.name!,
-            email: form.email!,
-            role: form.role as any,
-            schoolId: form.role === 'SUPER_ADMIN' ? undefined : form.schoolId,
-            status: 'ACTIVE'
-        });
+        if (editingId) {
+            // Update existing user
+            const updatedUser: SystemUser = {
+                id: editingId,
+                name: form.name!,
+                email: form.email!,
+                password: form.password,
+                role: form.role as any,
+                schoolId: form.role === 'SUPER_ADMIN' ? undefined : form.schoolId,
+                status: 'ACTIVE'
+            };
+            updateSystemUser(updatedUser);
+            setEditingId(null);
+        } else {
+            // Add new user
+            addSystemUser({
+                id: Date.now().toString(),
+                name: form.name!,
+                email: form.email!,
+                password: form.password, 
+                role: form.role as any,
+                schoolId: form.role === 'SUPER_ADMIN' ? undefined : form.schoolId,
+                status: 'ACTIVE'
+            });
+        }
+
         setUsers(getSystemUsers());
-        setForm({ name: '', email: '', role: 'SCHOOL_MANAGER', schoolId: '' });
+        setForm({ name: '', email: '', password: '', role: 'SCHOOL_MANAGER', schoolId: '' });
+    };
+
+    const handleEdit = (user: SystemUser) => {
+        setEditingId(user.id);
+        setForm({
+            name: user.name,
+            email: user.email,
+            password: user.password || '', // Populate password if exists
+            role: user.role,
+            schoolId: user.schoolId || ''
+        });
+        // Scroll to form
+        document.getElementById('user-form')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const cancelEdit = () => {
+        setEditingId(null);
+        setForm({ name: '', email: '', password: '', role: 'SCHOOL_MANAGER', schoolId: '' });
+        setError('');
     };
 
     const getSchoolName = (id?: string) => {
@@ -269,8 +311,17 @@ const UsersManager = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><UserPlus size={18}/> إضافة مستخدم جديد</h3>
+            <div id="user-form" className={`bg-gray-50 p-6 rounded-lg border ${editingId ? 'border-yellow-400 ring-2 ring-yellow-100' : 'border-gray-200'}`}>
+                <div className="flex justify-between items-start mb-4">
+                    <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                        {editingId ? <Edit size={18} className="text-yellow-600"/> : <UserPlus size={18}/>} 
+                        {editingId ? 'تعديل بيانات المستخدم' : 'إضافة مستخدم جديد'}
+                    </h3>
+                    {editingId && (
+                        <button onClick={cancelEdit} className="text-xs text-red-500 hover:underline">إلغاء التعديل</button>
+                    )}
+                </div>
+                
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">الاسم</label>
@@ -279,6 +330,10 @@ const UsersManager = () => {
                     <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">البريد الإلكتروني (لتسجيل الدخول)</label>
                         <input className="w-full p-2 border rounded dir-ltr text-right" placeholder="user@example.com" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">كلمة المرور</label>
+                        <input className="w-full p-2 border rounded" placeholder="كلمة المرور" type="text" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">الدور (الصلاحية)</label>
@@ -291,7 +346,7 @@ const UsersManager = () => {
                     
                     {/* School Selection - Hidden if Super Admin */}
                     {form.role !== 'SUPER_ADMIN' && (
-                        <div>
+                        <div className="md:col-span-2">
                             <label className="block text-xs font-bold text-gray-500 mb-1">المدرسة التابع لها</label>
                             <select 
                                 className={`w-full p-2 border rounded bg-white ${!form.schoolId ? 'border-red-300' : ''}`}
@@ -307,16 +362,18 @@ const UsersManager = () => {
                         </div>
                     )}
 
-                    <div className="md:col-span-2 mt-2">
-                        <button type="submit" className="bg-gray-800 hover:bg-black text-white p-2 rounded w-full md:w-auto px-8 font-bold transition-colors">إضافة المستخدم</button>
-                        {error && <span className="text-red-500 text-sm font-bold mr-4">{error}</span>}
+                    <div className="md:col-span-2 mt-2 flex items-center gap-4">
+                        <button type="submit" className={`p-2 rounded w-full md:w-auto px-8 font-bold transition-colors text-white ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-800 hover:bg-black'}`}>
+                            {editingId ? 'حفظ التعديلات' : 'إضافة المستخدم'}
+                        </button>
+                        {error && <span className="text-red-500 text-sm font-bold">{error}</span>}
                     </div>
                 </form>
             </div>
 
             <div className="grid gap-3">
                 {users.map(user => (
-                    <div key={user.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg hover:shadow-sm bg-white gap-4">
+                    <div key={user.id} className={`flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg hover:shadow-sm bg-white gap-4 ${editingId === user.id ? 'border-yellow-400 bg-yellow-50' : ''}`}>
                         <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${user.role === 'SUPER_ADMIN' ? 'bg-red-500' : 'bg-blue-500'}`}>
                                 {user.role === 'SUPER_ADMIN' ? <Shield size={18} /> : <Users size={18} />}
@@ -340,12 +397,88 @@ const UsersManager = () => {
                         )}
 
                         <div className="flex items-center gap-4 mr-auto">
-                            <button onClick={() => { deleteSystemUser(user.id); setUsers(getSystemUsers()); }} className="text-gray-400 hover:text-red-500 bg-gray-50 p-2 rounded-full hover:bg-red-50 transition-colors"><Trash2 size={18}/></button>
+                            <div className="text-xs text-gray-400 flex items-center gap-1 bg-gray-50 px-2 py-1 rounded">
+                                <Lock size={10}/>
+                                {user.password ? 'محمية' : '123456'}
+                            </div>
+                            
+                            <div className="flex items-center gap-1">
+                                <button 
+                                    onClick={() => setViewingUser(user)} 
+                                    className="text-gray-400 hover:text-blue-500 bg-gray-50 p-2 rounded-full hover:bg-blue-50 transition-colors"
+                                    title="عرض التفاصيل"
+                                >
+                                    <Eye size={18}/>
+                                </button>
+                                <button 
+                                    onClick={() => handleEdit(user)} 
+                                    className="text-gray-400 hover:text-yellow-500 bg-gray-50 p-2 rounded-full hover:bg-yellow-50 transition-colors"
+                                    title="تعديل"
+                                >
+                                    <Edit size={18}/>
+                                </button>
+                                <button 
+                                    onClick={() => { deleteSystemUser(user.id); setUsers(getSystemUsers()); }} 
+                                    className="text-gray-400 hover:text-red-500 bg-gray-50 p-2 rounded-full hover:bg-red-50 transition-colors"
+                                    title="حذف"
+                                >
+                                    <Trash2 size={18}/>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}
                 {users.length === 0 && <div className="text-center text-gray-400 py-8">لا يوجد مستخدمين مسجلين</div>}
             </div>
+
+            {/* View Modal */}
+            {viewingUser && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-bounce-in">
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                <Users size={20} className="text-blue-600"/> تفاصيل المستخدم
+                            </h3>
+                            <button onClick={() => setViewingUser(null)} className="text-gray-400 hover:text-red-500">
+                                <X size={20}/>
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="flex flex-col items-center mb-6">
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-bold mb-3 ${viewingUser.role === 'SUPER_ADMIN' ? 'bg-red-500 shadow-red-200' : 'bg-blue-500 shadow-blue-200'} shadow-lg`}>
+                                    {viewingUser.name.charAt(0).toUpperCase()}
+                                </div>
+                                <h2 className="text-xl font-bold text-gray-800">{viewingUser.name}</h2>
+                                <span className={`text-xs px-2 py-1 rounded-full mt-1 ${viewingUser.role === 'SUPER_ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {viewingUser.role === 'SUPER_ADMIN' ? 'مدير عام' : viewingUser.role === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : 'معلم'}
+                                </span>
+                            </div>
+
+                            <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-100 text-sm">
+                                <div className="flex justify-between border-b border-gray-200 pb-2">
+                                    <span className="text-gray-500 font-bold">البريد الإلكتروني:</span>
+                                    <span className="font-mono text-gray-800">{viewingUser.email}</span>
+                                </div>
+                                <div className="flex justify-between border-b border-gray-200 pb-2">
+                                    <span className="text-gray-500 font-bold">كلمة المرور:</span>
+                                    <span className="font-mono text-gray-800 bg-gray-200 px-2 rounded">{viewingUser.password || '123456'}</span>
+                                </div>
+                                <div className="flex justify-between border-b border-gray-200 pb-2">
+                                    <span className="text-gray-500 font-bold">المدرسة:</span>
+                                    <span className="text-gray-800 font-bold">{getSchoolName(viewingUser.schoolId)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500 font-bold">الحالة:</span>
+                                    <span className="text-green-600 font-bold flex items-center gap-1"><Check size={14}/> {viewingUser.status === 'ACTIVE' ? 'نشط' : 'غير نشط'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 text-center">
+                            <button onClick={() => setViewingUser(null)} className="text-gray-500 hover:text-gray-800 font-bold text-sm">إغلاق</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -383,7 +516,7 @@ const SubscriptionsManager = () => {
 };
 
 const SCHEMA_PATCH_SQL = `
--- 🛠️ إصلاح خطأ الربط وتحديث هيكل البيانات (Period & Behavior)
+-- 🛠️ إصلاح خطأ الربط وتحديث هيكل البيانات (Period & Behavior & Password)
 
 -- 1. السماح بحفظ الجداول باستخدام "اسم الفصل" كنص
 ALTER TABLE public.weekly_schedules DROP CONSTRAINT IF EXISTS weekly_schedules_class_id_fkey;
@@ -392,6 +525,15 @@ ALTER TABLE public.weekly_schedules DROP CONSTRAINT IF EXISTS weekly_schedules_c
 ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS period integer;
 ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS behavior_status text;
 ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS behavior_note text;
+-- NEW: إضافة أعمدة الأعذار
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS excuse_note text;
+ALTER TABLE public.attendance_records ADD COLUMN IF NOT EXISTS excuse_file text;
+
+-- 3. إضافة عمود كلمة المرور للمستخدمين
+ALTER TABLE public.system_users ADD COLUMN IF NOT EXISTS password text;
+
+-- 4. إضافة عمود كلمة المرور للطلاب (Student Login)
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS password text;
 
 -- تحديث كاش النظام
 NOTIFY pgrst, 'reload schema';
@@ -454,6 +596,7 @@ create table public.students (
   class_id text references public.classes(id) on delete set null,
   name text not null,
   national_id text,
+  password text, -- Added password column for students
   grade_level text,
   class_name text,
   email text,
@@ -496,6 +639,8 @@ create table public.attendance_records (
   period integer,
   behavior_status text,
   behavior_note text,
+  excuse_note text, -- NEW
+  excuse_file text, -- NEW (Base64)
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -526,6 +671,7 @@ create table public.system_users (
   school_id text references public.schools(id) on delete cascade,
   email text unique not null,
   name text,
+  password text, -- Added password column
   role text check (role in ('SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER')),
   status text default 'ACTIVE',
   created_at timestamp with time zone default timezone('utc'::text, now())
@@ -936,7 +1082,7 @@ const DatabaseSettings = () => {
                         <div className="flex justify-between items-start mb-2">
                             <div>
                                 <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع (لإصلاح الأخطاء وإضافة السلوك)</h4>
-                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإضافة أعمدة السلوك والملاحظات في قاعدة البيانات</p>
+                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإضافة أعمدة السلوك والملاحظات وكلمة المرور في قاعدة البيانات</p>
                             </div>
                             <button onClick={() => copyToClipboard(SCHEMA_PATCH_SQL)} className="text-yellow-400 hover:text-white bg-yellow-900/50 p-2 rounded hover:bg-yellow-800 transition-colors" title="نسخ الكود">
                                 <Copy size={16} />

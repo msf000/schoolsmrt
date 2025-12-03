@@ -1,3 +1,4 @@
+
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem, ReportHeaderConfig } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 
@@ -356,6 +357,14 @@ export const deleteSchool = (id: string) => { _schools = _schools.filter(i => i.
 
 export const getSystemUsers = () => [..._users];
 export const addSystemUser = (item: SystemUser) => { _users.push(item); saveLocal(STORAGE_KEYS.USERS, _users); pushToCloud('system_users', item, 'UPSERT'); };
+export const updateSystemUser = (item: SystemUser) => {
+    const index = _users.findIndex(u => u.id === item.id);
+    if (index !== -1) {
+        _users[index] = item;
+        saveLocal(STORAGE_KEYS.USERS, _users);
+        pushToCloud('system_users', item, 'UPSERT');
+    }
+};
 export const deleteSystemUser = (id: string) => { _users = _users.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.USERS, _users); pushToCloud('system_users', id, 'DELETE'); };
 
 // --- Works Config ---
