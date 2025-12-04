@@ -1,4 +1,5 @@
 
+// ... existing imports
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, Parent, 
     Subject, ScheduleItem, School, SystemUser, CustomTable, 
@@ -500,7 +501,8 @@ const mapAttendanceFromDB = (a: any): AttendanceRecord => ({
     date: a.date,
     status: a.status,
     subject: a.subject,
-    period: a.period,
+    // Ensure period is always a number or undefined, never string "1"
+    period: (a.period !== undefined && a.period !== null) ? Number(a.period) : undefined,
     behaviorStatus: a.behavior_status,
     behaviorNote: a.behavior_note,
     excuseNote: a.excuse_note,

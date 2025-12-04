@@ -125,8 +125,10 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
         return;
     }
 
+    // STRICT filtering logic to ensure only records for THIS period are loaded
     const existing = attendanceHistory.filter(a => {
-        return a.date === selectedDate && a.period === selectedPeriod && a.studentId;
+        // Ensure strictly matching date and period
+        return a.date === selectedDate && Number(a.period) === Number(selectedPeriod) && a.studentId;
     });
 
     const initialRecs: Record<string, AttendanceStatus> = {};
