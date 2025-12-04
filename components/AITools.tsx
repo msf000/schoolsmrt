@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, PerformanceRecord } from '../types';
-import { generateQuiz, generateRemedialPlan } from '../services/geminiService';
-import { BrainCircuit, BookOpen, FileQuestion, Sparkles, Loader2, Copy, Check, Printer, User, AlertTriangle } from 'lucide-react';
+import { generateQuiz, generateRemedialPlan, generateLessonPlan } from '../services/geminiService';
+import { BrainCircuit, BookOpen, FileQuestion, Sparkles, Loader2, Copy, Check, Printer, User, AlertTriangle, PenTool } from 'lucide-react';
 
 interface AIToolsProps {
     students: Student[];
@@ -10,7 +10,7 @@ interface AIToolsProps {
 }
 
 const AITools: React.FC<AIToolsProps> = ({ students, performance }) => {
-    const [activeTool, setActiveTool] = useState<'QUIZ' | 'REMEDIAL'>('QUIZ');
+    const [activeTool, setActiveTool] = useState<'QUIZ' | 'REMEDIAL' | 'LESSON_PLAN'>('QUIZ');
 
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50">
@@ -18,28 +18,37 @@ const AITools: React.FC<AIToolsProps> = ({ students, performance }) => {
                 <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <BrainCircuit className="text-purple-600"/> أدوات المعلم الذكية (AI)
                 </h2>
-                <p className="text-gray-500 mt-2">مجموعة من الأدوات المساعدة المعتمدة على الذكاء الاصطناعي لتسهيل مهام المعلم.</p>
+                <p className="text-gray-500 mt-2">مجموعة من الأدوات المساعدة المعتمدة على الذكاء الاصطناعي لتسهيل مهام المعلم اليومية.</p>
             </div>
 
-            <div className="flex gap-4 mb-6">
+            <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
                 <button 
                     onClick={() => setActiveTool('QUIZ')}
-                    className={`flex-1 py-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${activeTool === 'QUIZ' ? 'bg-purple-50 border-purple-200 text-purple-800 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                    className={`flex-1 py-4 px-4 rounded-xl border flex flex-col items-center gap-2 transition-all min-w-[150px] ${activeTool === 'QUIZ' ? 'bg-purple-50 border-purple-200 text-purple-800 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
                 >
                     <FileQuestion size={24}/>
-                    <span className="font-bold">منشئ الاختبارات والأنشطة</span>
+                    <span className="font-bold text-sm md:text-base">منشئ الاختبارات</span>
                 </button>
                 <button 
                     onClick={() => setActiveTool('REMEDIAL')}
-                    className={`flex-1 py-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${activeTool === 'REMEDIAL' ? 'bg-teal-50 border-teal-200 text-teal-800 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                    className={`flex-1 py-4 px-4 rounded-xl border flex flex-col items-center gap-2 transition-all min-w-[150px] ${activeTool === 'REMEDIAL' ? 'bg-teal-50 border-teal-200 text-teal-800 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
                 >
                     <Sparkles size={24}/>
-                    <span className="font-bold">الخطط العلاجية الذكية</span>
+                    <span className="font-bold text-sm md:text-base">الخطط العلاجية</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTool('LESSON_PLAN')}
+                    className={`flex-1 py-4 px-4 rounded-xl border flex flex-col items-center gap-2 transition-all min-w-[150px] ${activeTool === 'LESSON_PLAN' ? 'bg-blue-50 border-blue-200 text-blue-800 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                    <PenTool size={24}/>
+                    <span className="font-bold text-sm md:text-base">المحضر الذكي</span>
                 </button>
             </div>
 
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden p-6">
-                {activeTool === 'QUIZ' ? <QuizGenerator /> : <RemedialPlanner students={students} performance={performance} />}
+                {activeTool === 'QUIZ' && <QuizGenerator />}
+                {activeTool === 'REMEDIAL' && <RemedialPlanner students={students} performance={performance} />}
+                {activeTool === 'LESSON_PLAN' && <LessonPlanner />}
             </div>
         </div>
     );
@@ -240,6 +249,100 @@ const RemedialPlanner: React.FC<{ students: Student[], performance: PerformanceR
                     <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
                         <AlertTriangle size={48} className="mb-4 opacity-20"/>
                         <p>حدد الطالب ونقاط الضعف ليقوم النظام باقتراح الحلول.</p>
+                    </div>
+                )}
+                {plan && (
+                    <div className="mt-4 flex gap-2 justify-end">
+                        <button onClick={() => {navigator.clipboard.writeText(plan); alert('تم النسخ!');}} className="px-4 py-2 bg-white border text-gray-600 rounded-lg hover:bg-gray-100 flex items-center gap-2 font-bold text-sm">
+                            <Copy size={16}/> نسخ
+                        </button>
+                        <button onClick={() => window.print()} className="px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 flex items-center gap-2 font-bold text-sm">
+                            <Printer size={16}/> طباعة
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- SUB-COMPONENT: Lesson Planner ---
+const LessonPlanner = () => {
+    const [subject, setSubject] = useState('');
+    const [topic, setTopic] = useState('');
+    const [grade, setGrade] = useState('');
+    const [duration, setDuration] = useState('45');
+    const [plan, setPlan] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleGenerate = async () => {
+        if (!topic) return;
+        setLoading(true);
+        const result = await generateLessonPlan(subject, topic, grade, duration);
+        setPlan(result);
+        setLoading(false);
+    };
+
+    return (
+        <div className="flex flex-col md:flex-row gap-8 h-full">
+            <div className="w-full md:w-1/3 space-y-4">
+                <h3 className="font-bold text-gray-700 border-b pb-2">بيانات الدرس</h3>
+                
+                <div>
+                    <label className="block text-sm font-bold text-gray-600 mb-1">المادة</label>
+                    <input className="w-full p-2 border rounded-lg bg-gray-50" value={subject} onChange={e => setSubject(e.target.value)} placeholder="لغة عربية"/>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-bold text-gray-600 mb-1">موضوع الدرس *</label>
+                    <input className="w-full p-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={topic} onChange={e => setTopic(e.target.value)} placeholder="الجملة الاسمية" autoFocus/>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-600 mb-1">الصف</label>
+                        <input className="w-full p-2 border rounded-lg bg-gray-50" value={grade} onChange={e => setGrade(e.target.value)} placeholder="الخامس"/>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-600 mb-1">المدة (دقيقة)</label>
+                        <input type="number" className="w-full p-2 border rounded-lg bg-gray-50" value={duration} onChange={e => setDuration(e.target.value)} />
+                    </div>
+                </div>
+
+                <button 
+                    onClick={handleGenerate} 
+                    disabled={!topic || loading}
+                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:bg-gray-300 flex items-center justify-center gap-2 mt-4"
+                >
+                    {loading ? <Loader2 className="animate-spin"/> : <PenTool size={18}/>}
+                    {loading ? 'جاري التحضير...' : 'إنشاء التحضير'}
+                </button>
+            </div>
+
+            <div className="flex-1 bg-blue-50/50 rounded-xl p-6 border border-blue-100 relative overflow-hidden flex flex-col">
+                <h3 className="font-bold text-blue-800 mb-4 flex items-center gap-2">
+                    <BookOpen size={18}/> التحضير المقترح
+                </h3>
+                
+                {plan ? (
+                    <div className="flex-1 overflow-auto bg-white p-6 rounded-lg shadow-sm border border-gray-100 whitespace-pre-line leading-loose text-gray-800">
+                        {plan}
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                        <PenTool size={48} className="mb-4 opacity-20"/>
+                        <p>أدخل بيانات الدرس لإنشاء تحضير متكامل.</p>
+                    </div>
+                )}
+
+                {plan && (
+                    <div className="mt-4 flex gap-2 justify-end">
+                        <button onClick={() => {navigator.clipboard.writeText(plan); alert('تم النسخ!');}} className="px-4 py-2 bg-white border text-gray-600 rounded-lg hover:bg-gray-100 flex items-center gap-2 font-bold text-sm">
+                            <Copy size={16}/> نسخ النص
+                        </button>
+                        <button onClick={() => window.print()} className="px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 flex items-center gap-2 font-bold text-sm">
+                            <Printer size={16}/> طباعة
+                        </button>
                     </div>
                 )}
             </div>

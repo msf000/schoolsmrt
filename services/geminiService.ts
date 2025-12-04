@@ -73,7 +73,7 @@ export const generateStudentAnalysis = async (
   }
 };
 
-// --- NEW: Quiz Generator ---
+// --- Quiz Generator ---
 export const generateQuiz = async (
     subject: string,
     topic: string,
@@ -117,7 +117,7 @@ export const generateQuiz = async (
     }
 };
 
-// --- NEW: Remedial Plan Generator ---
+// --- Remedial Plan Generator ---
 export const generateRemedialPlan = async (
     studentName: string,
     gradeLevel: string,
@@ -149,6 +149,47 @@ export const generateRemedialPlan = async (
             contents: prompt,
         });
         return response.text || "فشل في إنشاء الخطة.";
+    } catch (error) {
+        console.error("Gemini API Error:", error);
+        return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- NEW: Lesson Planner ---
+export const generateLessonPlan = async (
+    subject: string,
+    topic: string,
+    gradeLevel: string,
+    duration: string
+): Promise<string> => {
+    const prompt = `
+    أنت خبير تربوي. قم بإعداد "تحضير درس" (Lesson Plan) نموذجي ومحترف.
+    
+    المعلومات الأساسية:
+    - المادة: ${subject}
+    - موضوع الدرس: ${topic}
+    - الصف: ${gradeLevel}
+    - مدة الحصة: ${duration} دقيقة
+    
+    المطلوب:
+    أنشئ تحضيراً مرتباً يحتوي على الأقسام التالية بوضوح:
+    
+    1. **الأهداف السلوكية/التعليمية:** (أن يكون الطالب قادراً على...)
+    2. **الوسائل التعليمية:** (ماذا يحتاج المعلم؟)
+    3. **التهيئة (Introduction):** (كيف ستبدأ الدرس لجذب الانتباه؟)
+    4. **إجراءات التدريس والأنشطة:** (خطوات شرح الدرس مقسمة زمنياً بشكل تقريبي)
+    5. **التقويم المرحلي والختامي:** (كيف تتأكد من الفهم؟)
+    6. **الواجب المنزلي المقترح.**
+    
+    اللغة: عربية فصحى تربوية سليمة.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        return response.text || "فشل في إنشاء التحضير.";
     } catch (error) {
         console.error("Gemini API Error:", error);
         return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";

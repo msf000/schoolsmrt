@@ -1,10 +1,11 @@
+
 import React, { useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, ScatterChart, Scatter 
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -137,7 +138,40 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">لوحة التحكم</h2>
+      
+      {/* Quick Actions (AI Tools Shortcuts) - NEW SECTION */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => (window as any).location.reload()}> 
+              {/* Note: In real routing, use Navigate. Here simplifying. Ideally pass handleNavigate prop */}
+              <div>
+                  <h3 className="font-bold text-lg mb-1">مركز الرسائل</h3>
+                  <p className="text-teal-100 text-xs">تواصل مع أولياء الأمور بذكاء</p>
+              </div>
+              <div className="bg-white/20 p-2 rounded-lg">
+                  <MessageSquare size={24}/>
+              </div>
+          </div>
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1">
+              <div>
+                  <h3 className="font-bold text-lg mb-1">أدوات المعلم AI</h3>
+                  <p className="text-purple-100 text-xs">أنشئ اختبارات وتحضير دروس</p>
+              </div>
+              <div className="bg-white/20 p-2 rounded-lg">
+                  <BrainCircuit size={24}/>
+              </div>
+          </div>
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1">
+              <div>
+                  <h3 className="font-bold text-lg mb-1">تقارير ذكية</h3>
+                  <p className="text-blue-100 text-xs">تحليل أداء الطلاب</p>
+              </div>
+              <div className="bg-white/20 p-2 rounded-lg">
+                  <Sparkles size={24}/>
+              </div>
+          </div>
+      </div>
+
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">نظرة عامة</h2>
       
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

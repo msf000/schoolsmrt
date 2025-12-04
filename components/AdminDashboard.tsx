@@ -13,7 +13,7 @@ import {
 import { updateSupabaseConfig } from '../services/supabaseClient';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
-    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff, UserPlus, School as SchoolIcon, Lock, Edit, X
+    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff, UserPlus, School as SchoolIcon, Lock, Edit, X, Wrench
 } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
@@ -515,6 +515,12 @@ const SubscriptionsManager = () => {
     );
 };
 
+const FIX_SEAT_INDEX_SQL = `
+-- ✅ إصلاح خطأ المزامنة (seat_index)
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS seat_index integer;
+NOTIFY pgrst, 'reload schema';
+`;
+
 const SCHEMA_PATCH_SQL = `
 -- 🛠️ تحديث سريع: إضافة الجداول والأعمدة الناقصة
 
@@ -555,6 +561,9 @@ CREATE POLICY "Public Access" ON public.assignments FOR ALL USING (true) WITH CH
 
 -- 3. إضافة عمود إدارة التعليم لجدول المدارس
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS education_administration text;
+
+-- 4. إضافة عمود ترتيب المقاعد للطلاب (جديد)
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS seat_index integer;
 
 -- تحديث كاش النظام (ضروري جداً)
 NOTIFY pgrst, 'reload schema';
@@ -628,6 +637,7 @@ create table public.students (
   parent_name text,
   parent_phone text,
   parent_email text,
+  seat_index integer,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -950,6 +960,25 @@ const DatabaseSettings = () => {
                     {status}
                 </div>
             )}
+
+            {/* DEDICATED FIX SECTION FOR SEAT INDEX ERROR */}
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-start gap-4">
+                <div className="p-2 bg-amber-100 rounded-full text-amber-600"><Wrench size={24}/></div>
+                <div className="flex-1">
+                    <h4 className="font-bold text-amber-800 mb-1">⚠️ إصلاح خطأ المزامنة (seat_index)</h4>
+                    <p className="text-sm text-amber-700 mb-2">
+                        إذا ظهرت لك رسالة خطأ <b>Could not find the 'seat_index' column</b>، يرجى نسخ الكود التالي وتنفيذه في Supabase لإضافة العمود الناقص.
+                    </p>
+                    <div className="flex gap-2">
+                        <pre className="bg-white border border-amber-200 p-2 rounded text-xs font-mono text-amber-900 flex-1 overflow-x-auto dir-ltr">
+                            {FIX_SEAT_INDEX_SQL.trim()}
+                        </pre>
+                        <button onClick={() => copyToClipboard(FIX_SEAT_INDEX_SQL)} className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2">
+                            <Copy size={16}/> نسخ
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 

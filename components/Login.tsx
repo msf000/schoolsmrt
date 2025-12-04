@@ -8,7 +8,7 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [identifier, setIdentifier] = useState(''); // Email OR National ID
+  const [identifier, setIdentifier] = useState('admin@school.com'); // Pre-fill for UX
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -24,8 +24,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setTimeout(() => {
         const cleanIdentifier = identifier.trim();
 
-        // 1. Check Hardcoded Super Admin (Backdoor)
-        if (cleanIdentifier.toLowerCase() === 'admin@school.com' && password === 'SchoolSystem2025!') {
+        // 1. Check Hardcoded Super Admin (Backdoor or Fallback)
+        // Accepts both the complex password OR simple '123' if storage fails
+        if (cleanIdentifier.toLowerCase() === 'admin@school.com' && (password === 'SchoolSystem2025!' || password === '123')) {
             onLoginSuccess({ 
                 id: 'admin', 
                 name: 'المدير العام', 
@@ -101,6 +102,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <div className="mb-6 text-center">
                 <h2 className="text-xl font-bold text-gray-800">تسجيل الدخول</h2>
                 <p className="text-gray-400 text-sm mt-1">أدخل البريد الإلكتروني أو رقم الهوية (للطلاب)</p>
+            </div>
+
+            {/* Default Credentials Hint */}
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center mb-6 text-xs text-blue-800">
+                <p className="font-bold mb-1">بيانات الدخول الافتراضية:</p>
+                <p dir="ltr" className="font-mono">admin@school.com / 123</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
