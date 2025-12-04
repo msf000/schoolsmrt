@@ -342,6 +342,7 @@ const App: React.FC = () => {
                     onImportAttendance={handleBulkAddAttendance} // And this
                     selectedDate={globalDate} // Global Date
                     onDateChange={setGlobalDate} // Global Date Setter
+                    currentUser={currentUser} // Pass Current User for Teacher Schedule
                 />
             )}
             {currentView === 'CUSTOM_TABLES' && <CustomTablesView />}

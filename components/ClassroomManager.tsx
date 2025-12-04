@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle, BookOpen, Calendar } from 'lucide-react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser } from '../types';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle, BookOpen, Calendar, Briefcase } from 'lucide-react';
 import Attendance from './Attendance';
-import { getSubjects } from '../services/storageService';
+import { getSubjects, getSchedules, getTeacherAssignments } from '../services/storageService';
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -16,6 +16,7 @@ interface ClassroomManagerProps {
     onImportAttendance: (records: AttendanceRecord[]) => void;
     selectedDate?: string;
     onDateChange?: (date: string) => void;
+    currentUser?: SystemUser | null;
 }
 
 interface HallPass {
@@ -36,7 +37,8 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     onSaveAttendance, 
     onImportAttendance,
     selectedDate,
-    onDateChange
+    onDateChange,
+    currentUser
 }) => {
     const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING'>('TOOLS');
     const [selectedClass, setSelectedClass] = useState('');
@@ -48,6 +50,10 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     const effectiveDate = selectedDate || internalDate;
     const handleDateChange = onDateChange || setInternalDate;
 
+    // Schedule & Teacher Context
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([]);
+
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
@@ -57,6 +63,8 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     useEffect(() => {
         const loadedSubjects = getSubjects();
         setSubjects(loadedSubjects);
+        setSchedules(getSchedules());
+        setTeacherAssignments(getTeacherAssignments());
         
         // Defaults
         if(uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
@@ -80,58 +88,108 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         return date.toLocaleDateString('ar-SA', { weekday: 'long' });
     };
 
+    // --- FILTERED SCHEDULE LOGIC ---
+    const dailyClassSchedule = useMemo(() => {
+        if (!selectedClass || !effectiveDate) return [];
+        const dateObj = new Date(effectiveDate);
+        const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const currentDay = dayMap[dateObj.getDay()];
+
+        // 1. Get schedule for this class on this day
+        const classSched = schedules.filter(s => s.classId === selectedClass && s.day === currentDay);
+
+        // 2. Filter for logged-in teacher (if TEACHER role)
+        if (currentUser && currentUser.role === 'TEACHER') {
+             // Find matches where the teacher assigned to the subject IS the current user
+             return classSched.filter(s => {
+                 const assignment = teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
+                 return assignment?.teacherId === currentUser.id;
+             }).sort((a,b) => a.period - b.period);
+        }
+
+        // If Admin, show full schedule
+        return classSched.sort((a,b) => a.period - b.period);
+    }, [schedules, teacherAssignments, selectedClass, effectiveDate, currentUser]);
+
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50">
-            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <LayoutGrid className="text-purple-600"/> الإدارة الصفية
-                    </h2>
-                    <p className="text-gray-500 mt-2">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
-                </div>
-                
-                <div className="flex flex-col md:flex-row items-end md:items-center gap-4 w-full xl:w-auto">
-                    {/* Date Picker Section */}
-                    <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
-                        <div className="px-3 py-1 bg-purple-50 rounded text-purple-700 font-bold text-sm border border-purple-100 flex items-center gap-1">
-                            <Calendar size={14}/> {getDayName(effectiveDate)}
-                        </div>
-                        <input 
-                            type="date" 
-                            value={effectiveDate}
-                            onChange={(e) => handleDateChange(e.target.value)}
-                            className="p-1 font-bold text-gray-700 outline-none cursor-pointer bg-transparent text-sm"
-                        />
+            <div className="mb-4">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                            <LayoutGrid className="text-purple-600"/> الإدارة الصفية
+                        </h2>
+                        <p className="text-gray-500 mt-2">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
                     </div>
-
-                    {selectedClass && (
-                       <AttendanceStatsWidget students={classStudents} attendance={attendance} date={effectiveDate} />
-                    )}
-
-                    <div className="flex gap-2">
+                    
+                    <div className="flex flex-col md:flex-row items-end md:items-center gap-4 w-full xl:w-auto">
+                        {/* Date Picker Section */}
                         <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
-                            <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Grid size={14}/> الفصل:</span>
-                            <select 
-                                value={selectedClass} 
-                                onChange={e => setSelectedClass(e.target.value)}
-                                className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent text-sm"
-                            >
-                                {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                            <div className="px-3 py-1 bg-purple-50 rounded text-purple-700 font-bold text-sm border border-purple-100 flex items-center gap-1">
+                                <Calendar size={14}/> {getDayName(effectiveDate)}
+                            </div>
+                            <input 
+                                type="date" 
+                                value={effectiveDate}
+                                onChange={(e) => handleDateChange(e.target.value)}
+                                className="p-1 font-bold text-gray-700 outline-none cursor-pointer bg-transparent text-sm"
+                            />
                         </div>
 
-                        <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
-                            <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><BookOpen size={14}/> المادة:</span>
-                            <select 
-                                value={selectedSubject} 
-                                onChange={e => setSelectedSubject(e.target.value)}
-                                className="p-1 font-bold text-purple-600 outline-none cursor-pointer bg-transparent text-sm"
-                            >
-                                {subjects.length > 0 ? subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>) : <option value="عام">عام</option>}
-                            </select>
+                        {selectedClass && (
+                        <AttendanceStatsWidget students={classStudents} attendance={attendance} date={effectiveDate} />
+                        )}
+
+                        <div className="flex gap-2">
+                            <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
+                                <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Grid size={14}/> الفصل:</span>
+                                <select 
+                                    value={selectedClass} 
+                                    onChange={e => setSelectedClass(e.target.value)}
+                                    className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent text-sm"
+                                >
+                                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
+                                <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><BookOpen size={14}/> المادة:</span>
+                                <select 
+                                    value={selectedSubject} 
+                                    onChange={e => setSelectedSubject(e.target.value)}
+                                    className="p-1 font-bold text-purple-600 outline-none cursor-pointer bg-transparent text-sm"
+                                >
+                                    {subjects.length > 0 ? subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>) : <option value="عام">عام</option>}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {/* --- TODAY'S SCHEDULE STRIP (NEW) --- */}
+                {selectedClass && (
+                    <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row items-center gap-4 animate-fade-in mb-2">
+                        <div className="text-xs font-bold text-gray-500 bg-gray-50 px-2 py-1 rounded flex items-center gap-1 whitespace-nowrap">
+                            <Clock size={12}/> جدول اليوم ({selectedClass}):
+                        </div>
+                        {dailyClassSchedule.length > 0 ? (
+                            <div className="flex gap-2 overflow-x-auto pb-1 w-full custom-scrollbar">
+                                {dailyClassSchedule.map(item => (
+                                    <button 
+                                        key={item.id}
+                                        onClick={() => setSelectedSubject(item.subjectName)}
+                                        className={`flex-shrink-0 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 ${selectedSubject === item.subjectName ? 'bg-purple-600 text-white border-purple-700 shadow' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'}`}
+                                    >
+                                        <span className="bg-white/20 px-1.5 rounded text-[10px]">{item.period}</span>
+                                        {item.subjectName}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-xs text-gray-400 italic flex-1">لا توجد حصص مسجلة للمعلم في هذا اليوم لهذا الفصل.</div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="flex gap-4 mb-6 border-b border-gray-200 overflow-x-auto">
