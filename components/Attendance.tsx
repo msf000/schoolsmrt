@@ -11,8 +11,10 @@ interface AttendanceProps {
   attendanceHistory: AttendanceRecord[];
   onSaveAttendance: (records: AttendanceRecord[]) => void;
   onImportAttendance: (records: AttendanceRecord[]) => void;
-  preSelectedClass?: string; // New Prop
-  preSelectedSubject?: string; // New Prop for Subject
+  preSelectedClass?: string;
+  preSelectedSubject?: string;
+  selectedDate?: string;
+  onDateChange?: (date: string) => void;
 }
 
 // Default Predefined Notes (Used if no local storage found)
@@ -26,8 +28,25 @@ const DEFAULT_NEGATIVE_NOTES = [
     'نوم داخل الفصل', 'تأخر عن الحصة', 'استخدام الهاتف', 'عدم الانتباه'
 ];
 
-const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, onImportAttendance, preSelectedClass, preSelectedSubject }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+const Attendance: React.FC<AttendanceProps> = ({ 
+    students, 
+    attendanceHistory, 
+    onSaveAttendance, 
+    onImportAttendance, 
+    preSelectedClass, 
+    preSelectedSubject,
+    selectedDate: propDate,
+    onDateChange
+}) => {
+  // Use prop date if available, else local state
+  const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
+  const selectedDate = propDate !== undefined ? propDate : internalDate;
+  const handleDateChange = (newDate: string) => {
+      if (onDateChange) onDateChange(newDate);
+      else setInternalDate(newDate);
+      setSelectedPeriod(null);
+      if (!preSelectedClass) setSelectedClass(''); 
+  };
   
   // State for Attendance Status
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
@@ -362,11 +381,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 <input 
                     type="date" 
                     value={selectedDate}
-                    onChange={(e) => { 
-                        setSelectedDate(e.target.value); 
-                        setSelectedPeriod(null); 
-                        if (!preSelectedClass) setSelectedClass(''); 
-                    }}
+                    onChange={(e) => handleDateChange(e.target.value)}
                     className="outline-none text-gray-700 bg-transparent text-sm font-bold w-full cursor-pointer"
                 />
             </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle, BookOpen } from 'lucide-react';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle, BookOpen, Calendar } from 'lucide-react';
 import Attendance from './Attendance';
 import { getSubjects } from '../services/storageService';
 
@@ -14,6 +14,8 @@ interface ClassroomManagerProps {
     onSaveSeating?: (students: Student[]) => void;
     onSaveAttendance: (records: AttendanceRecord[]) => void;
     onImportAttendance: (records: AttendanceRecord[]) => void;
+    selectedDate?: string;
+    onDateChange?: (date: string) => void;
 }
 
 interface HallPass {
@@ -32,12 +34,19 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     onNavigateToAttendance, 
     onSaveSeating, 
     onSaveAttendance, 
-    onImportAttendance 
+    onImportAttendance,
+    selectedDate,
+    onDateChange
 }) => {
     const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING'>('TOOLS');
     const [selectedClass, setSelectedClass] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
     const [subjects, setSubjects] = useState<Subject[]>([]);
+    
+    // Internal state if no props provided (fallback)
+    const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
+    const effectiveDate = selectedDate || internalDate;
+    const handleDateChange = onDateChange || setInternalDate;
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
@@ -58,18 +67,22 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         return students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
     }, [students, selectedClass]);
 
-    // Present Students Only (for tools)
+    // Present Students Only (for tools) based on EFFECTIVE DATE
     const presentStudents = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
         return classStudents.filter(s => {
-            const record = attendance.find(a => a.studentId === s.id && a.date === today);
+            const record = attendance.find(a => a.studentId === s.id && a.date === effectiveDate);
             return !record || record.status !== AttendanceStatus.ABSENT;
         });
-    }, [classStudents, attendance]);
+    }, [classStudents, attendance, effectiveDate]);
+
+    const getDayName = (dateStr: string) => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('ar-SA', { weekday: 'long' });
+    };
 
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50">
-            <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                         <LayoutGrid className="text-purple-600"/> الإدارة الصفية
@@ -77,9 +90,22 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                     <p className="text-gray-500 mt-2">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
                 </div>
                 
-                <div className="flex flex-col md:flex-row items-end md:items-center gap-4 w-full md:w-auto">
+                <div className="flex flex-col md:flex-row items-end md:items-center gap-4 w-full xl:w-auto">
+                    {/* Date Picker Section */}
+                    <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
+                        <div className="px-3 py-1 bg-purple-50 rounded text-purple-700 font-bold text-sm border border-purple-100 flex items-center gap-1">
+                            <Calendar size={14}/> {getDayName(effectiveDate)}
+                        </div>
+                        <input 
+                            type="date" 
+                            value={effectiveDate}
+                            onChange={(e) => handleDateChange(e.target.value)}
+                            className="p-1 font-bold text-gray-700 outline-none cursor-pointer bg-transparent text-sm"
+                        />
+                    </div>
+
                     {selectedClass && (
-                       <AttendanceStatsWidget students={classStudents} attendance={attendance} />
+                       <AttendanceStatsWidget students={classStudents} attendance={attendance} date={effectiveDate} />
                     )}
 
                     <div className="flex gap-2">
@@ -209,6 +235,8 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         onImportAttendance={onImportAttendance}
                         preSelectedClass={selectedClass}
                         preSelectedSubject={selectedSubject}
+                        selectedDate={effectiveDate}
+                        onDateChange={handleDateChange}
                     />
                 )}
 
@@ -219,32 +247,29 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 };
 
 // --- Attendance Stats Widget ---
-const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[] }> = ({ students, attendance }) => {
-    const today = new Date().toISOString().split('T')[0];
+const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], date: string }> = ({ students, attendance, date }) => {
     
     const stats = useMemo(() => {
         let present = 0, absent = 0, late = 0;
         
         students.forEach(s => {
-            const record = attendance.find(a => a.studentId === s.id && a.date === today);
-            if (!record || record.status === AttendanceStatus.PRESENT) present++; // Default to present if no record? Or count only if marked? 
-            // In typical system, untracked is usually considered "Present" or "Pending". 
-            // Let's count Explicit status for accuracy.
+            const record = attendance.find(a => a.studentId === s.id && a.date === date);
+            if (!record || record.status === AttendanceStatus.PRESENT) present++; 
             if (record) {
-                if (record.status === AttendanceStatus.ABSENT) { absent++; present--; } // Decrement default present
+                if (record.status === AttendanceStatus.ABSENT) { absent++; present--; } 
                 else if (record.status === AttendanceStatus.LATE) { late++; present--; }
-                else if (record.status === AttendanceStatus.EXCUSED) { absent++; present--; } // Excused counts as absent usually or separate
+                else if (record.status === AttendanceStatus.EXCUSED) { absent++; present--; } 
             }
         });
-        // Correction: Start with ALL present, then subtract
-        const total = students.length;
-        const absentCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === today && a.status === AttendanceStatus.ABSENT).length;
-        const lateCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === today && a.status === AttendanceStatus.LATE).length;
-        const excusedCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === today && a.status === AttendanceStatus.EXCUSED).length;
-        const presentCount = total - absentCount - lateCount - excusedCount;
+        
+        // Accurate count using strict filtering
+        const absentCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.ABSENT).length;
+        const lateCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.LATE).length;
+        const excusedCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.EXCUSED).length;
+        const presentCount = students.length - absentCount - lateCount - excusedCount;
 
         return { present: presentCount, absent: absentCount, late: lateCount };
-    }, [students, attendance, today]);
+    }, [students, attendance, date]);
 
     return (
         <div className="flex bg-white rounded-lg border shadow-sm divide-x divide-x-reverse overflow-hidden text-xs">
@@ -263,6 +288,9 @@ const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: Attenda
         </div>
     );
 };
+
+// ... existing widgets (MiniTimerWidget, SoundBoardWidget, HallPassWidget, TrafficLightWidget, QuickPollWidget, LessonNoteWidget, SeatingChart) ...
+// (Keeping the rest of the file exactly as it was, no changes needed for widgets logic)
 
 // --- Widget: Mini Timer ---
 const MiniTimerWidget: React.FC = () => {

@@ -28,6 +28,9 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  // Global Date State for Synchronization
+  const [globalDate, setGlobalDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
@@ -299,11 +302,27 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden w-full custom-scrollbar bg-gray-50">
-            {currentView === 'DASHBOARD' && <Dashboard students={students} attendance={attendance} performance={performance} />}
+            {currentView === 'DASHBOARD' && (
+                <Dashboard 
+                    students={students} 
+                    attendance={attendance} 
+                    performance={performance}
+                    selectedDate={globalDate} // Pass Global Date
+                />
+            )}
             {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance}/>}
             {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
             {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleBulkAddStudents}/>}
-            {currentView === 'ATTENDANCE' && <Attendance students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={handleBulkAddAttendance}/>}
+            {currentView === 'ATTENDANCE' && (
+                <Attendance 
+                    students={students} 
+                    attendanceHistory={attendance} 
+                    onSaveAttendance={handleSaveAttendance} 
+                    onImportAttendance={handleBulkAddAttendance}
+                    selectedDate={globalDate} // Use Global Date
+                    onDateChange={setGlobalDate} // Update Global Date
+                />
+            )}
             {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}
             {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance}/>}
             {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance}/>}
@@ -321,6 +340,8 @@ const App: React.FC = () => {
                     onSaveSeating={handleSaveSeating} // Pass the handler
                     onSaveAttendance={handleSaveAttendance} // Need this for embedded attendance
                     onImportAttendance={handleBulkAddAttendance} // And this
+                    selectedDate={globalDate} // Global Date
+                    onDateChange={setGlobalDate} // Global Date Setter
                 />
             )}
             {currentView === 'CUSTOM_TABLES' && <CustomTablesView />}

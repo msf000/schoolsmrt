@@ -12,16 +12,18 @@ interface DashboardProps {
   students: Student[];
   attendance: AttendanceRecord[];
   performance: PerformanceRecord[];
+  selectedDate?: string;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate }) => {
+  const effectiveDate = selectedDate || new Date().toISOString().split('T')[0];
 
   const stats = useMemo(() => {
     const totalStudents = students.length;
-    const today = new Date().toISOString().split('T')[0];
-    const todaysAttendance = attendance.filter(a => a.date === today);
+    // Use effectiveDate for stats
+    const todaysAttendance = attendance.filter(a => a.date === effectiveDate);
     
     const present = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
     const absent = todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
@@ -33,7 +35,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     const avgScore = performance.length > 0 ? Math.round((totalScore / performance.length) * 100) : 0;
 
     return { totalStudents, present, absent, attendanceRate, avgScore };
-  }, [students, attendance, performance]);
+  }, [students, attendance, performance, effectiveDate]);
 
   const attendanceData = useMemo(() => {
     const counts = { [AttendanceStatus.PRESENT]: 0, [AttendanceStatus.ABSENT]: 0, [AttendanceStatus.LATE]: 0, [AttendanceStatus.EXCUSED]: 0 };
@@ -171,7 +173,12 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">نظرة عامة</h2>
+      <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-800">نظرة عامة</h2>
+          <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-bold border border-gray-200">
+              {formatDualDate(effectiveDate)}
+          </span>
+      </div>
       
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
