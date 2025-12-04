@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle } from 'lucide-react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject } from '../types';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle, BookOpen } from 'lucide-react';
 import Attendance from './Attendance';
+import { getSubjects } from '../services/storageService';
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -35,6 +36,8 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING'>('TOOLS');
     const [selectedClass, setSelectedClass] = useState('');
+    const [selectedSubject, setSelectedSubject] = useState('');
+    const [subjects, setSubjects] = useState<Subject[]>([]);
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
@@ -43,7 +46,12 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     }, [students]);
 
     useEffect(() => {
+        const loadedSubjects = getSubjects();
+        setSubjects(loadedSubjects);
+        
+        // Defaults
         if(uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+        if(loadedSubjects.length > 0 && !selectedSubject) setSelectedSubject(loadedSubjects[0].name);
     }, [uniqueClasses]);
 
     const classStudents = useMemo(() => {
@@ -69,20 +77,33 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                     <p className="text-gray-500 mt-2">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
                 </div>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col md:flex-row items-end md:items-center gap-4 w-full md:w-auto">
                     {selectedClass && (
                        <AttendanceStatsWidget students={classStudents} attendance={attendance} />
                     )}
 
-                    <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
-                        <span className="text-xs font-bold text-gray-500 px-2">الفصل الحالي:</span>
-                        <select 
-                            value={selectedClass} 
-                            onChange={e => setSelectedClass(e.target.value)}
-                            className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent"
-                        >
-                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                    <div className="flex gap-2">
+                        <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
+                            <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Grid size={14}/> الفصل:</span>
+                            <select 
+                                value={selectedClass} 
+                                onChange={e => setSelectedClass(e.target.value)}
+                                className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent text-sm"
+                            >
+                                {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
+                            <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><BookOpen size={14}/> المادة:</span>
+                            <select 
+                                value={selectedSubject} 
+                                onChange={e => setSelectedSubject(e.target.value)}
+                                className="p-1 font-bold text-purple-600 outline-none cursor-pointer bg-transparent text-sm"
+                            >
+                                {subjects.length > 0 ? subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>) : <option value="عام">عام</option>}
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -139,7 +160,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                                     <CheckSquare size={20} className="text-green-600"/>
                                 </div>
                                 <h3 className="font-bold text-lg text-gray-800 mb-1">سجل السلوك والحضور</h3>
-                                <p className="text-gray-500 text-xs mb-3">رصد سريع للمخالفات، النقاط الإيجابية، والغياب.</p>
+                                <p className="text-gray-500 text-xs mb-3">رصد سريع للمخالفات، النقاط الإيجابية، والغياب لمادة <b>{selectedSubject}</b>.</p>
                                 <span className="text-green-600 text-xs font-bold flex items-center gap-1">فتح السجل <ArrowDownUp size={12}/></span>
                             </div>
 
@@ -174,7 +195,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                             <div className="space-y-6">
                                 {/* Only pass PRESENT students to Hall Pass */}
                                 <HallPassWidget students={presentStudents} className={selectedClass} />
-                                <LessonNoteWidget className={selectedClass} />
+                                <LessonNoteWidget className={selectedClass} subject={selectedSubject} />
                             </div>
                         </div>
                     </div>
@@ -187,6 +208,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         onSaveAttendance={onSaveAttendance} 
                         onImportAttendance={onImportAttendance}
                         preSelectedClass={selectedClass}
+                        preSelectedSubject={selectedSubject}
                     />
                 )}
 
@@ -559,21 +581,24 @@ const QuickPollWidget: React.FC = () => {
 }
 
 // --- Widget: Lesson Notes ---
-const LessonNoteWidget: React.FC<{ className: string }> = ({ className }) => {
+const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ className, subject }) => {
     const [notes, setNotes] = useState<Record<string, string>>(() => {
         const saved = localStorage.getItem('class_lesson_notes');
         return saved ? JSON.parse(saved) : {};
     });
     const [currentNote, setCurrentNote] = useState('');
+    
+    // Key combines class and subject if subject exists
+    const noteKey = subject ? `${className}_${subject}` : className;
 
     useEffect(() => {
-        if(className) {
-            setCurrentNote(notes[className] || '');
+        if(noteKey) {
+            setCurrentNote(notes[noteKey] || '');
         }
-    }, [className, notes]);
+    }, [noteKey, notes]);
 
     const handleSave = () => {
-        const updated = { ...notes, [className]: currentNote };
+        const updated = { ...notes, [noteKey]: currentNote };
         setNotes(updated);
         localStorage.setItem('class_lesson_notes', JSON.stringify(updated));
     };

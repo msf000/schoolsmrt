@@ -12,6 +12,7 @@ interface AttendanceProps {
   onSaveAttendance: (records: AttendanceRecord[]) => void;
   onImportAttendance: (records: AttendanceRecord[]) => void;
   preSelectedClass?: string; // New Prop
+  preSelectedSubject?: string; // New Prop for Subject
 }
 
 // Default Predefined Notes (Used if no local storage found)
@@ -25,7 +26,7 @@ const DEFAULT_NEGATIVE_NOTES = [
     'نوم داخل الفصل', 'تأخر عن الحصة', 'استخدام الهاتف', 'عدم الانتباه'
 ];
 
-const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, onImportAttendance, preSelectedClass }) => {
+const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, onImportAttendance, preSelectedClass, preSelectedSubject }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
   // State for Attendance Status
@@ -59,7 +60,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   
   // Selection State (Driven by Schedule Click)
   const [selectedClass, setSelectedClass] = useState(preSelectedClass || '');
-  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState(preSelectedSubject || '');
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,11 +70,9 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   }, []);
 
   useEffect(() => {
-      if(preSelectedClass) {
-          setSelectedClass(preSelectedClass);
-          // Try to auto-select period if only one or first
-      }
-  }, [preSelectedClass]);
+      if(preSelectedClass) setSelectedClass(preSelectedClass);
+      if(preSelectedSubject) setSelectedSubject(preSelectedSubject);
+  }, [preSelectedClass, preSelectedSubject]);
 
   // --- Persist Tags Effects ---
   useEffect(() => {
