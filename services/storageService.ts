@@ -1,9 +1,8 @@
 
-// ... existing imports
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, Parent, 
     Subject, ScheduleItem, School, SystemUser, CustomTable, 
-    Assignment, MessageLog, ReportHeaderConfig, PerformanceCategory 
+    Assignment, MessageLog, ReportHeaderConfig, PerformanceCategory, TeacherAssignment
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -21,7 +20,8 @@ const STORAGE_KEYS = {
     ASSIGNMENTS: 'app_assignments',
     MESSAGES: 'app_messages',
     REPORT_CONFIG: 'app_report_config',
-    WORKS_URL: 'app_works_master_url'
+    WORKS_URL: 'app_works_master_url',
+    TEACHER_ASSIGNMENTS: 'app_teacher_assignments'
 };
 
 export const DB_MAP: Record<string, string> = {
@@ -35,7 +35,8 @@ export const DB_MAP: Record<string, string> = {
     schools: 'schools',
     users: 'system_users',
     assignments: 'assignments',
-    messages: 'messages'
+    messages: 'messages',
+    teacher_assignments: 'teacher_assignments'
 };
 
 // --- In-Memory State ---
@@ -51,6 +52,7 @@ let _users: SystemUser[] = [];
 let _customTables: CustomTable[] = [];
 let _assignments: Assignment[] = [];
 let _messages: MessageLog[] = [];
+let _teacherAssignments: TeacherAssignment[] = [];
 let _reportConfig: ReportHeaderConfig = { 
     schoolName: '', educationAdmin: '', teacherName: '', 
     schoolManager: '', academicYear: '', term: '', logoBase64: '' 
@@ -87,6 +89,7 @@ const loadAll = () => {
     _subjects = loadLocal(STORAGE_KEYS.SUBJECTS, []);
     _schedules = loadLocal(STORAGE_KEYS.SCHEDULES, []);
     _schools = loadLocal(STORAGE_KEYS.SCHOOLS, []);
+    _teacherAssignments = loadLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, []);
     
     // Users Logic: Ensure Admin Exists ALWAYS
     _users = loadLocal(STORAGE_KEYS.USERS, []);
@@ -221,6 +224,23 @@ export const addTeacher = (t: Teacher) => {
 export const deleteTeacher = (id: string) => {
     _teachers = _teachers.filter(t => t.id !== id);
     saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+};
+
+// --- Teacher Assignments ---
+export const getTeacherAssignments = (): TeacherAssignment[] => [..._teacherAssignments];
+export const saveTeacherAssignment = (assignment: TeacherAssignment) => {
+    // Remove existing if class+subject matches, then add
+    const existsIndex = _teacherAssignments.findIndex(ta => ta.classId === assignment.classId && ta.subjectName === assignment.subjectName);
+    if (existsIndex !== -1) {
+        _teacherAssignments[existsIndex] = assignment; // Update
+    } else {
+        _teacherAssignments.push(assignment); // Add
+    }
+    saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+};
+export const deleteTeacherAssignment = (id: string) => {
+    _teacherAssignments = _teacherAssignments.filter(ta => ta.id !== id);
+    saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
 };
 
 // --- Parents ---
@@ -370,6 +390,7 @@ export const createBackup = () => {
         messages: _messages,
         reportConfig: _reportConfig,
         worksUrl: _worksMasterUrl,
+        teacherAssignments: _teacherAssignments,
         timestamp: new Date().toISOString()
     };
     return JSON.stringify(backup);
@@ -392,6 +413,7 @@ export const restoreBackup = (jsonContent: string) => {
         if (data.messages) saveLocal(STORAGE_KEYS.MESSAGES, (_messages = data.messages));
         if (data.reportConfig) saveLocal(STORAGE_KEYS.REPORT_CONFIG, (_reportConfig = data.reportConfig));
         if (data.worksUrl) saveLocal(STORAGE_KEYS.WORKS_URL, (_worksMasterUrl = data.worksUrl));
+        if (data.teacherAssignments) saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, (_teacherAssignments = data.teacherAssignments));
         return true;
     } catch (e) {
         console.error("Backup restore failed", e);
@@ -560,6 +582,15 @@ export const uploadToSupabase = async () => {
     const mappedStudents = _students.map(mapStudentToDB);
     await upsert('students', mappedStudents);
     
+    // Map Teacher Assignments
+    const mappedAssigns = _teacherAssignments.map(ta => ({
+        id: ta.id,
+        class_id: ta.classId,
+        subject_name: ta.subjectName,
+        teacher_id: ta.teacherId
+    }));
+    await upsert('teacher_assignments', mappedAssigns);
+
     // Chunk large tables & Map
     const chunk = (arr: any[], size: number) => Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
     
@@ -626,6 +657,17 @@ export const downloadFromSupabase = async () => {
     const subjects = await fetchTable('subjects');
     if (subjects) { _subjects = subjects; saveLocal(STORAGE_KEYS.SUBJECTS, _subjects); }
 
+    const teacherAssigns = await fetchTable('teacher_assignments');
+    if (teacherAssigns) {
+        _teacherAssignments = teacherAssigns.map((ta: any) => ({
+            id: ta.id,
+            classId: ta.class_id,
+            subjectName: ta.subject_name,
+            teacherId: ta.teacher_id
+        }));
+        saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+    }
+
     const schedules = await fetchTable('weekly_schedules');
     if (schedules) { 
         _schedules = schedules.map((s: any) => ({...s, classId: s.class_id, subjectName: s.subject_name})); 
@@ -664,6 +706,7 @@ export const getTableDisplayName = (table: string) => {
         case 'system_users': return 'المستخدمين';
         case 'assignments': return 'الواجبات/الروابط';
         case 'messages': return 'الرسائل';
+        case 'teacher_assignments': return 'توزيع المعلمين';
         default: return table;
     }
 };

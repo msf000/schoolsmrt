@@ -524,7 +524,20 @@ NOTIFY pgrst, 'reload schema';
 const SCHEMA_PATCH_SQL = `
 -- 🛠️ تحديث سريع: إضافة الجداول والأعمدة الناقصة
 
--- 1. إضافة جدول messages (إذا لم يوجد)
+-- 1. إضافة جدول teacher_assignments
+CREATE TABLE IF NOT EXISTS public.teacher_assignments (
+  id text primary key,
+  class_id text not null,
+  subject_name text not null,
+  teacher_id text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+ALTER TABLE public.teacher_assignments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.teacher_assignments;
+CREATE POLICY "Public Access" ON public.teacher_assignments FOR ALL USING (true) WITH CHECK (true);
+
+-- 2. إضافة جدول messages (إذا لم يوجد)
 CREATE TABLE IF NOT EXISTS public.messages (
   id text primary key,
   student_id text,
@@ -542,7 +555,7 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Access" ON public.messages;
 CREATE POLICY "Public Access" ON public.messages FOR ALL USING (true) WITH CHECK (true);
 
--- 2. إضافة جدول assignments (إذا لم يوجد)
+-- 3. إضافة جدول assignments (إذا لم يوجد)
 CREATE TABLE IF NOT EXISTS public.assignments (
   id text primary key,
   title text not null,
@@ -559,10 +572,8 @@ ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Access" ON public.assignments;
 CREATE POLICY "Public Access" ON public.assignments FOR ALL USING (true) WITH CHECK (true);
 
--- 3. إضافة عمود إدارة التعليم لجدول المدارس
+-- 4. إضافة الأعمدة الناقصة
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS education_administration text;
-
--- 4. إضافة عمود ترتيب المقاعد للطلاب (جديد)
 ALTER TABLE public.students ADD COLUMN IF NOT EXISTS seat_index integer;
 
 -- تحديث كاش النظام (ضروري جداً)
@@ -587,6 +598,7 @@ DROP TABLE IF EXISTS public.system_users CASCADE;
 DROP TABLE IF EXISTS public.schools CASCADE;
 DROP TABLE IF EXISTS public.assignments CASCADE;
 DROP TABLE IF EXISTS public.messages CASCADE;
+DROP TABLE IF EXISTS public.teacher_assignments CASCADE;
 
 -- 2. إنشاء الجداول بأسماء أعمدة snake_case
 
@@ -653,6 +665,14 @@ create table public.teachers (
   email text,
   phone text,
   subject_specialty text
+);
+
+create table public.teacher_assignments (
+  id text primary key,
+  class_id text not null, 
+  subject_name text not null,
+  teacher_id text references public.teachers(id) on delete cascade,
+  created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
 create table public.parents (
@@ -764,6 +784,10 @@ CREATE POLICY "Public Access" ON public.subjects FOR ALL USING (true) WITH CHECK
 ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Access" ON public.teachers;
 CREATE POLICY "Public Access" ON public.teachers FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.teacher_assignments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.teacher_assignments;
+CREATE POLICY "Public Access" ON public.teacher_assignments FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.parents ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Access" ON public.parents;

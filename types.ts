@@ -45,6 +45,13 @@ export interface Teacher {
   subjectSpecialty?: string;
 }
 
+export interface TeacherAssignment {
+  id: string;
+  classId: string;      // The Class Name (e.g., "1/A")
+  subjectName: string;  // The Subject (e.g., "Math")
+  teacherId: string;    // The Teacher ID
+}
+
 export interface Parent {
   id: string;
   name: string;

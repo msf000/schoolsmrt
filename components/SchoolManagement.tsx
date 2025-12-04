@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Teacher, Parent, ClassRoom, Subject, Student, School, ScheduleItem, DayOfWeek, ReportHeaderConfig } from '../types';
+import { Teacher, Parent, ClassRoom, Subject, Student, School, ScheduleItem, DayOfWeek, ReportHeaderConfig, TeacherAssignment } from '../types';
 import { 
     getTeachers, addTeacher, deleteTeacher, 
     getParents, addParent, deleteParent, 
@@ -7,9 +8,10 @@ import {
     getSchools, addSchool,
     getSchedules, saveScheduleItem, deleteScheduleItem,
     getReportHeaderConfig, saveReportHeaderConfig,
-    saveWorksMasterUrl, getWorksMasterUrl
+    saveWorksMasterUrl, getWorksMasterUrl,
+    getTeacherAssignments, saveTeacherAssignment
 } from '../services/storageService';
-import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers, GraduationCap, MapPin, Upload } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers, GraduationCap, MapPin, Upload, Briefcase } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -26,7 +28,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
     onImportAttendance 
 }) => {
   // Removed 'STRUCTURE' from tabs
-  const [activeTab, setActiveTab] = useState<'TIMETABLE' | 'TEACHERS' | 'PARENTS' | 'SUBJECTS' | 'IMPORT' | 'SETTINGS'>('TIMETABLE');
+  const [activeTab, setActiveTab] = useState<'TIMETABLE' | 'ASSIGNMENTS' | 'TEACHERS' | 'PARENTS' | 'SUBJECTS' | 'IMPORT' | 'SETTINGS'>('TIMETABLE');
   
   return (
     <div className="p-6 animate-fade-in space-y-6">
@@ -41,6 +43,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
       {/* Tabs */}
       <div className="flex overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100 p-1 mb-6">
           <TabButton active={activeTab === 'TIMETABLE'} onClick={() => setActiveTab('TIMETABLE')} icon={<Calendar size={18} />} label="الجدول الدراسي" />
+          <TabButton active={activeTab === 'ASSIGNMENTS'} onClick={() => setActiveTab('ASSIGNMENTS')} icon={<Briefcase size={18} />} label="توزيع المعلمين" />
           <TabButton active={activeTab === 'TEACHERS'} onClick={() => setActiveTab('TEACHERS')} icon={<User size={18} />} label="المعلمين" />
           <TabButton active={activeTab === 'PARENTS'} onClick={() => setActiveTab('PARENTS')} icon={<Users size={18} />} label="أولياء الأمور" />
           <TabButton active={activeTab === 'SUBJECTS'} onClick={() => setActiveTab('SUBJECTS')} icon={<Book size={18} />} label="المواد الدراسية" />
@@ -50,6 +53,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[500px]">
           {activeTab === 'TIMETABLE' && <TimetableManager students={students} />}
+          {activeTab === 'ASSIGNMENTS' && <TeacherAssignmentsManager students={students} />}
           {activeTab === 'TEACHERS' && <TeachersManager />}
           {activeTab === 'PARENTS' && <ParentsManager />}
           {activeTab === 'SUBJECTS' && <SubjectsManager />}
@@ -78,6 +82,110 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
         <span>{label}</span>
     </button>
 );
+
+// --- Teacher Assignments Manager (NEW) ---
+const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
+    const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [selectedClass, setSelectedClass] = useState('');
+    const [msg, setMsg] = useState('');
+
+    useEffect(() => {
+        setAssignments(getTeacherAssignments());
+        setTeachers(getTeachers());
+        setSubjects(getSubjects());
+    }, []);
+
+    const uniqueClasses = useMemo(() => {
+        const classes = new Set<string>();
+        students.forEach(s => s.className && classes.add(s.className));
+        return Array.from(classes).sort();
+    }, [students]);
+
+    const handleAssign = (subjectName: string, teacherId: string) => {
+        if (!selectedClass) return;
+        const newAssignment: TeacherAssignment = {
+            id: `${selectedClass}-${subjectName}`,
+            classId: selectedClass,
+            subjectName: subjectName,
+            teacherId: teacherId
+        };
+        saveTeacherAssignment(newAssignment);
+        setAssignments(getTeacherAssignments());
+        setMsg('تم حفظ التغييرات');
+        setTimeout(() => setMsg(''), 2000);
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                <Briefcase className="text-blue-600 mt-1" size={24}/>
+                <div>
+                    <h3 className="font-bold text-blue-800">توزيع المعلمين على الفصول</h3>
+                    <p className="text-sm text-blue-600 mt-1">
+                        هنا يمكنك ربط كل مادة في كل فصل بالمعلم المسؤول عنها. هذا الربط سيظهر في تقارير المتابعة والأعمال.
+                    </p>
+                </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="w-full md:w-1/3 space-y-4">
+                    <label className="block text-sm font-bold text-gray-700">اختر الفصل الدراسي:</label>
+                    <select 
+                        className="w-full p-3 border rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                        value={selectedClass}
+                        onChange={(e) => setSelectedClass(e.target.value)}
+                    >
+                        <option value="">-- اختر الفصل --</option>
+                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    
+                    {msg && <div className="text-green-600 text-sm font-bold flex items-center gap-1 animate-fade-in"><Check size={16}/> {msg}</div>}
+                </div>
+
+                <div className="flex-1 bg-gray-50 rounded-xl border border-gray-200 p-4">
+                    {selectedClass ? (
+                        <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-4 pb-2 border-b text-sm font-bold text-gray-500">
+                                <div>المادة الدراسية</div>
+                                <div>المعلم المسؤول</div>
+                            </div>
+                            <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-2 p-1">
+                                {subjects.map(subject => {
+                                    const currentAssign = assignments.find(a => a.classId === selectedClass && a.subjectName === subject.name);
+                                    return (
+                                        <div key={subject.id} className="grid grid-cols-2 gap-4 items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                                            <div className="font-bold text-gray-800 flex items-center gap-2">
+                                                <Book size={16} className="text-primary"/> {subject.name}
+                                            </div>
+                                            <select 
+                                                className={`w-full p-2 border rounded-md text-sm outline-none cursor-pointer transition-colors ${currentAssign ? 'bg-green-50 border-green-200 text-green-800 font-bold' : 'bg-gray-50 text-gray-500'}`}
+                                                value={currentAssign?.teacherId || ''}
+                                                onChange={(e) => handleAssign(subject.name, e.target.value)}
+                                            >
+                                                <option value="">-- غير محدد --</option>
+                                                {teachers.map(t => (
+                                                    <option key={t.id} value={t.id}>{t.name} {t.subjectSpecialty ? `(${t.subjectSpecialty})` : ''}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )
+                                })}
+                                {subjects.length === 0 && <div className="text-center text-gray-400 py-8">لا توجد مواد مسجلة. أضف المواد أولاً.</div>}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                            <Briefcase size={48} className="mb-4 opacity-20"/>
+                            <p>يرجى اختيار فصل للبدء بتوزيع المعلمين</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // --- Timetable Manager ---
 
