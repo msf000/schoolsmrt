@@ -1,17 +1,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Teacher, Parent, ClassRoom, Subject, Student, School, ScheduleItem, DayOfWeek, ReportHeaderConfig, TeacherAssignment } from '../types';
+import { Teacher, Parent, Subject, Student, ScheduleItem, DayOfWeek, ReportHeaderConfig, TeacherAssignment } from '../types';
 import { 
     getTeachers, addTeacher, deleteTeacher, 
     getParents, addParent, deleteParent, 
     getSubjects, addSubject, deleteSubject,
-    getSchools, addSchool,
     getSchedules, saveScheduleItem, deleteScheduleItem,
     getReportHeaderConfig, saveReportHeaderConfig,
     saveWorksMasterUrl, getWorksMasterUrl,
     getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment
 } from '../services/storageService';
-import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers, GraduationCap, MapPin, Upload, Briefcase, List, Table } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Database, Save, Link as LinkIcon, Calendar, Filter, AlertCircle, Edit2, Check, Layers, GraduationCap, MapPin, Upload, Briefcase, Table, Printer, Copy, ArrowLeft } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -27,7 +26,6 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
     onImportPerformance, 
     onImportAttendance 
 }) => {
-  // Removed 'STRUCTURE' from tabs
   const [activeTab, setActiveTab] = useState<'TIMETABLE' | 'ASSIGNMENTS' | 'TEACHERS' | 'PARENTS' | 'SUBJECTS' | 'IMPORT' | 'SETTINGS'>('TIMETABLE');
   
   return (
@@ -83,7 +81,7 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
     </button>
 );
 
-// --- Teacher Assignments Manager (NEW) ---
+// --- Teacher Assignments Manager ---
 const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
     const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -91,6 +89,10 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
     const [selectedClass, setSelectedClass] = useState('');
     const [viewMode, setViewMode] = useState<'ASSIGN' | 'TABLE'>('ASSIGN');
     const [msg, setMsg] = useState('');
+    
+    // Copy Feature State
+    const [copyTargetClass, setCopyTargetClass] = useState('');
+    const [showCopyConfirm, setShowCopyConfirm] = useState(false);
 
     useEffect(() => {
         setAssignments(getTeacherAssignments());
@@ -125,9 +127,48 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
         }
     };
 
+    const handleCopyAssignments = () => {
+        if (!selectedClass || !copyTargetClass || selectedClass === copyTargetClass) return;
+        
+        // Find all assignments for source class
+        const sourceAssignments = assignments.filter(a => a.classId === selectedClass);
+        if (sourceAssignments.length === 0) {
+            alert('الفصل المصدر لا يحتوي على أي توزيعات لنسخها.');
+            return;
+        }
+
+        // Create new assignments for target class
+        sourceAssignments.forEach(assign => {
+            const newAssignment: TeacherAssignment = {
+                id: `${copyTargetClass}-${assign.subjectName}`,
+                classId: copyTargetClass,
+                subjectName: assign.subjectName,
+                teacherId: assign.teacherId
+            };
+            saveTeacherAssignment(newAssignment);
+        });
+
+        setAssignments(getTeacherAssignments());
+        setMsg(`تم نسخ ${sourceAssignments.length} إسناد بنجاح إلى ${copyTargetClass}`);
+        setShowCopyConfirm(false);
+        setCopyTargetClass('');
+        setTimeout(() => setMsg(''), 3000);
+    };
+
     const getTeacherName = (id: string) => {
         const t = teachers.find(t => t.id === id);
         return t ? t.name : '???';
+    };
+
+    // Calculate Workload
+    const getTeacherWorkload = (teacherId: string) => {
+        return assignments.filter(a => a.teacherId === teacherId).length;
+    };
+
+    const getWorkloadColor = (count: number) => {
+        if (count > 24) return 'text-red-600 font-black';
+        if (count > 20) return 'text-orange-600 font-bold';
+        return 'text-gray-500';
     };
 
     return (
@@ -138,7 +179,7 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
                     <div>
                         <h3 className="font-bold text-blue-800">توزيع المعلمين على الفصول</h3>
                         <p className="text-sm text-blue-600 mt-1">
-                            هنا يمكنك ربط كل مادة في كل فصل بالمعلم المسؤول عنها. هذا الربط سيظهر في تقارير المتابعة والأعمال.
+                            هنا يمكنك ربط كل مادة في كل فصل بالمعلم المسؤول عنها.
                         </p>
                     </div>
                 </div>
@@ -166,13 +207,57 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
                         <select 
                             className="w-full p-3 border rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-primary/50 outline-none"
                             value={selectedClass}
-                            onChange={(e) => setSelectedClass(e.target.value)}
+                            onChange={(e) => { setSelectedClass(e.target.value); setShowCopyConfirm(false); }}
                         >
                             <option value="">-- اختر الفصل --</option>
                             {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                         
                         {msg && <div className="text-green-600 text-sm font-bold flex items-center gap-1 animate-fade-in"><Check size={16}/> {msg}</div>}
+                        
+                        {selectedClass && (
+                            <div className="mt-4 pt-4 border-t">
+                                {!showCopyConfirm ? (
+                                    <button 
+                                        onClick={() => setShowCopyConfirm(true)}
+                                        className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <Copy size={14}/> نسخ التوزيع إلى فصل آخر
+                                    </button>
+                                ) : (
+                                    <div className="bg-white p-3 rounded-lg border border-blue-200 shadow-sm animate-fade-in">
+                                        <label className="block text-xs font-bold text-gray-600 mb-2">نسخ التوزيع إلى:</label>
+                                        <select 
+                                            className="w-full p-2 border rounded mb-2 text-sm"
+                                            value={copyTargetClass}
+                                            onChange={(e) => setCopyTargetClass(e.target.value)}
+                                        >
+                                            <option value="">-- اختر الهدف --</option>
+                                            {uniqueClasses.filter(c => c !== selectedClass).map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={handleCopyAssignments}
+                                                disabled={!copyTargetClass}
+                                                className="flex-1 bg-blue-600 text-white py-1.5 rounded text-xs font-bold hover:bg-blue-700 disabled:opacity-50"
+                                            >
+                                                تأكيد النسخ
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowCopyConfirm(false)}
+                                                className="px-3 bg-gray-200 text-gray-600 rounded text-xs font-bold hover:bg-gray-300"
+                                            >
+                                                إلغاء
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 text-xs text-yellow-800 mt-4">
+                            <strong>تلميح:</strong> الرقم الظاهر بجانب اسم المعلم يمثل عدد الحصص المسندة إليه حالياً (النصاب).
+                        </div>
                     </div>
 
                     <div className="flex-1 bg-gray-50 rounded-xl border border-gray-200 p-4">
@@ -196,9 +281,14 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
                                                     onChange={(e) => handleAssign(subject.name, e.target.value)}
                                                 >
                                                     <option value="">-- غير محدد --</option>
-                                                    {teachers.map(t => (
-                                                        <option key={t.id} value={t.id}>{t.name} {t.subjectSpecialty ? `(${t.subjectSpecialty})` : ''}</option>
-                                                    ))}
+                                                    {teachers.map(t => {
+                                                        const workload = getTeacherWorkload(t.id);
+                                                        return (
+                                                            <option key={t.id} value={t.id} className={getWorkloadColor(workload)}>
+                                                                {t.name} ({workload})
+                                                            </option>
+                                                        );
+                                                    })}
                                                 </select>
                                             </div>
                                         )
@@ -261,23 +351,23 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
 
 // Helper for colors
 const COLORS = [
-  'bg-red-100 text-red-800 border-red-200 hover:bg-red-200',
-  'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200',
-  'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200',
-  'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200',
-  'bg-lime-100 text-lime-800 border-lime-200 hover:bg-lime-200',
-  'bg-green-100 text-green-800 border-green-200 hover:bg-green-200',
-  'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200',
-  'bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-200',
-  'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200',
-  'bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-200',
-  'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200',
-  'bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200',
-  'bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-200',
-  'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200',
-  'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-200',
-  'bg-pink-100 text-pink-800 border-pink-200 hover:bg-pink-200',
-  'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-200',
+  'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 print:bg-white print:text-black print:border-black',
+  'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 print:bg-white print:text-black print:border-black',
+  'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 print:bg-white print:text-black print:border-black',
+  'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200 print:bg-white print:text-black print:border-black',
+  'bg-lime-100 text-lime-800 border-lime-200 hover:bg-lime-200 print:bg-white print:text-black print:border-black',
+  'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 print:bg-white print:text-black print:border-black',
+  'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 print:bg-white print:text-black print:border-black',
+  'bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-200 print:bg-white print:text-black print:border-black',
+  'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200 print:bg-white print:text-black print:border-black',
+  'bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-200 print:bg-white print:text-black print:border-black',
+  'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 print:bg-white print:text-black print:border-black',
+  'bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200 print:bg-white print:text-black print:border-black',
+  'bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-200 print:bg-white print:text-black print:border-black',
+  'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200 print:bg-white print:text-black print:border-black',
+  'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-200 print:bg-white print:text-black print:border-black',
+  'bg-pink-100 text-pink-800 border-pink-200 hover:bg-pink-200 print:bg-white print:text-black print:border-black',
+  'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-200 print:bg-white print:text-black print:border-black',
 ];
 
 const getColorClass = (str: string) => {
@@ -292,12 +382,16 @@ const getColorClass = (str: string) => {
 const TimetableManager = ({ students }: { students: Student[] }) => {
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
-    const [viewMode, setViewMode] = useState<'SINGLE_CLASS' | 'MASTER_VIEW'>('SINGLE_CLASS');
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [teacherAssignments, setTeacherAssignmentsState] = useState<TeacherAssignment[]>([]);
+    const [viewMode, setViewMode] = useState<'SINGLE_CLASS' | 'MASTER_VIEW' | 'TEACHER_VIEW' | 'DAILY_MATRIX'>('SINGLE_CLASS');
     
     // Selectors
     const [selectedGrade, setSelectedGrade] = useState('');
     const [selectedClassName, setSelectedClassName] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
+    const [selectedTeacherId, setSelectedTeacherId] = useState('');
+    const [selectedMatrixDay, setSelectedMatrixDay] = useState<DayOfWeek>('Sunday');
     const [msg, setMsg] = useState<{text: string, type: 'error'|'success' | 'warning'} | null>(null);
 
     const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
@@ -306,6 +400,8 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
     useEffect(() => {
         setSubjects(getSubjects());
         setSchedules(getSchedules());
+        setTeachers(getTeachers());
+        setTeacherAssignmentsState(getTeacherAssignments());
     }, []);
 
     // 1. Extract Unique Grades from Students
@@ -335,13 +431,19 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
     };
 
     const checkForConflicts = (day: DayOfWeek, period: number, currentClassId: string): ScheduleItem | undefined => {
-        // Conflict means: User (Teacher) is already teaching ANOTHER class at this time
-        // We assume the current user operates the system for themselves
-        return schedules.find(s => 
-            s.day === day && 
-            s.period === period && 
-            s.classId !== currentClassId
-        );
+        const proposedAssignment = teacherAssignments.find(ta => ta.classId === currentClassId && ta.subjectName === selectedSubject);
+        if (!proposedAssignment) return undefined; // No teacher assigned yet, can't check conflict
+
+        const teacherId = proposedAssignment.teacherId;
+
+        // 2. Is this teacher busy elsewhere?
+        return schedules.find(s => {
+            if (s.day !== day || s.period !== period) return false;
+            // Find teacher for this existing schedule item
+            const existingAssignment = teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
+            // If same teacher AND different class => CONFLICT
+            return existingAssignment?.teacherId === teacherId && s.classId !== currentClassId;
+        });
     };
 
     const handleCellClick = (day: DayOfWeek, period: number) => {
@@ -356,7 +458,8 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
         // 1. Check for Conflicts
         const conflict = checkForConflicts(day, period, classId);
         if (conflict) {
-            if (!window.confirm(`⚠️ تنبيه تعارض جدول!\n\nأنت تقوم بتدريس مادة "${conflict.subjectName}" للفصل "${conflict.classId}" في هذا الوقت (يوم ${dayNameAr[day]} الحصة ${period}).\n\nهل أنت متأكد من أنك تريد إضافة هذه الحصة أيضاً؟ (سيكون لديك حصتين في نفس الوقت)`)) {
+            const conflictTeacher = teachers.find(t => teacherAssignments.find(ta => ta.classId === conflict.classId && ta.subjectName === conflict.subjectName)?.teacherId === t.id);
+            if (!window.confirm(`⚠️ تنبيه تعارض جدول!\n\nالمعلم "${conflictTeacher?.name || 'غير معروف'}" مشغول في هذا الوقت مع فصل "${conflict.classId}" (مادة ${conflict.subjectName}).\n\nهل أنت متأكد من إضافة الحصة رغم التعارض؟`)) {
                 return;
             }
         }
@@ -387,30 +490,46 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
         'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس'
     };
 
+    const handlePrint = () => {
+        window.print();
+    };
+
     return (
         <div className="space-y-6">
             
-            {/* Header / Mode Switcher */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
+            {/* Header / Mode Switcher (Hidden on Print) */}
+            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl border shadow-sm gap-4 print:hidden">
                 <div>
                     <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                        {viewMode === 'SINGLE_CLASS' ? <Calendar className="text-primary"/> : <Layers className="text-purple-600"/>}
-                        {viewMode === 'SINGLE_CLASS' ? 'جدول الفصول الدراسية' : 'جدول المعلم الشامل'}
+                        {viewMode === 'SINGLE_CLASS' ? <Calendar className="text-primary"/> : viewMode === 'TEACHER_VIEW' ? <User className="text-blue-600"/> : viewMode === 'DAILY_MATRIX' ? <Table className="text-green-600"/> : <Layers className="text-purple-600"/>}
+                        {viewMode === 'SINGLE_CLASS' ? 'جدول الفصول الدراسية' : viewMode === 'TEACHER_VIEW' ? 'جدول المعلمين' : viewMode === 'DAILY_MATRIX' ? 'جدول اليوم' : 'الجدول الشامل'}
                     </h3>
                     <p className="text-gray-400 text-xs mt-1">
-                        {viewMode === 'SINGLE_CLASS' ? 'عرض وتعديل جدول كل فصل على حدة' : 'نظرة عامة على جميع حصصك في المدرسة'}
+                        {viewMode === 'SINGLE_CLASS' ? 'عرض وتعديل جدول كل فصل على حدة' : viewMode === 'TEACHER_VIEW' ? 'عرض جدول كل معلم بناءً على التوزيع' : viewMode === 'DAILY_MATRIX' ? 'عرض جميع الفصول ليوم محدد' : 'نظرة عامة على جميع الحصص'}
                     </p>
                 </div>
-                <div className="flex bg-gray-100 p-1 rounded-lg">
+                <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">
                     <button 
                         onClick={() => setViewMode('SINGLE_CLASS')} 
-                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${viewMode === 'SINGLE_CLASS' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all whitespace-nowrap ${viewMode === 'SINGLE_CLASS' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
                     >
                         جدول الفصل
                     </button>
                     <button 
+                        onClick={() => setViewMode('TEACHER_VIEW')} 
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all whitespace-nowrap ${viewMode === 'TEACHER_VIEW' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}
+                    >
+                        جدول المعلم
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('DAILY_MATRIX')} 
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all whitespace-nowrap ${viewMode === 'DAILY_MATRIX' ? 'bg-white shadow text-green-600' : 'text-gray-500'}`}
+                    >
+                        جدول اليوم
+                    </button>
+                    <button 
                         onClick={() => setViewMode('MASTER_VIEW')} 
-                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${viewMode === 'MASTER_VIEW' ? 'bg-white shadow text-purple-600' : 'text-gray-500'}`}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all whitespace-nowrap ${viewMode === 'MASTER_VIEW' ? 'bg-white shadow text-purple-600' : 'text-gray-500'}`}
                     >
                         الجدول الشامل
                     </button>
@@ -420,7 +539,7 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
             {/* --- SINGLE CLASS VIEW --- */}
             {viewMode === 'SINGLE_CLASS' && (
                 <div className="animate-fade-in space-y-6">
-                    <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end bg-gray-50 p-4 rounded-lg border">
+                    <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end bg-gray-50 p-4 rounded-lg border print:hidden">
                         
                         {/* Grade Filter */}
                         <div className="w-full md:w-auto">
@@ -467,24 +586,25 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                     </div>
                     
                     {msg && (
-                        <div className={`p-3 rounded-lg text-sm font-bold text-center border animate-bounce ${msg.type === 'error' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                        <div className={`p-3 rounded-lg text-sm font-bold text-center border animate-bounce print:hidden ${msg.type === 'error' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                             {msg.text}
                         </div>
                     )}
 
                     {selectedClassName ? (
-                        <div className="overflow-x-auto rounded-lg border border-gray-200">
+                        <div className="overflow-x-auto rounded-lg border border-gray-200 print:border-black print:overflow-visible">
+                            <div className="hidden print:block text-center font-bold text-xl mb-4 p-4">جدول الحصص - {selectedClassName}</div>
                             <table className="w-full text-center border-collapse">
                                 <thead>
-                                    <tr className="bg-gray-100 text-gray-700">
-                                        <th className="p-3 border text-sm w-32">اليوم / الحصة</th>
-                                        {periods.map(p => <th key={p} className="p-3 border text-sm">الحصة {p}</th>)}
+                                    <tr className="bg-gray-100 text-gray-700 print:bg-white print:text-black">
+                                        <th className="p-3 border text-sm w-32 print:border-black">اليوم / الحصة</th>
+                                        {periods.map(p => <th key={p} className="p-3 border text-sm print:border-black">الحصة {p}</th>)}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {days.map(day => (
-                                        <tr key={day} className="hover:bg-gray-50">
-                                            <td className="p-3 border font-bold bg-gray-50">{dayNameAr[day]}</td>
+                                        <tr key={day} className="hover:bg-gray-50 print:hover:bg-transparent">
+                                            <td className="p-3 border font-bold bg-gray-50 print:bg-white print:border-black">{dayNameAr[day]}</td>
                                             {periods.map(period => {
                                                 const session = schedules.find(s => s.classId === selectedClassName && s.day === day && s.period === period);
                                                 const hasConflict = checkForConflicts(day, period, selectedClassName);
@@ -493,14 +613,14 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                                                     <td 
                                                         key={period} 
                                                         onClick={() => handleCellClick(day, period)}
-                                                        className={`p-1 border cursor-pointer relative h-20 w-32 align-top transition-colors ${!session ? 'hover:bg-blue-50' : ''}`}
+                                                        className={`p-1 border cursor-pointer relative h-20 w-32 align-top transition-colors print:h-auto print:border-black print:p-2 ${!session ? 'hover:bg-blue-50' : ''}`}
                                                     >
                                                         {session ? (
-                                                            <div className={`w-full h-full rounded-md p-1 flex flex-col items-center justify-center relative group shadow-sm border ${getColorClass(session.subjectName)}`}>
+                                                            <div className={`w-full h-full rounded-md p-1 flex flex-col items-center justify-center relative group shadow-sm border print:shadow-none print:border-none ${getColorClass(session.subjectName)}`}>
                                                                 <span className="font-bold text-sm text-center line-clamp-2">{session.subjectName}</span>
                                                                 
                                                                 {/* Edit/Delete Overlay */}
-                                                                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity rounded-md backdrop-blur-[1px]">
+                                                                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity rounded-md backdrop-blur-[1px] print:hidden">
                                                                     <button 
                                                                         onClick={(e) => handleCellClear(e, session.id)} 
                                                                         className="bg-white text-red-500 p-1.5 rounded-full shadow hover:bg-red-50"
@@ -514,11 +634,11 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <div className="w-full h-full flex flex-col items-center justify-center">
+                                                            <div className="w-full h-full flex flex-col items-center justify-center print:hidden">
                                                                 <span className="text-gray-200 text-2xl select-none group-hover:text-blue-300">+</span>
                                                                 {hasConflict && (
                                                                     <span className="text-[9px] text-red-400 font-bold bg-red-50 px-1 rounded border border-red-100 mt-1">
-                                                                        مشغول: {hasConflict.classId}
+                                                                        ⚠️ تعارض
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -532,7 +652,7 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                             </table>
                         </div>
                     ) : (
-                        <div className="text-center py-20 text-gray-400 flex flex-col items-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                        <div className="text-center py-20 text-gray-400 flex flex-col items-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50 print:hidden">
                             <Calendar size={48} className="mb-4 opacity-20"/>
                             <p className="font-bold text-gray-600">جدول الحصص الدراسي</p>
                             <p className="text-sm mt-2">يرجى اختيار الفصل الدراسي من القائمة أعلاه لعرض وتعديل الجدول</p>
@@ -541,13 +661,168 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                 </div>
             )}
 
-            {/* --- TEACHER MASTER VIEW --- */}
+            {/* --- TEACHER VIEW --- */}
+            {viewMode === 'TEACHER_VIEW' && (
+                <div className="animate-fade-in space-y-6">
+                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm flex items-center justify-between gap-4 print:hidden">
+                        <div className="flex items-center gap-4">
+                            <label className="font-bold text-gray-700 flex items-center gap-2">
+                                <User size={18} className="text-blue-600"/> اختر المعلم:
+                            </label>
+                            <select 
+                                className="p-2 border rounded-lg bg-gray-50 min-w-[250px] outline-none focus:ring-2 focus:ring-blue-500"
+                                value={selectedTeacherId}
+                                onChange={(e) => setSelectedTeacherId(e.target.value)}
+                            >
+                                <option value="">-- اختر المعلم --</option>
+                                {teachers.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {selectedTeacherId && (
+                            <button onClick={handlePrint} className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-black transition-colors text-sm">
+                                <Printer size={16}/> طباعة الجدول
+                            </button>
+                        )}
+                    </div>
+
+                    {selectedTeacherId ? (
+                        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white print:border-black">
+                            <div className="hidden print:block text-center font-bold text-xl mb-4 p-4 border-b border-black">
+                                جدول المعلم: {teachers.find(t => t.id === selectedTeacherId)?.name}
+                            </div>
+                            <table className="w-full text-center border-collapse">
+                                <thead>
+                                    <tr className="bg-blue-50 text-blue-900 print:bg-white print:text-black">
+                                        <th className="p-3 border text-sm w-32 print:border-black">اليوم / الحصة</th>
+                                        {periods.map(p => <th key={p} className="p-3 border text-sm print:border-black">الحصة {p}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {days.map(day => (
+                                        <tr key={day} className="hover:bg-gray-50 print:hover:bg-transparent">
+                                            <td className="p-3 border font-bold bg-gray-50 print:bg-white print:border-black">{dayNameAr[day]}</td>
+                                            {periods.map(period => {
+                                                // Find any session where this teacher is assigned
+                                                const mySession = schedules.find(s => {
+                                                    if (s.day !== day || s.period !== period) return false;
+                                                    const assignment = teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
+                                                    return assignment?.teacherId === selectedTeacherId;
+                                                });
+
+                                                // Check for conflict (double booking)
+                                                const conflictSessions = schedules.filter(s => {
+                                                    if (s.day !== day || s.period !== period) return false;
+                                                    const assignment = teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
+                                                    return assignment?.teacherId === selectedTeacherId;
+                                                });
+                                                const hasConflict = conflictSessions.length > 1;
+
+                                                return (
+                                                    <td key={period} className="p-1 border h-24 w-40 align-top print:h-auto print:border-black print:p-2">
+                                                        {mySession ? (
+                                                            <div className={`w-full h-full rounded-md p-2 flex flex-col items-center justify-center shadow-sm border print:shadow-none print:border-none ${hasConflict ? 'bg-red-100 border-red-300 print:bg-gray-100' : 'bg-blue-100 border-blue-200 print:bg-white'}`}>
+                                                                <span className="font-black text-lg text-gray-800">{mySession.classId}</span>
+                                                                <span className="text-xs text-gray-600 mt-1">{mySession.subjectName}</span>
+                                                                {hasConflict && <span className="text-[10px] bg-red-600 text-white px-2 rounded mt-1 font-bold print:text-black print:bg-transparent print:border print:border-black">تعارض!</span>}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-200 text-2xl select-none print:hidden">-</span>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 text-gray-400 flex flex-col items-center">
+                            <User size={48} className="mb-4 opacity-20"/>
+                            <p>اختر معلماً لعرض جدوله الدراسي</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* --- DAILY MATRIX VIEW (NEW) --- */}
+            {viewMode === 'DAILY_MATRIX' && (
+                <div className="animate-fade-in space-y-6">
+                    <div className="bg-white p-4 rounded-lg border border-green-100 shadow-sm flex items-center justify-between gap-4 print:hidden">
+                        <div className="flex items-center gap-4">
+                            <label className="font-bold text-gray-700 flex items-center gap-2">
+                                <Calendar size={18} className="text-green-600"/> اختر اليوم:
+                            </label>
+                            <select 
+                                className="p-2 border rounded-lg bg-gray-50 min-w-[200px] outline-none focus:ring-2 focus:ring-green-500"
+                                value={selectedMatrixDay}
+                                onChange={(e) => setSelectedMatrixDay(e.target.value as DayOfWeek)}
+                            >
+                                {days.map(d => <option key={d} value={d}>{dayNameAr[d]}</option>)}
+                            </select>
+                        </div>
+                        <button onClick={handlePrint} className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-black transition-colors text-sm">
+                            <Printer size={16}/> طباعة
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white print:border-black">
+                        <div className="hidden print:block text-center font-bold text-xl mb-4 p-4 border-b border-black">
+                            الجدول اليومي العام - يوم {dayNameAr[selectedMatrixDay]}
+                        </div>
+                        <table className="w-full text-center border-collapse">
+                            <thead>
+                                <tr className="bg-green-50 text-green-900 print:bg-white print:text-black">
+                                    <th className="p-3 border text-sm w-32 font-bold print:border-black">الفصل / الحصة</th>
+                                    {periods.map(p => <th key={p} className="p-3 border text-sm font-bold print:border-black">الحصة {p}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {uniqueClasses.map(classId => (
+                                    <tr key={classId} className="hover:bg-gray-50 print:hover:bg-transparent">
+                                        <td className="p-3 border font-bold bg-gray-50 print:bg-white print:border-black text-gray-800">{classId}</td>
+                                        {periods.map(period => {
+                                            const session = schedules.find(s => s.classId === classId && s.day === selectedMatrixDay && s.period === period);
+                                            // Find assigned teacher if session exists
+                                            let teacherName = '';
+                                            if (session) {
+                                                const assignment = teacherAssignments.find(ta => ta.classId === session.classId && ta.subjectName === session.subjectName);
+                                                if (assignment) {
+                                                    const t = teachers.find(tea => tea.id === assignment.teacherId);
+                                                    teacherName = t ? t.name : '';
+                                                }
+                                            }
+
+                                            return (
+                                                <td key={period} className="p-1 border h-16 w-32 print:h-auto print:border-black print:p-1">
+                                                    {session ? (
+                                                        <div className={`w-full h-full flex flex-col items-center justify-center p-1 rounded ${getColorClass(session.subjectName)} print:border-none print:shadow-none bg-opacity-20`}>
+                                                            <span className="font-bold text-xs">{session.subjectName}</span>
+                                                            {teacherName && <span className="text-[10px] mt-1 truncate w-full text-center opacity-80">{teacherName}</span>}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-200 text-xl select-none print:hidden">-</span>
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* --- MASTER VIEW --- */}
             {viewMode === 'MASTER_VIEW' && (
-                <div className="animate-fade-in bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="animate-fade-in bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:hidden">
                     <div className="p-4 bg-purple-50 border-b border-purple-100">
                         <div className="flex items-center gap-2 text-purple-800 font-bold text-sm">
                             <AlertCircle size={16}/>
-                            هذا الجدول يعرض جميع حصصك موزعة على أيام الأسبوع.
+                            هذا الجدول يعرض جميع حصص المدرسة موزعة على أيام الأسبوع.
                         </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -565,20 +840,18 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                                         {periods.map(period => {
                                             // In master view, we find ANY schedule for this day/period
                                             const sessions = schedules.filter(s => s.day === day && s.period === period);
-                                            const hasConflict = sessions.length > 1;
                                             
                                             return (
                                                 <td key={period} className="p-1 border h-24 w-40 align-top">
                                                     {sessions.length > 0 ? (
-                                                        <div className="flex flex-col gap-1 h-full justify-center">
+                                                        <div className="flex flex-col gap-1 h-full justify-center overflow-y-auto max-h-24 custom-scrollbar">
                                                             {sessions.map(session => (
                                                                 <div 
                                                                     key={session.id}
-                                                                    className={`p-1.5 rounded-lg text-xs border shadow-sm flex flex-col items-center justify-center ${hasConflict ? 'bg-red-100 text-red-800 border-red-300 animate-pulse' : getColorClass(session.classId)}`}
+                                                                    className={`p-1 rounded text-[10px] font-bold border flex justify-between items-center ${getColorClass(session.classId)}`}
                                                                 >
-                                                                    <div className="font-bold text-sm mb-0.5">{session.classId}</div>
-                                                                    <div className="opacity-90">{session.subjectName}</div>
-                                                                    {hasConflict && <div className="text-[9px] font-black text-red-600 mt-1 flex items-center gap-1"><AlertCircle size={8}/> تعارض!</div>}
+                                                                    <span>{session.classId}</span>
+                                                                    <span className="opacity-75">{session.subjectName}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
