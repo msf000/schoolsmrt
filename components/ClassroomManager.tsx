@@ -1,14 +1,14 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, PerformanceRecord } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music } from 'lucide-react';
 
 interface ClassroomManagerProps {
     students: Student[];
-    performance?: PerformanceRecord[]; // New Prop
+    performance?: PerformanceRecord[];
     onLaunchScreen: () => void;
     onNavigateToAttendance: () => void;
-    onSaveSeating?: (students: Student[]) => void; // New prop for saving
+    onSaveSeating?: (students: Student[]) => void;
 }
 
 interface HallPass {
@@ -23,7 +23,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
     const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING'>('TOOLS');
     const [selectedClass, setSelectedClass] = useState('');
 
-    // --- Derived State ---
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
@@ -48,7 +47,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
                     <p className="text-gray-500 mt-2">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
                 </div>
                 
-                {/* Global Class Selector */}
                 <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-500 px-2">الفصل الحالي:</span>
                     <select 
@@ -61,7 +59,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
                 </div>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-4 mb-6 border-b border-gray-200">
                 <button 
                     onClick={() => setActiveTab('TOOLS')}
@@ -123,23 +120,157 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
                         </div>
 
                         {/* Widgets Area */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* 1. Digital Hall Pass */}
-                            <HallPassWidget students={classStudents} className={selectedClass} />
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Column 1 */}
+                            <div className="space-y-6">
+                                <TrafficLightWidget />
+                                <MiniTimerWidget />
+                            </div>
 
-                            {/* 2. Traffic Light (Discipline) */}
-                            <TrafficLightWidget />
+                            {/* Column 2 */}
+                            <div className="space-y-6">
+                                <QuickPollWidget />
+                                <SoundBoardWidget />
+                            </div>
 
-                            {/* 3. Quick Poll */}
-                            <QuickPollWidget />
-
-                            {/* 4. Lesson Notes */}
-                            <LessonNoteWidget className={selectedClass} />
+                            {/* Column 3 */}
+                            <div className="space-y-6">
+                                <HallPassWidget students={classStudents} className={selectedClass} />
+                                <LessonNoteWidget className={selectedClass} />
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'SEATING' && <SeatingChart students={students} performance={performance} onSaveSeating={onSaveSeating} preSelectedClass={selectedClass} />}
+            </div>
+        </div>
+    );
+};
+
+// --- Widget: Mini Timer ---
+const MiniTimerWidget: React.FC = () => {
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [duration, setDuration] = useState(300); // 5 mins default
+    const [isActive, setIsActive] = useState(false);
+    const intervalRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (isActive && timeLeft > 0) {
+            intervalRef.current = window.setInterval(() => {
+                setTimeLeft(prev => prev - 1);
+            }, 1000);
+        } else if (timeLeft === 0) {
+            setIsActive(false);
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [isActive, timeLeft]);
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const startTimer = (mins: number) => {
+        const secs = mins * 60;
+        setDuration(secs);
+        setTimeLeft(secs);
+        setIsActive(true);
+    };
+
+    const toggleTimer = () => setIsActive(!isActive);
+    const resetTimer = () => {
+        setIsActive(false);
+        setTimeLeft(duration);
+    };
+
+    const progress = timeLeft > 0 ? (timeLeft / duration) * 100 : 0;
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-indigo-50 flex justify-between items-center">
+                <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-sm">
+                    <Clock size={16}/> مؤقت النشاط
+                </h3>
+            </div>
+            
+            <div className="flex-1 flex flex-col items-center justify-center p-4 bg-slate-50 relative">
+                <div className="absolute top-2 right-2 text-xs font-mono text-gray-400">{isActive ? 'جاري...' : 'متوقف'}</div>
+                
+                <div className="text-5xl font-black text-gray-700 font-mono mb-4 tracking-wider">
+                    {formatTime(timeLeft)}
+                </div>
+
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-6 overflow-hidden">
+                    <div className="bg-indigo-500 h-2 transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                </div>
+
+                <div className="flex gap-2 w-full">
+                    <button onClick={toggleTimer} className={`flex-1 py-2 rounded-lg text-white font-bold transition-all shadow-sm flex justify-center items-center ${isActive ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700'}`}>
+                        {isActive ? <Pause size={18}/> : <Play size={18}/>}
+                    </button>
+                    <button onClick={resetTimer} className="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors shadow-sm">
+                        <RotateCcw size={18}/>
+                    </button>
+                </div>
+
+                <div className="flex gap-1 w-full mt-2">
+                    <button onClick={() => startTimer(1)} className="flex-1 py-1 bg-white border border-gray-200 rounded text-[10px] font-bold text-gray-600 hover:bg-indigo-50 hover:text-indigo-700">1د</button>
+                    <button onClick={() => startTimer(5)} className="flex-1 py-1 bg-white border border-gray-200 rounded text-[10px] font-bold text-gray-600 hover:bg-indigo-50 hover:text-indigo-700">5د</button>
+                    <button onClick={() => startTimer(10)} className="flex-1 py-1 bg-white border border-gray-200 rounded text-[10px] font-bold text-gray-600 hover:bg-indigo-50 hover:text-indigo-700">10د</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Widget: Sound Board ---
+const SoundBoardWidget: React.FC = () => {
+    // Note: Since we can't bundle MP3s easily in this environment, 
+    // we simulate the "Action" with visual feedback. 
+    const [playing, setPlaying] = useState<string | null>(null);
+
+    const playSound = (id: string) => {
+        setPlaying(id);
+        // In a real app, new Audio('/sounds/clap.mp3').play();
+        setTimeout(() => setPlaying(null), 1000);
+    };
+
+    const sounds = [
+        { id: 'clap', label: 'تصفيق', icon: '👏', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+        { id: 'correct', label: 'إجابة صحيحة', icon: '✅', color: 'bg-green-100 text-green-700 border-green-200' },
+        { id: 'wrong', label: 'حاول مرة أخرى', icon: '❌', color: 'bg-red-100 text-red-700 border-red-200' },
+        { id: 'drum', label: 'طبلة', icon: '🥁', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+        { id: 'quiet', label: 'هجوم هادئ', icon: '🤫', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+        { id: 'bell', label: 'جرس', icon: '🔔', color: 'bg-orange-100 text-orange-700 border-orange-200' },
+    ];
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-pink-50 flex justify-between items-center">
+                <h3 className="font-bold text-pink-800 flex items-center gap-2 text-sm">
+                    <Volume2 size={16}/> المؤثرات الصوتية
+                </h3>
+            </div>
+            <div className="flex-1 p-4 grid grid-cols-2 gap-3 bg-pink-50/20">
+                {sounds.map(s => (
+                    <button 
+                        key={s.id}
+                        onClick={() => playSound(s.id)}
+                        className={`
+                            flex flex-col items-center justify-center p-2 rounded-lg border transition-all active:scale-95
+                            ${s.color} hover:brightness-95
+                            ${playing === s.id ? 'ring-2 ring-offset-1 ring-current scale-95' : ''}
+                        `}
+                    >
+                        <span className="text-2xl mb-1">{s.icon}</span>
+                        <span className="text-xs font-bold">{s.label}</span>
+                    </button>
+                ))}
             </div>
         </div>
     );
@@ -157,10 +288,9 @@ const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ 
         localStorage.setItem('active_hall_passes', JSON.stringify(passes));
     }, [passes]);
 
-    // Timer updater
     const [, setTick] = useState(0);
     useEffect(() => {
-        const interval = setInterval(() => setTick(t => t + 1), 1000 * 60); // Update every minute
+        const interval = setInterval(() => setTick(t => t + 1), 1000 * 60); 
         return () => clearInterval(interval);
     }, []);
 
@@ -169,7 +299,6 @@ const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ 
         const student = students.find(s => s.id === selectedStudent);
         if (!student) return;
 
-        // Check if already out
         if (passes.find(p => p.studentId === student.id)) {
             alert('الطالب خارج الفصل بالفعل!');
             return;
@@ -197,17 +326,17 @@ const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ 
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
-            <div className="p-4 border-b bg-orange-50 flex justify-between items-center">
-                <h3 className="font-bold text-orange-800 flex items-center gap-2">
-                    <DoorOpen size={18}/> تصريح الخروج (Hall Pass)
+            <div className="p-3 border-b bg-orange-50 flex justify-between items-center">
+                <h3 className="font-bold text-orange-800 flex items-center gap-2 text-sm">
+                    <DoorOpen size={16}/> تصريح الخروج
                 </h3>
-                <span className="bg-orange-200 text-orange-800 text-xs px-2 py-1 rounded-full font-bold">{passes.length} بالخارج</span>
+                <span className="bg-orange-200 text-orange-800 text-[10px] px-2 py-0.5 rounded-full font-bold">{passes.length} بالخارج</span>
             </div>
             
-            <div className="p-4 bg-gray-50 border-b">
+            <div className="p-3 bg-gray-50 border-b">
                 <div className="flex gap-2 mb-2">
                     <select 
-                        className="flex-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-200"
+                        className="flex-1 p-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-200"
                         value={selectedStudent}
                         onChange={e => setSelectedStudent(e.target.value)}
                     >
@@ -216,33 +345,33 @@ const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ 
                     </select>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => handleCheckout('دورة مياه')} disabled={!selectedStudent} className="flex-1 bg-white border border-gray-200 text-gray-700 py-1.5 rounded hover:bg-blue-50 text-xs font-bold disabled:opacity-50">💧 دورة مياه</button>
-                    <button onClick={() => handleCheckout('العيادة')} disabled={!selectedStudent} className="flex-1 bg-white border border-gray-200 text-gray-700 py-1.5 rounded hover:bg-red-50 text-xs font-bold disabled:opacity-50">🏥 عيادة</button>
-                    <button onClick={() => handleCheckout('الإدارة')} disabled={!selectedStudent} className="flex-1 bg-white border border-gray-200 text-gray-700 py-1.5 rounded hover:bg-purple-50 text-xs font-bold disabled:opacity-50">🏢 إدارة</button>
+                    <button onClick={() => handleCheckout('دورة مياه')} disabled={!selectedStudent} className="flex-1 bg-white border border-gray-200 text-gray-700 py-1 rounded hover:bg-blue-50 text-[10px] font-bold disabled:opacity-50">💧 مياه</button>
+                    <button onClick={() => handleCheckout('العيادة')} disabled={!selectedStudent} className="flex-1 bg-white border border-gray-200 text-gray-700 py-1 rounded hover:bg-red-50 text-[10px] font-bold disabled:opacity-50">🏥 عيادة</button>
+                    <button onClick={() => handleCheckout('الإدارة')} disabled={!selectedStudent} className="flex-1 bg-white border border-gray-200 text-gray-700 py-1 rounded hover:bg-purple-50 text-[10px] font-bold disabled:opacity-50">🏢 إدارة</button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                 {passes.length > 0 ? passes.map(pass => (
-                    <div key={pass.id} className="flex items-center justify-between p-3 bg-white border border-orange-100 rounded-lg shadow-sm animate-fade-in border-r-4 border-r-orange-400">
+                    <div key={pass.id} className="flex items-center justify-between p-2 bg-white border border-orange-100 rounded-lg shadow-sm animate-fade-in border-r-4 border-r-orange-400">
                         <div>
-                            <div className="font-bold text-gray-800 text-sm">{pass.studentName}</div>
-                            <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
-                                <span className="bg-gray-100 px-1.5 rounded">{pass.reason}</span>
-                                <span className="flex items-center gap-1 text-orange-600 font-bold"><Clock size={10}/> منذ {getDuration(pass.startTime)}</span>
+                            <div className="font-bold text-gray-800 text-xs">{pass.studentName}</div>
+                            <div className="text-[10px] text-gray-500 flex items-center gap-2 mt-0.5">
+                                <span className="bg-gray-100 px-1 rounded">{pass.reason}</span>
+                                <span className="flex items-center gap-1 text-orange-600 font-bold"><Clock size={10}/> {getDuration(pass.startTime)}</span>
                             </div>
                         </div>
                         <button 
                             onClick={() => handleReturn(pass.id)}
-                            className="p-2 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition-colors"
+                            className="p-1.5 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition-colors"
                             title="تسجيل عودة"
                         >
-                            <LogOut size={16} className="transform rotate-180"/>
+                            <LogOut size={14} className="transform rotate-180"/>
                         </button>
                     </div>
                 )) : (
                     <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50">
-                        <DoorOpen size={40} className="mb-2"/>
+                        <DoorOpen size={32} className="mb-2"/>
                         <p className="text-xs">الجميع داخل الفصل</p>
                     </div>
                 )}
@@ -256,37 +385,36 @@ const TrafficLightWidget: React.FC = () => {
     const [activeLight, setActiveLight] = useState<'RED' | 'YELLOW' | 'GREEN'>('GREEN');
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
-            <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                    <AlertCircle size={18}/> إشارة الانضباط
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-slate-50 flex justify-between items-center">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
+                    <AlertCircle size={16}/> إشارة الانضباط
                 </h3>
             </div>
-            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-100">
-                <div className="bg-slate-800 p-4 rounded-3xl shadow-2xl flex flex-row gap-4 items-center">
+            <div className="flex-1 flex flex-col items-center justify-center p-4 bg-slate-100">
+                <div className="bg-slate-800 p-3 rounded-2xl shadow-xl flex flex-row gap-3 items-center">
                     <button 
                         onClick={() => setActiveLight('RED')}
-                        className={`w-16 h-16 rounded-full transition-all duration-300 border-4 border-slate-700 ${activeLight === 'RED' ? 'bg-red-500 shadow-[0_0_30px_rgba(239,68,68,0.6)] scale-110' : 'bg-red-900 opacity-50'}`}
+                        className={`w-12 h-12 rounded-full transition-all duration-300 border-4 border-slate-700 ${activeLight === 'RED' ? 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.6)] scale-110' : 'bg-red-900 opacity-50'}`}
                         title="صمت تام / عمل فردي"
                     />
                     <button 
                         onClick={() => setActiveLight('YELLOW')}
-                        className={`w-16 h-16 rounded-full transition-all duration-300 border-4 border-slate-700 ${activeLight === 'YELLOW' ? 'bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.6)] scale-110' : 'bg-yellow-900 opacity-50'}`}
+                        className={`w-12 h-12 rounded-full transition-all duration-300 border-4 border-slate-700 ${activeLight === 'YELLOW' ? 'bg-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.6)] scale-110' : 'bg-yellow-900 opacity-50'}`}
                         title="همس / عمل ثنائي"
                     />
                     <button 
                         onClick={() => setActiveLight('GREEN')}
-                        className={`w-16 h-16 rounded-full transition-all duration-300 border-4 border-slate-700 ${activeLight === 'GREEN' ? 'bg-green-500 shadow-[0_0_30px_rgba(34,197,94,0.6)] scale-110' : 'bg-green-900 opacity-50'}`}
+                        className={`w-12 h-12 rounded-full transition-all duration-300 border-4 border-slate-700 ${activeLight === 'GREEN' ? 'bg-green-500 shadow-[0_0_20px_rgba(34,197,94,0.6)] scale-110' : 'bg-green-900 opacity-50'}`}
                         title="مسموح الكلام / عمل جماعي"
                     />
                 </div>
-                <div className="mt-6 text-center">
-                    <h4 className="font-black text-xl text-slate-700 mb-1">
-                        {activeLight === 'RED' && '🔴 صمت تام / انتباه'}
-                        {activeLight === 'YELLOW' && '🟡 صوت منخفض (همس)'}
+                <div className="mt-4 text-center">
+                    <h4 className="font-black text-lg text-slate-700 mb-1">
+                        {activeLight === 'RED' && '🔴 صمت تام'}
+                        {activeLight === 'YELLOW' && '🟡 همس فقط'}
                         {activeLight === 'GREEN' && '🟢 مسموح النقاش'}
                     </h4>
-                    <p className="text-xs text-slate-500">اضغط على اللون لتغيير حالة الفصل</p>
                 </div>
             </div>
         </div>
@@ -299,42 +427,37 @@ const QuickPollWidget: React.FC = () => {
     const total = counts.a + counts.b;
     
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
-            <div className="p-4 border-b bg-blue-50 flex justify-between items-center">
-                <h3 className="font-bold text-blue-800 flex items-center gap-2">
-                    <BarChart2 size={18}/> تصويت سريع
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-blue-50 flex justify-between items-center">
+                <h3 className="font-bold text-blue-800 flex items-center gap-2 text-sm">
+                    <BarChart2 size={16}/> تصويت سريع
                 </h3>
                 <button onClick={() => setCounts({a:0, b:0})} className="p-1 hover:bg-blue-100 rounded text-blue-600" title="تصفير">
-                    <RotateCcw size={16}/>
+                    <RotateCcw size={14}/>
                 </button>
             </div>
             
-            <div className="flex-1 flex flex-col p-6">
-                <div className="flex gap-4 flex-1">
+            <div className="flex-1 flex flex-col p-4">
+                <div className="flex gap-3 flex-1">
                     {/* Option A */}
-                    <div className="flex-1 bg-green-50 rounded-xl border border-green-100 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+                    <div className="flex-1 bg-green-50 rounded-lg border border-green-100 p-2 flex flex-col items-center justify-center relative overflow-hidden">
                         <div className="absolute bottom-0 left-0 right-0 bg-green-200 transition-all duration-500 opacity-30" style={{ height: `${total ? (counts.a / total) * 100 : 0}%` }}></div>
-                        <h4 className="font-bold text-green-800 mb-2 z-10">موافق / (أ)</h4>
-                        <span className="text-4xl font-black text-green-600 z-10">{counts.a}</span>
-                        <div className="flex gap-2 mt-4 z-10">
-                            <button onClick={() => setCounts(p => ({...p, a: p.a + 1}))} className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 shadow">+</button>
-                            <button onClick={() => setCounts(p => ({...p, a: Math.max(0, p.a - 1)}))} className="w-8 h-8 rounded-full bg-white text-green-600 border border-green-200 flex items-center justify-center hover:bg-green-50">-</button>
+                        <span className="text-3xl font-black text-green-600 z-10">{counts.a}</span>
+                        <h4 className="font-bold text-green-800 text-xs mb-2 z-10">موافق (أ)</h4>
+                        <div className="flex gap-1 z-10 w-full">
+                            <button onClick={() => setCounts(p => ({...p, a: p.a + 1}))} className="flex-1 h-8 rounded bg-green-500 text-white hover:bg-green-600 shadow text-lg font-bold">+</button>
                         </div>
                     </div>
 
                     {/* Option B */}
-                    <div className="flex-1 bg-red-50 rounded-xl border border-red-100 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+                    <div className="flex-1 bg-red-50 rounded-lg border border-red-100 p-2 flex flex-col items-center justify-center relative overflow-hidden">
                         <div className="absolute bottom-0 left-0 right-0 bg-red-200 transition-all duration-500 opacity-30" style={{ height: `${total ? (counts.b / total) * 100 : 0}%` }}></div>
-                        <h4 className="font-bold text-red-800 mb-2 z-10">غير موافق / (ب)</h4>
-                        <span className="text-4xl font-black text-red-600 z-10">{counts.b}</span>
-                        <div className="flex gap-2 mt-4 z-10">
-                            <button onClick={() => setCounts(p => ({...p, b: p.b + 1}))} className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow">+</button>
-                            <button onClick={() => setCounts(p => ({...p, b: Math.max(0, p.b - 1)}))} className="w-8 h-8 rounded-full bg-white text-red-600 border border-red-200 flex items-center justify-center hover:bg-red-50">-</button>
+                        <span className="text-3xl font-black text-red-600 z-10">{counts.b}</span>
+                        <h4 className="font-bold text-red-800 text-xs mb-2 z-10">ضد (ب)</h4>
+                        <div className="flex gap-1 z-10 w-full">
+                            <button onClick={() => setCounts(p => ({...p, b: p.b + 1}))} className="flex-1 h-8 rounded bg-red-500 text-white hover:bg-red-600 shadow text-lg font-bold">+</button>
                         </div>
                     </div>
-                </div>
-                <div className="mt-4 text-center text-xs text-gray-400">
-                    إجمالي الأصوات: {total}
                 </div>
             </div>
         </div>
@@ -363,32 +486,27 @@ const LessonNoteWidget: React.FC<{ className: string }> = ({ className }) => {
 
     return (
         <div className="bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden flex flex-col h-80 relative">
-            {/* Sticky Note Visual Effect */}
             <div className="absolute top-0 right-0 w-8 h-8 bg-yellow-100 border-b border-l border-yellow-300 rounded-bl-xl z-10 shadow-sm"></div>
             
-            <div className="p-4 border-b border-yellow-100 flex justify-between items-center pt-5">
-                <h3 className="font-bold text-yellow-800 flex items-center gap-2">
-                    <StickyNote size={18}/> مذكرة الفصل ({className})
+            <div className="p-3 border-b border-yellow-100 flex justify-between items-center pt-4">
+                <h3 className="font-bold text-yellow-800 flex items-center gap-2 text-sm">
+                    <StickyNote size={16}/> سبورة الملاحظات
                 </h3>
                 <button 
                     onClick={handleSave} 
-                    className="text-xs bg-yellow-200 text-yellow-800 px-3 py-1 rounded-lg font-bold hover:bg-yellow-300 transition-colors"
+                    className="text-[10px] bg-yellow-200 text-yellow-900 px-2 py-1 rounded hover:bg-yellow-300 transition-colors font-bold"
                 >
                     حفظ
                 </button>
             </div>
             
             <textarea 
-                className="flex-1 bg-transparent p-6 outline-none text-gray-700 leading-relaxed resize-none text-sm font-medium"
+                className="flex-1 bg-transparent p-4 outline-none text-gray-700 leading-relaxed resize-none text-sm font-medium"
                 placeholder="أكتب هنا ملاحظات الدرس... (مثال: توقفنا عند ص 45، واجب تمرين 3...)"
                 value={currentNote}
                 onChange={e => setCurrentNote(e.target.value)}
-                onBlur={handleSave} // Auto save on blur
+                onBlur={handleSave}
             />
-            
-            <div className="p-2 text-[10px] text-yellow-600 text-center opacity-70">
-                يتم حفظ الملاحظة تلقائياً لهذا الفصل
-            </div>
         </div>
     );
 };
@@ -402,7 +520,6 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
     const [arrangeMode, setArrangeMode] = useState<string>('ALPHA');
     const [saveStatus, setSaveStatus] = useState<'IDLE' | 'SAVING' | 'SUCCESS'>('IDLE');
 
-    // Update internal state when parent selector changes
     useEffect(() => {
         if(preSelectedClass) setSelectedClass(preSelectedClass);
     }, [preSelectedClass]);
@@ -418,7 +535,6 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
     }, [uniqueClasses]);
 
     useEffect(() => {
-        // Initialize local state
         const classStudents = students.filter(s => s.className === selectedClass);
         const mapped = classStudents.map((s, idx) => ({
             ...s,
@@ -427,7 +543,6 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
         setLocalStudents(mapped);
     }, [selectedClass, students]);
 
-    // Grid Helpers
     const totalSeats = Math.max(localStudents.length, 20);
     const gridCells = Array.from({ length: totalSeats }, (_, i) => i);
 
@@ -477,42 +592,33 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
             sorted.sort(() => Math.random() - 0.5);
         } 
         else if (type === 'LEVEL_HIGH_FRONT') {
-            // Sort Descending (Highest score first -> Seat 0)
             sorted.sort((a, b) => getStudentAverage(b.id) - getStudentAverage(a.id));
         } 
         else if (type === 'LEVEL_HIGH_BACK') {
-            // Sort Ascending (Lowest score first -> Seat 0, Highest -> Seat N)
             sorted.sort((a, b) => getStudentAverage(a.id) - getStudentAverage(b.id));
         }
         else if (type === 'MIXED') {
-            // Heterogeneous grouping: High with Low (Pairing)
-            // 1. Sort by Score
             const byScore = [...localStudents].sort((a, b) => getStudentAverage(b.id) - getStudentAverage(a.id));
             const mixed: Student[] = [];
             let left = 0;
             let right = byScore.length - 1;
-            
             while (left <= right) {
-                mixed.push(byScore[left]); // High
-                if (left !== right) mixed.push(byScore[right]); // Low
+                mixed.push(byScore[left]);
+                if (left !== right) mixed.push(byScore[right]);
                 left++;
                 right--;
             }
             sorted = mixed;
         }
 
-        // Apply Seat Indices
         const remapped = sorted.map((s, idx) => ({ ...s, seatIndex: idx }));
         setLocalStudents(remapped);
     };
 
     const handleSaveChanges = () => {
         if (!onSaveSeating) return;
-        
         setSaveStatus('SAVING');
-        // Call the app-level save function
         onSaveSeating(localStudents);
-        
         setTimeout(() => {
             setSaveStatus('SUCCESS');
             setTimeout(() => setSaveStatus('IDLE'), 3000);
@@ -521,7 +627,6 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
 
     return (
         <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {/* Toolbar */}
             <div className="p-4 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
                     <select 
@@ -575,18 +680,8 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
                 </div>
             </div>
 
-            {/* Success Banner */}
-            {saveStatus === 'SUCCESS' && (
-                <div className="bg-green-100 text-green-800 text-sm font-bold text-center py-2 animate-fade-in border-b border-green-200 flex items-center justify-center gap-2">
-                    <CheckCircle size={16}/>
-                    تم حفظ مخطط الجلوس بنجاح وتحديث قاعدة البيانات.
-                </div>
-            )}
-
-            {/* Grid Area */}
             <div className="flex-1 overflow-auto p-4 md:p-8 bg-slate-100 flex justify-center">
                 <div className="w-full max-w-5xl">
-                    {/* Blackboard Visual */}
                     <div className="w-2/3 mx-auto h-12 bg-gray-800 rounded-b-xl mb-10 shadow-lg flex items-center justify-center text-gray-400 text-xs tracking-widest border-t-4 border-gray-600">
                         السبورة (المقدمة)
                     </div>
@@ -600,7 +695,6 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
                             const isSelected = student?.id === selectedForSwap;
                             const avg = student ? getStudentAverage(student.id) : 0;
                             
-                            // Visual indicator for level (Optional visualization during arrangement)
                             let levelColor = 'bg-gray-100';
                             if (arrangeMode.includes('LEVEL') || arrangeMode === 'MIXED') {
                                 if (avg >= 0.85) levelColor = 'bg-green-100 text-green-700';
@@ -628,7 +722,6 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
                                             <span className="text-xs md:text-sm font-bold text-gray-800 line-clamp-2 leading-tight">
                                                 {student.name}
                                             </span>
-                                            {/* Tooltip for avg */}
                                             {(arrangeMode.includes('LEVEL') || arrangeMode === 'MIXED') && (
                                                 <div className="absolute top-1 right-1 text-[8px] opacity-50 font-mono">
                                                     {(avg * 100).toFixed(0)}%

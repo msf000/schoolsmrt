@@ -125,7 +125,7 @@ const AdminOverview = () => {
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="text-gray-500 w-24">كلمة المرور:</span>
-                                <span className="text-white font-bold select-all">SchoolSystem2025!</span>
+                                <span className="text-white font-bold select-all">123</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="text-gray-500 w-24">الصلاحية:</span>
@@ -570,8 +570,7 @@ NOTIFY pgrst, 'reload schema';
 `;
 
 const SUPABASE_SCHEMA_SQL = `
--- ⚠️ تحذير: هذا السكربت سيقوم بحذف جميع البيانات الموجودة في الجداول المحددة
--- الغرض: تنظيف قاعدة البيانات وإعادة بنائها مع سياسات الأمان الصحيحة للرفع
+-- ⚠️ تحذير: هذا السكربت سيقوم بحذف جميع البيانات وإعادة بنائها بأسماء أعمدة متوافقة (snake_case)
 
 -- 1. حذف الجداول القديمة
 DROP TABLE IF EXISTS public.performance_records CASCADE;
@@ -589,7 +588,7 @@ DROP TABLE IF EXISTS public.schools CASCADE;
 DROP TABLE IF EXISTS public.assignments CASCADE;
 DROP TABLE IF EXISTS public.messages CASCADE;
 
--- 2. إنشاء الجداول
+-- 2. إنشاء الجداول بأسماء أعمدة snake_case
 
 create table public.schools (
   id text primary key,
@@ -736,10 +735,7 @@ create table public.messages (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
--- 3. تفعيل الأمان وإضافة السياسات (مهم جداً للرفع)
-
--- Helper macro not available in standard SQL here, so we repeat for each table
--- السماح للجميع (Anon) بالقراءة والكتابة في هذا النظام التجريبي
+-- 3. تفعيل الأمان (RLS)
 
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Access" ON public.schools;

@@ -77,9 +77,10 @@ const loadAll = () => {
     _schedules = loadLocal(STORAGE_KEYS.SCHEDULES, []);
     _schools = loadLocal(STORAGE_KEYS.SCHOOLS, []);
     
-    // Users Logic: Ensure Admin Exists
+    // Users Logic: Ensure Admin Exists ALWAYS
     _users = loadLocal(STORAGE_KEYS.USERS, []);
-    if (_users.length === 0) {
+    const adminExists = _users.some(u => u.email === 'admin@school.com');
+    if (!adminExists || _users.length === 0) {
         const defaultAdmin: SystemUser = {
             id: 'default_admin',
             name: 'المدير العام',
@@ -88,7 +89,7 @@ const loadAll = () => {
             role: 'SUPER_ADMIN',
             status: 'ACTIVE'
         };
-        _users.push(defaultAdmin);
+        _users = [defaultAdmin, ..._users.filter(u => u.email !== 'admin@school.com')];
         saveLocal(STORAGE_KEYS.USERS, _users);
     }
 
@@ -436,39 +437,131 @@ export const fetchCloudTableData = async (table: string) => {
     return data;
 };
 
+// --- DATA MAPPERS (CamelCase <-> SnakeCase) ---
+
+const mapStudentToDB = (s: Student) => ({
+    id: s.id,
+    name: s.name,
+    national_id: s.nationalId,
+    grade_level: s.gradeLevel,
+    class_name: s.className,
+    class_id: s.classId,
+    phone: s.phone,
+    email: s.email,
+    parent_name: s.parentName,
+    parent_phone: s.parentPhone,
+    parent_email: s.parentEmail,
+    seat_index: s.seatIndex,
+    password: s.password
+});
+
+const mapStudentFromDB = (s: any): Student => ({
+    id: s.id,
+    name: s.name,
+    nationalId: s.national_id,
+    gradeLevel: s.grade_level,
+    className: s.class_name,
+    classId: s.class_id,
+    phone: s.phone,
+    email: s.email,
+    parentName: s.parent_name,
+    parentPhone: s.parent_phone,
+    parentEmail: s.parent_email,
+    seatIndex: s.seat_index,
+    password: s.password
+});
+
+const mapAttendanceToDB = (a: AttendanceRecord) => ({
+    id: a.id,
+    student_id: a.studentId,
+    date: a.date,
+    status: a.status,
+    subject: a.subject,
+    period: a.period,
+    behavior_status: a.behaviorStatus,
+    behavior_note: a.behaviorNote,
+    excuse_note: a.excuseNote,
+    excuse_file: a.excuseFile
+});
+
+const mapAttendanceFromDB = (a: any): AttendanceRecord => ({
+    id: a.id,
+    studentId: a.student_id,
+    date: a.date,
+    status: a.status,
+    subject: a.subject,
+    period: a.period,
+    behaviorStatus: a.behavior_status,
+    behaviorNote: a.behavior_note,
+    excuseNote: a.excuse_note,
+    excuseFile: a.excuse_file
+});
+
+const mapPerformanceToDB = (p: PerformanceRecord) => ({
+    id: p.id,
+    student_id: p.studentId,
+    subject: p.subject,
+    title: p.title,
+    score: p.score,
+    max_score: p.maxScore,
+    date: p.date,
+    notes: p.notes,
+    category: p.category,
+    url: p.url
+});
+
+const mapPerformanceFromDB = (p: any): PerformanceRecord => ({
+    id: p.id,
+    studentId: p.student_id,
+    subject: p.subject,
+    title: p.title,
+    score: p.score,
+    maxScore: p.max_score,
+    date: p.date,
+    notes: p.notes,
+    category: p.category,
+    url: p.url
+});
+
 export const uploadToSupabase = async () => {
-    // Simple wipe and replace strategy for demo (In prod, use upsert/diff)
-    // Assuming tables have RLS policies allowing this user
-    
-    // We will upsert to avoid foreign key issues where possible, 
-    // but typically you should order deletions and insertions carefully.
-    
     const upsert = async (table: string, data: any[]) => {
         if (data.length === 0) return;
         const { error } = await supabase.from(table).upsert(data);
         if (error) throw new Error(`Error uploading ${table}: ${error.message}`);
     };
 
-    await upsert('schools', _schools);
-    await upsert('teachers', _teachers);
+    await upsert('schools', _schools.map(s => ({
+        ...s,
+        education_administration: s.educationAdministration,
+        manager_name: s.managerName,
+        student_count: s.studentCount,
+        subscription_status: s.subscriptionStatus,
+        works_master_url: s.worksMasterUrl
+    })));
+    await upsert('teachers', _teachers.map(t => ({...t, subject_specialty: t.subjectSpecialty})));
     await upsert('parents', _parents);
     await upsert('subjects', _subjects);
-    await upsert('system_users', _users);
-    await upsert('students', _students.map(s => ({
-        ...s,
-        // Ensure no undefined fields that might break DB if strict
-        password: s.password || null,
-        seat_index: s.seatIndex
-    })));
-    await upsert('assignments', _assignments);
+    await upsert('system_users', _users.map(u => ({...u, school_id: u.schoolId})));
+    await upsert('assignments', _assignments.map(a => ({...a, max_score: a.maxScore, is_visible: a.isVisible, order_index: a.orderIndex, source_metadata: a.sourceMetadata})));
     
-    // Chunk large tables
+    // Map Students
+    const mappedStudents = _students.map(mapStudentToDB);
+    await upsert('students', mappedStudents);
+    
+    // Chunk large tables & Map
     const chunk = (arr: any[], size: number) => Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
     
-    for (const batch of chunk(_attendance, 500)) await upsert('attendance_records', batch);
-    for (const batch of chunk(_performance, 500)) await upsert('performance_records', batch);
-    for (const batch of chunk(_schedules, 500)) await upsert('weekly_schedules', batch);
-    for (const batch of chunk(_messages, 500)) await upsert('messages', batch);
+    const mappedAtt = _attendance.map(mapAttendanceToDB);
+    for (const batch of chunk(mappedAtt, 500)) await upsert('attendance_records', batch);
+    
+    const mappedPerf = _performance.map(mapPerformanceToDB);
+    for (const batch of chunk(mappedPerf, 500)) await upsert('performance_records', batch);
+    
+    const mappedSched = _schedules.map(s => ({...s, class_id: s.classId, subject_name: s.subjectName}));
+    for (const batch of chunk(mappedSched, 500)) await upsert('weekly_schedules', batch);
+    
+    const mappedMsg = _messages.map(m => ({...m, student_id: m.studentId, student_name: m.studentName, parent_phone: m.parentPhone, sent_by: m.sentBy}));
+    for (const batch of chunk(mappedMsg, 500)) await upsert('messages', batch);
 };
 
 export const downloadFromSupabase = async () => {
@@ -479,22 +572,41 @@ export const downloadFromSupabase = async () => {
     };
 
     const schools = await fetchTable('schools');
-    if (schools) { _schools = schools; saveLocal(STORAGE_KEYS.SCHOOLS, _schools); }
+    if (schools) { 
+        _schools = schools.map((s: any) => ({
+            ...s,
+            educationAdministration: s.education_administration,
+            managerName: s.manager_name,
+            studentCount: s.student_count,
+            subscriptionStatus: s.subscription_status,
+            worksMasterUrl: s.works_master_url
+        })); 
+        saveLocal(STORAGE_KEYS.SCHOOLS, _schools); 
+    }
 
     const students = await fetchTable('students');
     if (students) { 
-        _students = students.map((s: any) => ({...s, seatIndex: s.seat_index})); 
+        _students = students.map(mapStudentFromDB); 
         saveLocal(STORAGE_KEYS.STUDENTS, _students); 
     }
 
     const attendance = await fetchTable('attendance_records');
-    if (attendance) { _attendance = attendance; saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance); }
+    if (attendance) { 
+        _attendance = attendance.map(mapAttendanceFromDB); 
+        saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance); 
+    }
 
     const performance = await fetchTable('performance_records');
-    if (performance) { _performance = performance; saveLocal(STORAGE_KEYS.PERFORMANCE, _performance); }
+    if (performance) { 
+        _performance = performance.map(mapPerformanceFromDB); 
+        saveLocal(STORAGE_KEYS.PERFORMANCE, _performance); 
+    }
 
     const teachers = await fetchTable('teachers');
-    if (teachers) { _teachers = teachers; saveLocal(STORAGE_KEYS.TEACHERS, _teachers); }
+    if (teachers) { 
+        _teachers = teachers.map((t: any) => ({...t, subjectSpecialty: t.subject_specialty})); 
+        saveLocal(STORAGE_KEYS.TEACHERS, _teachers); 
+    }
 
     const parents = await fetchTable('parents');
     if (parents) { _parents = parents; saveLocal(STORAGE_KEYS.PARENTS, _parents); }
@@ -503,16 +615,28 @@ export const downloadFromSupabase = async () => {
     if (subjects) { _subjects = subjects; saveLocal(STORAGE_KEYS.SUBJECTS, _subjects); }
 
     const schedules = await fetchTable('weekly_schedules');
-    if (schedules) { _schedules = schedules; saveLocal(STORAGE_KEYS.SCHEDULES, _schedules); }
+    if (schedules) { 
+        _schedules = schedules.map((s: any) => ({...s, classId: s.class_id, subjectName: s.subject_name})); 
+        saveLocal(STORAGE_KEYS.SCHEDULES, _schedules); 
+    }
 
     const users = await fetchTable('system_users');
-    if (users) { _users = users; saveLocal(STORAGE_KEYS.USERS, _users); }
+    if (users) { 
+        _users = users.map((u: any) => ({...u, schoolId: u.school_id})); 
+        saveLocal(STORAGE_KEYS.USERS, _users); 
+    }
 
     const assignments = await fetchTable('assignments');
-    if (assignments) { _assignments = assignments; saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments); }
+    if (assignments) { 
+        _assignments = assignments.map((a: any) => ({...a, maxScore: a.max_score, isVisible: a.is_visible, orderIndex: a.order_index, sourceMetadata: a.source_metadata})); 
+        saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments); 
+    }
 
     const messages = await fetchTable('messages');
-    if (messages) { _messages = messages; saveLocal(STORAGE_KEYS.MESSAGES, _messages); }
+    if (messages) { 
+        _messages = messages.map((m: any) => ({...m, studentId: m.student_id, studentName: m.student_name, parentPhone: m.parent_phone, sentBy: m.sent_by})); 
+        saveLocal(STORAGE_KEYS.MESSAGES, _messages); 
+    }
 };
 
 export const getTableDisplayName = (table: string) => {
