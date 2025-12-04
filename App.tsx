@@ -14,10 +14,12 @@ import CustomTablesView from './components/CustomTablesView';
 import WorksTracking from './components/WorksTracking';
 import StudentFollowUp from './components/StudentFollowUp';
 import AIReports from './components/AIReports';
+import AITools from './components/AITools'; // NEW
 import MonthlyReport from './components/MonthlyReport';
+import MessageCenter from './components/MessageCenter';
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +33,7 @@ const App: React.FC = () => {
   // Persist Current View State
   const [currentView, setCurrentView] = useState<ViewState>(() => {
       const savedView = localStorage.getItem('app_last_view');
-      const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT'];
+      const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'AI_TOOLS', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT', 'MESSAGE_CENTER'];
       return (savedView && validViews.includes(savedView as ViewState)) ? (savedView as ViewState) : 'DASHBOARD';
   });
 
@@ -261,10 +263,12 @@ const App: React.FC = () => {
     { id: 'STUDENTS', label: 'الطلاب', icon: Users },
     { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck },
     { id: 'MONTHLY_REPORT', label: 'تقرير الحضور الشهري', icon: CalendarDays },
+    { id: 'MESSAGE_CENTER', label: 'مركز الرسائل الذكي', icon: MessageSquare }, 
     { id: 'WORKS_TRACKING', label: 'متابعة الأعمال (عام)', icon: PenTool }, 
     { id: 'STUDENT_FOLLOWUP', label: 'متابعة فردية', icon: FileText }, 
     { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp },
     { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles },
+    { id: 'AI_TOOLS', label: 'أدوات المعلم (AI)', icon: BrainCircuit }, // NEW ITEM
     { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table }, 
     { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database },
   ];
@@ -378,10 +382,12 @@ const App: React.FC = () => {
             {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleBulkAddStudents}/>}
             {currentView === 'ATTENDANCE' && <Attendance students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={handleBulkAddAttendance}/>}
             {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}
+            {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance}/>}
             {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance}/>}
             {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance}/>}
             {currentView === 'PERFORMANCE' && <Performance students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance}/>}
             {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance}/>}
+            {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
             {currentView === 'CUSTOM_TABLES' && <CustomTablesView />}
             {currentView === 'DATA_IMPORT' && <DataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} existingStudents={students}/>}
         </div>

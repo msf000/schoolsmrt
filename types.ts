@@ -195,4 +195,17 @@ export interface ReportHeaderConfig {
     logoBase64?: string; // New: To store image locally
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT';
+// --- Message Center Types ---
+export interface MessageLog {
+    id: string;
+    studentId: string;
+    studentName: string;
+    parentPhone?: string;
+    type: 'WHATSAPP' | 'SMS' | 'EMAIL';
+    content: string;
+    status: 'SENT' | 'FAILED';
+    date: string;
+    sentBy: string;
+}
+
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER';

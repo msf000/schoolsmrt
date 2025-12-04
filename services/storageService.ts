@@ -1,5 +1,5 @@
 
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem, ReportHeaderConfig, Assignment } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Teacher, Parent, ClassRoom, Subject, EducationalStage, GradeLevel, School, SystemUser, CustomTable, WorksColumnConfig, PerformanceCategory, ScheduleItem, ReportHeaderConfig, Assignment, MessageLog } from '../types';
 import { getSupabaseClient } from './supabaseClient';
 
 // --- STORAGE KEYS ---
@@ -17,7 +17,8 @@ const STORAGE_KEYS = {
     SCHOOLS: 'sys_schools',
     USERS: 'sys_users',
     SCHEDULES: 'sys_schedules',
-    CUSTOM_TABLES: 'sys_custom_tables'
+    CUSTOM_TABLES: 'sys_custom_tables',
+    MESSAGES: 'sys_messages' // NEW
 };
 
 const CONFIG_KEYS = {
@@ -53,6 +54,7 @@ let _schools: School[] = loadLocal<School[]>(STORAGE_KEYS.SCHOOLS, []);
 let _users: SystemUser[] = loadLocal<SystemUser[]>(STORAGE_KEYS.USERS, []);
 let _schedules: ScheduleItem[] = loadLocal<ScheduleItem[]>(STORAGE_KEYS.SCHEDULES, []);
 let _customTables: CustomTable[] = loadLocal<CustomTable[]>(STORAGE_KEYS.CUSTOM_TABLES, []);
+let _messages: MessageLog[] = loadLocal<MessageLog[]>(STORAGE_KEYS.MESSAGES, []); // NEW
 let _worksMasterUrl: string = '';
 
 // --- DB MAPPING ---
@@ -69,7 +71,8 @@ export const DB_MAP = {
     'subjects': 'subjects',
     'schools': 'schools',
     'system_users': 'system_users',
-    'weekly_schedules': 'weekly_schedules'
+    'weekly_schedules': 'weekly_schedules',
+    'messages': 'messages' // NEW
 };
 
 // --- HELPER: DATA TRANSFORMATION ---
@@ -119,7 +122,8 @@ export const initAutoSync = async (): Promise<boolean> => {
             supabase.from('attendance_records').select('*'),
             supabase.from('performance_records').select('*'),
             supabase.from('weekly_schedules').select('*'),
-            supabase.from('assignments').select('*') // NEW
+            supabase.from('assignments').select('*'),
+            supabase.from('messages').select('*') // NEW
         ]);
 
         // Helper to extract data
@@ -138,7 +142,8 @@ export const initAutoSync = async (): Promise<boolean> => {
         _attendance = load(9); saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
         _performance = load(10); saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
         _schedules = load(11); saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
-        _assignments = load(12); saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments); // NEW
+        _assignments = load(12); saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+        _messages = load(13); saveLocal(STORAGE_KEYS.MESSAGES, _messages); // NEW
 
         // Update works master url from schools if available
         if (_schools.length > 0 && _schools[0].worksMasterUrl) {
@@ -407,6 +412,14 @@ export const updateSystemUser = (item: SystemUser) => {
 };
 export const deleteSystemUser = (id: string) => { _users = _users.filter(i => i.id !== id); saveLocal(STORAGE_KEYS.USERS, _users); pushToCloud('system_users', id, 'DELETE'); };
 
+// --- Messages (NEW) ---
+export const getMessages = () => [..._messages].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+export const saveMessage = (msg: MessageLog) => {
+    _messages.push(msg);
+    saveLocal(STORAGE_KEYS.MESSAGES, _messages);
+    pushToCloud('messages', msg, 'UPSERT');
+};
+
 // --- Legacy Config (Can be removed later, kept for backward compat if needed) ---
 export const getWorksConfig = (category: PerformanceCategory): WorksColumnConfig[] => {
     // Deprecated: Just map assignments to old format for UI compatibility if needed temporarily
@@ -487,7 +500,8 @@ export const clearDatabase = () => {
     _subjects = [];
     _schedules = [];
     _customTables = [];
-    _assignments = []; // NEW
+    _assignments = []; 
+    _messages = []; // NEW
     
     // Clear All Keys
     Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
@@ -503,7 +517,8 @@ export const getStorageStatistics = () => {
         classes: _classes.length,
         schools: _schools.length,
         users: _users.length,
-        assignments: _assignments.length // NEW
+        assignments: _assignments.length,
+        messages: _messages.length // NEW
     };
 };
 
@@ -557,7 +572,8 @@ export const createBackup = () => {
         users: _users,
         customTables: _customTables,
         assignments: _assignments,
-        schedules: _schedules
+        schedules: _schedules,
+        messages: _messages // NEW
     });
 };
 
@@ -580,6 +596,7 @@ export const restoreBackup = (json: string): boolean => {
         if (Array.isArray(data.customTables)) { _customTables = data.customTables; saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables); }
         if (Array.isArray(data.schedules)) { _schedules = data.schedules; saveLocal(STORAGE_KEYS.SCHEDULES, _schedules); }
         if (Array.isArray(data.assignments)) { _assignments = data.assignments; saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments); }
+        if (Array.isArray(data.messages)) { _messages = data.messages; saveLocal(STORAGE_KEYS.MESSAGES, _messages); }
         
         return true;
     } catch (e) {
@@ -605,7 +622,8 @@ export const uploadToSupabase = async () => {
         { name: 'attendance_records', data: _attendance },
         { name: 'performance_records', data: _performance },
         { name: 'weekly_schedules', data: _schedules },
-        { name: 'assignments', data: _assignments } // NEW
+        { name: 'assignments', data: _assignments },
+        { name: 'messages', data: _messages } // NEW
     ];
 
     for (const t of tables) {

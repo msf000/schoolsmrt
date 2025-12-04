@@ -516,8 +516,27 @@ const SubscriptionsManager = () => {
 };
 
 const SCHEMA_PATCH_SQL = `
--- 🛠️ إضافة جدول assignments (الروابط والأنشطة)
+-- 🛠️ تحديث سريع: إضافة الجداول والأعمدة الناقصة
 
+-- 1. إضافة جدول messages (إذا لم يوجد)
+CREATE TABLE IF NOT EXISTS public.messages (
+  id text primary key,
+  student_id text,
+  student_name text,
+  parent_phone text,
+  type text check (type in ('WHATSAPP', 'SMS', 'EMAIL')),
+  content text,
+  status text,
+  sent_by text,
+  date timestamp with time zone default timezone('utc'::text, now()),
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.messages;
+CREATE POLICY "Public Access" ON public.messages FOR ALL USING (true) WITH CHECK (true);
+
+-- 2. إضافة جدول assignments (إذا لم يوجد)
 CREATE TABLE IF NOT EXISTS public.assignments (
   id text primary key,
   title text not null,
@@ -531,9 +550,13 @@ CREATE TABLE IF NOT EXISTS public.assignments (
 );
 
 ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.assignments;
 CREATE POLICY "Public Access" ON public.assignments FOR ALL USING (true) WITH CHECK (true);
 
--- تحديث كاش النظام
+-- 3. إضافة عمود إدارة التعليم لجدول المدارس
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS education_administration text;
+
+-- تحديث كاش النظام (ضروري جداً)
 NOTIFY pgrst, 'reload schema';
 `;
 
@@ -554,13 +577,15 @@ DROP TABLE IF EXISTS public.teachers CASCADE;
 DROP TABLE IF EXISTS public.parents CASCADE;
 DROP TABLE IF EXISTS public.system_users CASCADE;
 DROP TABLE IF EXISTS public.schools CASCADE;
-DROP TABLE IF EXISTS public.assignments CASCADE; -- NEW
+DROP TABLE IF EXISTS public.assignments CASCADE;
+DROP TABLE IF EXISTS public.messages CASCADE;
 
 -- 2. إنشاء الجداول
 
 create table public.schools (
   id text primary key,
   name text not null,
+  education_administration text,
   type text check (type in ('PUBLIC', 'PRIVATE', 'INTERNATIONAL')),
   manager_name text,
   phone text,
@@ -595,7 +620,7 @@ create table public.students (
   class_id text references public.classes(id) on delete set null,
   name text not null,
   national_id text,
-  password text, -- Added password column for students
+  password text, 
   grade_level text,
   class_name text,
   email text,
@@ -638,17 +663,17 @@ create table public.attendance_records (
   period integer,
   behavior_status text,
   behavior_note text,
-  excuse_note text, -- NEW
-  excuse_file text, -- NEW (Base64)
+  excuse_note text,
+  excuse_file text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
-create table public.assignments ( -- NEW TABLE FOR LINKS & CONFIG
+create table public.assignments ( 
   id text primary key,
   title text not null,
   category text not null,
   max_score numeric default 10,
-  url text, -- The link!
+  url text, 
   is_visible boolean default true,
   order_index integer,
   source_metadata text,
@@ -663,14 +688,14 @@ create table public.performance_records (
   score numeric not null,
   max_score numeric not null,
   date text default CURRENT_DATE,
-  notes text, -- Stores Assignment ID
+  notes text, 
   category text,
   url text
 );
 
 create table public.weekly_schedules (
   id text primary key,
-  class_id text not null, -- No FK to classes to support flat structure
+  class_id text not null, 
   day text not null,
   period integer not null,
   subject_name text not null,
@@ -682,9 +707,22 @@ create table public.system_users (
   school_id text references public.schools(id) on delete cascade,
   email text unique not null,
   name text,
-  password text, -- Added password column
+  password text, 
   role text check (role in ('SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER')),
   status text default 'ACTIVE',
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+create table public.messages (
+  id text primary key,
+  student_id text references public.students(id) on delete set null,
+  student_name text,
+  parent_phone text,
+  type text check (type in ('WHATSAPP', 'SMS', 'EMAIL')),
+  content text,
+  status text,
+  sent_by text,
+  date timestamp with time zone default timezone('utc'::text, now()),
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -694,43 +732,60 @@ create table public.system_users (
 -- السماح للجميع (Anon) بالقراءة والكتابة في هذا النظام التجريبي
 
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.schools;
 CREATE POLICY "Public Access" ON public.schools FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.educational_stages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.educational_stages;
 CREATE POLICY "Public Access" ON public.educational_stages FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.grade_levels ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.grade_levels;
 CREATE POLICY "Public Access" ON public.grade_levels FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.classes;
 CREATE POLICY "Public Access" ON public.classes FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.students;
 CREATE POLICY "Public Access" ON public.students FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.subjects;
 CREATE POLICY "Public Access" ON public.subjects FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.teachers;
 CREATE POLICY "Public Access" ON public.teachers FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.parents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.parents;
 CREATE POLICY "Public Access" ON public.parents FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.attendance_records;
 CREATE POLICY "Public Access" ON public.attendance_records FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.performance_records ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.performance_records;
 CREATE POLICY "Public Access" ON public.performance_records FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.weekly_schedules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.weekly_schedules;
 CREATE POLICY "Public Access" ON public.weekly_schedules FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.system_users;
 CREATE POLICY "Public Access" ON public.system_users FOR ALL USING (true) WITH CHECK (true);
 
 ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.assignments;
 CREATE POLICY "Public Access" ON public.assignments FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON public.messages;
+CREATE POLICY "Public Access" ON public.messages FOR ALL USING (true) WITH CHECK (true);
 `;
 
 const DatabaseSettings = () => {
@@ -1096,8 +1151,8 @@ const DatabaseSettings = () => {
                     <div className="mb-8 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع (لإضافة جدول assignments)</h4>
-                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإضافة الجدول الجديد في Supabase</p>
+                                <h4 className="font-bold text-yellow-400 flex items-center gap-2"><Terminal size={18}/> تحديث سريع: إضافة الجداول والأعمدة الناقصة</h4>
+                                <p className="text-xs text-gray-400 mt-1">انسخ هذا الكود لإضافة جدول assignments وعمود education_administration الناقص</p>
                             </div>
                             <button onClick={() => copyToClipboard(SCHEMA_PATCH_SQL)} className="text-yellow-400 hover:text-white bg-yellow-900/50 p-2 rounded hover:bg-yellow-800 transition-colors" title="نسخ الكود">
                                 <Copy size={16} />
