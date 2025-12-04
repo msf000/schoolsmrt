@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents } from './services/storageService';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
 import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, Assignment } from './types';
 import Dashboard from './components/Dashboard';
@@ -21,7 +21,7 @@ import MonthlyReport from './components/MonthlyReport';
 import MessageCenter from './components/MessageCenter';
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid, Wifi } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -79,7 +79,24 @@ const App: React.FC = () => {
         syncWorksDataBackground();
     }, 5 * 60 * 1000);
 
-    return () => clearInterval(intervalId);
+    // --- NEW: Cloud Sync Polling Interval (Every 2 minutes) ---
+    const cloudInterval = setInterval(async () => {
+        const hasKeys = (localStorage.getItem('custom_supabase_url') && localStorage.getItem('custom_supabase_key')) || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
+        if(hasKeys && !isBgSyncing) {
+             try {
+                 // Fetch latest data from cloud to stay in sync with other devices
+                 await downloadFromSupabase();
+                 refreshData();
+             } catch (e) { 
+                 console.error("Cloud pull failed", e); 
+             }
+        }
+    }, 120000); // 2 minutes
+
+    return () => {
+        clearInterval(intervalId);
+        clearInterval(cloudInterval);
+    };
   }, []);
 
   const handleLogin = (user: any, rememberMe: boolean) => {
@@ -231,11 +248,11 @@ const App: React.FC = () => {
         </nav>
         <div className="p-4 border-t border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between text-xs mb-1">
-                 <span className="font-bold text-gray-600">مزامنة تلقائية</span>
+                 <span className="font-bold text-gray-600 flex items-center gap-1"><Wifi size={10}/> المزامنة</span>
                  {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : <CheckCircle size={12} className="text-green-500"/>}
             </div>
             <p className="text-[10px] text-gray-400">
-                {isBgSyncing ? 'جاري جلب البيانات...' : lastSyncTime ? `آخر تحديث: ${lastSyncTime}` : 'في وضع الانتظار'}
+                يتم الحفظ تلقائياً في الخلفية
             </p>
         </div>
       </aside>

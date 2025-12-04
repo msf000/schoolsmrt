@@ -79,6 +79,27 @@ const saveLocal = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
 };
 
+// --- Auto Sync Helper ---
+const triggerBackgroundSync = async () => {
+    // Check if Supabase keys exist locally or in env
+    const hasKeys = (localStorage.getItem('custom_supabase_url') && localStorage.getItem('custom_supabase_key')) || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
+    
+    if (!hasKeys) return;
+
+    // Simple debounce to prevent spamming upload on rapid changes
+    if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
+    
+    (window as any)._syncTimer = setTimeout(async () => {
+        console.log('🔄 جاري المزامنة التلقائية مع السحابة...');
+        try {
+            await uploadToSupabase();
+            console.log('✅ تمت المزامنة التلقائية بنجاح.');
+        } catch(e) {
+            console.error('⚠️ فشل المزامنة التلقائية:', e);
+        }
+    }, 3000); // Wait 3 seconds after last action
+};
+
 // Initial Load
 const loadAll = () => {
     _students = loadLocal(STORAGE_KEYS.STUDENTS, []);
@@ -125,26 +146,31 @@ export const addStudent = (student: Student) => {
     if (_students.some(s => s.nationalId === student.nationalId && s.id !== student.id)) throw new Error("رقم الهوية مسجل مسبقاً.");
     _students.push(student);
     saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    triggerBackgroundSync();
 };
 export const updateStudent = (updatedStudent: Student) => {
     const index = _students.findIndex(s => s.id === updatedStudent.id);
     if (index !== -1) {
         _students[index] = updatedStudent;
         saveLocal(STORAGE_KEYS.STUDENTS, _students);
+        triggerBackgroundSync();
     }
 };
 export const bulkUpdateStudents = (updates: Student[]) => {
     const updateMap = new Map(updates.map(s => [s.id, s]));
     _students = _students.map(s => updateMap.has(s.id) ? { ...s, ...updateMap.get(s.id)! } : s);
     saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    triggerBackgroundSync();
 };
 export const deleteStudent = (id: string) => {
     _students = _students.filter(s => s.id !== id);
     saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    triggerBackgroundSync();
 };
 export const deleteAllStudents = () => {
     _students = [];
     saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    triggerBackgroundSync();
 };
 export const bulkAddStudents = (newStudents: Student[]) => {
     // Avoid duplicates by ID
@@ -152,6 +178,7 @@ export const bulkAddStudents = (newStudents: Student[]) => {
     const toAdd = newStudents.filter(s => !existingIds.has(s.id));
     _students.push(...toAdd);
     saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    triggerBackgroundSync();
 };
 export const bulkUpsertStudents = (
     list: Student[], 
@@ -181,6 +208,7 @@ export const bulkUpsertStudents = (
         }
     });
     saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    triggerBackgroundSync();
 };
 
 // --- Attendance ---
@@ -193,12 +221,14 @@ export const saveAttendance = (records: AttendanceRecord[]) => {
         else _attendance.push(record);
     });
     saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
+    triggerBackgroundSync();
 };
 export const bulkAddAttendance = (list: AttendanceRecord[]) => {
     const existingMap = new Map(_attendance.map(a => [a.id, a]));
     list.forEach(a => existingMap.set(a.id, a));
     _attendance = Array.from(existingMap.values());
     saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
+    triggerBackgroundSync();
 };
 
 // --- Performance ---
@@ -206,6 +236,7 @@ export const getPerformance = (): PerformanceRecord[] => [..._performance];
 export const addPerformance = (record: PerformanceRecord) => {
     _performance.push(record);
     saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
+    triggerBackgroundSync();
 };
 export const bulkAddPerformance = (list: PerformanceRecord[]) => {
     // Usually append for performance unless ID matches
@@ -213,6 +244,7 @@ export const bulkAddPerformance = (list: PerformanceRecord[]) => {
     list.forEach(p => existingMap.set(p.id, p));
     _performance = Array.from(existingMap.values());
     saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
+    triggerBackgroundSync();
 };
 
 // --- Teachers ---
@@ -220,10 +252,12 @@ export const getTeachers = (): Teacher[] => [..._teachers];
 export const addTeacher = (t: Teacher) => {
     _teachers.push(t);
     saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+    triggerBackgroundSync();
 };
 export const deleteTeacher = (id: string) => {
     _teachers = _teachers.filter(t => t.id !== id);
     saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+    triggerBackgroundSync();
 };
 
 // --- Teacher Assignments ---
@@ -237,10 +271,12 @@ export const saveTeacherAssignment = (assignment: TeacherAssignment) => {
         _teacherAssignments.push(assignment); // Add
     }
     saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+    triggerBackgroundSync();
 };
 export const deleteTeacherAssignment = (id: string) => {
     _teacherAssignments = _teacherAssignments.filter(ta => ta.id !== id);
     saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+    triggerBackgroundSync();
 };
 
 // --- Parents ---
@@ -248,10 +284,12 @@ export const getParents = (): Parent[] => [..._parents];
 export const addParent = (p: Parent) => {
     _parents.push(p);
     saveLocal(STORAGE_KEYS.PARENTS, _parents);
+    triggerBackgroundSync();
 };
 export const deleteParent = (id: string) => {
     _parents = _parents.filter(p => p.id !== id);
     saveLocal(STORAGE_KEYS.PARENTS, _parents);
+    triggerBackgroundSync();
 };
 
 // --- Subjects ---
@@ -259,10 +297,12 @@ export const getSubjects = (): Subject[] => [..._subjects];
 export const addSubject = (s: Subject) => {
     _subjects.push(s);
     saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
+    triggerBackgroundSync();
 };
 export const deleteSubject = (id: string) => {
     _subjects = _subjects.filter(s => s.id !== id);
     saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
+    triggerBackgroundSync();
 };
 
 // --- Schedules ---
@@ -272,10 +312,12 @@ export const saveScheduleItem = (item: ScheduleItem) => {
     if (idx !== -1) _schedules[idx] = item;
     else _schedules.push(item);
     saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
+    triggerBackgroundSync();
 };
 export const deleteScheduleItem = (id: string) => {
     _schedules = _schedules.filter(s => s.id !== id);
     saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
+    triggerBackgroundSync();
 };
 
 // --- Schools ---
@@ -283,10 +325,12 @@ export const getSchools = (): School[] => [..._schools];
 export const addSchool = (s: School) => {
     _schools.push(s);
     saveLocal(STORAGE_KEYS.SCHOOLS, _schools);
+    triggerBackgroundSync();
 };
 export const deleteSchool = (id: string) => {
     _schools = _schools.filter(s => s.id !== id);
     saveLocal(STORAGE_KEYS.SCHOOLS, _schools);
+    triggerBackgroundSync();
 };
 
 // --- Users ---
@@ -294,17 +338,20 @@ export const getSystemUsers = (): SystemUser[] => [..._users];
 export const addSystemUser = (u: SystemUser) => {
     _users.push(u);
     saveLocal(STORAGE_KEYS.USERS, _users);
+    triggerBackgroundSync();
 };
 export const updateSystemUser = (u: SystemUser) => {
     const idx = _users.findIndex(user => user.id === u.id);
     if (idx !== -1) {
         _users[idx] = u;
         saveLocal(STORAGE_KEYS.USERS, _users);
+        triggerBackgroundSync();
     }
 };
 export const deleteSystemUser = (id: string) => {
     _users = _users.filter(u => u.id !== id);
     saveLocal(STORAGE_KEYS.USERS, _users);
+    triggerBackgroundSync();
 };
 
 // --- Custom Tables ---
@@ -335,16 +382,19 @@ export const saveAssignment = (a: Assignment) => {
     if (idx !== -1) _assignments[idx] = a;
     else _assignments.push(a);
     saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    triggerBackgroundSync();
 };
 export const bulkSaveAssignments = (list: Assignment[]) => {
     const map = new Map(_assignments.map(a => [a.id, a]));
     list.forEach(a => map.set(a.id, a));
     _assignments = Array.from(map.values());
     saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    triggerBackgroundSync();
 };
 export const deleteAssignment = (id: string) => {
     _assignments = _assignments.filter(a => a.id !== id);
     saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    triggerBackgroundSync();
 };
 
 // --- Messages ---
@@ -352,6 +402,7 @@ export const getMessages = (): MessageLog[] => [..._messages];
 export const saveMessage = (m: MessageLog) => {
     _messages.unshift(m); // Add to beginning
     saveLocal(STORAGE_KEYS.MESSAGES, _messages);
+    triggerBackgroundSync();
 };
 
 // --- Config ---
@@ -359,6 +410,7 @@ export const getReportHeaderConfig = (): ReportHeaderConfig => ({..._reportConfi
 export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
     _reportConfig = config;
     saveLocal(STORAGE_KEYS.REPORT_CONFIG, _reportConfig);
+    // Configs are local usually, but could sync school settings
 };
 
 export const getWorksMasterUrl = (): string => _worksMasterUrl;
@@ -374,6 +426,7 @@ export const initAutoSync = async () => {
     return Promise.resolve();
 };
 
+// ... existing backup and clear functions ...
 export const createBackup = () => {
     const backup = {
         students: _students,
@@ -414,6 +467,8 @@ export const restoreBackup = (jsonContent: string) => {
         if (data.reportConfig) saveLocal(STORAGE_KEYS.REPORT_CONFIG, (_reportConfig = data.reportConfig));
         if (data.worksUrl) saveLocal(STORAGE_KEYS.WORKS_URL, (_worksMasterUrl = data.worksUrl));
         if (data.teacherAssignments) saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, (_teacherAssignments = data.teacherAssignments));
+        
+        triggerBackgroundSync(); // Sync restored data
         return true;
     } catch (e) {
         console.error("Backup restore failed", e);
@@ -426,7 +481,7 @@ export const clearDatabase = () => {
     loadAll();
 };
 
-// --- Cloud Functions ---
+// ... existing cloud functions ...
 export const checkConnection = async () => {
     const start = Date.now();
     try {
@@ -471,7 +526,7 @@ export const fetchCloudTableData = async (table: string) => {
 };
 
 // --- DATA MAPPERS (CamelCase <-> SnakeCase) ---
-
+// ... existing mappers ...
 const mapStudentToDB = (s: Student) => ({
     id: s.id,
     name: s.name,
