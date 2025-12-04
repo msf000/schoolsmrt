@@ -9,9 +9,9 @@ import {
     getSchedules, saveScheduleItem, deleteScheduleItem,
     getReportHeaderConfig, saveReportHeaderConfig,
     saveWorksMasterUrl, getWorksMasterUrl,
-    getTeacherAssignments, saveTeacherAssignment
+    getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment
 } from '../services/storageService';
-import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers, GraduationCap, MapPin, Upload, Briefcase } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Layout, Database, Save, Link as LinkIcon, Calendar, Clock, Filter, AlertCircle, Edit2, Check, X, RefreshCw, Layers, GraduationCap, MapPin, Upload, Briefcase, List, Table } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -89,6 +89,7 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [selectedClass, setSelectedClass] = useState('');
+    const [viewMode, setViewMode] = useState<'ASSIGN' | 'TABLE'>('ASSIGN');
     const [msg, setMsg] = useState('');
 
     useEffect(() => {
@@ -117,72 +118,141 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
         setTimeout(() => setMsg(''), 2000);
     };
 
+    const handleDeleteAssignment = (id: string) => {
+        if(window.confirm('هل أنت متأكد من حذف هذا الإسناد؟')) {
+            deleteTeacherAssignment(id);
+            setAssignments(getTeacherAssignments());
+        }
+    };
+
+    const getTeacherName = (id: string) => {
+        const t = teachers.find(t => t.id === id);
+        return t ? t.name : '???';
+    };
+
     return (
         <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                <Briefcase className="text-blue-600 mt-1" size={24}/>
-                <div>
-                    <h3 className="font-bold text-blue-800">توزيع المعلمين على الفصول</h3>
-                    <p className="text-sm text-blue-600 mt-1">
-                        هنا يمكنك ربط كل مادة في كل فصل بالمعلم المسؤول عنها. هذا الربط سيظهر في تقارير المتابعة والأعمال.
-                    </p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3 flex-1">
+                    <Briefcase className="text-blue-600 mt-1" size={24}/>
+                    <div>
+                        <h3 className="font-bold text-blue-800">توزيع المعلمين على الفصول</h3>
+                        <p className="text-sm text-blue-600 mt-1">
+                            هنا يمكنك ربط كل مادة في كل فصل بالمعلم المسؤول عنها. هذا الربط سيظهر في تقارير المتابعة والأعمال.
+                        </p>
+                    </div>
                 </div>
-            </div>
-
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-1/3 space-y-4">
-                    <label className="block text-sm font-bold text-gray-700">اختر الفصل الدراسي:</label>
-                    <select 
-                        className="w-full p-3 border rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-primary/50 outline-none"
-                        value={selectedClass}
-                        onChange={(e) => setSelectedClass(e.target.value)}
+                
+                <div className="bg-gray-100 p-1 rounded-lg flex shrink-0">
+                    <button 
+                        onClick={() => setViewMode('ASSIGN')}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${viewMode === 'ASSIGN' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        <option value="">-- اختر الفصل --</option>
-                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    
-                    {msg && <div className="text-green-600 text-sm font-bold flex items-center gap-1 animate-fade-in"><Check size={16}/> {msg}</div>}
-                </div>
-
-                <div className="flex-1 bg-gray-50 rounded-xl border border-gray-200 p-4">
-                    {selectedClass ? (
-                        <div className="space-y-2">
-                            <div className="grid grid-cols-2 gap-4 pb-2 border-b text-sm font-bold text-gray-500">
-                                <div>المادة الدراسية</div>
-                                <div>المعلم المسؤول</div>
-                            </div>
-                            <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-2 p-1">
-                                {subjects.map(subject => {
-                                    const currentAssign = assignments.find(a => a.classId === selectedClass && a.subjectName === subject.name);
-                                    return (
-                                        <div key={subject.id} className="grid grid-cols-2 gap-4 items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
-                                            <div className="font-bold text-gray-800 flex items-center gap-2">
-                                                <Book size={16} className="text-primary"/> {subject.name}
-                                            </div>
-                                            <select 
-                                                className={`w-full p-2 border rounded-md text-sm outline-none cursor-pointer transition-colors ${currentAssign ? 'bg-green-50 border-green-200 text-green-800 font-bold' : 'bg-gray-50 text-gray-500'}`}
-                                                value={currentAssign?.teacherId || ''}
-                                                onChange={(e) => handleAssign(subject.name, e.target.value)}
-                                            >
-                                                <option value="">-- غير محدد --</option>
-                                                {teachers.map(t => (
-                                                    <option key={t.id} value={t.id}>{t.name} {t.subjectSpecialty ? `(${t.subjectSpecialty})` : ''}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )
-                                })}
-                                {subjects.length === 0 && <div className="text-center text-gray-400 py-8">لا توجد مواد مسجلة. أضف المواد أولاً.</div>}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                            <Briefcase size={48} className="mb-4 opacity-20"/>
-                            <p>يرجى اختيار فصل للبدء بتوزيع المعلمين</p>
-                        </div>
-                    )}
+                        <Edit2 size={16}/> التوزيع (Assign)
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('TABLE')}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${viewMode === 'TABLE' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Table size={16}/> جدول الإسناد (All)
+                    </button>
                 </div>
             </div>
+
+            {viewMode === 'ASSIGN' ? (
+                <div className="flex flex-col md:flex-row gap-4 animate-fade-in">
+                    <div className="w-full md:w-1/3 space-y-4">
+                        <label className="block text-sm font-bold text-gray-700">اختر الفصل الدراسي:</label>
+                        <select 
+                            className="w-full p-3 border rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                            value={selectedClass}
+                            onChange={(e) => setSelectedClass(e.target.value)}
+                        >
+                            <option value="">-- اختر الفصل --</option>
+                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        
+                        {msg && <div className="text-green-600 text-sm font-bold flex items-center gap-1 animate-fade-in"><Check size={16}/> {msg}</div>}
+                    </div>
+
+                    <div className="flex-1 bg-gray-50 rounded-xl border border-gray-200 p-4">
+                        {selectedClass ? (
+                            <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-4 pb-2 border-b text-sm font-bold text-gray-500">
+                                    <div>المادة الدراسية</div>
+                                    <div>المعلم المسؤول</div>
+                                </div>
+                                <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-2 p-1">
+                                    {subjects.map(subject => {
+                                        const currentAssign = assignments.find(a => a.classId === selectedClass && a.subjectName === subject.name);
+                                        return (
+                                            <div key={subject.id} className="grid grid-cols-2 gap-4 items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                                                <div className="font-bold text-gray-800 flex items-center gap-2">
+                                                    <Book size={16} className="text-primary"/> {subject.name}
+                                                </div>
+                                                <select 
+                                                    className={`w-full p-2 border rounded-md text-sm outline-none cursor-pointer transition-colors ${currentAssign ? 'bg-green-50 border-green-200 text-green-800 font-bold' : 'bg-gray-50 text-gray-500'}`}
+                                                    value={currentAssign?.teacherId || ''}
+                                                    onChange={(e) => handleAssign(subject.name, e.target.value)}
+                                                >
+                                                    <option value="">-- غير محدد --</option>
+                                                    {teachers.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name} {t.subjectSpecialty ? `(${t.subjectSpecialty})` : ''}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )
+                                    })}
+                                    {subjects.length === 0 && <div className="text-center text-gray-400 py-8">لا توجد مواد مسجلة. أضف المواد أولاً.</div>}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                                <Briefcase size={48} className="mb-4 opacity-20"/>
+                                <p>يرجى اختيار فصل للبدء بتوزيع المعلمين</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
+                    <div className="max-h-[500px] overflow-auto custom-scrollbar">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-gray-50 text-gray-700 font-bold border-b sticky top-0 shadow-sm">
+                                <tr>
+                                    <th className="p-4 w-1/4">الفصل</th>
+                                    <th className="p-4 w-1/4">المادة</th>
+                                    <th className="p-4 w-1/3">المعلم المسؤول</th>
+                                    <th className="p-4 w-20 text-center">إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {assignments.length > 0 ? assignments.sort((a,b) => a.classId.localeCompare(b.classId)).map(assign => (
+                                    <tr key={assign.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="p-4 font-bold text-gray-800">{assign.classId}</td>
+                                        <td className="p-4 font-medium text-blue-600 flex items-center gap-2"><Book size={14}/> {assign.subjectName}</td>
+                                        <td className="p-4 text-gray-700 flex items-center gap-2"><User size={14}/> {getTeacherName(assign.teacherId)}</td>
+                                        <td className="p-4 text-center">
+                                            <button 
+                                                onClick={() => handleDeleteAssignment(assign.id)}
+                                                className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"
+                                                title="حذف الإسناد"
+                                            >
+                                                <Trash2 size={16}/>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr><td colSpan={4} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center">
+                                        <Table size={48} className="mb-2 opacity-20"/>
+                                        <p>لا توجد إسنادات مسجلة حتى الآن.</p>
+                                    </td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
