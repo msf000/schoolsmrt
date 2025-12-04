@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
@@ -192,7 +193,7 @@ const App: React.FC = () => {
               >
                   <X size={24}/>
               </button>
-              <ClassroomScreen students={students} />
+              <ClassroomScreen students={students} attendance={attendance} />
           </div>
       )
   }
@@ -296,10 +297,13 @@ const App: React.FC = () => {
             {currentView === 'CLASSROOM_MANAGEMENT' && (
                 <ClassroomManager 
                     students={students} 
+                    attendance={attendance}
                     performance={performance}
                     onLaunchScreen={() => setCurrentView('CLASSROOM_SCREEN')}
                     onNavigateToAttendance={() => setCurrentView('ATTENDANCE')}
                     onSaveSeating={handleSaveSeating} // Pass the handler
+                    onSaveAttendance={handleSaveAttendance} // Need this for embedded attendance
+                    onImportAttendance={handleBulkAddAttendance} // And this
                 />
             )}
             {currentView === 'CUSTOM_TABLES' && <CustomTablesView />}

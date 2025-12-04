@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student } from '../types';
-import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize } from 'lucide-react';
+import { Student, AttendanceRecord, AttendanceStatus } from '../types';
+import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle } from 'lucide-react';
 
 interface ClassroomScreenProps {
     students: Student[];
+    attendance: AttendanceRecord[];
 }
 
-const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students }) => {
+const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance }) => {
     const [selectedClass, setSelectedClass] = useState('');
     const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS'>('PICKER');
     
@@ -29,6 +30,15 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students }) => {
         return students.filter(s => s.className === selectedClass);
     }, [selectedClass, students]);
 
+    // Present Students Only
+    const presentStudents = useMemo(() => {
+        const today = new Date().toISOString().split('T')[0];
+        return filteredStudents.filter(s => {
+            const record = attendance.find(a => a.studentId === s.id && a.date === today);
+            return !record || record.status !== AttendanceStatus.ABSENT;
+        });
+    }, [filteredStudents, attendance]);
+
     return (
         <div className="h-full flex flex-col bg-slate-900 text-white animate-fade-in relative overflow-hidden">
             {/* Background Effect */}
@@ -47,7 +57,9 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students }) => {
                     >
                         {uniqueClasses.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
                     </select>
-                    <span className="text-sm opacity-70">({filteredStudents.length} طالب)</span>
+                    <span className="text-sm opacity-70">
+                        ({presentStudents.length} حاضر من أصل {filteredStudents.length})
+                    </span>
                 </div>
 
                 <div className="flex bg-black/30 p-1 rounded-xl">
@@ -74,16 +86,16 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students }) => {
 
             {/* Main Content Area */}
             <div className="relative z-10 flex-1 flex items-center justify-center p-8 overflow-hidden">
-                {activeTool === 'PICKER' && <RandomPicker students={filteredStudents} />}
+                {activeTool === 'PICKER' && <RandomPicker students={presentStudents} total={filteredStudents.length} />}
                 {activeTool === 'TIMER' && <ClassroomTimer />}
-                {activeTool === 'GROUPS' && <GroupGenerator students={filteredStudents} />}
+                {activeTool === 'GROUPS' && <GroupGenerator students={presentStudents} />}
             </div>
         </div>
     );
 };
 
 // --- Sub-Component: Random Picker ---
-const RandomPicker: React.FC<{ students: Student[] }> = ({ students }) => {
+const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ students, total }) => {
     const [currentName, setCurrentName] = useState('???');
     const [isRolling, setIsRolling] = useState(false);
     const [winner, setWinner] = useState<Student | null>(null);
@@ -118,12 +130,18 @@ const RandomPicker: React.FC<{ students: Student[] }> = ({ students }) => {
 
     return (
         <div className="flex flex-col items-center justify-center w-full max-w-3xl">
+            {students.length < total && (
+                <div className="bg-red-500/20 text-red-200 px-4 py-2 rounded-full mb-4 flex items-center gap-2 text-sm backdrop-blur-sm border border-red-500/30">
+                    <AlertCircle size={16}/> تم استبعاد {total - students.length} طلاب غائبين
+                </div>
+            )}
+
             <div className={`
                 relative w-full aspect-video md:aspect-[21/9] bg-white/10 rounded-3xl border-4 flex items-center justify-center transition-all duration-300 backdrop-blur-sm
                 ${winner ? 'border-yellow-400 shadow-[0_0_50px_rgba(250,204,21,0.3)] scale-105' : 'border-white/20'}
             `}>
                 <h1 className={`font-black text-center transition-all duration-100 ${winner ? 'text-6xl md:text-8xl text-yellow-400 drop-shadow-lg' : 'text-5xl md:text-7xl text-white/80'}`}>
-                    {students.length > 0 ? currentName : 'لا يوجد طلاب'}
+                    {students.length > 0 ? currentName : 'لا يوجد طلاب حاضرين'}
                 </h1>
                 
                 {winner && !isRolling && (
@@ -275,7 +293,9 @@ const GroupGenerator: React.FC<{ students: Student[] }> = ({ students }) => {
             ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-white/30">
                     <Grid size={64} className="mb-4 opacity-50"/>
-                    <p className="text-xl">اضغط "توزيع المجموعات" للبدء</p>
+                    <p className="text-xl">
+                        {students.length > 0 ? 'اضغط "توزيع المجموعات" للبدء' : 'لا يوجد طلاب حاضرين للتوزيع'}
+                    </p>
                 </div>
             )}
         </div>

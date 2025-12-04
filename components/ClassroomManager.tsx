@@ -1,14 +1,18 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, PerformanceRecord } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music } from 'lucide-react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle } from 'lucide-react';
+import Attendance from './Attendance';
 
 interface ClassroomManagerProps {
     students: Student[];
     performance?: PerformanceRecord[];
+    attendance: AttendanceRecord[];
     onLaunchScreen: () => void;
     onNavigateToAttendance: () => void;
     onSaveSeating?: (students: Student[]) => void;
+    onSaveAttendance: (records: AttendanceRecord[]) => void;
+    onImportAttendance: (records: AttendanceRecord[]) => void;
 }
 
 interface HallPass {
@@ -19,8 +23,17 @@ interface HallPass {
     startTime: number;
 }
 
-const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performance = [], onLaunchScreen, onNavigateToAttendance, onSaveSeating }) => {
-    const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING'>('TOOLS');
+const ClassroomManager: React.FC<ClassroomManagerProps> = ({ 
+    students, 
+    performance = [], 
+    attendance, 
+    onLaunchScreen, 
+    onNavigateToAttendance, 
+    onSaveSeating, 
+    onSaveAttendance, 
+    onImportAttendance 
+}) => {
+    const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING'>('TOOLS');
     const [selectedClass, setSelectedClass] = useState('');
 
     const uniqueClasses = useMemo(() => {
@@ -37,9 +50,18 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
         return students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
     }, [students, selectedClass]);
 
+    // Present Students Only (for tools)
+    const presentStudents = useMemo(() => {
+        const today = new Date().toISOString().split('T')[0];
+        return classStudents.filter(s => {
+            const record = attendance.find(a => a.studentId === s.id && a.date === today);
+            return !record || record.status !== AttendanceStatus.ABSENT;
+        });
+    }, [classStudents, attendance]);
+
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50">
-            <div className="mb-6 flex justify-between items-end">
+            <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                         <LayoutGrid className="text-purple-600"/> الإدارة الصفية
@@ -47,29 +69,44 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
                     <p className="text-gray-500 mt-2">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
                 </div>
                 
-                <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-500 px-2">الفصل الحالي:</span>
-                    <select 
-                        value={selectedClass} 
-                        onChange={e => setSelectedClass(e.target.value)}
-                        className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent"
-                    >
-                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                <div className="flex items-center gap-4">
+                    {selectedClass && (
+                       <AttendanceStatsWidget students={classStudents} attendance={attendance} />
+                    )}
+
+                    <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-500 px-2">الفصل الحالي:</span>
+                        <select 
+                            value={selectedClass} 
+                            onChange={e => setSelectedClass(e.target.value)}
+                            className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent"
+                        >
+                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex gap-4 mb-6 border-b border-gray-200">
+            <div className="flex gap-4 mb-6 border-b border-gray-200 overflow-x-auto">
                 <button 
                     onClick={() => setActiveTab('TOOLS')}
-                    className={`pb-3 px-4 font-bold text-sm transition-colors relative ${activeTab === 'TOOLS' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
+                    className={`pb-3 px-4 font-bold text-sm transition-colors relative whitespace-nowrap ${activeTab === 'TOOLS' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
                 >
+                    <LayoutGrid className="inline-block ml-2" size={16}/>
                     لوحة القيادة (Dashboard)
                 </button>
                 <button 
-                    onClick={() => setActiveTab('SEATING')}
-                    className={`pb-3 px-4 font-bold text-sm transition-colors relative ${activeTab === 'SEATING' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
+                    onClick={() => setActiveTab('ATTENDANCE')}
+                    className={`pb-3 px-4 font-bold text-sm transition-colors relative whitespace-nowrap ${activeTab === 'ATTENDANCE' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
                 >
+                    <CalendarCheck className="inline-block ml-2" size={16}/>
+                    تحضير الطلاب
+                </button>
+                <button 
+                    onClick={() => setActiveTab('SEATING')}
+                    className={`pb-3 px-4 font-bold text-sm transition-colors relative whitespace-nowrap ${activeTab === 'SEATING' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                    <Grid className="inline-block ml-2" size={16}/>
                     مخطط الجلوس (Seating Plan)
                 </button>
             </div>
@@ -95,14 +132,14 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
                             </div>
 
                             <div 
-                                onClick={onNavigateToAttendance}
+                                onClick={() => setActiveTab('ATTENDANCE')}
                                 className="bg-white rounded-xl p-6 border border-gray-200 cursor-pointer hover:border-green-400 hover:shadow-md transition-all group"
                             >
                                 <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center mb-3 group-hover:bg-green-100 transition-colors">
                                     <CheckSquare size={20} className="text-green-600"/>
                                 </div>
-                                <h3 className="font-bold text-lg text-gray-800 mb-1">سجل السلوك</h3>
-                                <p className="text-gray-500 text-xs mb-3">رصد سريع للمخالفات والنقاط الإيجابية.</p>
+                                <h3 className="font-bold text-lg text-gray-800 mb-1">سجل السلوك والحضور</h3>
+                                <p className="text-gray-500 text-xs mb-3">رصد سريع للمخالفات، النقاط الإيجابية، والغياب.</p>
                                 <span className="text-green-600 text-xs font-bold flex items-center gap-1">فتح السجل <ArrowDownUp size={12}/></span>
                             </div>
 
@@ -135,14 +172,71 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({ students, performan
 
                             {/* Column 3 */}
                             <div className="space-y-6">
-                                <HallPassWidget students={classStudents} className={selectedClass} />
+                                {/* Only pass PRESENT students to Hall Pass */}
+                                <HallPassWidget students={presentStudents} className={selectedClass} />
                                 <LessonNoteWidget className={selectedClass} />
                             </div>
                         </div>
                     </div>
                 )}
 
+                {activeTab === 'ATTENDANCE' && (
+                    <Attendance 
+                        students={students} 
+                        attendanceHistory={attendance} 
+                        onSaveAttendance={onSaveAttendance} 
+                        onImportAttendance={onImportAttendance}
+                        preSelectedClass={selectedClass}
+                    />
+                )}
+
                 {activeTab === 'SEATING' && <SeatingChart students={students} performance={performance} onSaveSeating={onSaveSeating} preSelectedClass={selectedClass} />}
+            </div>
+        </div>
+    );
+};
+
+// --- Attendance Stats Widget ---
+const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[] }> = ({ students, attendance }) => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const stats = useMemo(() => {
+        let present = 0, absent = 0, late = 0;
+        
+        students.forEach(s => {
+            const record = attendance.find(a => a.studentId === s.id && a.date === today);
+            if (!record || record.status === AttendanceStatus.PRESENT) present++; // Default to present if no record? Or count only if marked? 
+            // In typical system, untracked is usually considered "Present" or "Pending". 
+            // Let's count Explicit status for accuracy.
+            if (record) {
+                if (record.status === AttendanceStatus.ABSENT) { absent++; present--; } // Decrement default present
+                else if (record.status === AttendanceStatus.LATE) { late++; present--; }
+                else if (record.status === AttendanceStatus.EXCUSED) { absent++; present--; } // Excused counts as absent usually or separate
+            }
+        });
+        // Correction: Start with ALL present, then subtract
+        const total = students.length;
+        const absentCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === today && a.status === AttendanceStatus.ABSENT).length;
+        const lateCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === today && a.status === AttendanceStatus.LATE).length;
+        const excusedCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === today && a.status === AttendanceStatus.EXCUSED).length;
+        const presentCount = total - absentCount - lateCount - excusedCount;
+
+        return { present: presentCount, absent: absentCount, late: lateCount };
+    }, [students, attendance, today]);
+
+    return (
+        <div className="flex bg-white rounded-lg border shadow-sm divide-x divide-x-reverse overflow-hidden text-xs">
+            <div className="px-3 py-1 bg-green-50 text-green-700 flex flex-col items-center">
+                <span className="font-bold">{stats.present}</span>
+                <span className="text-[10px]">حضور</span>
+            </div>
+            <div className="px-3 py-1 bg-red-50 text-red-700 flex flex-col items-center">
+                <span className="font-bold">{stats.absent}</span>
+                <span className="text-[10px]">غياب</span>
+            </div>
+            <div className="px-3 py-1 bg-yellow-50 text-yellow-700 flex flex-col items-center">
+                <span className="font-bold">{stats.late}</span>
+                <span className="text-[10px]">تأخر</span>
             </div>
         </div>
     );
@@ -340,7 +434,7 @@ const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ 
                         value={selectedStudent}
                         onChange={e => setSelectedStudent(e.target.value)}
                     >
-                        <option value="">-- اختر الطالب --</option>
+                        <option value="">-- اختر الطالب (الحاضرين) --</option>
                         {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                 </div>

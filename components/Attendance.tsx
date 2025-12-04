@@ -11,6 +11,7 @@ interface AttendanceProps {
   attendanceHistory: AttendanceRecord[];
   onSaveAttendance: (records: AttendanceRecord[]) => void;
   onImportAttendance: (records: AttendanceRecord[]) => void;
+  preSelectedClass?: string; // New Prop
 }
 
 // Default Predefined Notes (Used if no local storage found)
@@ -24,7 +25,7 @@ const DEFAULT_NEGATIVE_NOTES = [
     'نوم داخل الفصل', 'تأخر عن الحصة', 'استخدام الهاتف', 'عدم الانتباه'
 ];
 
-const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, onImportAttendance }) => {
+const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, onImportAttendance, preSelectedClass }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
   // State for Attendance Status
@@ -57,7 +58,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   
   // Selection State (Driven by Schedule Click)
-  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedClass, setSelectedClass] = useState(preSelectedClass || '');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
   
@@ -66,6 +67,13 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   useEffect(() => {
     setSchedules(getSchedules());
   }, []);
+
+  useEffect(() => {
+      if(preSelectedClass) {
+          setSelectedClass(preSelectedClass);
+          // Try to auto-select period if only one or first
+      }
+  }, [preSelectedClass]);
 
   // --- Persist Tags Effects ---
   useEffect(() => {
@@ -147,6 +155,19 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     setNoteRecords(initialNotes);
     setSaved(false);
   }, [selectedDate, selectedPeriod, selectedClass, filteredStudents, attendanceHistory]);
+
+  // Stats Logic
+  const stats = useMemo(() => {
+      if (filteredStudents.length === 0) return { present: 0, absent: 0, late: 0 };
+      let present = 0, absent = 0, late = 0;
+      filteredStudents.forEach(s => {
+          const status = records[s.id];
+          if (status === AttendanceStatus.ABSENT) absent++;
+          else if (status === AttendanceStatus.LATE) late++;
+          else present++; // Default or present or excused (treat excused as present in simple stats or absent?)
+      });
+      return { present, absent, late };
+  }, [filteredStudents, records]);
 
   // --- Logic for Excuses ---
   const pendingExcuses = useMemo(() => {
@@ -303,6 +324,24 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
             </div>
         </div>
         
+        {/* STATS BAR (NEW) */}
+        {selectedClass && selectedPeriod !== null && (
+            <div className="flex bg-gray-50 rounded-lg border border-gray-200 overflow-hidden text-xs md:text-sm">
+                <div className="px-4 py-2 flex flex-col items-center justify-center border-l bg-green-50 text-green-700">
+                    <span className="font-bold">{stats.present}</span>
+                    <span className="text-[10px]">حاضر</span>
+                </div>
+                <div className="px-4 py-2 flex flex-col items-center justify-center border-l bg-red-50 text-red-700">
+                    <span className="font-bold">{stats.absent}</span>
+                    <span className="text-[10px]">غائب</span>
+                </div>
+                <div className="px-4 py-2 flex flex-col items-center justify-center bg-yellow-50 text-yellow-700">
+                    <span className="font-bold">{stats.late}</span>
+                    <span className="text-[10px]">متأخر</span>
+                </div>
+            </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
              
              {/* Excuse Inbox Button */}
@@ -327,7 +366,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                     onChange={(e) => { 
                         setSelectedDate(e.target.value); 
                         setSelectedPeriod(null); 
-                        setSelectedClass(''); 
+                        if (!preSelectedClass) setSelectedClass(''); 
                     }}
                     className="outline-none text-gray-700 bg-transparent text-sm font-bold w-full cursor-pointer"
                 />
@@ -399,6 +438,24 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
           </div>
       )}
 
+      {/* Manual Selection if PreSelected Class but No Period */}
+      {selectedClass && selectedPeriod === null && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center animate-fade-in">
+              <h3 className="font-bold text-lg mb-4">اختر الحصة لـ {selectedClass}</h3>
+              <div className="flex flex-wrap gap-3 justify-center">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(p => (
+                      <button 
+                        key={p} 
+                        onClick={() => setSelectedPeriod(p)}
+                        className="px-6 py-3 bg-gray-50 border hover:bg-primary hover:text-white hover:border-primary rounded-xl font-bold transition-all shadow-sm"
+                      >
+                          الحصة {p}
+                      </button>
+                  ))}
+              </div>
+          </div>
+      )}
+
       {/* STUDENT LIST (Only if Class Selected) */}
       {selectedPeriod !== null && selectedClass && (
         <div id="attendance-list" className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-slide-up">
@@ -417,7 +474,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         <div className="flex items-center gap-2 font-bold text-lg">
                             <span>{selectedClass}</span>
                             <span className="opacity-50">|</span>
-                            <span>{selectedSubject}</span>
+                            <span>{selectedSubject || 'مادة عامة'}</span>
                         </div>
                         <span className="text-xs opacity-75">الحصة {selectedPeriod} • عدد الطلاب: {filteredStudents.length}</span>
                     </div>
