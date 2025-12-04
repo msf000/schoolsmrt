@@ -59,7 +59,17 @@ let _worksMasterUrl: string = '';
 // --- Helpers ---
 const loadLocal = <T>(key: string, defaultVal: T): T => {
     const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : defaultVal;
+    if (!saved) return defaultVal;
+    try {
+        return JSON.parse(saved);
+    } catch (e) {
+        // Fallback: If parsing fails and we expect a string, assume it's a raw string
+        if (typeof defaultVal === 'string') {
+            return saved as unknown as T;
+        }
+        console.warn(`Failed to parse local storage key "${key}". Returning default value.`);
+        return defaultVal;
+    }
 };
 
 const saveLocal = (key: string, data: any) => {
