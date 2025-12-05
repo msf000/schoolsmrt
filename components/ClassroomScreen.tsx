@@ -67,7 +67,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
                         onClick={() => setActiveTool('PRESENTATION')}
                         className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PRESENTATION' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
                     >
-                        <Monitor size={18}/> العرض
+                        <Monitor size={18}/> العرض والسبورة
                     </button>
                     <button 
                         onClick={() => setActiveTool('PICKER')}
@@ -123,10 +123,21 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
     const handleUrlSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         // Simple logic to detect if it needs embed processing
-        let url = inputUrl;
-        if(url.includes('docs.google.com/presentation') && !url.includes('/embed')) {
+        let url = inputUrl.trim();
+        
+        // Handle SharePoint / Office Online links (Naive check)
+        if (url.includes('sharepoint.com') || url.includes('onedrive.live.com')) {
+             // Try to append embed params if missing (often users copy the edit link)
+             // This is a best-effort guess. Often 'action=embedview' works for PPT online.
+             if (!url.includes('action=')) {
+                 url += url.includes('?') ? '&action=embedview' : '?action=embedview';
+             }
+        }
+        // Handle Google Slides
+        if (url.includes('docs.google.com/presentation') && !url.includes('/embed')) {
             url = url.replace('/edit', '/embed').replace('/pub', '/embed');
         }
+
         setSourceUrl(url);
         setSourceType('IFRAME');
     };
@@ -137,11 +148,11 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
             {/* Main Stage (The Presentation) */}
             <div className="flex-1 bg-black/20 rounded-2xl border border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
                 {sourceType === 'NONE' ? (
-                    <div className="text-center p-8">
+                    <div className="text-center p-8 animate-fade-in">
                         <div className="bg-white/10 p-6 rounded-full inline-flex mb-6">
                             <Monitor size={64} className="text-indigo-400 opacity-80"/>
                         </div>
-                        <h2 className="text-2xl font-bold mb-6">وضع العرض التقديمي</h2>
+                        <h2 className="text-2xl font-bold mb-6">وضع العرض التقديمي (Smart Board)</h2>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
                             <div className="bg-white/5 p-6 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
@@ -155,10 +166,10 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
 
                             <div className="bg-white/5 p-6 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
                                 <h3 className="font-bold mb-4 flex items-center justify-center gap-2"><Globe/> رابط سحابي</h3>
-                                <p className="text-xs text-gray-400 mb-4">رابط Google Slides أو أي موقع ويب</p>
+                                <p className="text-xs text-gray-400 mb-4">رابط Google Slides أو OneDrive أو أي موقع</p>
                                 <form onSubmit={handleUrlSubmit} className="flex gap-2">
                                     <input 
-                                        className="w-full bg-black/30 border border-white/20 rounded-lg px-3 text-sm outline-none focus:border-indigo-500"
+                                        className="w-full bg-black/30 border border-white/20 rounded-lg px-3 text-sm outline-none focus:border-indigo-500 dir-ltr text-left"
                                         placeholder="https://..."
                                         value={inputUrl}
                                         onChange={e => setInputUrl(e.target.value)}
@@ -169,7 +180,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
                         </div>
                     </div>
                 ) : (
-                    <div className="w-full h-full relative group">
+                    <div className="w-full h-full relative group bg-white">
                         {/* Clear Button */}
                         <button 
                             onClick={() => { setSourceType('NONE'); setSourceUrl(''); }}
@@ -182,13 +193,13 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
                         {/* Content */}
                         {sourceType === 'PDF' && <iframe src={sourceUrl} className="w-full h-full" title="PDF Viewer"></iframe>}
                         {sourceType === 'IFRAME' && <iframe src={sourceUrl} className="w-full h-full" title="Web Viewer" allowFullScreen></iframe>}
-                        {sourceType === 'IMAGE' && <img src={sourceUrl} className="w-full h-full object-contain" alt="Presentation Slide"/>}
+                        {sourceType === 'IMAGE' && <img src={sourceUrl} className="w-full h-full object-contain bg-black" alt="Presentation Slide"/>}
                     </div>
                 )}
             </div>
 
             {/* FLOATING TOOLBAR */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/60 backdrop-blur-md p-2 rounded-2xl border border-white/10 shadow-2xl flex items-center gap-2 z-40 transition-all hover:bg-black/80">
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-900/90 backdrop-blur-md p-2 rounded-2xl border border-white/20 shadow-2xl flex items-center gap-2 z-40 transition-all hover:bg-slate-800">
                 <button 
                     onClick={() => setActiveFloatingTool(activeFloatingTool === 'PICKER' ? 'NONE' : 'PICKER')}
                     className={`p-3 rounded-xl transition-all ${activeFloatingTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg scale-110' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
@@ -249,7 +260,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
                                 <h4 className="text-pink-400 font-bold mb-4 flex items-center gap-2"><Volume2 size={16}/> المؤثرات</h4>
                                 <div className="grid grid-cols-3 gap-2">
                                     {['👏 تصفيق', '✅ صحيح', '❌ خطأ', '🥁 طبلة', '🤫 هدوء', '🔔 جرس'].map((s, i) => (
-                                        <button key={i} className="bg-white/10 hover:bg-white/20 p-2 rounded text-xs font-bold text-white transition-colors">
+                                        <button key={i} className="bg-white/10 hover:bg-white/20 p-3 rounded text-xs font-bold text-white transition-colors border border-white/5">
                                             {s}
                                         </button>
                                     ))}
