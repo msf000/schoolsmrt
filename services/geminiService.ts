@@ -345,8 +345,8 @@ export const parseRawDataWithAI = async (
     }
 
     // Slice input to avoid hitting max input/output tokens too easily, 
-    // but keep enough for reasonable data extraction (approx 15k chars)
-    const truncatedInput = rawText.slice(0, 15000);
+    // but keep enough for reasonable data extraction. Reduced to 6000 for stability.
+    const truncatedInput = rawText.slice(0, 6000);
 
     const prompt = `
     You are a smart data parser. I have unstructured text copied from a file, email, or message.
@@ -363,6 +363,7 @@ export const parseRawDataWithAI = async (
     1. Ignore headers, footers, or irrelevant text.
     2. Fix Arabic names if they appear reversed or broken.
     3. Return ONLY the JSON array. Do NOT return markdown formatting.
+    4. If the list is too long, return the first 50 items.
     `;
 
     try {
@@ -388,7 +389,7 @@ export const parseRawDataWithAI = async (
         console.error("AI Parse Error:", error);
         
         if (error instanceof SyntaxError) {
-             throw new Error("فشل قراءة البيانات: النص طويل جداً مما أدى إلى انقطاع الاستجابة. حاول تقليل النص (مثلاً 50 سطر في كل مرة).");
+             throw new Error("فشل قراءة البيانات: النص طويل جداً مما أدى إلى انقطاع الاستجابة. حاول تقليل النص (مثلاً 20 سطر في كل مرة).");
         }
         
         throw new Error("فشل تحليل النص. تأكد من أن النص يحتوي على بيانات واضحة.");

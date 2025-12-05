@@ -78,21 +78,22 @@ export const downloadFromSupabase = async () => {
         }
     };
 
-    await fetchTable(BASE_KEYS.STUDENTS);
-    await fetchTable(BASE_KEYS.ATTENDANCE);
-    await fetchTable(BASE_KEYS.PERFORMANCE);
-    await fetchTable(BASE_KEYS.TEACHERS);
-    await fetchTable(BASE_KEYS.PARENTS);
-    await fetchTable(BASE_KEYS.SUBJECTS);
-    await fetchTable(BASE_KEYS.SCHEDULES);
-    await fetchTable(BASE_KEYS.SCHOOLS);
-    await fetchTable(BASE_KEYS.SYSTEM_USERS);
-    await fetchTable(BASE_KEYS.ASSIGNMENTS);
-    await fetchTable(BASE_KEYS.MESSAGES);
-    await fetchTable(BASE_KEYS.TEACHER_ASSIGNMENTS);
+    const promises = Object.keys(DB_MAP).map(key => fetchTable(key));
+    await Promise.all(promises);
     
-    // Refresh memory
-    await initAutoSync();
+    // Refresh memory after download
+    _students = loadLocal(BASE_KEYS.STUDENTS, []);
+    _attendance = loadLocal(BASE_KEYS.ATTENDANCE, []);
+    _performance = loadLocal(BASE_KEYS.PERFORMANCE, []);
+    _teachers = loadLocal(BASE_KEYS.TEACHERS, []);
+    _parents = loadLocal(BASE_KEYS.PARENTS, []);
+    _subjects = loadLocal(BASE_KEYS.SUBJECTS, []);
+    _schedules = loadLocal(BASE_KEYS.SCHEDULES, []);
+    _schools = loadLocal(BASE_KEYS.SCHOOLS, []);
+    _systemUsers = loadLocal(BASE_KEYS.SYSTEM_USERS, []);
+    _assignments = loadLocal(BASE_KEYS.ASSIGNMENTS, []);
+    _messages = loadLocal(BASE_KEYS.MESSAGES, []);
+    _teacherAssignments = loadLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, []);
 };
 
 export const uploadToSupabase = async () => {
@@ -138,11 +139,15 @@ export const initAutoSync = async () => {
   _worksMasterUrl = loadLocal(BASE_KEYS.WORKS_MASTER_URL, '');
   
   // Try simple cloud pull if configured
-  if (!isDemoMode && (localStorage.getItem('custom_supabase_url') || process.env.SUPABASE_URL)) {
+  const hasCloudConfig = !isDemoMode && (localStorage.getItem('custom_supabase_url') || (process.env.SUPABASE_URL && process.env.SUPABASE_URL.length > 5));
+  
+  if (hasCloudConfig) {
       try {
-          await downloadFromSupabase();
+          // Race download against a 2.5s timeout to ensure app loads fast
+          const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Sync Timeout')), 2500));
+          await Promise.race([downloadFromSupabase(), timeout]);
       } catch (e) {
-          console.warn('Initial cloud sync failed, using local data');
+          console.warn('Initial cloud sync skipped (timeout or error), using local data');
       }
   }
 };
