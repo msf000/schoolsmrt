@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { generateLessonPlan, generateSemesterPlan, generateLearningPlan } from '../services/geminiService';
 import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 const TEACHING_STRATEGIES = [
     'التعلم التعاوني', 'العصف الذهني', 'حل المشكلات', 'التعلم باللعب', 
@@ -33,6 +34,8 @@ const LessonPlanning: React.FC = () => {
     const [semSubject, setSemSubject] = useState('');
     const [semGrade, setSemGrade] = useState('');
     const [semTerm, setSemTerm] = useState('الفصل الدراسي الأول');
+    const [semWeeks, setSemWeeks] = useState(13); // Default 13 weeks
+    const [semContent, setSemContent] = useState('');
     const [semResult, setSemResult] = useState('');
 
     // --- LEARNING PLAN STATE ---
@@ -77,7 +80,7 @@ const LessonPlanning: React.FC = () => {
         setLoading(true);
         setSemResult('');
         try {
-            const result = await generateSemesterPlan(semSubject, semGrade, semTerm);
+            const result = await generateSemesterPlan(semSubject, semGrade, semTerm, semWeeks, semContent);
             setSemResult(result);
         } catch (error) {
             setSemResult("فشل توليد الخطة الفصلية.");
@@ -110,6 +113,29 @@ const LessonPlanning: React.FC = () => {
         window.print();
     };
 
+    // Custom Markdown Components for Beautiful Rendering
+    const markdownComponents = {
+        h1: ({node, ...props}: any) => <h1 className="text-2xl font-black text-indigo-800 mb-4 border-b-2 border-indigo-100 pb-2" {...props} />,
+        h2: ({node, ...props}: any) => <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3 flex items-center gap-2 before:content-[''] before:w-1 before:h-6 before:bg-indigo-500 before:rounded-full before:ml-2" {...props} />,
+        h3: ({node, ...props}: any) => <h3 className="text-lg font-bold text-gray-700 mt-4 mb-2" {...props} />,
+        p: ({node, ...props}: any) => <p className="mb-2 text-gray-600 leading-relaxed" {...props} />,
+        ul: ({node, ...props}: any) => <ul className="list-disc list-outside mr-5 mb-4 space-y-1 text-gray-700 marker:text-indigo-400" {...props} />,
+        ol: ({node, ...props}: any) => <ol className="list-decimal list-outside mr-5 mb-4 space-y-1 text-gray-700 marker:font-bold" {...props} />,
+        li: ({node, ...props}: any) => <li className="pl-2" {...props} />,
+        strong: ({node, ...props}: any) => <strong className="font-bold text-gray-900" {...props} />,
+        table: ({node, ...props}: any) => (
+            <div className="overflow-x-auto my-6 rounded-lg border border-gray-200 shadow-sm">
+                <table className="min-w-full divide-y divide-gray-200" {...props} />
+            </div>
+        ),
+        thead: ({node, ...props}: any) => <thead className="bg-indigo-50" {...props} />,
+        tbody: ({node, ...props}: any) => <tbody className="bg-white divide-y divide-gray-200" {...props} />,
+        tr: ({node, ...props}: any) => <tr className="hover:bg-gray-50 transition-colors" {...props} />,
+        th: ({node, ...props}: any) => <th className="px-4 py-3 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider" {...props} />,
+        td: ({node, ...props}: any) => <td className="px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap" {...props} />,
+        blockquote: ({node, ...props}: any) => <blockquote className="border-r-4 border-indigo-300 bg-indigo-50/50 p-4 rounded-l my-4 italic text-gray-600" {...props} />,
+    };
+
     const renderOutput = (content: string) => (
         <div className="w-full h-full flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative animate-fade-in min-h-[500px]">
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center print:hidden">
@@ -132,11 +158,13 @@ const LessonPlanning: React.FC = () => {
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-20">
                         <Loader2 size={64} className="text-indigo-600 animate-spin mb-4"/>
                         <h3 className="text-xl font-bold text-gray-800">جاري الإعداد الذكي...</h3>
-                        <p className="text-gray-500 mt-2">يتم التحضير بناءً على المناهج السعودية 1447هـ</p>
+                        <p className="text-gray-500 mt-2">يتم التنسيق وبناء الجداول تلقائياً...</p>
                     </div>
                 ) : content ? (
-                    <div className="max-w-4xl mx-auto prose prose-indigo max-w-none text-gray-800 leading-relaxed whitespace-pre-line text-right font-medium" dir="rtl">
-                        {content}
+                    <div className="max-w-4xl mx-auto" dir="rtl">
+                        <ReactMarkdown components={markdownComponents}>
+                            {content}
+                        </ReactMarkdown>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
@@ -307,13 +335,35 @@ const LessonPlanning: React.FC = () => {
                                 <label className="block text-sm font-bold text-gray-700 mb-2">الصف</label>
                                 <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={semGrade} onChange={e => setSemGrade(e.target.value)} placeholder="مثال: الأول الثانوي (مسارات)"/>
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">الفصل الدراسي</label>
+                                    <select className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={semTerm} onChange={e => setSemTerm(e.target.value)}>
+                                        <option value="الفصل الدراسي الأول">الفصل الدراسي الأول 1447</option>
+                                        <option value="الفصل الدراسي الثاني">الفصل الدراسي الثاني 1447</option>
+                                        <option value="الفصل الدراسي الثالث">الفصل الدراسي الثالث 1447</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">عدد الأسابيع</label>
+                                    <input 
+                                        type="number"
+                                        className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={semWeeks}
+                                        onChange={e => setSemWeeks(Number(e.target.value))}
+                                        min={1}
+                                        max={20}
+                                    />
+                                </div>
+                            </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">الفصل الدراسي</label>
-                                <select className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={semTerm} onChange={e => setSemTerm(e.target.value)}>
-                                    <option value="الفصل الدراسي الأول">الفصل الدراسي الأول 1447</option>
-                                    <option value="الفصل الدراسي الثاني">الفصل الدراسي الثاني 1447</option>
-                                    <option value="الفصل الدراسي الثالث">الفصل الدراسي الثالث 1447</option>
-                                </select>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">محتويات المقرر (الوحدات / الدروس)</label>
+                                <textarea 
+                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-32 text-sm" 
+                                    value={semContent} 
+                                    onChange={e => setSemContent(e.target.value)} 
+                                    placeholder="اكتب أو الصق وحدات الكتاب هنا لضمان دقة التوزيع...&#10;مثال:&#10;الوحدة 1: مقدمة في الحاسب&#10;الوحدة 2: الخوارزميات"
+                                />
                             </div>
                             <button onClick={handleGenerateSemester} disabled={!semSubject || !semGrade || loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg mt-4 disabled:opacity-50">
                                 {loading ? <Loader2 className="animate-spin inline"/> : <Sparkles className="inline mr-2"/>} إنشاء توزيع المنهج
