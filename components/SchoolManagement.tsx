@@ -2,15 +2,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Teacher, Parent, Subject, Student, ScheduleItem, DayOfWeek, ReportHeaderConfig, TeacherAssignment } from '../types';
 import { 
-    getTeachers, addTeacher, deleteTeacher, 
-    getParents, addParent, deleteParent, 
-    getSubjects, addSubject, deleteSubject,
+    getTeachers, addTeacher, deleteTeacher, updateTeacher,
+    getParents, addParent, deleteParent, updateParent,
+    getSubjects, addSubject, deleteSubject, updateSubject,
     getSchedules, saveScheduleItem, deleteScheduleItem,
     getReportHeaderConfig, saveReportHeaderConfig,
     saveWorksMasterUrl, getWorksMasterUrl,
     getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment
 } from '../services/storageService';
-import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Database, Save, Link as LinkIcon, Calendar, Filter, AlertCircle, Edit2, Check, Layers, GraduationCap, MapPin, Upload, Briefcase, Table, Printer, Copy, ArrowLeft } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Database, Save, Link as LinkIcon, Calendar, Filter, AlertCircle, Edit2, Check, Layers, GraduationCap, MapPin, Upload, Briefcase, Table, Printer, Copy, ArrowLeft, Search, X } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -747,7 +747,7 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                 </div>
             )}
 
-            {/* --- DAILY MATRIX VIEW (NEW) --- */}
+            {/* --- DAILY MATRIX VIEW --- */}
             {viewMode === 'DAILY_MATRIX' && (
                 <div className="animate-fade-in space-y-6">
                     <div className="bg-white p-4 rounded-lg border border-green-100 shadow-sm flex items-center justify-between gap-4 print:hidden">
@@ -1069,62 +1069,131 @@ const SchoolSettings = () => {
     );
 };
 
-// --- Other Managers ---
+// --- UPDATED: Enhanced Managers with Search & Edit ---
 
 const TeachersManager = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [form, setForm] = useState({ name: '', email: '', phone: '', specialty: '' });
+    const [form, setForm] = useState({ id: '', name: '', email: '', phone: '', specialty: '' });
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => { setTeachers(getTeachers()); }, []);
 
-    const handleAdd = (e: React.FormEvent) => {
+    const filteredTeachers = useMemo(() => {
+        return teachers.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || (t.subjectSpecialty && t.subjectSpecialty.includes(searchTerm)));
+    }, [teachers, searchTerm]);
+
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        addTeacher({ id: Date.now().toString(), name: form.name, email: form.email, phone: form.phone, subjectSpecialty: form.specialty });
+        if (editingId) {
+            updateTeacher({ 
+                id: editingId, 
+                name: form.name, 
+                email: form.email, 
+                phone: form.phone, 
+                subjectSpecialty: form.specialty 
+            });
+            setEditingId(null);
+        } else {
+            addTeacher({ 
+                id: Date.now().toString(), 
+                name: form.name, 
+                email: form.email, 
+                phone: form.phone, 
+                subjectSpecialty: form.specialty 
+            });
+        }
         setTeachers(getTeachers());
-        setForm({ name: '', email: '', phone: '', specialty: '' });
+        setForm({ id: '', name: '', email: '', phone: '', specialty: '' });
+    };
+
+    const handleEdit = (t: Teacher) => {
+        setEditingId(t.id);
+        setForm({ id: t.id, name: t.name, email: t.email || '', phone: t.phone || '', specialty: t.subjectSpecialty || '' });
+    };
+
+    const handleDelete = (id: string) => {
+        if(confirm('هل أنت متأكد من حذف هذا المعلم؟')) {
+            deleteTeacher(id);
+            setTeachers(getTeachers());
+        }
     };
 
     return (
         <div className="space-y-6">
-            <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-gray-50 p-4 rounded-lg border border-gray-200">
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">اسم المعلم</label>
-                    <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-2 border rounded-md" />
+            <div className={`p-4 rounded-lg border transition-all ${editingId ? 'bg-yellow-50 border-yellow-300 ring-1 ring-yellow-200' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        {editingId ? <Edit2 size={18} className="text-yellow-600"/> : <Plus size={18} className="text-primary"/>}
+                        {editingId ? 'تعديل بيانات المعلم' : 'إضافة معلم جديد'}
+                    </h3>
+                    {editingId && <button onClick={() => { setEditingId(null); setForm({id:'', name:'', email:'', phone:'', specialty:''}); }} className="text-gray-500 hover:text-red-500"><X size={18}/></button>}
                 </div>
-                <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">التخصص</label>
-                    <input value={form.specialty} onChange={e => setForm({...form, specialty: e.target.value})} className="w-full p-2 border rounded-md" />
-                </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">رقم الجوال</label>
-                    <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-md" />
-                </div>
-                <button type="submit" className="bg-primary text-white px-4 py-2 rounded-md h-[42px] flex items-center justify-center gap-2 hover:bg-teal-800"><Plus size={18} /> إضافة</button>
-            </form>
-            <div className="overflow-x-auto">
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">اسم المعلم *</label>
+                        <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">التخصص</label>
+                        <input value={form.specialty} onChange={e => setForm({...form, specialty: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">رقم الجوال</label>
+                        <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                    <button type="submit" className={`px-4 py-2 rounded-md h-[42px] flex items-center justify-center gap-2 font-bold text-white transition-colors ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-primary hover:bg-teal-800'}`}>
+                        {editingId ? 'حفظ التعديلات' : 'إضافة'}
+                    </button>
+                </form>
+            </div>
+
+            <div className="relative">
+                <Search className="absolute right-3 top-3 text-gray-400" size={18} />
+                <input 
+                    type="text" 
+                    placeholder="بحث عن معلم (الاسم أو التخصص)..." 
+                    className="w-full pr-10 p-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 mb-4"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
                 <table className="w-full text-right border-collapse">
                     <thead>
-                        <tr className="border-b bg-gray-50 text-sm text-gray-600">
+                        <tr className="bg-gray-100 text-sm text-gray-700 border-b">
                             <th className="p-3">الاسم</th>
                             <th className="p-3">التخصص</th>
                             <th className="p-3">تواصل</th>
-                            <th className="p-3">حذف</th>
+                            <th className="p-3 text-center">النصاب</th>
+                            <th className="p-3 text-center">إجراءات</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {teachers.map(t => (
-                            <tr key={t.id} className="border-b hover:bg-gray-50">
-                                <td className="p-3 font-medium">{t.name}</td>
-                                <td className="p-3 text-gray-600">{t.subjectSpecialty}</td>
-                                <td className="p-3 text-sm text-gray-500">
-                                    <div className="flex flex-col gap-1">
-                                        {t.phone && <span className="flex items-center gap-1"><Phone size={12}/> {t.phone}</span>}
-                                        {t.email && <span className="flex items-center gap-1"><Mail size={12}/> {t.email}</span>}
-                                    </div>
-                                </td>
-                                <td className="p-3"><button onClick={() => { deleteTeacher(t.id); setTeachers(getTeachers()); }} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button></td>
-                            </tr>
-                        ))}
+                    <tbody className="divide-y">
+                        {filteredTeachers.map(t => {
+                            const workload = getTeacherAssignments().filter(a => a.teacherId === t.id).length;
+                            return (
+                                <tr key={t.id} className={`hover:bg-gray-50 ${editingId === t.id ? 'bg-yellow-50' : ''}`}>
+                                    <td className="p-3 font-bold text-gray-800">{t.name}</td>
+                                    <td className="p-3 text-gray-600">{t.subjectSpecialty || '-'}</td>
+                                    <td className="p-3 text-sm text-gray-500">
+                                        <div className="flex flex-col gap-1">
+                                            {t.phone && <span className="flex items-center gap-1"><Phone size={12}/> {t.phone}</span>}
+                                            {t.email && <span className="flex items-center gap-1"><Mail size={12}/> {t.email}</span>}
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${workload > 20 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{workload} حصص</span>
+                                    </td>
+                                    <td className="p-3 text-center flex justify-center gap-2">
+                                        <button onClick={() => handleEdit(t)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full transition-colors"><Edit2 size={16}/></button>
+                                        <button onClick={() => handleDelete(t.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {filteredTeachers.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400">لا توجد نتائج</td></tr>}
                     </tbody>
                 </table>
             </div>
@@ -1134,37 +1203,95 @@ const TeachersManager = () => {
 
 const ParentsManager = () => {
     const [parents, setParents] = useState<Parent[]>([]);
-    const [form, setForm] = useState({ name: '', phone: '', email: '' });
+    const [form, setForm] = useState({ id: '', name: '', phone: '', email: '' });
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => { setParents(getParents()); }, []);
 
-    const handleAdd = (e: React.FormEvent) => {
+    const filteredParents = useMemo(() => {
+        return parents.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone.includes(searchTerm));
+    }, [parents, searchTerm]);
+
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        addParent({ id: Date.now().toString(), name: form.name, phone: form.phone, email: form.email, childrenIds: [] });
+        if (editingId) {
+            updateParent({ 
+                id: editingId, 
+                name: form.name, 
+                phone: form.phone, 
+                email: form.email,
+                childrenIds: [] // Ideally preserve existing children, but basic update doesn't touch children mapping here usually
+            });
+            setEditingId(null);
+        } else {
+            addParent({ 
+                id: Date.now().toString(), 
+                name: form.name, 
+                phone: form.phone, 
+                email: form.email, 
+                childrenIds: [] 
+            });
+        }
         setParents(getParents());
-        setForm({ name: '', phone: '', email: '' });
+        setForm({ id: '', name: '', phone: '', email: '' });
+    };
+
+    const handleEdit = (p: Parent) => {
+        setEditingId(p.id);
+        setForm({ id: p.id, name: p.name, phone: p.phone, email: p.email || '' });
+    };
+
+    const handleDelete = (id: string) => {
+        if(confirm('حذف ولي الأمر؟')) {
+            deleteParent(id);
+            setParents(getParents());
+        }
     };
 
     return (
         <div className="space-y-6">
-            <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-gray-50 p-4 rounded-lg border border-gray-200">
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">اسم ولي الأمر</label>
-                    <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-2 border rounded-md" />
+            <div className={`p-4 rounded-lg border transition-all ${editingId ? 'bg-yellow-50 border-yellow-300 ring-1 ring-yellow-200' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        {editingId ? <Edit2 size={18} className="text-yellow-600"/> : <Plus size={18} className="text-primary"/>}
+                        {editingId ? 'تعديل بيانات ولي الأمر' : 'إضافة ولي أمر جديد'}
+                    </h3>
+                    {editingId && <button onClick={() => { setEditingId(null); setForm({id:'', name:'', phone:'', email:''}); }} className="text-gray-500 hover:text-red-500"><X size={18}/></button>}
                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">رقم الجوال</label>
-                    <input required value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-md" />
-                </div>
-                 <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">البريد الإلكتروني</label>
-                    <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full p-2 border rounded-md" />
-                </div>
-                <button type="submit" className="bg-primary text-white px-4 py-2 rounded-md h-[42px] flex items-center justify-center gap-2 hover:bg-teal-800"><Plus size={18} /> إضافة</button>
-            </form>
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                     <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">الاسم *</label>
+                        <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                     <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">رقم الجوال *</label>
+                        <input required value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                     <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">البريد الإلكتروني</label>
+                        <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                    <button type="submit" className={`px-4 py-2 rounded-md h-[42px] flex items-center justify-center gap-2 font-bold text-white transition-colors ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-primary hover:bg-teal-800'}`}>
+                        {editingId ? 'حفظ' : 'إضافة'}
+                    </button>
+                </form>
+            </div>
+
+            <div className="relative">
+                <Search className="absolute right-3 top-3 text-gray-400" size={18} />
+                <input 
+                    type="text" 
+                    placeholder="بحث عن ولي أمر..." 
+                    className="w-full pr-10 p-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 mb-4"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
+
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {parents.map(p => (
-                    <div key={p.id} className="border p-4 rounded-lg flex justify-between items-start hover:shadow-md transition-shadow">
+                {filteredParents.map(p => (
+                    <div key={p.id} className={`border p-4 rounded-lg flex justify-between items-start hover:shadow-md transition-shadow bg-white ${editingId === p.id ? 'ring-2 ring-yellow-400' : ''}`}>
                         <div>
                             <h4 className="font-bold text-gray-800 flex items-center gap-2"><User size={16} /> {p.name}</h4>
                             <div className="mt-2 text-sm text-gray-500 space-y-1">
@@ -1172,9 +1299,13 @@ const ParentsManager = () => {
                                 {p.email && <p className="flex items-center gap-2"><Mail size={14} className="text-blue-600"/> {p.email}</p>}
                             </div>
                         </div>
-                        <button onClick={() => { deleteParent(p.id); setParents(getParents()); }} className="text-red-500 bg-red-50 p-2 rounded-full hover:bg-red-100"><Trash2 size={16} /></button>
+                        <div className="flex flex-col gap-1">
+                            <button onClick={() => handleEdit(p)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full transition-colors"><Edit2 size={16}/></button>
+                            <button onClick={() => handleDelete(p.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"><Trash2 size={16}/></button>
+                        </div>
                     </div>
                 ))}
+                {filteredParents.length === 0 && <div className="col-span-full text-center text-gray-400 py-8">لا توجد نتائج</div>}
             </div>
         </div>
     );
@@ -1183,32 +1314,57 @@ const ParentsManager = () => {
 const SubjectsManager = () => {
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [name, setName] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     useEffect(() => { setSubjects(getSubjects()); }, []);
 
-    const handleAdd = (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        addSubject({ id: Date.now().toString(), name });
+        if (editingId) {
+            updateSubject({ id: editingId, name });
+            setEditingId(null);
+        } else {
+            addSubject({ id: Date.now().toString(), name });
+        }
         setSubjects(getSubjects());
         setName('');
     };
 
+    const handleEdit = (s: Subject) => {
+        setEditingId(s.id);
+        setName(s.name);
+    };
+
+    const handleDelete = (id: string) => {
+        if(confirm('حذف المادة؟')) {
+            deleteSubject(id);
+            setSubjects(getSubjects());
+        }
+    };
+
     return (
         <div className="max-w-2xl mx-auto space-y-6">
-            <form onSubmit={handleAdd} className="flex gap-4 items-end bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <form onSubmit={handleSubmit} className="flex gap-4 items-end bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <div className="flex-1">
                     <label className="block text-xs font-bold text-gray-600 mb-1">اسم المادة (مثال: رياضيات)</label>
                     <input required value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded-md" />
                 </div>
-                <button type="submit" className="bg-primary text-white px-4 py-2 rounded-md h-[42px] flex items-center gap-2 hover:bg-teal-800"><Plus size={18} /> إضافة</button>
+                {editingId && <button type="button" onClick={() => {setEditingId(null); setName('');}} className="p-2 text-gray-500 hover:bg-gray-200 rounded"><X size={20}/></button>}
+                <button type="submit" className={`px-4 py-2 rounded-md h-[42px] flex items-center gap-2 font-bold text-white transition-colors ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-primary hover:bg-teal-800'}`}>
+                    {editingId ? <><Edit2 size={18}/> حفظ</> : <><Plus size={18}/> إضافة</>}
+                </button>
             </form>
-            <ul className="divide-y border rounded-lg overflow-hidden">
+            <ul className="divide-y border rounded-lg overflow-hidden bg-white">
                 {subjects.map(s => (
-                    <li key={s.id} className="p-4 flex justify-between items-center hover:bg-gray-50">
+                    <li key={s.id} className={`p-4 flex justify-between items-center hover:bg-gray-50 transition-colors ${editingId === s.id ? 'bg-yellow-50' : ''}`}>
                         <span className="font-medium flex items-center gap-2"><Book size={16} className="text-secondary"/> {s.name}</span>
-                        <button onClick={() => { deleteSubject(s.id); setSubjects(getSubjects()); }} className="text-red-500 hover:bg-red-50 p-2 rounded-full"><Trash2 size={16} /></button>
+                        <div className="flex gap-2">
+                            <button onClick={() => handleEdit(s)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full transition-colors"><Edit2 size={16}/></button>
+                            <button onClick={() => handleDelete(s.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"><Trash2 size={16}/></button>
+                        </div>
                     </li>
                 ))}
+                {subjects.length === 0 && <li className="p-8 text-center text-gray-400">لا توجد مواد مضافة</li>}
             </ul>
         </div>
     );

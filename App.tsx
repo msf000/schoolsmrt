@@ -166,21 +166,21 @@ const App: React.FC = () => {
   };
 
   const navItems = [
-    { id: 'DASHBOARD', label: 'لوحة التحكم', icon: LayoutDashboard },
-    { id: 'CLASSROOM_MANAGEMENT', label: 'الإدارة الصفية', icon: LayoutGrid }, // NEW HUB
-    { id: 'SCHOOL_MANAGEMENT', label: 'إدارة المدرسة', icon: Building2 },
-    { id: 'ADMIN_DASHBOARD', label: 'لوحة المدير العام', icon: ShieldCheck },
-    { id: 'STUDENTS', label: 'الطلاب', icon: Users },
-    { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck },
-    { id: 'MONTHLY_REPORT', label: 'تقرير الحضور الشهري', icon: CalendarDays },
-    { id: 'MESSAGE_CENTER', label: 'مركز الرسائل الذكي', icon: MessageSquare }, 
-    { id: 'WORKS_TRACKING', label: 'متابعة الأعمال (عام)', icon: PenTool }, 
-    { id: 'STUDENT_FOLLOWUP', label: 'متابعة فردية', icon: FileText }, 
-    { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp },
-    { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles },
-    { id: 'AI_TOOLS', label: 'أدوات المعلم (AI)', icon: BrainCircuit },
-    { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table }, 
-    { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database },
+    { id: 'DASHBOARD', label: 'لوحة التحكم', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    { id: 'CLASSROOM_MANAGEMENT', label: 'الإدارة الصفية', icon: LayoutGrid, roles: ['SCHOOL_MANAGER', 'TEACHER'] }, 
+    { id: 'SCHOOL_MANAGEMENT', label: 'إدارة المدرسة', icon: Building2, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
+    { id: 'ADMIN_DASHBOARD', label: 'لوحة المدير العام', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
+    { id: 'STUDENTS', label: 'الطلاب', icon: Users, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    { id: 'MONTHLY_REPORT', label: 'تقرير الحضور الشهري', icon: CalendarDays, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    { id: 'MESSAGE_CENTER', label: 'مركز الرسائل الذكي', icon: MessageSquare, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] }, 
+    { id: 'WORKS_TRACKING', label: 'متابعة الأعمال (عام)', icon: PenTool, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] }, 
+    { id: 'STUDENT_FOLLOWUP', label: 'متابعة فردية', icon: FileText, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] }, 
+    { id: 'PERFORMANCE', label: 'سجل الدرجات', icon: TrendingUp, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    { id: 'AI_TOOLS', label: 'أدوات المعلم (AI)', icon: BrainCircuit, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] }, 
+    { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
   ];
 
   if (isLoading) {
@@ -218,22 +218,29 @@ const App: React.FC = () => {
       )
   }
 
+  // --- Filter Nav Items based on Role ---
+  const userRole = currentUser?.role || 'TEACHER'; // Default fallback
+  const filteredNavItems = navItems.filter(item => item.roles.includes(userRole));
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden text-right">
       
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200 shadow-sm z-30">
         <div className="p-6 border-b border-gray-100 flex items-center justify-center">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold ml-3">
-                م
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold ml-3 ${userRole === 'SUPER_ADMIN' ? 'bg-red-600' : 'bg-primary'}`}>
+                {userRole === 'SUPER_ADMIN' ? 'S' : 'م'}
             </div>
             <div>
                 <h1 className="text-xl font-bold text-gray-800">نظام المدرس</h1>
                 <p className="text-[10px] text-gray-500">{currentUser?.name || 'مستخدم'}</p>
+                <p className="text-[9px] text-gray-400 font-bold bg-gray-100 px-1 rounded inline-block mt-1">
+                    {userRole === 'SUPER_ADMIN' ? 'مدير عام' : userRole === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : 'معلم'}
+                </p>
             </div>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-          {navItems.map(item => (
+          {filteredNavItems.map(item => (
             <button
               key={item.id}
               onClick={() => { setCurrentView(item.id as ViewState); setIsMobileMenuOpen(false); }}
@@ -269,7 +276,7 @@ const App: React.FC = () => {
                     <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-gray-100 rounded-full"><X size={24} /></button>
                 </div>
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-                    {navItems.map(item => (
+                    {filteredNavItems.map(item => (
                         <button
                         key={item.id}
                         onClick={() => { setCurrentView(item.id as ViewState); setIsMobileMenuOpen(false); }}
@@ -308,6 +315,7 @@ const App: React.FC = () => {
                     attendance={attendance} 
                     performance={performance}
                     selectedDate={globalDate} // Pass Global Date
+                    currentUser={currentUser} // Pass User for context
                 />
             )}
             {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance}/>}

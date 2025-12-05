@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment } from '../types';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
@@ -14,9 +14,9 @@ interface StudentPortalProps {
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
     // Restore last view from session storage or default
-    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION'>(() => {
+    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE'>(() => {
         const saved = sessionStorage.getItem('student_last_view');
-        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION') ? saved : 'EVALUATION';
+        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION' || saved === 'TIMETABLE') ? saved : 'EVALUATION';
     });
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -27,6 +27,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
     const navItems = [
         { id: 'EVALUATION', label: 'تقييمي (المتابعة الفردية)', icon: Award },
+        { id: 'TIMETABLE', label: 'الجدول الدراسي', icon: Clock },
         { id: 'ATTENDANCE', label: 'سجل الحضور والأعذار', icon: Calendar },
         { id: 'PROFILE', label: 'الملف الشخصي', icon: User },
     ];
@@ -118,6 +119,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     {view === 'PROFILE' && <StudentProfile student={currentUser} />}
                     {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} />}
                     {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} />}
+                    {view === 'TIMETABLE' && <StudentTimetable student={currentUser} />}
                 </main>
             </div>
         </div>
@@ -224,6 +226,99 @@ const StudentProfile = ({ student }: { student: Student }) => {
                     {msg && <p className="text-sm font-bold mt-2 text-teal-700">{msg}</p>}
                 </form>
             </div>
+        </div>
+    );
+};
+
+// --- TIMETABLE COMPONENT ---
+const StudentTimetable = ({ student }: { student: Student }) => {
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+    
+    useEffect(() => {
+        setSchedules(getSchedules());
+        setTeachers(getTeachers());
+        setAssignments(getTeacherAssignments());
+    }, []);
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+    const todayEnglish = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
+    const getTeacherName = (subject: string) => {
+        if (!student.className) return null;
+        // Find assignment: Class ID + Subject Name
+        const assign = assignments.find(a => a.classId === student.className && a.subjectName === subject);
+        if (!assign) return null;
+        const teacher = teachers.find(t => t.id === assign.teacherId);
+        return teacher ? teacher.name : null;
+    };
+
+    return (
+        <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <Clock className="text-teal-600"/>
+                الجدول الدراسي - {student.className}
+            </h2>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-center border-collapse">
+                        <thead>
+                            <tr className="bg-teal-700 text-white">
+                                <th className="p-4 border-l border-teal-600 w-32 font-bold">اليوم</th>
+                                {periods.map(p => (
+                                    <th key={p} className="p-4 border-l border-teal-600 font-bold min-w-[120px]">
+                                        الحصة {p}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {days.map(day => {
+                                const isToday = day === todayEnglish;
+                                return (
+                                    <tr key={day} className={`${isToday ? 'bg-yellow-50' : 'hover:bg-gray-50'} transition-colors border-b`}>
+                                        <td className={`p-4 border-l font-bold text-gray-800 ${isToday ? 'text-teal-700 border-yellow-100' : ''}`}>
+                                            {dayNamesAr[day as keyof typeof dayNamesAr]}
+                                            {isToday && <span className="block text-[10px] text-teal-600 mt-1 font-normal">(اليوم)</span>}
+                                        </td>
+                                        {periods.map(period => {
+                                            const session = schedules.find(s => s.classId === student.className && s.day === day && s.period === period);
+                                            const teacherName = session ? getTeacherName(session.subjectName) : null;
+                                            
+                                            return (
+                                                <td key={period} className={`p-2 border-l h-24 align-middle ${isToday ? 'border-yellow-100' : ''}`}>
+                                                    {session ? (
+                                                        <div className="flex flex-col items-center justify-center gap-1 h-full w-full bg-white/50 p-2 rounded-lg border border-transparent hover:border-gray-200 transition-all">
+                                                            <span className="font-black text-gray-800 text-sm md:text-base">{session.subjectName}</span>
+                                                            {teacherName && (
+                                                                <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <User size={10}/> {teacherName}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-300 text-xl">-</span>
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            {!student.className && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100 text-center font-bold">
+                    لم يتم تحديد فصل للطالب. يرجى مراجعة إدارة المدرسة.
+                </div>
+            )}
         </div>
     );
 };

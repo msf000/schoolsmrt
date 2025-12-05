@@ -1,11 +1,12 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, ScatterChart, Scatter 
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser } from '../types';
+import { getSchedules, getTeacherAssignments } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -13,12 +14,38 @@ interface DashboardProps {
   attendance: AttendanceRecord[];
   performance: PerformanceRecord[];
   selectedDate?: string;
+  currentUser?: SystemUser | null;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser }) => {
   const effectiveDate = selectedDate || new Date().toISOString().split('T')[0];
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+
+  useEffect(() => {
+      setSchedules(getSchedules());
+      setAssignments(getTeacherAssignments());
+  }, []);
+
+  // --- Teacher Schedule Logic ---
+  const myDailySchedule = useMemo(() => {
+      if (!currentUser || currentUser.role !== 'TEACHER') return [];
+      
+      const dateObj = new Date(effectiveDate);
+      const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const currentDay = dayMap[dateObj.getDay()];
+
+      // 1. Get schedule for this day
+      const dailySched = schedules.filter(s => s.day === currentDay);
+
+      // 2. Filter for logged-in teacher
+      return dailySched.filter(s => {
+            const assignment = assignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
+            return assignment?.teacherId === currentUser.id;
+      }).sort((a,b) => a.period - b.period);
+  }, [schedules, assignments, currentUser, effectiveDate]);
 
   const stats = useMemo(() => {
     const totalStudents = students.length;
@@ -144,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       {/* Quick Actions (AI Tools Shortcuts) - NEW SECTION */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => (window as any).location.reload()}> 
-              {/* Note: In real routing, use Navigate. Here simplifying. Ideally pass handleNavigate prop */}
+              {/* Note: In real routing, use Navigate. Here simplifying. */}
               <div>
                   <h3 className="font-bold text-lg mb-1">مركز الرسائل</h3>
                   <p className="text-teal-100 text-xs">تواصل مع أولياء الأمور بذكاء</p>
@@ -173,12 +200,49 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
       </div>
 
-      <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">نظرة عامة</h2>
-          <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-bold border border-gray-200">
-              {formatDualDate(effectiveDate)}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+          <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-gray-800">نظرة عامة</h2>
+              {currentUser?.role === 'TEACHER' && <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-1 rounded-full border border-purple-200">حساب معلم</span>}
+          </div>
+          <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-bold border border-gray-200 flex items-center gap-2">
+              <Calendar size={14}/> {formatDualDate(effectiveDate)}
           </span>
       </div>
+
+      {/* --- TEACHER'S DAILY SCHEDULE WIDGET --- */}
+      {currentUser?.role === 'TEACHER' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Clock className="text-indigo-600"/> جدولي اليومي
+              </h3>
+              
+              {myDailySchedule.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {myDailySchedule.map((sched, idx) => (
+                          <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors bg-gray-50">
+                              <div className="w-10 h-10 rounded-lg bg-white flex flex-col items-center justify-center border shadow-sm text-indigo-700 font-bold">
+                                  <span className="text-[10px] text-gray-400">حصة</span>
+                                  {sched.period}
+                              </div>
+                              <div>
+                                  <div className="font-bold text-gray-800">{sched.classId}</div>
+                                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                                      <BookOpen size={10}/> {sched.subjectName}
+                                  </div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="text-center py-6 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                      <Clock size={32} className="mx-auto mb-2 opacity-20"/>
+                      <p>لا توجد حصص مسجلة لك في هذا اليوم.</p>
+                  </div>
+              )}
+          </div>
+      )}
       
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -244,7 +308,10 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                         <tbody className="divide-y">
                             {atRiskStudents.slice(0, 5).map(s => (
                                 <tr key={s.id}>
-                                    <td className="p-3 font-bold">{s.name}</td>
+                                    <td className="p-3 font-bold">
+                                        {s.name}
+                                        <div className="text-[10px] text-gray-400 font-normal">{s.grade}</div>
+                                    </td>
                                     <td className="p-3 text-center">
                                         <span className={`px-2 py-1 rounded text-xs font-bold ${s.attendance < 75 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                             {s.attendance}%
@@ -256,9 +323,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                                         </span>
                                     </td>
                                     <td className="p-3 text-xs text-gray-500">
-                                        {s.attendance < 75 && <span className="ml-1 text-red-600">غياب مرتفع.</span>}
-                                        {s.score < 50 && <span className="ml-1 text-orange-600">تحصيل ضعيف.</span>}
-                                        {s.negativeBehaviors >= 3 && <span className="text-red-700 font-bold bg-red-50 px-1 rounded">سلوكيات سلبية ({s.negativeBehaviors}).</span>}
+                                        {s.attendance < 75 && <span className="ml-1 text-red-600 block">• غياب مرتفع.</span>}
+                                        {s.score < 50 && <span className="ml-1 text-orange-600 block">• تحصيل ضعيف.</span>}
+                                        {s.negativeBehaviors >= 3 && <span className="text-red-700 font-bold bg-red-50 px-1 rounded block mt-1">• سلوكيات سلبية ({s.negativeBehaviors}).</span>}
                                     </td>
                                 </tr>
                             ))}

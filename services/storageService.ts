@@ -254,6 +254,14 @@ export const addTeacher = (t: Teacher) => {
     saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
     triggerBackgroundSync();
 };
+export const updateTeacher = (t: Teacher) => {
+    const idx = _teachers.findIndex(exist => exist.id === t.id);
+    if (idx !== -1) {
+        _teachers[idx] = t;
+        saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+        triggerBackgroundSync();
+    }
+};
 export const deleteTeacher = (id: string) => {
     _teachers = _teachers.filter(t => t.id !== id);
     saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
@@ -286,6 +294,14 @@ export const addParent = (p: Parent) => {
     saveLocal(STORAGE_KEYS.PARENTS, _parents);
     triggerBackgroundSync();
 };
+export const updateParent = (p: Parent) => {
+    const idx = _parents.findIndex(exist => exist.id === p.id);
+    if (idx !== -1) {
+        _parents[idx] = p;
+        saveLocal(STORAGE_KEYS.PARENTS, _parents);
+        triggerBackgroundSync();
+    }
+};
 export const deleteParent = (id: string) => {
     _parents = _parents.filter(p => p.id !== id);
     saveLocal(STORAGE_KEYS.PARENTS, _parents);
@@ -298,6 +314,14 @@ export const addSubject = (s: Subject) => {
     _subjects.push(s);
     saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
     triggerBackgroundSync();
+};
+export const updateSubject = (s: Subject) => {
+    const idx = _subjects.findIndex(exist => exist.id === s.id);
+    if (idx !== -1) {
+        _subjects[idx] = s;
+        saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
+        triggerBackgroundSync();
+    }
 };
 export const deleteSubject = (id: string) => {
     _subjects = _subjects.filter(s => s.id !== id);

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { School, SystemUser, SubscriptionPlan } from '../types';
+import { School, SystemUser, SubscriptionPlan, Teacher, Subject, Student, ScheduleItem, TeacherAssignment } from '../types';
 import { 
     getSchools, addSchool, deleteSchool, 
     getSystemUsers, addSystemUser, deleteSystemUser, updateSystemUser,
@@ -8,12 +8,13 @@ import {
     uploadToSupabase, downloadFromSupabase,
     getStorageStatistics, checkConnection,
     getCloudStatistics, fetchCloudTableData,
-    DB_MAP, getTableDisplayName
+    DB_MAP, getTableDisplayName,
+    addTeacher, addSubject, bulkAddStudents, saveScheduleItem, saveTeacherAssignment, addParent
 } from '../services/storageService';
 import { updateSupabaseConfig } from '../services/supabaseClient';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
-    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff, UserPlus, School as SchoolIcon, Lock, Edit, X, Wrench
+    Plus, Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, HardDrive, Activity, Server, Table, Eye, EyeOff, UserPlus, School as SchoolIcon, Lock, Edit, X, Wrench, PlayCircle
 } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
@@ -818,6 +819,32 @@ DROP POLICY IF EXISTS "Public Access" ON public.messages;
 CREATE POLICY "Public Access" ON public.messages FOR ALL USING (true) WITH CHECK (true);
 `;
 
+const StatComparison = ({ label, table, local, cloud }: { label: string, table: string, local: number, cloud?: number }) => {
+    const isSynced = cloud !== undefined && local === cloud;
+    
+    return (
+        <div className={`p-3 rounded-lg border flex flex-col items-center justify-center text-center ${!isSynced && cloud !== undefined ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100'}`}>
+            <span className="text-xs text-gray-500 font-bold mb-1">{label}</span>
+            <div className="flex items-center justify-center gap-2">
+                <div className="flex flex-col">
+                    <span className="text-lg font-black text-gray-800">{local}</span>
+                    <span className="text-[9px] text-gray-400">محلي</span>
+                </div>
+                {cloud !== undefined && (
+                    <>
+                        <div className="h-6 w-[1px] bg-gray-300"></div>
+                        <div className="flex flex-col">
+                            <span className={`text-lg font-black ${isSynced ? 'text-green-600' : 'text-amber-600'}`}>{cloud}</span>
+                            <span className="text-[9px] text-gray-400">سحابي</span>
+                        </div>
+                    </>
+                )}
+            </div>
+            {cloud === undefined && <span className="text-[9px] text-gray-400 mt-1">...</span>}
+        </div>
+    );
+};
+
 const DatabaseSettings = () => {
     const [status, setStatus] = useState<string>('');
     const [isSyncing, setIsSyncing] = useState(false);
@@ -931,6 +958,71 @@ const DatabaseSettings = () => {
         }
     };
 
+    const handleSeedDatabase = () => {
+        // Prevent duplicate seeding
+        if (getSchools().some(s => s.id === 'school_demo_1')) {
+            setStatus('⚠️ البيانات التجريبية موجودة بالفعل. لا يمكن إضافتها مرة أخرى لتجنب التكرار.');
+            return;
+        }
+
+        if (!confirm('هل أنت متأكد؟ سيتم إضافة بيانات تجريبية (مدرسة، معلمين، طلاب، جدول) لتجربة النظام.')) return;
+        
+        try {
+            // 1. Create School
+            const schoolId = 'school_demo_1';
+            addSchool({
+                id: schoolId, name: 'المدرسة النموذجية الذكية', type: 'PRIVATE', managerName: 'د. خالد', phone: '0500000000', studentCount: 500, subscriptionStatus: 'ACTIVE'
+            });
+
+            // 2. Create Teachers
+            const t1 = { id: 't_demo_1', name: 'أ. محمد العتيبي', email: 'mohamed@demo.com', subjectSpecialty: 'رياضيات', phone: '0555555555' };
+            const t2 = { id: 't_demo_2', name: 'أ. سارة الأحمد', email: 'sarah@demo.com', subjectSpecialty: 'علوم', phone: '0544444444' };
+            addTeacher(t1);
+            addTeacher(t2);
+
+            // 3. Create Users
+            // IMPORTANT: Assign 'teacher' role ID to be the SAME as teacher ID so we can link them in schedule
+            addSystemUser({ id: 't_demo_1', name: t1.name, email: 'teacher@school.com', password: '123', role: 'TEACHER', schoolId, status: 'ACTIVE' });
+            addSystemUser({ id: 'u_demo_2', name: 'مدير المدرسة', email: 'manager@school.com', password: '123', role: 'SCHOOL_MANAGER', schoolId, status: 'ACTIVE' });
+
+            // 4. Create Subjects
+            addSubject({ id: 's_demo_1', name: 'رياضيات' });
+            addSubject({ id: 's_demo_2', name: 'علوم' });
+            addSubject({ id: 's_demo_3', name: 'لغة عربية' });
+
+            // 5. Create Students
+            const students: Student[] = [
+                { id: 'st_demo_1', name: 'فيصل عبدالكريم', nationalId: '1010101010', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0501010101' },
+                { id: 'st_demo_2', name: 'سلمان الفرج', nationalId: '1020202020', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0502020202' },
+                { id: 'st_demo_3', name: 'عمر السومة', nationalId: '1030303030', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0503030303' },
+                { id: 'st_demo_4', name: 'سالم الدوسري', nationalId: '1040404040', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0504040404' },
+                { id: 'st_demo_5', name: 'نواف العابد', nationalId: '1050505050', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0505050505' },
+            ];
+            bulkAddStudents(students);
+
+            // 6. Create Parents
+            addParent({ id: 'p_demo_1', name: 'عبدالكريم (والد فيصل)', phone: '0599999999', email: 'parent@demo.com', childrenIds: ['st_demo_1'] });
+
+            // 7. Create Schedule (Sunday, Period 1, Class 1/A, Math)
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+            days.forEach(day => {
+                saveScheduleItem({ id: `sch_${day}_1`, classId: '1/أ', day: day as any, period: 1, subjectName: 'رياضيات' });
+                saveScheduleItem({ id: `sch_${day}_2`, classId: '1/أ', day: day as any, period: 2, subjectName: 'علوم' });
+                saveScheduleItem({ id: `sch_${day}_3`, classId: '1/أ', day: day as any, period: 3, subjectName: 'لغة عربية' });
+            });
+
+            // 8. Assign Teachers
+            saveTeacherAssignment({ id: 'assign_1', classId: '1/أ', subjectName: 'رياضيات', teacherId: t1.id }); // Assign Mohamed to Math
+            saveTeacherAssignment({ id: 'assign_2', classId: '1/أ', subjectName: 'علوم', teacherId: t2.id }); // Assign Sarah to Science
+
+            setStatus('✅ تم إضافة البيانات التجريبية بنجاح! يمكنك الآن تجربة حساب المعلم (teacher@school.com / 123)');
+            setTimeout(() => window.location.reload(), 2000);
+
+        } catch(e: any) {
+            setStatus('❌ حدث خطأ أثناء إضافة البيانات: ' + e.message);
+        }
+    };
+
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         setStatus('تم نسخ كود SQL بنجاح!');
@@ -980,6 +1072,23 @@ const DatabaseSettings = () => {
                     {status}
                 </div>
             )}
+
+            {/* SEED DATA SECTION */}
+            <div className="bg-indigo-50 border border-indigo-200 p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 bg-indigo-100 rounded-full text-indigo-600"><PlayCircle size={28}/></div>
+                    <div>
+                        <h4 className="font-bold text-indigo-900 text-lg">بناء بيانات تجريبية (Demo)</h4>
+                        <p className="text-sm text-indigo-700 mt-1 max-w-xl">
+                            اضغط هنا لملء النظام ببيانات وهمية (مدرسة، معلمين، جدول، طلاب) لتجربة النظام فوراً دون الحاجة للإدخال اليدوي. 
+                            <br/><span className="font-bold text-xs mt-1 block">يفيد لتجربة "جدول المعلم" و "بوابة الطالب".</span>
+                        </p>
+                    </div>
+                </div>
+                <button onClick={handleSeedDatabase} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-md whitespace-nowrap transition-transform active:scale-95">
+                    <Database size={18}/> إنشاء بيانات تجريبية
+                </button>
+            </div>
 
             {/* DEDICATED FIX SECTION FOR SEAT INDEX ERROR */}
             <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-start gap-4">
@@ -1237,38 +1346,5 @@ const DatabaseSettings = () => {
         </div>
     );
 };
-
-const StatItem = ({ label, count, color }: any) => (
-    <div className={`p-3 rounded-lg border ${color} bg-opacity-30`}>
-        <p className="text-xs opacity-75">{label}</p>
-        <p className="text-2xl font-bold">{count}</p>
-    </div>
-);
-
-const StatComparison = ({ label, table, local, cloud }: any) => {
-    const isMatched = local === cloud;
-    const isCloudError = cloud === -1;
-    const cloudDisplay = isCloudError ? '?' : (cloud ?? '-');
-
-    return (
-        <div className={`p-3 rounded-lg border flex flex-col gap-1 ${isMatched ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-            <p className="text-xs font-bold text-gray-600">{label}</p>
-            <div className="flex justify-between items-end">
-                <div className="text-center">
-                    <span className="text-[10px] text-gray-400 block">محلي</span>
-                    <span className="font-bold text-blue-700">{local}</span>
-                </div>
-                <div className="h-6 w-[1px] bg-gray-300 mx-1"></div>
-                <div className="text-center">
-                     <span className="text-[10px] text-gray-400 block">سحابي</span>
-                    <span className={`font-bold ${isMatched ? 'text-green-700' : 'text-red-600'}`}>
-                        {cloudDisplay}
-                    </span>
-                </div>
-            </div>
-            {isCloudError && <span className="text-[9px] text-red-500">خطأ اتصال</span>}
-        </div>
-    )
-}
 
 export default AdminDashboard;

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { getSystemUsers, getStudents } from '../services/storageService';
-import { Lock, Mail, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: any, rememberMe: boolean) => void;
@@ -81,6 +81,19 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }, 800);
   };
 
+  const handleDemoLogin = (role: 'ADMIN' | 'TEACHER' | 'STUDENT') => {
+      if (role === 'ADMIN') {
+          setIdentifier('admin@school.com');
+          setPassword('123');
+      } else if (role === 'TEACHER') {
+          setIdentifier('teacher@school.com');
+          setPassword('123');
+      } else if (role === 'STUDENT') {
+          setIdentifier('1010101010');
+          setPassword('1010');
+      }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4" dir="rtl">
       
@@ -104,10 +117,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <p className="text-gray-400 text-sm mt-1">أدخل البريد الإلكتروني أو رقم الهوية (للطلاب)</p>
             </div>
 
-            {/* Default Credentials Hint */}
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center mb-6 text-xs text-blue-800">
-                <p className="font-bold mb-1">بيانات الدخول الافتراضية:</p>
-                <p dir="ltr" className="font-mono">admin@school.com / 123</p>
+            {/* Quick Access Buttons */}
+            <div className="mb-6 grid grid-cols-3 gap-2">
+                <button onClick={() => handleDemoLogin('ADMIN')} className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-xs font-bold text-gray-600">
+                    <ShieldCheck size={16} className="mb-1 text-red-500"/> مدير
+                </button>
+                <button onClick={() => handleDemoLogin('TEACHER')} className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-xs font-bold text-gray-600">
+                    <User size={16} className="mb-1 text-blue-500"/> معلم
+                </button>
+                <button onClick={() => handleDemoLogin('STUDENT')} className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-xs font-bold text-gray-600">
+                    <Users size={16} className="mb-1 text-green-500"/> طالب
+                </button>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
