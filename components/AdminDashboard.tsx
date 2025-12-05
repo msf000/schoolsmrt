@@ -24,18 +24,18 @@ const AdminDashboard: React.FC = () => {
             <div className="mb-6 flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <Shield className="text-primary" />
-                        لوحة المدير العام
+                        <Server className="text-gray-800" />
+                        لوحة مدير النظام (System Admin)
                     </h2>
-                    <p className="text-gray-500 mt-2">إدارة المدارس، المستخدمين، والاشتراكات والنظام.</p>
+                    <p className="text-gray-500 mt-2">التحكم المركزي في المدارس، المستخدمين، قاعدة البيانات، والاشتراكات.</p>
                 </div>
             </div>
 
             {/* Admin Tabs */}
-            <div className="flex overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100 p-1 mb-6">
+            <div className="flex overflow-x-auto bg-gray-800 text-white rounded-xl shadow-lg border border-gray-700 p-1 mb-6">
                 <TabButton active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} icon={<Shield size={18} />} label="نظرة عامة" />
-                <TabButton active={activeTab === 'SCHOOLS'} onClick={() => setActiveTab('SCHOOLS')} icon={<Building size={18} />} label="إدارة المدارس" />
-                <TabButton active={activeTab === 'USERS'} onClick={() => setActiveTab('USERS')} icon={<Users size={18} />} label="إدارة المستخدمين" />
+                <TabButton active={activeTab === 'SCHOOLS'} onClick={() => setActiveTab('SCHOOLS')} icon={<Building size={18} />} label="المدارس" />
+                <TabButton active={activeTab === 'USERS'} onClick={() => setActiveTab('USERS')} icon={<Users size={18} />} label="المستخدمين" />
                 <TabButton active={activeTab === 'SUBSCRIPTIONS'} onClick={() => setActiveTab('SUBSCRIPTIONS')} icon={<CreditCard size={18} />} label="الاشتراكات" />
                 <TabButton active={activeTab === 'DATABASE'} onClick={() => setActiveTab('DATABASE')} icon={<Database size={18} />} label="قاعدة البيانات" />
             </div>
@@ -55,7 +55,7 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
     <button
         onClick={onClick}
         className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all whitespace-nowrap ${
-            active ? 'bg-gray-800 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'
+            active ? 'bg-white text-gray-900 shadow-md' : 'text-gray-400 hover:bg-gray-700 hover:text-white'
         }`}
     >
         {icon}
@@ -66,7 +66,7 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
 // --- Sub Components ---
 
 const AdminOverview = () => {
-    // ... (No Changes)
+    // ... (No Changes to logic, just stats display)
     const [stats, setStats] = useState({ schools: 0, users: 0, revenue: 0 });
 
     useEffect(() => {
@@ -114,19 +114,15 @@ const AdminOverview = () => {
                 <div className="flex items-start justify-between">
                     <div>
                         <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                            <Shield className="text-yellow-400" size={20}/> بيانات حساب المدير العام
+                            <Shield className="text-yellow-400" size={20}/> حساب مدير النظام (Super Admin)
                         </h3>
                         <p className="text-gray-400 text-sm mb-4">
-                            هذا الحساب يملك كامل الصلاحيات لإدارة النظام والاشتراكات.
+                            بصفتك مدير النظام، لديك الصلاحية الكاملة لإدارة جميع المدارس والمستخدمين وقواعد البيانات.
                         </p>
                         <div className="space-y-2 text-sm bg-black/30 p-4 rounded-lg border border-gray-700 font-mono">
                             <div className="flex items-center gap-3">
                                 <span className="text-gray-500 w-24">اسم المستخدم:</span>
                                 <span className="text-white font-bold select-all">admin@school.com</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="text-gray-500 w-24">كلمة المرور:</span>
-                                <span className="text-white font-bold select-all">123</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="text-gray-500 w-24">الصلاحية:</span>
@@ -135,14 +131,6 @@ const AdminOverview = () => {
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div className="p-6 bg-gray-50 rounded-lg border border-gray-200 text-center py-12">
-                <Settings size={48} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-bold text-gray-600">إعدادات النظام العامة</h3>
-                <p className="text-gray-400 max-w-md mx-auto mt-2">
-                    يمكنك التحكم في إعدادات النظام، اللغات المدعومة، وتخصيص واجهة المستخدم من خلال قسم قاعدة البيانات والإعدادات.
-                </p>
             </div>
         </div>
     );

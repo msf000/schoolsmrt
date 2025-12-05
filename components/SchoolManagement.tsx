@@ -10,7 +10,7 @@ import {
     saveWorksMasterUrl, getWorksMasterUrl,
     getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment
 } from '../services/storageService';
-import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Database, Save, Link as LinkIcon, Calendar, Filter, AlertCircle, Edit2, Check, Layers, GraduationCap, MapPin, Upload, Briefcase, Table, Printer, Copy, ArrowLeft, Search, X, Lock, FileText } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Database, Save, Link as LinkIcon, Calendar, Filter, AlertCircle, Edit2, Check, Layers, GraduationCap, MapPin, Upload, Briefcase, Table, Printer, Copy, ArrowLeft, Search, X, Lock, FileText, Settings } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -32,10 +32,10 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({
     <div className="p-6 animate-fade-in space-y-6">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Building2 className="text-primary" />
-            إدارة المدرسة
+            <Settings className="text-teal-600" />
+            إعدادات المدرسة
         </h2>
-        <p className="text-gray-500 mt-2">إدارة الجدول الدراسي، المعلمين، والمواد.</p>
+        <p className="text-gray-500 mt-2">إدارة الجدول الدراسي، المعلمين، والمواد الخاصة بالمدرسة.</p>
       </div>
 
       {/* Tabs */}

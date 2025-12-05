@@ -21,7 +21,7 @@ import MonthlyReport from './components/MonthlyReport';
 import MessageCenter from './components/MessageCenter';
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid, Wifi, Beaker } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid, Wifi, Beaker, Settings, Server } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -171,9 +171,15 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: 'DASHBOARD', label: 'لوحة التحكم', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
+    
+    // System Manager ONLY
+    { id: 'ADMIN_DASHBOARD', label: 'إدارة النظام (System)', icon: Server, roles: ['SUPER_ADMIN'] },
+    
+    // School Manager Specific
+    { id: 'SCHOOL_MANAGEMENT', label: 'إعدادات المدرسة', icon: Settings, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
+    
+    // Teachers & School Managers
     { id: 'CLASSROOM_MANAGEMENT', label: 'الإدارة الصفية', icon: LayoutGrid, roles: ['SCHOOL_MANAGER', 'TEACHER'] }, 
-    { id: 'SCHOOL_MANAGEMENT', label: 'إدارة المدرسة', icon: Building2, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
-    { id: 'ADMIN_DASHBOARD', label: 'لوحة المدير العام', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
     { id: 'STUDENTS', label: 'الطلاب', icon: Users, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
     { id: 'ATTENDANCE', label: 'الغياب والحضور', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
     { id: 'MONTHLY_REPORT', label: 'تقرير الحضور الشهري', icon: CalendarDays, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
@@ -227,13 +233,19 @@ const App: React.FC = () => {
   const isDemo = isSystemDemo();
   
   // Filter Nav Items:
-  // 1. Based on Role
-  // 2. If in Demo Mode, remove ADMIN_DASHBOARD specifically (per user request)
   const filteredNavItems = navItems.filter(item => {
+      // 1. Check Role Access
       const roleMatch = item.roles.includes(userRole);
-      // STRICT: Hide Admin Dashboard in Demo Mode
-      const demoRestriction = isDemo && item.id === 'ADMIN_DASHBOARD' ? false : true;
-      return roleMatch && demoRestriction;
+      
+      // 2. Demo Restrictions (Hide Sensitive Admin in Demo for user experience if needed, 
+      // but original request allowed demo admin. We follow strict separation request here).
+      // If Demo mode is active, prevent ADMIN_DASHBOARD unless user role allows (which is fake SUPER_ADMIN).
+      
+      // 3. Strict Separation Check
+      // If I am SCHOOL_MANAGER, I must NOT see ADMIN_DASHBOARD even if logic somehow allows.
+      if (userRole === 'SCHOOL_MANAGER' && item.id === 'ADMIN_DASHBOARD') return false;
+
+      return roleMatch;
   });
 
   return (
@@ -241,16 +253,16 @@ const App: React.FC = () => {
       
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200 shadow-sm z-30">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-center">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold ml-3 ${userRole === 'SUPER_ADMIN' ? 'bg-red-600' : 'bg-primary'}`}>
-                {userRole === 'SUPER_ADMIN' ? 'S' : 'م'}
+        <div className="p-6 border-b border-gray-100 flex items-center justify-center bg-gray-50/50">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold ml-3 shadow-lg ${userRole === 'SUPER_ADMIN' ? 'bg-gray-800' : 'bg-primary'}`}>
+                {userRole === 'SUPER_ADMIN' ? <ShieldCheck size={24}/> : <Building2 size={24}/>}
             </div>
             <div>
-                <h1 className="text-xl font-bold text-gray-800">نظام المدرس</h1>
+                <h1 className="text-lg font-bold text-gray-800">نظام المدرس</h1>
                 <p className="text-[10px] text-gray-500">{currentUser?.name || 'مستخدم'}</p>
-                <p className="text-[9px] text-gray-400 font-bold bg-gray-100 px-1 rounded inline-block mt-1">
-                    {userRole === 'SUPER_ADMIN' ? 'مدير عام' : userRole === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : 'معلم'}
-                </p>
+                <div className={`text-[10px] font-bold px-2 py-0.5 rounded inline-block mt-1 ${userRole === 'SUPER_ADMIN' ? 'bg-gray-200 text-gray-800' : 'bg-teal-100 text-teal-800'}`}>
+                    {userRole === 'SUPER_ADMIN' ? 'مدير النظام' : userRole === 'SCHOOL_MANAGER' ? 'مدير المدرسة' : 'معلم'}
+                </div>
             </div>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
@@ -259,16 +271,19 @@ const App: React.FC = () => {
               key={item.id}
               onClick={() => { setCurrentView(item.id as ViewState); setIsMobileMenuOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                currentView === item.id ? 'bg-primary/10 text-primary font-bold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                currentView === item.id ? 'bg-primary/10 text-primary font-bold shadow-sm border border-primary/10' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
               <item.icon size={20} />
               <span>{item.label}</span>
             </button>
           ))}
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100">
-              <LogOut size={20} /> <span>تسجيل الخروج</span>
-          </button>
+          
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700">
+                <LogOut size={20} /> <span>تسجيل الخروج</span>
+            </button>
+          </div>
         </nav>
         <div className="p-4 border-t border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between text-xs mb-1">
@@ -340,8 +355,12 @@ const App: React.FC = () => {
                     currentUser={currentUser} // Pass User for context
                 />
             )}
+            {/* School Management is for School Manager specific settings */}
             {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance}/>}
+            
+            {/* Admin Dashboard is strictly for System Manager */}
             {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
+            
             {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleBulkAddStudents}/>}
             {currentView === 'ATTENDANCE' && (
                 <Attendance 
