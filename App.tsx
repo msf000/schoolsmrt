@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase } from './services/storageService';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase, isSystemDemo } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
 import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, Assignment } from './types';
 import Dashboard from './components/Dashboard';
@@ -21,7 +21,7 @@ import MonthlyReport from './components/MonthlyReport';
 import MessageCenter from './components/MessageCenter';
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid, Wifi } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid, Wifi, Beaker } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -83,7 +83,10 @@ const App: React.FC = () => {
     }, 5 * 60 * 1000);
 
     // --- NEW: Cloud Sync Polling Interval (Every 2 minutes) ---
+    // Only if NOT in demo mode
     const cloudInterval = setInterval(async () => {
+        if(isSystemDemo()) return;
+
         const hasKeys = (localStorage.getItem('custom_supabase_url') && localStorage.getItem('custom_supabase_key')) || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
         if(hasKeys && !isBgSyncing) {
              try {
@@ -113,6 +116,7 @@ const App: React.FC = () => {
           sessionStorage.setItem('app_user', userStr);
           localStorage.removeItem('app_user');
       }
+      refreshData(); // Refresh data on login (important for switching modes)
   };
 
   const handleLogout = () => {
@@ -219,8 +223,17 @@ const App: React.FC = () => {
   }
 
   // --- Filter Nav Items based on Role ---
-  const userRole = currentUser?.role || 'TEACHER'; // Default fallback
-  const filteredNavItems = navItems.filter(item => item.roles.includes(userRole));
+  const userRole = currentUser?.role || 'TEACHER'; 
+  const isDemo = isSystemDemo();
+  
+  // Filter Nav Items:
+  // 1. Based on Role
+  // 2. If in Demo Mode, remove ADMIN_DASHBOARD specifically (per user request)
+  const filteredNavItems = navItems.filter(item => {
+      const roleMatch = item.roles.includes(userRole);
+      const demoRestriction = isDemo && item.id === 'ADMIN_DASHBOARD' ? false : true;
+      return roleMatch && demoRestriction;
+  });
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden text-right">
@@ -259,10 +272,10 @@ const App: React.FC = () => {
         <div className="p-4 border-t border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between text-xs mb-1">
                  <span className="font-bold text-gray-600 flex items-center gap-1"><Wifi size={10}/> المزامنة</span>
-                 {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : <CheckCircle size={12} className="text-green-500"/>}
+                 {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : (isDemo ? <span className="text-orange-500 font-bold">معطلة (تجريبي)</span> : <CheckCircle size={12} className="text-green-500"/>)}
             </div>
             <p className="text-[10px] text-gray-400">
-                يتم الحفظ تلقائياً في الخلفية
+                {isDemo ? 'البيانات مؤقتة ولن يتم حفظها سحابياً.' : 'يتم الحفظ تلقائياً في الخلفية'}
             </p>
         </div>
       </aside>
@@ -298,6 +311,14 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden h-full w-full relative">
+        {/* Demo Banner */}
+        {isDemo && (
+            <div className="bg-orange-500 text-white text-xs font-bold text-center py-1 z-50 flex items-center justify-center gap-2">
+                <Beaker size={14} className="fill-white/20"/>
+                أنت في وضع التجربة (Demo Mode) - البيانات وهمية وغير محفوظة.
+            </div>
+        )}
+
         <header className="md:hidden bg-white p-4 border-b flex justify-between items-center z-20 shadow-sm shrink-0">
             <div className="flex items-center gap-2">
                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold">م</div>

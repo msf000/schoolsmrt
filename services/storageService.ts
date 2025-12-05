@@ -6,22 +6,29 @@ import {
 } from '../types';
 import { supabase } from './supabaseClient';
 
-const STORAGE_KEYS = {
-    STUDENTS: 'app_students',
-    ATTENDANCE: 'app_attendance',
-    PERFORMANCE: 'app_performance',
-    TEACHERS: 'app_teachers',
-    PARENTS: 'app_parents',
-    SUBJECTS: 'app_subjects',
-    SCHEDULES: 'app_schedules',
-    SCHOOLS: 'app_schools',
-    USERS: 'app_users',
-    CUSTOM_TABLES: 'app_custom_tables',
-    ASSIGNMENTS: 'app_assignments',
-    MESSAGES: 'app_messages',
-    REPORT_CONFIG: 'app_report_config',
-    WORKS_URL: 'app_works_master_url',
-    TEACHER_ASSIGNMENTS: 'app_teacher_assignments'
+// --- MODE MANAGEMENT ---
+let IS_DEMO_MODE = false;
+
+const getStorageKey = (baseKey: string) => {
+    return IS_DEMO_MODE ? `demo_${baseKey}` : `app_${baseKey}`;
+};
+
+const BASE_KEYS = {
+    STUDENTS: 'students',
+    ATTENDANCE: 'attendance',
+    PERFORMANCE: 'performance',
+    TEACHERS: 'teachers',
+    PARENTS: 'parents',
+    SUBJECTS: 'subjects',
+    SCHEDULES: 'schedules',
+    SCHOOLS: 'schools',
+    USERS: 'users',
+    CUSTOM_TABLES: 'custom_tables',
+    ASSIGNMENTS: 'assignments',
+    MESSAGES: 'messages',
+    REPORT_CONFIG: 'report_config',
+    WORKS_URL: 'works_master_url',
+    TEACHER_ASSIGNMENTS: 'teacher_assignments'
 };
 
 export const DB_MAP: Record<string, string> = {
@@ -60,81 +67,167 @@ let _reportConfig: ReportHeaderConfig = {
 let _worksMasterUrl: string = '';
 
 // --- Helpers ---
-const loadLocal = <T>(key: string, defaultVal: T): T => {
+const loadLocal = <T>(baseKey: string, defaultVal: T): T => {
+    const key = getStorageKey(baseKey);
     const saved = localStorage.getItem(key);
     if (!saved) return defaultVal;
     try {
         return JSON.parse(saved);
     } catch (e) {
-        // Fallback: If parsing fails and we expect a string, assume it's a raw string
         if (typeof defaultVal === 'string') {
             return saved as unknown as T;
         }
-        console.warn(`Failed to parse local storage key "${key}". Returning default value.`);
         return defaultVal;
     }
 };
 
-const saveLocal = (key: string, data: any) => {
+const saveLocal = (baseKey: string, data: any) => {
+    const key = getStorageKey(baseKey);
     localStorage.setItem(key, JSON.stringify(data));
 };
 
 // --- Auto Sync Helper ---
 const triggerBackgroundSync = async () => {
-    // Check if Supabase keys exist locally or in env
+    if (IS_DEMO_MODE) return; // Never sync demo data to cloud
+
     const hasKeys = (localStorage.getItem('custom_supabase_url') && localStorage.getItem('custom_supabase_key')) || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
-    
     if (!hasKeys) return;
 
-    // Simple debounce to prevent spamming upload on rapid changes
     if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
-    
     (window as any)._syncTimer = setTimeout(async () => {
-        console.log('🔄 جاري المزامنة التلقائية مع السحابة...');
         try {
             await uploadToSupabase();
-            console.log('✅ تمت المزامنة التلقائية بنجاح.');
         } catch(e) {
             console.error('⚠️ فشل المزامنة التلقائية:', e);
         }
-    }, 3000); // Wait 3 seconds after last action
+    }, 3000); 
+};
+
+// --- Switch Mode & Reload ---
+export const setSystemMode = (isDemo: boolean) => {
+    IS_DEMO_MODE = isDemo;
+    if (isDemo) {
+        // If switching to demo, check if data exists, if not seed it
+        const demoUsers = localStorage.getItem('demo_users');
+        if (!demoUsers) {
+            seedDemoDataInternal();
+        } else {
+            loadAll();
+        }
+    } else {
+        loadAll(); // Reload real data
+    }
+};
+
+export const isSystemDemo = () => IS_DEMO_MODE;
+
+// Internal Seed Function
+const seedDemoDataInternal = () => {
+    console.log("🌱 Seeding Demo Data...");
+    
+    // 1. School
+    _schools = [{
+        id: 'demo_school', name: 'مدرسة المستقبل التجريبية', type: 'PRIVATE', managerName: 'أ. تجريبي', phone: '0500000000', studentCount: 500, subscriptionStatus: 'ACTIVE'
+    }];
+
+    // 2. Teachers
+    _teachers = [
+        { id: 't_demo_1', name: 'أ. محمد (تجريبي)', email: 'teacher@demo.com', subjectSpecialty: 'رياضيات', phone: '0555555555' },
+        { id: 't_demo_2', name: 'أ. سارة (تجريبي)', email: 'sarah@demo.com', subjectSpecialty: 'علوم', phone: '0544444444' }
+    ];
+
+    // 3. Subjects
+    _subjects = [
+        { id: 's_math', name: 'رياضيات' },
+        { id: 's_sci', name: 'علوم' },
+        { id: 's_arb', name: 'لغة عربية' }
+    ];
+
+    // 4. Students
+    _students = [
+        { id: 'st_demo_1', name: 'أحمد خالد', nationalId: '1010101010', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0501010101' },
+        { id: 'st_demo_2', name: 'سلمان فهد', nationalId: '1020202020', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0502020202' },
+        { id: 'st_demo_3', name: 'عمر يوسف', nationalId: '1030303030', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0503030303' },
+        { id: 'st_demo_4', name: 'ياسر القحطاني', nationalId: '1040404040', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0504040404' },
+        { id: 'st_demo_5', name: 'نواف العابد', nationalId: '1050505050', gradeLevel: 'الصف الأول', className: '1/أ', phone: '0505050505' },
+    ];
+
+    // 5. Users (Important: Match Teacher ID for Schedule View)
+    _users = [
+        { id: 't_demo_1', name: 'أ. محمد (معلم)', email: 'teacher@demo.com', password: '123', role: 'TEACHER', schoolId: 'demo_school', status: 'ACTIVE' },
+        { id: 'u_demo_manager', name: 'مدير المدرسة', email: 'manager@demo.com', password: '123', role: 'SCHOOL_MANAGER', schoolId: 'demo_school', status: 'ACTIVE' },
+        // No Super Admin in Demo usually, or limited
+    ];
+
+    // 6. Schedule
+    _schedules = [];
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    days.forEach(day => {
+        _schedules.push({ id: `sch_${day}_1`, classId: '1/أ', day: day as any, period: 1, subjectName: 'رياضيات' });
+        _schedules.push({ id: `sch_${day}_2`, classId: '1/أ', day: day as any, period: 2, subjectName: 'علوم' });
+        _schedules.push({ id: `sch_${day}_3`, classId: '1/أ', day: day as any, period: 3, subjectName: 'لغة عربية' });
+    });
+
+    // 7. Assignments
+    _teacherAssignments = [
+        { id: 'assign_1', classId: '1/أ', subjectName: 'رياضيات', teacherId: 't_demo_1' },
+        { id: 'assign_2', classId: '1/أ', subjectName: 'علوم', teacherId: 't_demo_2' }
+    ];
+
+    // Save All to Demo Keys
+    saveLocal(BASE_KEYS.SCHOOLS, _schools);
+    saveLocal(BASE_KEYS.TEACHERS, _teachers);
+    saveLocal(BASE_KEYS.SUBJECTS, _subjects);
+    saveLocal(BASE_KEYS.STUDENTS, _students);
+    saveLocal(BASE_KEYS.USERS, _users);
+    saveLocal(BASE_KEYS.SCHEDULES, _schedules);
+    saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+    
+    // Clear others
+    _attendance = []; saveLocal(BASE_KEYS.ATTENDANCE, []);
+    _performance = []; saveLocal(BASE_KEYS.PERFORMANCE, []);
+    _parents = []; saveLocal(BASE_KEYS.PARENTS, []);
 };
 
 // Initial Load
 const loadAll = () => {
-    _students = loadLocal(STORAGE_KEYS.STUDENTS, []);
-    _attendance = loadLocal(STORAGE_KEYS.ATTENDANCE, []);
-    _performance = loadLocal(STORAGE_KEYS.PERFORMANCE, []);
-    _teachers = loadLocal(STORAGE_KEYS.TEACHERS, []);
-    _parents = loadLocal(STORAGE_KEYS.PARENTS, []);
-    _subjects = loadLocal(STORAGE_KEYS.SUBJECTS, []);
-    _schedules = loadLocal(STORAGE_KEYS.SCHEDULES, []);
-    _schools = loadLocal(STORAGE_KEYS.SCHOOLS, []);
-    _teacherAssignments = loadLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, []);
+    _students = loadLocal(BASE_KEYS.STUDENTS, []);
+    _attendance = loadLocal(BASE_KEYS.ATTENDANCE, []);
+    _performance = loadLocal(BASE_KEYS.PERFORMANCE, []);
+    _teachers = loadLocal(BASE_KEYS.TEACHERS, []);
+    _parents = loadLocal(BASE_KEYS.PARENTS, []);
+    _subjects = loadLocal(BASE_KEYS.SUBJECTS, []);
+    _schedules = loadLocal(BASE_KEYS.SCHEDULES, []);
+    _schools = loadLocal(BASE_KEYS.SCHOOLS, []);
+    _teacherAssignments = loadLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, []);
     
-    // Users Logic: Ensure Admin Exists ALWAYS
-    _users = loadLocal(STORAGE_KEYS.USERS, []);
-    const adminExists = _users.some(u => u.email === 'admin@school.com');
-    if (!adminExists || _users.length === 0) {
-        const defaultAdmin: SystemUser = {
-            id: 'default_admin',
-            name: 'المدير العام',
-            email: 'admin@school.com',
-            password: '123',
-            role: 'SUPER_ADMIN',
-            status: 'ACTIVE'
-        };
-        _users = [defaultAdmin, ..._users.filter(u => u.email !== 'admin@school.com')];
-        saveLocal(STORAGE_KEYS.USERS, _users);
+    _users = loadLocal(BASE_KEYS.USERS, []);
+    
+    // Ensure Admin Exists ALWAYS in Production Mode
+    if (!IS_DEMO_MODE) {
+        const adminExists = _users.some(u => u.email === 'admin@school.com');
+        if (!adminExists || _users.length === 0) {
+            const defaultAdmin: SystemUser = {
+                id: 'default_admin',
+                name: 'المدير العام',
+                email: 'admin@school.com',
+                password: '123',
+                role: 'SUPER_ADMIN',
+                status: 'ACTIVE'
+            };
+            _users = [defaultAdmin, ..._users.filter(u => u.email !== 'admin@school.com')];
+            saveLocal(BASE_KEYS.USERS, _users);
+        }
     }
 
-    _customTables = loadLocal(STORAGE_KEYS.CUSTOM_TABLES, []);
-    _assignments = loadLocal(STORAGE_KEYS.ASSIGNMENTS, []);
-    _messages = loadLocal(STORAGE_KEYS.MESSAGES, []);
-    _reportConfig = loadLocal(STORAGE_KEYS.REPORT_CONFIG, _reportConfig);
-    _worksMasterUrl = loadLocal(STORAGE_KEYS.WORKS_URL, '');
+    _customTables = loadLocal(BASE_KEYS.CUSTOM_TABLES, []);
+    _assignments = loadLocal(BASE_KEYS.ASSIGNMENTS, []);
+    _messages = loadLocal(BASE_KEYS.MESSAGES, []);
+    _reportConfig = loadLocal(BASE_KEYS.REPORT_CONFIG, _reportConfig);
+    _worksMasterUrl = loadLocal(BASE_KEYS.WORKS_URL, '');
 };
 
+// Trigger initial load (Production by default)
 loadAll();
 
 // ================= EXPORTS =================
@@ -145,39 +238,38 @@ export const addStudent = (student: Student) => {
     if (!student.nationalId && !student.id) throw new Error("رقم الهوية إلزامي.");
     if (_students.some(s => s.nationalId === student.nationalId && s.id !== student.id)) throw new Error("رقم الهوية مسجل مسبقاً.");
     _students.push(student);
-    saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    saveLocal(BASE_KEYS.STUDENTS, _students);
     triggerBackgroundSync();
 };
 export const updateStudent = (updatedStudent: Student) => {
     const index = _students.findIndex(s => s.id === updatedStudent.id);
     if (index !== -1) {
         _students[index] = updatedStudent;
-        saveLocal(STORAGE_KEYS.STUDENTS, _students);
+        saveLocal(BASE_KEYS.STUDENTS, _students);
         triggerBackgroundSync();
     }
 };
 export const bulkUpdateStudents = (updates: Student[]) => {
     const updateMap = new Map(updates.map(s => [s.id, s]));
     _students = _students.map(s => updateMap.has(s.id) ? { ...s, ...updateMap.get(s.id)! } : s);
-    saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    saveLocal(BASE_KEYS.STUDENTS, _students);
     triggerBackgroundSync();
 };
 export const deleteStudent = (id: string) => {
     _students = _students.filter(s => s.id !== id);
-    saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    saveLocal(BASE_KEYS.STUDENTS, _students);
     triggerBackgroundSync();
 };
 export const deleteAllStudents = () => {
     _students = [];
-    saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    saveLocal(BASE_KEYS.STUDENTS, _students);
     triggerBackgroundSync();
 };
 export const bulkAddStudents = (newStudents: Student[]) => {
-    // Avoid duplicates by ID
     const existingIds = new Set(_students.map(s => s.id));
     const toAdd = newStudents.filter(s => !existingIds.has(s.id));
     _students.push(...toAdd);
-    saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    saveLocal(BASE_KEYS.STUDENTS, _students);
     triggerBackgroundSync();
 };
 export const bulkUpsertStudents = (
@@ -193,7 +285,6 @@ export const bulkUpsertStudents = (
             if (strategy === 'UPDATE') {
                 const existing = _students[existingIndex];
                 const updated = { ...existing };
-                // Only update allowed fields
                 updateFields.forEach(field => {
                     if ((incoming as any)[field] !== undefined) {
                         (updated as any)[field] = (incoming as any)[field];
@@ -201,33 +292,30 @@ export const bulkUpsertStudents = (
                 });
                 _students[existingIndex] = updated;
             }
-            // If SKIP, do nothing
         } else {
-            // NEW
             _students.push(incoming);
         }
     });
-    saveLocal(STORAGE_KEYS.STUDENTS, _students);
+    saveLocal(BASE_KEYS.STUDENTS, _students);
     triggerBackgroundSync();
 };
 
 // --- Attendance ---
 export const getAttendance = (): AttendanceRecord[] => [..._attendance];
 export const saveAttendance = (records: AttendanceRecord[]) => {
-    // Upsert logic
     records.forEach(record => {
         const index = _attendance.findIndex(a => a.id === record.id);
         if (index !== -1) _attendance[index] = record;
         else _attendance.push(record);
     });
-    saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
+    saveLocal(BASE_KEYS.ATTENDANCE, _attendance);
     triggerBackgroundSync();
 };
 export const bulkAddAttendance = (list: AttendanceRecord[]) => {
     const existingMap = new Map(_attendance.map(a => [a.id, a]));
     list.forEach(a => existingMap.set(a.id, a));
     _attendance = Array.from(existingMap.values());
-    saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance);
+    saveLocal(BASE_KEYS.ATTENDANCE, _attendance);
     triggerBackgroundSync();
 };
 
@@ -235,15 +323,14 @@ export const bulkAddAttendance = (list: AttendanceRecord[]) => {
 export const getPerformance = (): PerformanceRecord[] => [..._performance];
 export const addPerformance = (record: PerformanceRecord) => {
     _performance.push(record);
-    saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
+    saveLocal(BASE_KEYS.PERFORMANCE, _performance);
     triggerBackgroundSync();
 };
 export const bulkAddPerformance = (list: PerformanceRecord[]) => {
-    // Usually append for performance unless ID matches
     const existingMap = new Map(_performance.map(p => [p.id, p]));
     list.forEach(p => existingMap.set(p.id, p));
     _performance = Array.from(existingMap.values());
-    saveLocal(STORAGE_KEYS.PERFORMANCE, _performance);
+    saveLocal(BASE_KEYS.PERFORMANCE, _performance);
     triggerBackgroundSync();
 };
 
@@ -251,39 +338,38 @@ export const bulkAddPerformance = (list: PerformanceRecord[]) => {
 export const getTeachers = (): Teacher[] => [..._teachers];
 export const addTeacher = (t: Teacher) => {
     _teachers.push(t);
-    saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+    saveLocal(BASE_KEYS.TEACHERS, _teachers);
     triggerBackgroundSync();
 };
 export const updateTeacher = (t: Teacher) => {
     const idx = _teachers.findIndex(exist => exist.id === t.id);
     if (idx !== -1) {
         _teachers[idx] = t;
-        saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+        saveLocal(BASE_KEYS.TEACHERS, _teachers);
         triggerBackgroundSync();
     }
 };
 export const deleteTeacher = (id: string) => {
     _teachers = _teachers.filter(t => t.id !== id);
-    saveLocal(STORAGE_KEYS.TEACHERS, _teachers);
+    saveLocal(BASE_KEYS.TEACHERS, _teachers);
     triggerBackgroundSync();
 };
 
 // --- Teacher Assignments ---
 export const getTeacherAssignments = (): TeacherAssignment[] => [..._teacherAssignments];
 export const saveTeacherAssignment = (assignment: TeacherAssignment) => {
-    // Remove existing if class+subject matches, then add
     const existsIndex = _teacherAssignments.findIndex(ta => ta.classId === assignment.classId && ta.subjectName === assignment.subjectName);
     if (existsIndex !== -1) {
-        _teacherAssignments[existsIndex] = assignment; // Update
+        _teacherAssignments[existsIndex] = assignment;
     } else {
-        _teacherAssignments.push(assignment); // Add
+        _teacherAssignments.push(assignment);
     }
-    saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+    saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
     triggerBackgroundSync();
 };
 export const deleteTeacherAssignment = (id: string) => {
     _teacherAssignments = _teacherAssignments.filter(ta => ta.id !== id);
-    saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+    saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
     triggerBackgroundSync();
 };
 
@@ -291,20 +377,20 @@ export const deleteTeacherAssignment = (id: string) => {
 export const getParents = (): Parent[] => [..._parents];
 export const addParent = (p: Parent) => {
     _parents.push(p);
-    saveLocal(STORAGE_KEYS.PARENTS, _parents);
+    saveLocal(BASE_KEYS.PARENTS, _parents);
     triggerBackgroundSync();
 };
 export const updateParent = (p: Parent) => {
     const idx = _parents.findIndex(exist => exist.id === p.id);
     if (idx !== -1) {
         _parents[idx] = p;
-        saveLocal(STORAGE_KEYS.PARENTS, _parents);
+        saveLocal(BASE_KEYS.PARENTS, _parents);
         triggerBackgroundSync();
     }
 };
 export const deleteParent = (id: string) => {
     _parents = _parents.filter(p => p.id !== id);
-    saveLocal(STORAGE_KEYS.PARENTS, _parents);
+    saveLocal(BASE_KEYS.PARENTS, _parents);
     triggerBackgroundSync();
 };
 
@@ -312,20 +398,20 @@ export const deleteParent = (id: string) => {
 export const getSubjects = (): Subject[] => [..._subjects];
 export const addSubject = (s: Subject) => {
     _subjects.push(s);
-    saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
+    saveLocal(BASE_KEYS.SUBJECTS, _subjects);
     triggerBackgroundSync();
 };
 export const updateSubject = (s: Subject) => {
     const idx = _subjects.findIndex(exist => exist.id === s.id);
     if (idx !== -1) {
         _subjects[idx] = s;
-        saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
+        saveLocal(BASE_KEYS.SUBJECTS, _subjects);
         triggerBackgroundSync();
     }
 };
 export const deleteSubject = (id: string) => {
     _subjects = _subjects.filter(s => s.id !== id);
-    saveLocal(STORAGE_KEYS.SUBJECTS, _subjects);
+    saveLocal(BASE_KEYS.SUBJECTS, _subjects);
     triggerBackgroundSync();
 };
 
@@ -335,12 +421,12 @@ export const saveScheduleItem = (item: ScheduleItem) => {
     const idx = _schedules.findIndex(s => s.id === item.id);
     if (idx !== -1) _schedules[idx] = item;
     else _schedules.push(item);
-    saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
+    saveLocal(BASE_KEYS.SCHEDULES, _schedules);
     triggerBackgroundSync();
 };
 export const deleteScheduleItem = (id: string) => {
     _schedules = _schedules.filter(s => s.id !== id);
-    saveLocal(STORAGE_KEYS.SCHEDULES, _schedules);
+    saveLocal(BASE_KEYS.SCHEDULES, _schedules);
     triggerBackgroundSync();
 };
 
@@ -348,12 +434,12 @@ export const deleteScheduleItem = (id: string) => {
 export const getSchools = (): School[] => [..._schools];
 export const addSchool = (s: School) => {
     _schools.push(s);
-    saveLocal(STORAGE_KEYS.SCHOOLS, _schools);
+    saveLocal(BASE_KEYS.SCHOOLS, _schools);
     triggerBackgroundSync();
 };
 export const deleteSchool = (id: string) => {
     _schools = _schools.filter(s => s.id !== id);
-    saveLocal(STORAGE_KEYS.SCHOOLS, _schools);
+    saveLocal(BASE_KEYS.SCHOOLS, _schools);
     triggerBackgroundSync();
 };
 
@@ -361,20 +447,20 @@ export const deleteSchool = (id: string) => {
 export const getSystemUsers = (): SystemUser[] => [..._users];
 export const addSystemUser = (u: SystemUser) => {
     _users.push(u);
-    saveLocal(STORAGE_KEYS.USERS, _users);
+    saveLocal(BASE_KEYS.USERS, _users);
     triggerBackgroundSync();
 };
 export const updateSystemUser = (u: SystemUser) => {
     const idx = _users.findIndex(user => user.id === u.id);
     if (idx !== -1) {
         _users[idx] = u;
-        saveLocal(STORAGE_KEYS.USERS, _users);
+        saveLocal(BASE_KEYS.USERS, _users);
         triggerBackgroundSync();
     }
 };
 export const deleteSystemUser = (id: string) => {
     _users = _users.filter(u => u.id !== id);
-    saveLocal(STORAGE_KEYS.USERS, _users);
+    saveLocal(BASE_KEYS.USERS, _users);
     triggerBackgroundSync();
 };
 
@@ -382,18 +468,18 @@ export const deleteSystemUser = (id: string) => {
 export const getCustomTables = (): CustomTable[] => [..._customTables];
 export const addCustomTable = (t: CustomTable) => {
     _customTables.push(t);
-    saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables);
+    saveLocal(BASE_KEYS.CUSTOM_TABLES, _customTables);
 };
 export const updateCustomTable = (t: CustomTable) => {
     const idx = _customTables.findIndex(ct => ct.id === t.id);
     if (idx !== -1) {
         _customTables[idx] = t;
-        saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables);
+        saveLocal(BASE_KEYS.CUSTOM_TABLES, _customTables);
     }
 };
 export const deleteCustomTable = (id: string) => {
     _customTables = _customTables.filter(t => t.id !== id);
-    saveLocal(STORAGE_KEYS.CUSTOM_TABLES, _customTables);
+    saveLocal(BASE_KEYS.CUSTOM_TABLES, _customTables);
 };
 
 // --- Assignments ---
@@ -405,19 +491,19 @@ export const saveAssignment = (a: Assignment) => {
     const idx = _assignments.findIndex(exist => exist.id === a.id);
     if (idx !== -1) _assignments[idx] = a;
     else _assignments.push(a);
-    saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    saveLocal(BASE_KEYS.ASSIGNMENTS, _assignments);
     triggerBackgroundSync();
 };
 export const bulkSaveAssignments = (list: Assignment[]) => {
     const map = new Map(_assignments.map(a => [a.id, a]));
     list.forEach(a => map.set(a.id, a));
     _assignments = Array.from(map.values());
-    saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    saveLocal(BASE_KEYS.ASSIGNMENTS, _assignments);
     triggerBackgroundSync();
 };
 export const deleteAssignment = (id: string) => {
     _assignments = _assignments.filter(a => a.id !== id);
-    saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments);
+    saveLocal(BASE_KEYS.ASSIGNMENTS, _assignments);
     triggerBackgroundSync();
 };
 
@@ -425,7 +511,7 @@ export const deleteAssignment = (id: string) => {
 export const getMessages = (): MessageLog[] => [..._messages];
 export const saveMessage = (m: MessageLog) => {
     _messages.unshift(m); // Add to beginning
-    saveLocal(STORAGE_KEYS.MESSAGES, _messages);
+    saveLocal(BASE_KEYS.MESSAGES, _messages);
     triggerBackgroundSync();
 };
 
@@ -433,25 +519,22 @@ export const saveMessage = (m: MessageLog) => {
 export const getReportHeaderConfig = (): ReportHeaderConfig => ({..._reportConfig});
 export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
     _reportConfig = config;
-    saveLocal(STORAGE_KEYS.REPORT_CONFIG, _reportConfig);
-    // Configs are local usually, but could sync school settings
+    saveLocal(BASE_KEYS.REPORT_CONFIG, _reportConfig);
 };
 
 export const getWorksMasterUrl = (): string => _worksMasterUrl;
 export const saveWorksMasterUrl = (url: string) => {
     _worksMasterUrl = url;
-    saveLocal(STORAGE_KEYS.WORKS_URL, url);
+    saveLocal(BASE_KEYS.WORKS_URL, url);
 };
 
 // --- Sync & Backup ---
 export const initAutoSync = async () => {
-    // Check if connected and maybe pull latest if needed
-    // Implementation placeholder
     return Promise.resolve();
 };
 
-// ... existing backup and clear functions ...
 export const createBackup = () => {
+    // Only backup current mode data
     const backup = {
         students: _students,
         attendance: _attendance,
@@ -468,7 +551,8 @@ export const createBackup = () => {
         reportConfig: _reportConfig,
         worksUrl: _worksMasterUrl,
         teacherAssignments: _teacherAssignments,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        isDemo: IS_DEMO_MODE
     };
     return JSON.stringify(backup);
 };
@@ -476,23 +560,26 @@ export const createBackup = () => {
 export const restoreBackup = (jsonContent: string) => {
     try {
         const data = JSON.parse(jsonContent);
-        if (data.students) saveLocal(STORAGE_KEYS.STUDENTS, (_students = data.students));
-        if (data.attendance) saveLocal(STORAGE_KEYS.ATTENDANCE, (_attendance = data.attendance));
-        if (data.performance) saveLocal(STORAGE_KEYS.PERFORMANCE, (_performance = data.performance));
-        if (data.teachers) saveLocal(STORAGE_KEYS.TEACHERS, (_teachers = data.teachers));
-        if (data.parents) saveLocal(STORAGE_KEYS.PARENTS, (_parents = data.parents));
-        if (data.subjects) saveLocal(STORAGE_KEYS.SUBJECTS, (_subjects = data.subjects));
-        if (data.schedules) saveLocal(STORAGE_KEYS.SCHEDULES, (_schedules = data.schedules));
-        if (data.schools) saveLocal(STORAGE_KEYS.SCHOOLS, (_schools = data.schools));
-        if (data.users) saveLocal(STORAGE_KEYS.USERS, (_users = data.users));
-        if (data.customTables) saveLocal(STORAGE_KEYS.CUSTOM_TABLES, (_customTables = data.customTables));
-        if (data.assignments) saveLocal(STORAGE_KEYS.ASSIGNMENTS, (_assignments = data.assignments));
-        if (data.messages) saveLocal(STORAGE_KEYS.MESSAGES, (_messages = data.messages));
-        if (data.reportConfig) saveLocal(STORAGE_KEYS.REPORT_CONFIG, (_reportConfig = data.reportConfig));
-        if (data.worksUrl) saveLocal(STORAGE_KEYS.WORKS_URL, (_worksMasterUrl = data.worksUrl));
-        if (data.teacherAssignments) saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, (_teacherAssignments = data.teacherAssignments));
+        // Force system into the mode of the backup
+        setSystemMode(!!data.isDemo);
+
+        if (data.students) saveLocal(BASE_KEYS.STUDENTS, (_students = data.students));
+        if (data.attendance) saveLocal(BASE_KEYS.ATTENDANCE, (_attendance = data.attendance));
+        if (data.performance) saveLocal(BASE_KEYS.PERFORMANCE, (_performance = data.performance));
+        if (data.teachers) saveLocal(BASE_KEYS.TEACHERS, (_teachers = data.teachers));
+        if (data.parents) saveLocal(BASE_KEYS.PARENTS, (_parents = data.parents));
+        if (data.subjects) saveLocal(BASE_KEYS.SUBJECTS, (_subjects = data.subjects));
+        if (data.schedules) saveLocal(BASE_KEYS.SCHEDULES, (_schedules = data.schedules));
+        if (data.schools) saveLocal(BASE_KEYS.SCHOOLS, (_schools = data.schools));
+        if (data.users) saveLocal(BASE_KEYS.USERS, (_users = data.users));
+        if (data.customTables) saveLocal(BASE_KEYS.CUSTOM_TABLES, (_customTables = data.customTables));
+        if (data.assignments) saveLocal(BASE_KEYS.ASSIGNMENTS, (_assignments = data.assignments));
+        if (data.messages) saveLocal(BASE_KEYS.MESSAGES, (_messages = data.messages));
+        if (data.reportConfig) saveLocal(BASE_KEYS.REPORT_CONFIG, (_reportConfig = data.reportConfig));
+        if (data.worksUrl) saveLocal(BASE_KEYS.WORKS_URL, (_worksMasterUrl = data.worksUrl));
+        if (data.teacherAssignments) saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, (_teacherAssignments = data.teacherAssignments));
         
-        triggerBackgroundSync(); // Sync restored data
+        triggerBackgroundSync();
         return true;
     } catch (e) {
         console.error("Backup restore failed", e);
@@ -502,7 +589,7 @@ export const restoreBackup = (jsonContent: string) => {
 
 export const clearDatabase = () => {
     localStorage.clear();
-    loadAll();
+    setSystemMode(IS_DEMO_MODE); // Reload with empty state
 };
 
 // ... existing cloud functions ...
@@ -637,6 +724,8 @@ const mapPerformanceFromDB = (p: any): PerformanceRecord => ({
 });
 
 export const uploadToSupabase = async () => {
+    if (IS_DEMO_MODE) throw new Error("لا يمكن رفع بيانات التجربة إلى السحابة");
+
     const upsert = async (table: string, data: any[]) => {
         if (data.length === 0) return;
         const { error } = await supabase.from(table).upsert(data);
@@ -687,6 +776,8 @@ export const uploadToSupabase = async () => {
 };
 
 export const downloadFromSupabase = async () => {
+    if (IS_DEMO_MODE) return; // Prevent overwriting demo data with cloud data
+
     const fetchTable = async (table: string) => {
         const { data, error } = await supabase.from(table).select('*');
         if (error) throw error;
@@ -698,43 +789,43 @@ export const downloadFromSupabase = async () => {
         _schools = schools.map((s: any) => ({
             ...s,
             educationAdministration: s.education_administration,
-            managerName: s.manager_name,
+            manager_name: s.manager_name,
             studentCount: s.student_count,
             subscriptionStatus: s.subscription_status,
             worksMasterUrl: s.works_master_url
         })); 
-        saveLocal(STORAGE_KEYS.SCHOOLS, _schools); 
+        saveLocal(BASE_KEYS.SCHOOLS, _schools); 
     }
 
     const students = await fetchTable('students');
     if (students) { 
         _students = students.map(mapStudentFromDB); 
-        saveLocal(STORAGE_KEYS.STUDENTS, _students); 
+        saveLocal(BASE_KEYS.STUDENTS, _students); 
     }
 
     const attendance = await fetchTable('attendance_records');
     if (attendance) { 
         _attendance = attendance.map(mapAttendanceFromDB); 
-        saveLocal(STORAGE_KEYS.ATTENDANCE, _attendance); 
+        saveLocal(BASE_KEYS.ATTENDANCE, _attendance); 
     }
 
     const performance = await fetchTable('performance_records');
     if (performance) { 
         _performance = performance.map(mapPerformanceFromDB); 
-        saveLocal(STORAGE_KEYS.PERFORMANCE, _performance); 
+        saveLocal(BASE_KEYS.PERFORMANCE, _performance); 
     }
 
     const teachers = await fetchTable('teachers');
     if (teachers) { 
         _teachers = teachers.map((t: any) => ({...t, subjectSpecialty: t.subject_specialty})); 
-        saveLocal(STORAGE_KEYS.TEACHERS, _teachers); 
+        saveLocal(BASE_KEYS.TEACHERS, _teachers); 
     }
 
     const parents = await fetchTable('parents');
-    if (parents) { _parents = parents; saveLocal(STORAGE_KEYS.PARENTS, _parents); }
+    if (parents) { _parents = parents; saveLocal(BASE_KEYS.PARENTS, _parents); }
 
     const subjects = await fetchTable('subjects');
-    if (subjects) { _subjects = subjects; saveLocal(STORAGE_KEYS.SUBJECTS, _subjects); }
+    if (subjects) { _subjects = subjects; saveLocal(BASE_KEYS.SUBJECTS, _subjects); }
 
     const teacherAssigns = await fetchTable('teacher_assignments');
     if (teacherAssigns) {
@@ -744,31 +835,31 @@ export const downloadFromSupabase = async () => {
             subjectName: ta.subject_name,
             teacherId: ta.teacher_id
         }));
-        saveLocal(STORAGE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+        saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
     }
 
     const schedules = await fetchTable('weekly_schedules');
     if (schedules) { 
         _schedules = schedules.map((s: any) => ({...s, classId: s.class_id, subjectName: s.subject_name})); 
-        saveLocal(STORAGE_KEYS.SCHEDULES, _schedules); 
+        saveLocal(BASE_KEYS.SCHEDULES, _schedules); 
     }
 
     const users = await fetchTable('system_users');
     if (users) { 
         _users = users.map((u: any) => ({...u, schoolId: u.school_id})); 
-        saveLocal(STORAGE_KEYS.USERS, _users); 
+        saveLocal(BASE_KEYS.USERS, _users); 
     }
 
     const assignments = await fetchTable('assignments');
     if (assignments) { 
         _assignments = assignments.map((a: any) => ({...a, maxScore: a.max_score, isVisible: a.is_visible, orderIndex: a.order_index, sourceMetadata: a.source_metadata})); 
-        saveLocal(STORAGE_KEYS.ASSIGNMENTS, _assignments); 
+        saveLocal(BASE_KEYS.ASSIGNMENTS, _assignments); 
     }
 
     const messages = await fetchTable('messages');
     if (messages) { 
         _messages = messages.map((m: any) => ({...m, studentId: m.student_id, studentName: m.student_name, parentPhone: m.parent_phone, sentBy: m.sent_by})); 
-        saveLocal(STORAGE_KEYS.MESSAGES, _messages); 
+        saveLocal(BASE_KEYS.MESSAGES, _messages); 
     }
 };
 

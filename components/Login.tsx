@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { getSystemUsers, getStudents } from '../services/storageService';
-import { Lock, Mail, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users } from 'lucide-react';
+import { getSystemUsers, getStudents, setSystemMode } from '../services/storageService';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: any, rememberMe: boolean) => void;
@@ -20,12 +20,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError('');
     setLoading(true);
 
+    // Ensure we are in Production Mode for normal login
+    setSystemMode(false);
+
     // Simulate network delay for better UX
     setTimeout(() => {
         const cleanIdentifier = identifier.trim();
 
         // 1. Check Hardcoded Super Admin (Backdoor or Fallback)
-        // Accepts both the complex password OR simple '123' if storage fails
         if (cleanIdentifier.toLowerCase() === 'admin@school.com' && (password === 'SchoolSystem2025!' || password === '123')) {
             onLoginSuccess({ 
                 id: 'admin', 
@@ -52,13 +54,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         }
 
         // 3. Check Students (By National ID)
-        // Only if input looks like ID (digits only, e.g., 10 chars)
         if (/^\d{10}$/.test(cleanIdentifier)) {
             const students = getStudents();
             const foundStudent = students.find(s => s.nationalId === cleanIdentifier);
 
             if (foundStudent) {
-                // Default Password: Last 4 digits of National ID if not set
                 const defaultPass = foundStudent.nationalId ? foundStudent.nationalId.slice(-4) : '0000';
                 const storedPassword = foundStudent.password || defaultPass;
 
@@ -66,7 +66,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     onLoginSuccess({
                         ...foundStudent,
                         role: 'STUDENT',
-                        email: foundStudent.nationalId // Use ID as email identifier for session
+                        email: foundStudent.nationalId 
                     }, rememberMe);
                 } else {
                     setError('كلمة المرور غير صحيحة (الافتراضية: آخر 4 أرقام من الهوية)');
@@ -81,17 +81,25 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }, 800);
   };
 
-  const handleDemoLogin = (role: 'ADMIN' | 'TEACHER' | 'STUDENT') => {
-      if (role === 'ADMIN') {
-          setIdentifier('admin@school.com');
-          setPassword('123');
-      } else if (role === 'TEACHER') {
-          setIdentifier('teacher@school.com');
-          setPassword('123');
-      } else if (role === 'STUDENT') {
-          setIdentifier('1010101010');
-          setPassword('1010');
-      }
+  const handleDemoLogin = (role: 'MANAGER' | 'TEACHER' | 'STUDENT') => {
+      setLoading(true);
+      // 1. Activate Demo Mode
+      setSystemMode(true);
+
+      setTimeout(() => {
+          // 2. Get fake users created by storageService
+          if (role === 'MANAGER') {
+              const u = getSystemUsers().find(u => u.email === 'manager@demo.com');
+              if(u) onLoginSuccess({ ...u, isDemo: true }, false);
+          } else if (role === 'TEACHER') {
+              const u = getSystemUsers().find(u => u.email === 'teacher@demo.com');
+              if(u) onLoginSuccess({ ...u, isDemo: true }, false);
+          } else if (role === 'STUDENT') {
+              const s = getStudents().find(s => s.nationalId === '1010101010');
+              if(s) onLoginSuccess({ ...s, role: 'STUDENT', email: s.nationalId, isDemo: true }, false);
+          }
+          setLoading(false);
+      }, 500);
   };
 
   return (
@@ -114,20 +122,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <div className="p-8">
             <div className="mb-6 text-center">
                 <h2 className="text-xl font-bold text-gray-800">تسجيل الدخول</h2>
-                <p className="text-gray-400 text-sm mt-1">أدخل البريد الإلكتروني أو رقم الهوية (للطلاب)</p>
-            </div>
-
-            {/* Quick Access Buttons */}
-            <div className="mb-6 grid grid-cols-3 gap-2">
-                <button onClick={() => handleDemoLogin('ADMIN')} className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-xs font-bold text-gray-600">
-                    <ShieldCheck size={16} className="mb-1 text-red-500"/> مدير
-                </button>
-                <button onClick={() => handleDemoLogin('TEACHER')} className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-xs font-bold text-gray-600">
-                    <User size={16} className="mb-1 text-blue-500"/> معلم
-                </button>
-                <button onClick={() => handleDemoLogin('STUDENT')} className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-xs font-bold text-gray-600">
-                    <Users size={16} className="mb-1 text-green-500"/> طالب
-                </button>
+                <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للدخول إلى النظام الحقيقي</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
@@ -199,12 +194,31 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </button>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-                <p className="text-xs text-gray-400 mb-2">للطلاب:</p>
-                <div className="inline-block bg-blue-50 rounded-lg p-2 px-4 border border-blue-100 text-xs text-blue-800">
-                    كلمة المرور الافتراضية هي <b>آخر 4 أرقام</b> من رقم الهوية
+            <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500 font-bold">أو جرب النظام (Demo)</span>
                 </div>
             </div>
+
+            {/* Demo Access Buttons (Separated Data) */}
+            <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => handleDemoLogin('MANAGER')} className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors text-xs font-bold text-purple-700 group">
+                    <LayoutTemplate size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة مدير
+                </button>
+                <button onClick={() => handleDemoLogin('TEACHER')} className="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors text-xs font-bold text-blue-700 group">
+                    <User size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة معلم
+                </button>
+                <button onClick={() => handleDemoLogin('STUDENT')} className="flex flex-col items-center justify-center p-3 rounded-xl bg-green-50 hover:bg-green-100 border border-green-100 transition-colors text-xs font-bold text-green-700 group">
+                    <Users size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة طالب
+                </button>
+            </div>
+            
+            <p className="text-[10px] text-gray-400 text-center mt-4">
+                تنبيه: البيانات في وضع التجربة وهمية ومنفصلة تماماً عن بيانات النظام الحقيقية.
+            </p>
         </div>
       </div>
       
