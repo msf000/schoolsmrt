@@ -8,6 +8,7 @@ import Students from './components/Students';
 import Attendance from './components/Attendance';
 import Performance from './components/Performance';
 import DataImport from './components/DataImport';
+import AIDataImport from './components/AIDataImport';
 import SchoolManagement from './components/SchoolManagement';
 import AdminDashboard from './components/AdminDashboard';
 import CustomTablesView from './components/CustomTablesView';
@@ -38,7 +39,7 @@ const App: React.FC = () => {
   // Persist Current View State
   const [currentView, setCurrentView] = useState<ViewState>(() => {
       const savedView = localStorage.getItem('app_last_view');
-      const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'AI_TOOLS', 'CLASSROOM_SCREEN', 'CLASSROOM_MANAGEMENT', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT', 'MESSAGE_CENTER'];
+      const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'AI_TOOLS', 'CLASSROOM_SCREEN', 'CLASSROOM_MANAGEMENT', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT', 'MESSAGE_CENTER', 'AI_DATA_IMPORT'];
       return (savedView && validViews.includes(savedView as ViewState)) ? (savedView as ViewState) : 'DASHBOARD';
   });
 
@@ -190,7 +191,8 @@ const App: React.FC = () => {
     { id: 'AI_REPORTS', label: 'تقارير الذكاء الاصطناعي', icon: Sparkles, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
     { id: 'AI_TOOLS', label: 'أدوات المعلم (AI)', icon: BrainCircuit, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
     { id: 'CUSTOM_TABLES', label: 'الجداول الخاصة', icon: Table, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] }, 
-    { id: 'DATA_IMPORT', label: 'استيراد البيانات', icon: Database, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
+    { id: 'DATA_IMPORT', label: 'استيراد (Excel)', icon: Database, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
+    { id: 'AI_DATA_IMPORT', label: 'استيراد ذكي (AI)', icon: Sparkles, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
   ];
 
   if (isLoading) {
@@ -237,11 +239,7 @@ const App: React.FC = () => {
       // 1. Check Role Access
       const roleMatch = item.roles.includes(userRole);
       
-      // 2. Demo Restrictions (Hide Sensitive Admin in Demo for user experience if needed, 
-      // but original request allowed demo admin. We follow strict separation request here).
-      // If Demo mode is active, prevent ADMIN_DASHBOARD unless user role allows (which is fake SUPER_ADMIN).
-      
-      // 3. Strict Separation Check
+      // 2. Strict Separation Check
       // If I am SCHOOL_MANAGER, I must NOT see ADMIN_DASHBOARD even if logic somehow allows.
       if (userRole === 'SCHOOL_MANAGER' && item.id === 'ADMIN_DASHBOARD') return false;
 
@@ -396,6 +394,7 @@ const App: React.FC = () => {
             )}
             {currentView === 'CUSTOM_TABLES' && <CustomTablesView />}
             {currentView === 'DATA_IMPORT' && <DataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} existingStudents={students}/>}
+            {currentView === 'AI_DATA_IMPORT' && <AIDataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} />}
         </div>
       </main>
     </div>

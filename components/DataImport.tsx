@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Sheet, ArrowRight, Table, CheckSquare, Square, RefreshCw, PlusCircle, AlertTriangle, Trash2, ArrowRightCircle, X, Database, Globe, MousePointerClick, Clipboard, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Sheet, ArrowRight, Table, CheckSquare, Square, RefreshCw, PlusCircle, AlertTriangle, Trash2, ArrowRightCircle, X, Database, Globe, MousePointerClick, Clipboard, Download, Sparkles, BrainCircuit } from 'lucide-react';
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData } from '../services/excelService';
+import { predictColumnMapping } from '../services/geminiService';
 import { Student, CustomTable } from '../types';
 import { addCustomTable, getCustomTables, deleteCustomTable } from '../services/storageService';
 import * as XLSX from 'xlsx';
@@ -79,6 +81,9 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
   const [selectedCustomColumns, setSelectedCustomColumns] = useState<Set<string>>(new Set());
   const [existingCustomTables, setExistingCustomTables] = useState<CustomTable[]>([]);
   
+  // AI Loading State
+  const [aiLoading, setAiLoading] = useState(false);
+
   // Sorting for Preview
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
@@ -129,6 +134,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           if (text) setUrl(text);
       } catch (err) {
           console.error('Failed to read clipboard', err);
+          setStatus({ type: 'error', message: 'تعذر اللصق التلقائي. يرجى اللصق يدوياً (Ctrl+V).' });
       }
   };
 
@@ -230,6 +236,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       setRawSheetData(data);
       
       if (importMode === 'SYSTEM' && !onDataReady) {
+          // Default heuristic guess first
           const guessed = guessMapping(headers, dataType);
           setColumnMapping(guessed);
           setStep('MAPPING');
@@ -238,6 +245,31 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           setSelectedCustomColumns(new Set(headers));
           setSelectedRowIndices(new Set(data.map((_, i) => i)));
           setStep('PREVIEW_SELECT');
+      }
+  };
+
+  // --- AI Mapping Function ---
+  const handleSmartMap = async () => {
+      if (!fileHeaders.length || rawSheetData.length === 0) return;
+      
+      setAiLoading(true);
+      try {
+          const targetFields = FIELD_DEFINITIONS[dataType];
+          const sampleRow = rawSheetData[0]; // First row for context
+          
+          const mapping = await predictColumnMapping(fileHeaders, targetFields, [sampleRow]);
+          
+          if (Object.keys(mapping).length > 0) {
+              setColumnMapping(prev => ({ ...prev, ...mapping }));
+              setStatus({ type: 'success', message: 'تمت المطابقة الذكية بنجاح! يرجى المراجعة.' });
+          } else {
+              setStatus({ type: 'error', message: 'لم يتمكن الذكاء الاصطناعي من العثور على تطابق مؤكد.' });
+          }
+      } catch (e) {
+          console.error(e);
+          setStatus({ type: 'error', message: 'حدث خطأ أثناء المطابقة الذكية.' });
+      } finally {
+          setAiLoading(false);
       }
   };
 
@@ -485,7 +517,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                  <div className="flex items-center gap-3">
                     {onClose && (
                         <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-600">
-                            <ArrowRight size={20}/>
+                            <ArrowLeft size={20}/>
                         </button>
                     )}
                     <div>
@@ -700,7 +732,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
             {/* Step 3: Mapping (System Mode ONLY) */}
             {step === 'MAPPING' && importMode === 'SYSTEM' && !onDataReady && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
-                    <div className="p-4 border-b bg-gray-50 flex items-center gap-4">
+                    <div className="p-4 border-b bg-gray-50 flex items-center justify-between gap-4">
                          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border">
                              <Sheet size={16} className="text-gray-500"/>
                              <span className="text-sm text-gray-600 font-bold">ورقة العمل الحالية:</span>
@@ -712,6 +744,16 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                                 {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                          </div>
+
+                         {/* SMART AI MAP BUTTON */}
+                         <button 
+                            onClick={handleSmartMap} 
+                            disabled={aiLoading}
+                            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold shadow hover:shadow-lg transition-all disabled:opacity-50 text-sm"
+                         >
+                             {aiLoading ? <Loader2 className="animate-spin" size={16}/> : <BrainCircuit size={16}/>}
+                             {aiLoading ? 'جاري التحليل...' : 'مطابقة ذكية (AI)'}
+                         </button>
                     </div>
                     
                     <div className="flex-1 overflow-y-auto p-6">

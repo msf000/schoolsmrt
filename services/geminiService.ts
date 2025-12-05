@@ -4,6 +4,14 @@ import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Behavio
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// Helper to clean JSON string from Markdown
+function cleanJsonString(text: string): string {
+    if (!text) return "[]";
+    // Remove markdown code blocks ```json ... ``` or ``` ... ```
+    let clean = text.replace(/```json/gi, '').replace(/```/g, '');
+    return clean.trim();
+}
+
 // --- Existing Analysis Function ---
 export const generateStudentAnalysis = async (
   student: Student,
@@ -193,5 +201,131 @@ export const generateLessonPlan = async (
     } catch (error) {
         console.error("Gemini API Error:", error);
         return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- Smart Column Mapper (AI Import) ---
+export const predictColumnMapping = async (
+    headers: string[],
+    targetFields: { key: string; label: string }[],
+    sampleData: any[]
+): Promise<Record<string, string>> => {
+    const prompt = `
+    Act as a data processing expert. I have an Excel file uploaded by a teacher with these Headers:
+    ${JSON.stringify(headers)}
+
+    And here is a sample of the first row of data to understand context:
+    ${JSON.stringify(sampleData)}
+
+    I need to map these headers to my system's internal database fields.
+    The available target fields in my system are:
+    ${JSON.stringify(targetFields.map(f => `${f.key} (${f.label})`))}
+
+    Task:
+    Return a JSON object where the keys are my system's target fields (e.g., 'name', 'nationalId') and the values are the exact matching Header string from the uploaded file.
+    
+    Rules:
+    1. Only include fields where you are confident of a match.
+    2. 'nationalId' usually refers to National ID, Identity, Iqama, Sivil Record, الهوية, السجل المدني.
+    3. 'name' refers to Student Name, الاسم, اسم الطالب.
+    4. 'phone' refers to Mobile, Phone, الجوال, الهاتف.
+    5. Ignore unmapped fields.
+    6. Return ONLY the JSON object, no code blocks or extra text.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json"
+            }
+        });
+        
+        const text = response.text || "{}";
+        const jsonStr = cleanJsonString(text);
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        console.error("AI Mapping Error:", error);
+        return {};
+    }
+};
+
+// --- NEW: Parse Unstructured Text Data ---
+export const parseRawDataWithAI = async (
+    rawText: string,
+    targetType: 'STUDENTS' | 'GRADES' | 'ATTENDANCE'
+): Promise<any[]> => {
+    let schemaDescription = "";
+    if (targetType === 'STUDENTS') {
+        schemaDescription = `
+        Target Schema:
+        [{
+            "name": "Student Name (Arabic)",
+            "nationalId": "10-digit ID if found, else null",
+            "gradeLevel": "Grade/Class Name",
+            "phone": "Phone number if found",
+            "email": "Email if found"
+        }]
+        `;
+    } else if (targetType === 'GRADES') {
+        schemaDescription = `
+        Target Schema:
+        [{
+            "studentName": "Student Name",
+            "subject": "Subject Name",
+            "title": "Exam/Activity Title",
+            "score": number (the grade),
+            "maxScore": number (total possible grade, default 10 or 20 if not specified)
+        }]
+        `;
+    } else if (targetType === 'ATTENDANCE') {
+        schemaDescription = `
+        Target Schema:
+        [{
+            "studentName": "Student Name",
+            "status": "PRESENT" | "ABSENT" | "LATE",
+            "date": "YYYY-MM-DD" (use today if not specified)
+        }]
+        `;
+    }
+
+    const prompt = `
+    You are a smart data parser. I have unstructured text copied from a file, email, or message.
+    Extract the data into a JSON Array based on the target schema.
+    
+    ${schemaDescription}
+
+    Input Text:
+    """
+    ${rawText.slice(0, 20000)} 
+    """
+    
+    Rules:
+    1. Ignore headers, footers, or irrelevant text.
+    2. Fix Arabic names if they appear reversed or broken.
+    3. Return ONLY the JSON array. Do NOT return markdown formatting.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json"
+            }
+        });
+        const text = response.text || "[]";
+        const cleanText = cleanJsonString(text);
+        return JSON.parse(cleanText);
+    } catch (error: any) {
+        console.error("AI Parse Error:", error);
+        
+        // Handle JSON Parse Errors (often due to truncation)
+        if (error instanceof SyntaxError) {
+             throw new Error("فشل قراءة البيانات: قد يكون النص طويلاً جداً مما أدى إلى انقطاع الاستجابة (Truncation). حاول تقليل كمية النص المدخل.");
+        }
+        
+        throw new Error("فشل تحليل النص. تأكد من أن النص يحتوي على بيانات واضحة.");
     }
 };
