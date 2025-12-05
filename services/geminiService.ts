@@ -12,6 +12,60 @@ function cleanJsonString(text: string): string {
     return clean.trim();
 }
 
+// Helper to attempt repairing truncated JSON
+function tryRepairJson(jsonString: string): string {
+    let fixed = jsonString.trim();
+    
+    // 1. Close unclosed string
+    let inString = false;
+    let escape = false;
+    for (let i = 0; i < fixed.length; i++) {
+        const char = fixed[i];
+        if (char === '\\') {
+            escape = !escape;
+        } else {
+            if (char === '"' && !escape) {
+                inString = !inString;
+            }
+            escape = false;
+        }
+    }
+    if (inString) fixed += '"';
+
+    // 2. Remove trailing comma if exists (common before closing)
+    if (fixed.endsWith(',')) fixed = fixed.slice(0, -1);
+
+    // 3. Balance Brackets/Braces
+    let openBraces = 0;
+    let openBrackets = 0;
+    
+    // Recalculate context (simple counter, assuming strings are closed now)
+    inString = false;
+    escape = false;
+    for (let i = 0; i < fixed.length; i++) {
+        const char = fixed[i];
+        if (char === '\\') { escape = !escape; continue; }
+        if (char === '"' && !escape) { inString = !inString; }
+        escape = false;
+
+        if (!inString) {
+            if (char === '{') openBraces++;
+            else if (char === '}') openBraces = Math.max(0, openBraces - 1);
+            else if (char === '[') openBrackets++;
+            else if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
+        }
+    }
+
+    // Append missing closures
+    // Note: This naive approach assumes standard nesting order (usually correct for cut-off JSON)
+    // Often we are inside an object inside the main array: [ { ...
+    // So we need to close object then array.
+    while (openBraces > 0) { fixed += '}'; openBraces--; }
+    while (openBrackets > 0) { fixed += ']'; openBrackets--; }
+
+    return fixed;
+}
+
 // --- Existing Analysis Function ---
 export const generateStudentAnalysis = async (
   student: Student,
@@ -290,6 +344,10 @@ export const parseRawDataWithAI = async (
         `;
     }
 
+    // Slice input to avoid hitting max input/output tokens too easily, 
+    // but keep enough for reasonable data extraction (approx 15k chars)
+    const truncatedInput = rawText.slice(0, 15000);
+
     const prompt = `
     You are a smart data parser. I have unstructured text copied from a file, email, or message.
     Extract the data into a JSON Array based on the target schema.
@@ -298,7 +356,7 @@ export const parseRawDataWithAI = async (
 
     Input Text:
     """
-    ${rawText.slice(0, 20000)} 
+    ${truncatedInput}
     """
     
     Rules:
@@ -317,13 +375,20 @@ export const parseRawDataWithAI = async (
         });
         const text = response.text || "[]";
         const cleanText = cleanJsonString(text);
-        return JSON.parse(cleanText);
+        
+        try {
+            return JSON.parse(cleanText);
+        } catch (jsonError) {
+            console.warn("Initial JSON parse failed, attempting repair...", jsonError);
+            const repaired = tryRepairJson(cleanText);
+            return JSON.parse(repaired);
+        }
+
     } catch (error: any) {
         console.error("AI Parse Error:", error);
         
-        // Handle JSON Parse Errors (often due to truncation)
         if (error instanceof SyntaxError) {
-             throw new Error("فشل قراءة البيانات: قد يكون النص طويلاً جداً مما أدى إلى انقطاع الاستجابة (Truncation). حاول تقليل كمية النص المدخل.");
+             throw new Error("فشل قراءة البيانات: النص طويل جداً مما أدى إلى انقطاع الاستجابة. حاول تقليل النص (مثلاً 50 سطر في كل مرة).");
         }
         
         throw new Error("فشل تحليل النص. تأكد من أن النص يحتوي على بيانات واضحة.");
