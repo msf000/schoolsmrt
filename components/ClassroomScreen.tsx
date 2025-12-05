@@ -40,7 +40,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
     }, [filteredStudents, attendance]);
 
     return (
-        <div className="h-full flex flex-col bg-slate-900 text-white animate-fade-in relative overflow-hidden">
+        <div className="h-full flex flex-col bg-slate-900 text-white animate-fade-in relative overflow-hidden font-sans">
             {/* Background Effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 z-0"></div>
             
@@ -125,14 +125,16 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
         // Simple logic to detect if it needs embed processing
         let url = inputUrl.trim();
         
-        // Handle SharePoint / Office Online links (Naive check)
-        if (url.includes('sharepoint.com') || url.includes('onedrive.live.com')) {
-             // Try to append embed params if missing (often users copy the edit link)
-             // This is a best-effort guess. Often 'action=embedview' works for PPT online.
-             if (!url.includes('action=')) {
+        // Handle SharePoint / Office Online links (Force Embed View)
+        if (url.includes('sharepoint.com') || url.includes('onedrive.live.com') || url.includes('1drv.ms') || url.includes('office.com')) {
+             if (!url.includes('action=embedview')) {
+                 // Remove other action params if they exist
+                 url = url.replace(/action=[^&]+/, '');
+                 // Append embedview
                  url += url.includes('?') ? '&action=embedview' : '?action=embedview';
              }
         }
+        
         // Handle Google Slides
         if (url.includes('docs.google.com/presentation') && !url.includes('/embed')) {
             url = url.replace('/edit', '/embed').replace('/pub', '/embed');
@@ -146,35 +148,35 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
         <div className="w-full h-full flex flex-col relative">
             
             {/* Main Stage (The Presentation) */}
-            <div className="flex-1 bg-black/20 rounded-2xl border border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
+            <div className="flex-1 bg-white rounded-2xl border border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
                 {sourceType === 'NONE' ? (
-                    <div className="text-center p-8 animate-fade-in">
+                    <div className="text-center p-8 animate-fade-in w-full h-full flex flex-col items-center justify-center bg-slate-900/50">
                         <div className="bg-white/10 p-6 rounded-full inline-flex mb-6">
                             <Monitor size={64} className="text-indigo-400 opacity-80"/>
                         </div>
-                        <h2 className="text-2xl font-bold mb-6">وضع العرض التقديمي (Smart Board)</h2>
+                        <h2 className="text-2xl font-bold mb-6 text-white">وضع العرض التقديمي (Smart Board)</h2>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-                            <div className="bg-white/5 p-6 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
-                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2"><Upload/> رفع ملف (PDF/Image)</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl w-full">
+                            <div className="bg-slate-800 p-6 rounded-xl border border-white/10 hover:bg-slate-700 transition-colors">
+                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2 text-white"><Upload/> رفع ملف (PDF/Image)</h3>
                                 <p className="text-xs text-gray-400 mb-4">ارفع الدرس بصيغة PDF أو صور (Export PowerPoint to PDF)</p>
-                                <label className="block w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer font-bold transition-colors">
+                                <label className="block w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer font-bold transition-colors text-white">
                                     اختيار ملف
                                     <input type="file" accept="application/pdf, image/*" className="hidden" onChange={handleFileUpload}/>
                                 </label>
                             </div>
 
-                            <div className="bg-white/5 p-6 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
-                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2"><Globe/> رابط سحابي</h3>
-                                <p className="text-xs text-gray-400 mb-4">رابط Google Slides أو OneDrive أو أي موقع</p>
+                            <div className="bg-slate-800 p-6 rounded-xl border border-white/10 hover:bg-slate-700 transition-colors">
+                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2 text-white"><Globe/> رابط سحابي</h3>
+                                <p className="text-xs text-gray-400 mb-4">رابط PowerPoint (SharePoint) أو Google Slides</p>
                                 <form onSubmit={handleUrlSubmit} className="flex gap-2">
                                     <input 
-                                        className="w-full bg-black/30 border border-white/20 rounded-lg px-3 text-sm outline-none focus:border-indigo-500 dir-ltr text-left"
-                                        placeholder="https://..."
+                                        className="w-full bg-black/30 border border-white/20 rounded-lg px-3 text-sm outline-none focus:border-indigo-500 dir-ltr text-left text-white"
+                                        placeholder="https://mkhboys-my.sharepoint.com/..."
                                         value={inputUrl}
                                         onChange={e => setInputUrl(e.target.value)}
                                     />
-                                    <button className="bg-indigo-600 p-2 rounded-lg hover:bg-indigo-700"><Monitor size={18}/></button>
+                                    <button className="bg-indigo-600 p-2 rounded-lg hover:bg-indigo-700 text-white"><Monitor size={18}/></button>
                                 </form>
                             </div>
                         </div>
@@ -191,8 +193,16 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
                         </button>
 
                         {/* Content */}
-                        {sourceType === 'PDF' && <iframe src={sourceUrl} className="w-full h-full" title="PDF Viewer"></iframe>}
-                        {sourceType === 'IFRAME' && <iframe src={sourceUrl} className="w-full h-full" title="Web Viewer" allowFullScreen></iframe>}
+                        {sourceType === 'PDF' && <iframe src={sourceUrl} className="w-full h-full border-none" title="PDF Viewer"></iframe>}
+                        {sourceType === 'IFRAME' && (
+                            <iframe 
+                                src={sourceUrl} 
+                                className="w-full h-full border-none" 
+                                title="Web Viewer" 
+                                allowFullScreen 
+                                allow="autoplay; encrypted-media"
+                            ></iframe>
+                        )}
                         {sourceType === 'IMAGE' && <img src={sourceUrl} className="w-full h-full object-contain bg-black" alt="Presentation Slide"/>}
                     </div>
                 )}
