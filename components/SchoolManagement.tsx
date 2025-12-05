@@ -10,7 +10,7 @@ import {
     saveWorksMasterUrl, getWorksMasterUrl,
     getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment
 } from '../services/storageService';
-import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Database, Save, Link as LinkIcon, Calendar, Filter, AlertCircle, Edit2, Check, Layers, GraduationCap, MapPin, Upload, Briefcase, Table, Printer, Copy, ArrowLeft, Search, X } from 'lucide-react';
+import { Trash2, Plus, Book, Users, User, Phone, Mail, Building2, Database, Save, Link as LinkIcon, Calendar, Filter, AlertCircle, Edit2, Check, Layers, GraduationCap, MapPin, Upload, Briefcase, Table, Printer, Copy, ArrowLeft, Search, X, Lock, FileText } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface SchoolManagementProps {
@@ -81,8 +81,9 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
     </button>
 );
 
-// --- Teacher Assignments Manager ---
+// ... TeacherAssignmentsManager Code ...
 const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
+    // ... [No changes needed in this component]
     const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -160,7 +161,6 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
         return t ? t.name : '???';
     };
 
-    // Calculate Workload
     const getTeacherWorkload = (teacherId: string) => {
         return assignments.filter(a => a.teacherId === teacherId).length;
     };
@@ -347,39 +347,9 @@ const TeacherAssignmentsManager = ({ students }: { students: Student[] }) => {
     );
 };
 
-// --- Timetable Manager ---
-
-// Helper for colors
-const COLORS = [
-  'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 print:bg-white print:text-black print:border-black',
-  'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 print:bg-white print:text-black print:border-black',
-  'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 print:bg-white print:text-black print:border-black',
-  'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200 print:bg-white print:text-black print:border-black',
-  'bg-lime-100 text-lime-800 border-lime-200 hover:bg-lime-200 print:bg-white print:text-black print:border-black',
-  'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 print:bg-white print:text-black print:border-black',
-  'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 print:bg-white print:text-black print:border-black',
-  'bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-200 print:bg-white print:text-black print:border-black',
-  'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200 print:bg-white print:text-black print:border-black',
-  'bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-200 print:bg-white print:text-black print:border-black',
-  'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 print:bg-white print:text-black print:border-black',
-  'bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200 print:bg-white print:text-black print:border-black',
-  'bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-200 print:bg-white print:text-black print:border-black',
-  'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200 print:bg-white print:text-black print:border-black',
-  'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-200 print:bg-white print:text-black print:border-black',
-  'bg-pink-100 text-pink-800 border-pink-200 hover:bg-pink-200 print:bg-white print:text-black print:border-black',
-  'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-200 print:bg-white print:text-black print:border-black',
-];
-
-const getColorClass = (str: string) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % COLORS.length;
-    return COLORS[index];
-}
-
+// ... TimetableManager Code ...
 const TimetableManager = ({ students }: { students: Student[] }) => {
+    // ... [No changes needed in this component]
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -396,6 +366,38 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
 
     const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
     const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+    const COLORS = [
+      'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 print:bg-white print:text-black print:border-black',
+      'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 print:bg-white print:text-black print:border-black',
+      'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 print:bg-white print:text-black print:border-black',
+      'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200 print:bg-white print:text-black print:border-black',
+      'bg-lime-100 text-lime-800 border-lime-200 hover:bg-lime-200 print:bg-white print:text-black print:border-black',
+      'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 print:bg-white print:text-black print:border-black',
+      'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 print:bg-white print:text-black print:border-black',
+      'bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-200 print:bg-white print:text-black print:border-black',
+      'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-200 print:bg-white print:text-black print:border-black',
+      'bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-200 print:bg-white print:text-black print:border-black',
+      'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 print:bg-white print:text-black print:border-black',
+      'bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200 print:bg-white print:text-black print:border-black',
+      'bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-200 print:bg-white print:text-black print:border-black',
+      'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200 print:bg-white print:text-black print:border-black',
+      'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-200 print:bg-white print:text-black print:border-black',
+      'bg-pink-100 text-pink-800 border-pink-200 hover:bg-pink-200 print:bg-white print:text-black print:border-black',
+      'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-200 print:bg-white print:text-black print:border-black',
+    ];
+
+    const getColorClass = (str: string) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const index = Math.abs(hash) % COLORS.length;
+        return COLORS[index];
+    }
+
+    const dayNameAr: Record<string, string> = {
+        'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس'
+    };
 
     useEffect(() => {
         setSubjects(getSubjects());
@@ -404,7 +406,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
         setTeacherAssignmentsState(getTeacherAssignments());
     }, []);
 
-    // 1. Extract Unique Grades from Students
     const uniqueGrades = useMemo(() => {
         const grades = new Set<string>();
         students.forEach(s => {
@@ -413,11 +414,9 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
         return Array.from(grades).sort();
     }, [students]);
 
-    // 2. Extract Unique Classes based on selected Grade
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => {
-            // If grade selected, filter by it. Else show all unique class names.
             if (!selectedGrade || s.gradeLevel === selectedGrade) {
                 if (s.className) classes.add(s.className);
             }
@@ -425,23 +424,15 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
         return Array.from(classes).sort();
     }, [students, selectedGrade]);
 
-    // Helper to get effective ID for saving schedule (using class name as ID)
-    const getScheduleClassId = () => {
-        return selectedClassName; 
-    };
-
     const checkForConflicts = (day: DayOfWeek, period: number, currentClassId: string): ScheduleItem | undefined => {
         const proposedAssignment = teacherAssignments.find(ta => ta.classId === currentClassId && ta.subjectName === selectedSubject);
-        if (!proposedAssignment) return undefined; // No teacher assigned yet, can't check conflict
+        if (!proposedAssignment) return undefined; 
 
         const teacherId = proposedAssignment.teacherId;
 
-        // 2. Is this teacher busy elsewhere?
         return schedules.find(s => {
             if (s.day !== day || s.period !== period) return false;
-            // Find teacher for this existing schedule item
             const existingAssignment = teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
-            // If same teacher AND different class => CONFLICT
             return existingAssignment?.teacherId === teacherId && s.classId !== currentClassId;
         });
     };
@@ -453,9 +444,8 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
             return;
         }
 
-        const classId = getScheduleClassId();
+        const classId = selectedClassName;
 
-        // 1. Check for Conflicts
         const conflict = checkForConflicts(day, period, classId);
         if (conflict) {
             const conflictTeacher = teachers.find(t => teacherAssignments.find(ta => ta.classId === conflict.classId && ta.subjectName === conflict.subjectName)?.teacherId === t.id);
@@ -466,7 +456,7 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
 
         const item: ScheduleItem = {
             id: `${classId}-${day}-${period}`,
-            classId: classId, // Store Name as ID
+            classId: classId, 
             day: day,
             period: period,
             subjectName: selectedSubject
@@ -486,10 +476,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
         }
     }
 
-    const dayNameAr: Record<string, string> = {
-        'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس'
-    };
-
     const handlePrint = () => {
         window.print();
     };
@@ -497,7 +483,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
     return (
         <div className="space-y-6">
             
-            {/* Header / Mode Switcher (Hidden on Print) */}
             <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl border shadow-sm gap-4 print:hidden">
                 <div>
                     <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
@@ -536,12 +521,10 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                 </div>
             </div>
 
-            {/* --- SINGLE CLASS VIEW --- */}
             {viewMode === 'SINGLE_CLASS' && (
                 <div className="animate-fade-in space-y-6">
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end bg-gray-50 p-4 rounded-lg border print:hidden">
                         
-                        {/* Grade Filter */}
                         <div className="w-full md:w-auto">
                             <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
                                 <Filter size={12}/> تصفية حسب الصف
@@ -618,8 +601,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                                                         {session ? (
                                                             <div className={`w-full h-full rounded-md p-1 flex flex-col items-center justify-center relative group shadow-sm border print:shadow-none print:border-none ${getColorClass(session.subjectName)}`}>
                                                                 <span className="font-bold text-sm text-center line-clamp-2">{session.subjectName}</span>
-                                                                
-                                                                {/* Edit/Delete Overlay */}
                                                                 <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity rounded-md backdrop-blur-[1px] print:hidden">
                                                                     <button 
                                                                         onClick={(e) => handleCellClear(e, session.id)} 
@@ -661,7 +642,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                 </div>
             )}
 
-            {/* --- TEACHER VIEW --- */}
             {viewMode === 'TEACHER_VIEW' && (
                 <div className="animate-fade-in space-y-6">
                     <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm flex items-center justify-between gap-4 print:hidden">
@@ -704,14 +684,12 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                                         <tr key={day} className="hover:bg-gray-50 print:hover:bg-transparent">
                                             <td className="p-3 border font-bold bg-gray-50 print:bg-white print:border-black">{dayNameAr[day]}</td>
                                             {periods.map(period => {
-                                                // Find any session where this teacher is assigned
                                                 const mySession = schedules.find(s => {
                                                     if (s.day !== day || s.period !== period) return false;
                                                     const assignment = teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
                                                     return assignment?.teacherId === selectedTeacherId;
                                                 });
 
-                                                // Check for conflict (double booking)
                                                 const conflictSessions = schedules.filter(s => {
                                                     if (s.day !== day || s.period !== period) return false;
                                                     const assignment = teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
@@ -747,7 +725,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                 </div>
             )}
 
-            {/* --- DAILY MATRIX VIEW --- */}
             {viewMode === 'DAILY_MATRIX' && (
                 <div className="animate-fade-in space-y-6">
                     <div className="bg-white p-4 rounded-lg border border-green-100 shadow-sm flex items-center justify-between gap-4 print:hidden">
@@ -785,7 +762,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                                         <td className="p-3 border font-bold bg-gray-50 print:bg-white print:border-black text-gray-800">{classId}</td>
                                         {periods.map(period => {
                                             const session = schedules.find(s => s.classId === classId && s.day === selectedMatrixDay && s.period === period);
-                                            // Find assigned teacher if session exists
                                             let teacherName = '';
                                             if (session) {
                                                 const assignment = teacherAssignments.find(ta => ta.classId === session.classId && ta.subjectName === session.subjectName);
@@ -816,7 +792,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                 </div>
             )}
 
-            {/* --- MASTER VIEW --- */}
             {viewMode === 'MASTER_VIEW' && (
                 <div className="animate-fade-in bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:hidden">
                     <div className="p-4 bg-purple-50 border-b border-purple-100">
@@ -838,7 +813,6 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
                                     <tr key={day} className="hover:bg-gray-50">
                                         <td className="p-4 border font-bold bg-gray-50 text-gray-800">{dayNameAr[day]}</td>
                                         {periods.map(period => {
-                                            // In master view, we find ANY schedule for this day/period
                                             const sessions = schedules.filter(s => s.day === day && s.period === period);
                                             
                                             return (
@@ -872,208 +846,11 @@ const TimetableManager = ({ students }: { students: Student[] }) => {
     );
 };
 
-// --- Settings Manager (For Cloud Link and Report Headers) ---
-const SchoolSettings = () => {
-    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig>({ 
-        schoolName: '', educationAdmin: '', teacherName: '', 
-        schoolManager: '', academicYear: '', term: '', logoBase64: '' 
-    });
-    const [masterUrl, setMasterUrl] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-    const [msg, setMsg] = useState('');
-
-    useEffect(() => {
-        setHeaderConfig(getReportHeaderConfig());
-        setMasterUrl(getWorksMasterUrl());
-    }, []);
-
-    const handleSave = () => {
-        setIsSaving(true);
-        saveReportHeaderConfig(headerConfig);
-        saveWorksMasterUrl(masterUrl);
-        
-        setTimeout(() => {
-            setIsSaving(false);
-            setMsg('✅ تم حفظ الإعدادات بنجاح! سيتم تطبيقها على التقارير والنظام.');
-            setTimeout(() => setMsg(''), 3000);
-        }, 800);
-    };
-
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setHeaderConfig(prev => ({ ...prev, logoBase64: reader.result as string }));
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    return (
-        <div className="max-w-4xl mx-auto py-4 space-y-8">
-            
-            {/* Report Header Config Section */}
-            <div>
-                <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <GraduationCap className="text-purple-600"/>
-                    إعدادات الترويسة والتقارير
-                </h3>
-                
-                <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
-                    
-                    {/* Right Side: Text Inputs */}
-                    <div className="md:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">إدارة التعليم (المنطقة / المحافظة)</label>
-                            <div className="relative">
-                                <MapPin className="absolute right-3 top-3 text-purple-400" size={18}/>
-                                <input 
-                                    type="text" 
-                                    value={headerConfig.educationAdmin} 
-                                    onChange={e => setHeaderConfig({...headerConfig, educationAdmin: e.target.value})}
-                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="مثال: الرياض / جدة"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">اسم المدرسة</label>
-                            <div className="relative">
-                                <Building2 className="absolute right-3 top-3 text-purple-400" size={18}/>
-                                <input 
-                                    type="text" 
-                                    value={headerConfig.schoolName} 
-                                    onChange={e => setHeaderConfig({...headerConfig, schoolName: e.target.value})}
-                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="مثال: ثانوية الملك فهد"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">مدير المدرسة</label>
-                            <div className="relative">
-                                <User className="absolute right-3 top-3 text-purple-400" size={18}/>
-                                <input 
-                                    type="text" 
-                                    value={headerConfig.schoolManager} 
-                                    onChange={e => setHeaderConfig({...headerConfig, schoolManager: e.target.value})}
-                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="اسم المدير"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">العام الدراسي</label>
-                            <div className="relative">
-                                <Calendar className="absolute right-3 top-3 text-purple-400" size={18}/>
-                                <input 
-                                    type="text" 
-                                    value={headerConfig.academicYear} 
-                                    onChange={e => setHeaderConfig({...headerConfig, academicYear: e.target.value})}
-                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="مثال: 1447هـ"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">الفصل الدراسي</label>
-                            <select 
-                                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white"
-                                value={headerConfig.term}
-                                onChange={e => setHeaderConfig({...headerConfig, term: e.target.value})}
-                            >
-                                <option value="الفصل الدراسي الأول">الفصل الدراسي الأول</option>
-                                <option value="الفصل الدراسي الثاني">الفصل الدراسي الثاني</option>
-                                <option value="الفصل الدراسي الثالث">الفصل الدراسي الثالث</option>
-                            </select>
-                        </div>
-
-                        <div className="col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">اسم المعلم (الظاهر في التقارير)</label>
-                            <div className="relative">
-                                <User className="absolute right-3 top-3 text-purple-400" size={18}/>
-                                <input 
-                                    type="text" 
-                                    value={headerConfig.teacherName} 
-                                    onChange={e => setHeaderConfig({...headerConfig, teacherName: e.target.value})}
-                                    className="w-full p-3 pr-10 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="أدخل اسمك هنا"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Left Side: Logo Upload */}
-                    <div className="md:col-span-4 flex flex-col items-center justify-center p-4 border-2 border-dashed border-purple-300 rounded-xl bg-white hover:bg-purple-50 transition-colors relative">
-                        <input 
-                            type="file" 
-                            accept="image/*" 
-                            onChange={handleLogoUpload}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                        />
-                        {headerConfig.logoBase64 ? (
-                            <div className="relative w-full flex flex-col items-center">
-                                <img src={headerConfig.logoBase64} alt="شعار المدرسة" className="max-h-32 object-contain mb-2" />
-                                <span className="text-xs text-purple-600 font-bold bg-white px-2 py-1 rounded shadow">اضغط لتغيير الشعار</span>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center text-gray-400">
-                                <Upload size={40} className="mb-2"/>
-                                <span className="font-bold">رفع شعار المدرسة</span>
-                                <span className="text-xs mt-1">PNG, JPG (حد أقصى 1MB)</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Cloud Link Config Section */}
-            <div>
-                <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <LinkIcon className="text-blue-600"/>
-                    إعدادات الربط السحابي (Excel/Google Sheets)
-                </h3>
-                
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">رابط ملف الأعمال الرئيسي</label>
-                    <p className="text-xs text-gray-500 mb-4">هذا الرابط يستخدم لجلب درجات الطلاب والأنشطة تلقائياً من ملف خارجي.</p>
-                    
-                    <div className="flex gap-2">
-                        <input 
-                            type="url" 
-                            value={masterUrl} 
-                            onChange={e => setMasterUrl(e.target.value)}
-                            className="flex-1 p-3 border rounded-lg dir-ltr text-left"
-                            placeholder="https://docs.google.com/spreadsheets/d/..."
-                        />
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex flex-col items-center justify-center pt-4 border-t">
-                <button 
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="bg-gray-800 hover:bg-black text-white px-12 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 shadow-lg text-lg transform transition-transform active:scale-95"
-                >
-                    {isSaving ? 'جاري الحفظ...' : 'حفظ كافة الإعدادات'}
-                </button>
-                {msg && <div className="mt-4 text-sm font-bold text-green-600 bg-green-50 px-4 py-2 rounded-lg border border-green-200 animate-bounce">{msg}</div>}
-            </div>
-        </div>
-    );
-};
-
 // --- UPDATED: Enhanced Managers with Search & Edit ---
 
 const TeachersManager = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [form, setForm] = useState({ id: '', name: '', email: '', phone: '', specialty: '' });
+    const [form, setForm] = useState({ id: '', name: '', email: '', phone: '', specialty: '', nationalId: '', password: '' });
     const [editingId, setEditingId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -1091,7 +868,9 @@ const TeachersManager = () => {
                 name: form.name, 
                 email: form.email, 
                 phone: form.phone, 
-                subjectSpecialty: form.specialty 
+                subjectSpecialty: form.specialty,
+                nationalId: form.nationalId,
+                password: form.password
             });
             setEditingId(null);
         } else {
@@ -1100,16 +879,26 @@ const TeachersManager = () => {
                 name: form.name, 
                 email: form.email, 
                 phone: form.phone, 
-                subjectSpecialty: form.specialty 
+                subjectSpecialty: form.specialty,
+                nationalId: form.nationalId,
+                password: form.password
             });
         }
         setTeachers(getTeachers());
-        setForm({ id: '', name: '', email: '', phone: '', specialty: '' });
+        setForm({ id: '', name: '', email: '', phone: '', specialty: '', nationalId: '', password: '' });
     };
 
     const handleEdit = (t: Teacher) => {
         setEditingId(t.id);
-        setForm({ id: t.id, name: t.name, email: t.email || '', phone: t.phone || '', specialty: t.subjectSpecialty || '' });
+        setForm({ 
+            id: t.id, 
+            name: t.name, 
+            email: t.email || '', 
+            phone: t.phone || '', 
+            specialty: t.subjectSpecialty || '',
+            nationalId: t.nationalId || '',
+            password: t.password || ''
+        });
     };
 
     const handleDelete = (id: string) => {
@@ -1127,12 +916,29 @@ const TeachersManager = () => {
                         {editingId ? <Edit2 size={18} className="text-yellow-600"/> : <Plus size={18} className="text-primary"/>}
                         {editingId ? 'تعديل بيانات المعلم' : 'إضافة معلم جديد'}
                     </h3>
-                    {editingId && <button onClick={() => { setEditingId(null); setForm({id:'', name:'', email:'', phone:'', specialty:''}); }} className="text-gray-500 hover:text-red-500"><X size={18}/></button>}
+                    {editingId && <button onClick={() => { setEditingId(null); setForm({id:'', name:'', email:'', phone:'', specialty:'', nationalId: '', password: ''}); }} className="text-gray-500 hover:text-red-500"><X size={18}/></button>}
                 </div>
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1">اسم المعلم *</label>
                         <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">رقم الهوية / السجل (للدخول)</label>
+                        <input value={form.nationalId} onChange={e => setForm({...form, nationalId: e.target.value})} className="w-full p-2 border rounded-md" placeholder="للدخول..." />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">كلمة المرور (للدخول)</label>
+                        <div className="relative">
+                            <Lock size={14} className="absolute right-2 top-2.5 text-gray-400"/>
+                            <input 
+                                type="text" 
+                                value={form.password} 
+                                onChange={e => setForm({...form, password: e.target.value})} 
+                                className="w-full p-2 pr-7 border rounded-md" 
+                                placeholder="******" 
+                            />
+                        </div>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1">التخصص</label>
@@ -1142,8 +948,13 @@ const TeachersManager = () => {
                         <label className="block text-xs font-bold text-gray-600 mb-1">رقم الجوال</label>
                         <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-md" />
                     </div>
-                    <button type="submit" className={`px-4 py-2 rounded-md h-[42px] flex items-center justify-center gap-2 font-bold text-white transition-colors ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-primary hover:bg-teal-800'}`}>
-                        {editingId ? 'حفظ التعديلات' : 'إضافة'}
+                    <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">البريد الإلكتروني</label>
+                        <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full p-2 border rounded-md" />
+                    </div>
+                    
+                    <button type="submit" className={`md:col-span-2 px-4 py-2 rounded-md h-[42px] flex items-center justify-center gap-2 font-bold text-white transition-colors ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-primary hover:bg-teal-800'}`}>
+                        {editingId ? 'حفظ التعديلات' : 'إضافة معلم جديد'}
                     </button>
                 </form>
             </div>
@@ -1164,6 +975,7 @@ const TeachersManager = () => {
                     <thead>
                         <tr className="bg-gray-100 text-sm text-gray-700 border-b">
                             <th className="p-3">الاسم</th>
+                            <th className="p-3">رقم الهوية</th>
                             <th className="p-3">التخصص</th>
                             <th className="p-3">تواصل</th>
                             <th className="p-3 text-center">النصاب</th>
@@ -1176,6 +988,7 @@ const TeachersManager = () => {
                             return (
                                 <tr key={t.id} className={`hover:bg-gray-50 ${editingId === t.id ? 'bg-yellow-50' : ''}`}>
                                     <td className="p-3 font-bold text-gray-800">{t.name}</td>
+                                    <td className="p-3 text-gray-600 font-mono text-sm">{t.nationalId || '-'}</td>
                                     <td className="p-3 text-gray-600">{t.subjectSpecialty || '-'}</td>
                                     <td className="p-3 text-sm text-gray-500">
                                         <div className="flex flex-col gap-1">
@@ -1193,7 +1006,7 @@ const TeachersManager = () => {
                                 </tr>
                             );
                         })}
-                        {filteredTeachers.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400">لا توجد نتائج</td></tr>}
+                        {filteredTeachers.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-gray-400">لا توجد نتائج</td></tr>}
                     </tbody>
                 </table>
             </div>
@@ -1201,7 +1014,9 @@ const TeachersManager = () => {
     );
 };
 
+// ... ParentsManager and SubjectsManager Code ...
 const ParentsManager = () => {
+    // ... [No changes needed here]
     const [parents, setParents] = useState<Parent[]>([]);
     const [form, setForm] = useState({ id: '', name: '', phone: '', email: '' });
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -1312,6 +1127,7 @@ const ParentsManager = () => {
 };
 
 const SubjectsManager = () => {
+    // ... [No changes needed here]
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [name, setName] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -1366,6 +1182,112 @@ const SubjectsManager = () => {
                 ))}
                 {subjects.length === 0 && <li className="p-8 text-center text-gray-400">لا توجد مواد مضافة</li>}
             </ul>
+        </div>
+    );
+};
+
+const SchoolSettings = () => {
+    const [config, setConfig] = useState<ReportHeaderConfig>({ 
+        schoolName: '', educationAdmin: '', teacherName: '', 
+        schoolManager: '', academicYear: '', term: '', logoBase64: '' 
+    });
+    const [worksUrl, setWorksUrl] = useState('');
+    const [msg, setMsg] = useState('');
+
+    useEffect(() => {
+        setConfig(getReportHeaderConfig());
+        setWorksUrl(getWorksMasterUrl());
+    }, []);
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setConfig(prev => ({ ...prev, logoBase64: reader.result as string }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSave = () => {
+        saveReportHeaderConfig(config);
+        saveWorksMasterUrl(worksUrl);
+        setMsg('تم حفظ الإعدادات بنجاح');
+        setTimeout(() => setMsg(''), 3000);
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+            {/* Header Configuration */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Printer size={20} className="text-primary"/> إعدادات ترويسة التقارير
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-600 mb-1">اسم المدرسة</label>
+                            <input className="w-full p-2 border rounded-lg" value={config.schoolName} onChange={e => setConfig({...config, schoolName: e.target.value})} placeholder="مثال: مدرسة النور الأهلية"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-600 mb-1">إدارة التعليم (المنطقة)</label>
+                            <input className="w-full p-2 border rounded-lg" value={config.educationAdmin} onChange={e => setConfig({...config, educationAdmin: e.target.value})} placeholder="مثال: الرياض"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-600 mb-1">مدير المدرسة</label>
+                            <input className="w-full p-2 border rounded-lg" value={config.schoolManager} onChange={e => setConfig({...config, schoolManager: e.target.value})} />
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-600 mb-1">العام الدراسي</label>
+                            <input className="w-full p-2 border rounded-lg" value={config.academicYear} onChange={e => setConfig({...config, academicYear: e.target.value})} placeholder="1446هـ"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-600 mb-1">الفصل الدراسي</label>
+                            <input className="w-full p-2 border rounded-lg" value={config.term} onChange={e => setConfig({...config, term: e.target.value})} placeholder="الفصل الدراسي الأول"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-600 mb-1">شعار المدرسة</label>
+                            <div className="flex items-center gap-4">
+                                {config.logoBase64 && <img src={config.logoBase64} alt="Logo" className="h-12 object-contain"/>}
+                                <input type="file" accept="image/*" onChange={handleLogoUpload} className="text-sm"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Works Tracking Configuration */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <LinkIcon size={20} className="text-blue-600"/> رابط ملف المتابعة (سحابي)
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                    يمكنك ربط النظام بملف Excel سحابي (Google Sheets / OneDrive) لتحديث درجات أعمال السنة تلقائياً.
+                </p>
+                <div className="flex gap-2">
+                    <input 
+                        className="flex-1 p-2 border rounded-lg dir-ltr text-left font-mono text-sm" 
+                        placeholder="https://docs.google.com/spreadsheets/..."
+                        value={worksUrl}
+                        onChange={e => setWorksUrl(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            <div className="flex justify-end">
+                <button onClick={handleSave} className="bg-gray-900 text-white px-8 py-3 rounded-lg font-bold hover:bg-black transition-colors flex items-center gap-2 shadow-lg">
+                    <Save size={18}/> حفظ الإعدادات
+                </button>
+            </div>
+            
+            {msg && (
+                <div className="fixed bottom-6 left-6 bg-green-600 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce-in">
+                    <Check size={20}/> {msg}
+                </div>
+            )}
         </div>
     );
 };

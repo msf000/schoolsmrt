@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { getSystemUsers, getStudents, setSystemMode } from '../services/storageService';
+import { getSystemUsers, getStudents, getTeachers, setSystemMode } from '../services/storageService';
 import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate } from 'lucide-react';
 
 interface LoginProps {
@@ -38,7 +38,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             return;
         }
 
-        // 2. Check System Users (Admins/Teachers) from Real DB
+        // 2. Check System Users (Admins/Teachers via SystemUser table)
         const users = getSystemUsers();
         const foundUser = users.find(u => u.email.toLowerCase().trim() === cleanIdentifier.toLowerCase());
 
@@ -53,7 +53,33 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             return;
         }
 
-        // 3. Check Students (By National ID) from Real DB
+        // 3. Check Teachers (via Teachers table - new method)
+        // Teachers can login with National ID or Email
+        const teachers = getTeachers();
+        const foundTeacher = teachers.find(t => 
+            (t.nationalId && t.nationalId === cleanIdentifier) || 
+            (t.email && t.email.toLowerCase().trim() === cleanIdentifier.toLowerCase())
+        );
+
+        if (foundTeacher) {
+            // Check password if set, otherwise default
+            const storedPassword = foundTeacher.password || '123456';
+            if (password === storedPassword) {
+                onLoginSuccess({
+                    ...foundTeacher,
+                    role: 'TEACHER', // Map to system role
+                    email: foundTeacher.email || foundTeacher.nationalId // Ensure identifier exists
+                }, rememberMe);
+                return;
+            } else {
+                // If found but password wrong, fail here
+                setError('كلمة المرور غير صحيحة');
+                setLoading(false);
+                return;
+            }
+        }
+
+        // 4. Check Students (By National ID)
         if (/^\d{10}$/.test(cleanIdentifier)) {
             const students = getStudents();
             const foundStudent = students.find(s => s.nationalId === cleanIdentifier);

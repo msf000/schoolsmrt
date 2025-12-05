@@ -747,7 +747,7 @@ export const uploadToSupabase = async () => {
         subscription_status: s.subscriptionStatus,
         works_master_url: s.worksMasterUrl
     })));
-    await upsert('teachers', _teachers.map(t => ({...t, subject_specialty: t.subjectSpecialty})));
+    await upsert('teachers', _teachers.map(t => ({...t, subject_specialty: t.subjectSpecialty, national_id: t.nationalId, password: t.password })));
     await upsert('parents', _parents);
     await upsert('subjects', _subjects);
     await upsert('system_users', _users.map(u => ({...u, school_id: u.schoolId})));
@@ -824,7 +824,7 @@ export const downloadFromSupabase = async () => {
 
     const teachers = await fetchTable('teachers');
     if (teachers) { 
-        _teachers = teachers.map((t: any) => ({...t, subjectSpecialty: t.subject_specialty})); 
+        _teachers = teachers.map((t: any) => ({...t, subjectSpecialty: t.subject_specialty, nationalId: t.national_id, password: t.password})); 
         saveLocal(BASE_KEYS.TEACHERS, _teachers); 
     }
 
@@ -840,7 +840,7 @@ export const downloadFromSupabase = async () => {
             id: ta.id,
             classId: ta.class_id,
             subjectName: ta.subject_name,
-            teacherId: ta.teacher_id
+            teacher_id: ta.teacher_id
         }));
         saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
     }

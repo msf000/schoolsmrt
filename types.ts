@@ -40,6 +40,8 @@ export interface Student {
 export interface Teacher {
   id: string;
   name: string;
+  nationalId?: string; // Added
+  password?: string;   // Added
   email?: string;
   phone?: string;
   subjectSpecialty?: string;

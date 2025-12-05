@@ -66,6 +66,7 @@ const TabButton = ({ active, onClick, icon, label }: any) => (
 // --- Sub Components ---
 
 const AdminOverview = () => {
+    // ... (No Changes)
     const [stats, setStats] = useState({ schools: 0, users: 0, revenue: 0 });
 
     useEffect(() => {
@@ -148,6 +149,7 @@ const AdminOverview = () => {
 };
 
 const SchoolsManager = () => {
+    // ... (No Changes)
     const [schools, setSchools] = useState<School[]>([]);
     const [form, setForm] = useState<Partial<School>>({ name: '', type: 'PRIVATE', managerName: '', phone: '', studentCount: 0 });
 
@@ -225,6 +227,7 @@ const SchoolsManager = () => {
 };
 
 const UsersManager = () => {
+    // ... (No Changes)
     const [users, setUsers] = useState<SystemUser[]>([]);
     const [schools, setSchools] = useState<School[]>([]);
     const [form, setForm] = useState<Partial<SystemUser>>({ name: '', email: '', password: '', role: 'SCHOOL_MANAGER', schoolId: '' });
@@ -484,6 +487,7 @@ const UsersManager = () => {
 };
 
 const SubscriptionsManager = () => {
+    // ... (No Changes)
     const plans: SubscriptionPlan[] = [
         { id: '1', name: 'الباقة الأساسية', price: 500, features: ['حتى 100 طالب', 'تقارير أساسية'] },
         { id: '2', name: 'الباقة المتقدمة', price: 1200, features: ['عدد غير محدود', 'ذكاء اصطناعي', 'دعم فني'] },
@@ -572,7 +576,10 @@ ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Access" ON public.assignments;
 CREATE POLICY "Public Access" ON public.assignments FOR ALL USING (true) WITH CHECK (true);
 
--- 4. إضافة الأعمدة الناقصة
+-- 4. إضافة الأعمدة الناقصة (للمعلمين)
+ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS national_id text;
+ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS password text;
+
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS education_administration text;
 ALTER TABLE public.students ADD COLUMN IF NOT EXISTS seat_index integer;
 
@@ -664,7 +671,9 @@ create table public.teachers (
   name text not null,
   email text,
   phone text,
-  subject_specialty text
+  subject_specialty text,
+  national_id text,
+  password text
 );
 
 create table public.teacher_assignments (
@@ -819,6 +828,7 @@ CREATE POLICY "Public Access" ON public.messages FOR ALL USING (true) WITH CHECK
 `;
 
 const StatComparison = ({ label, table, local, cloud }: { label: string, table: string, local: number, cloud?: number }) => {
+    // ... (No Changes)
     const isSynced = cloud !== undefined && local === cloud;
     
     return (
@@ -845,6 +855,7 @@ const StatComparison = ({ label, table, local, cloud }: { label: string, table: 
 };
 
 const DatabaseSettings = () => {
+    // ... (No Changes)
     const [status, setStatus] = useState<string>('');
     const [isSyncing, setIsSyncing] = useState(false);
     
@@ -1172,7 +1183,7 @@ const DatabaseSettings = () => {
                             <span>رفع للسحابة</span>
                         </button>
                         <button 
-                            onClick={() => handleCloudSync('DOWNLOAD')}
+                            onClick={() => handleCloudSync('DOWNLOAD')} 
                             disabled={isSyncing} 
                             className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-bold flex flex-col items-center gap-1 transition-all"
                         >
