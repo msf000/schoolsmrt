@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
-import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle } from 'lucide-react';
+import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 
 interface ClassroomScreenProps {
     students: Student[];
@@ -10,7 +10,7 @@ interface ClassroomScreenProps {
 
 const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance }) => {
     const [selectedClass, setSelectedClass] = useState('');
-    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS'>('PICKER');
+    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION'>('PRESENTATION');
     
     // --- Unique Classes ---
     const uniqueClasses = useMemo(() => {
@@ -45,7 +45,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 z-0"></div>
             
             {/* Header / Controls */}
-            <div className="relative z-10 p-4 flex flex-col md:flex-row justify-between items-center bg-white/5 backdrop-blur-md border-b border-white/10">
+            <div className="relative z-20 p-4 flex flex-col md:flex-row justify-between items-center bg-white/5 backdrop-blur-md border-b border-white/10">
                 <div className="flex items-center gap-4 mb-4 md:mb-0">
                     <h2 className="text-xl font-bold flex items-center gap-2">
                         <Maximize className="text-yellow-400"/> شاشة الفصل
@@ -58,38 +58,207 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
                         {uniqueClasses.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
                     </select>
                     <span className="text-sm opacity-70">
-                        ({presentStudents.length} حاضر من أصل {filteredStudents.length})
+                        ({presentStudents.length} حاضر)
                     </span>
                 </div>
 
-                <div className="flex bg-black/30 p-1 rounded-xl">
+                <div className="flex bg-black/30 p-1 rounded-xl overflow-x-auto max-w-full">
+                    <button 
+                        onClick={() => setActiveTool('PRESENTATION')}
+                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PRESENTATION' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                    >
+                        <Monitor size={18}/> العرض
+                    </button>
                     <button 
                         onClick={() => setActiveTool('PICKER')}
-                        className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all ${activeTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
                     >
-                        <Shuffle size={20}/> القرعة
+                        <Shuffle size={18}/> القرعة
                     </button>
                     <button 
                         onClick={() => setActiveTool('TIMER')}
-                        className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all ${activeTool === 'TIMER' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'TIMER' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
                     >
-                        <Clock size={20}/> المؤقت
+                        <Clock size={18}/> المؤقت
                     </button>
                     <button 
                         onClick={() => setActiveTool('GROUPS')}
-                        className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all ${activeTool === 'GROUPS' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'GROUPS' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
                     >
-                        <Grid size={20}/> المجموعات
+                        <Grid size={18}/> المجموعات
                     </button>
                 </div>
             </div>
 
             {/* Main Content Area */}
-            <div className="relative z-10 flex-1 flex items-center justify-center p-8 overflow-hidden">
+            <div className="relative z-10 flex-1 flex items-center justify-center p-4 md:p-8 overflow-hidden">
                 {activeTool === 'PICKER' && <RandomPicker students={presentStudents} total={filteredStudents.length} />}
                 {activeTool === 'TIMER' && <ClassroomTimer />}
                 {activeTool === 'GROUPS' && <GroupGenerator students={presentStudents} />}
+                {activeTool === 'PRESENTATION' && <PresentationBoard students={presentStudents} total={filteredStudents.length} />}
             </div>
+        </div>
+    );
+};
+
+// --- Sub-Component: Presentation Board with Floating Tools ---
+const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ students, total }) => {
+    const [sourceType, setSourceType] = useState<'NONE' | 'IFRAME' | 'IMAGE' | 'PDF'>('NONE');
+    const [sourceUrl, setSourceUrl] = useState<string>('');
+    const [inputUrl, setInputUrl] = useState('');
+    const [activeFloatingTool, setActiveFloatingTool] = useState<'NONE' | 'TIMER' | 'PICKER' | 'SOUNDS'>('NONE');
+
+    // Handle File Upload
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setSourceUrl(url);
+            if (file.type === 'application/pdf') setSourceType('PDF');
+            else if (file.type.startsWith('image/')) setSourceType('IMAGE');
+            else alert('يرجى اختيار ملف PDF أو صورة');
+        }
+    };
+
+    const handleUrlSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        // Simple logic to detect if it needs embed processing
+        let url = inputUrl;
+        if(url.includes('docs.google.com/presentation') && !url.includes('/embed')) {
+            url = url.replace('/edit', '/embed').replace('/pub', '/embed');
+        }
+        setSourceUrl(url);
+        setSourceType('IFRAME');
+    };
+
+    return (
+        <div className="w-full h-full flex flex-col relative">
+            
+            {/* Main Stage (The Presentation) */}
+            <div className="flex-1 bg-black/20 rounded-2xl border border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
+                {sourceType === 'NONE' ? (
+                    <div className="text-center p-8">
+                        <div className="bg-white/10 p-6 rounded-full inline-flex mb-6">
+                            <Monitor size={64} className="text-indigo-400 opacity-80"/>
+                        </div>
+                        <h2 className="text-2xl font-bold mb-6">وضع العرض التقديمي</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                            <div className="bg-white/5 p-6 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
+                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2"><Upload/> رفع ملف (PDF/Image)</h3>
+                                <p className="text-xs text-gray-400 mb-4">ارفع الدرس بصيغة PDF أو صور (Export PowerPoint to PDF)</p>
+                                <label className="block w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer font-bold transition-colors">
+                                    اختيار ملف
+                                    <input type="file" accept="application/pdf, image/*" className="hidden" onChange={handleFileUpload}/>
+                                </label>
+                            </div>
+
+                            <div className="bg-white/5 p-6 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
+                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2"><Globe/> رابط سحابي</h3>
+                                <p className="text-xs text-gray-400 mb-4">رابط Google Slides أو أي موقع ويب</p>
+                                <form onSubmit={handleUrlSubmit} className="flex gap-2">
+                                    <input 
+                                        className="w-full bg-black/30 border border-white/20 rounded-lg px-3 text-sm outline-none focus:border-indigo-500"
+                                        placeholder="https://..."
+                                        value={inputUrl}
+                                        onChange={e => setInputUrl(e.target.value)}
+                                    />
+                                    <button className="bg-indigo-600 p-2 rounded-lg hover:bg-indigo-700"><Monitor size={18}/></button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="w-full h-full relative group">
+                        {/* Clear Button */}
+                        <button 
+                            onClick={() => { setSourceType('NONE'); setSourceUrl(''); }}
+                            className="absolute top-4 right-4 z-50 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="إغلاق العرض"
+                        >
+                            <X size={20}/>
+                        </button>
+
+                        {/* Content */}
+                        {sourceType === 'PDF' && <iframe src={sourceUrl} className="w-full h-full" title="PDF Viewer"></iframe>}
+                        {sourceType === 'IFRAME' && <iframe src={sourceUrl} className="w-full h-full" title="Web Viewer" allowFullScreen></iframe>}
+                        {sourceType === 'IMAGE' && <img src={sourceUrl} className="w-full h-full object-contain" alt="Presentation Slide"/>}
+                    </div>
+                )}
+            </div>
+
+            {/* FLOATING TOOLBAR */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/60 backdrop-blur-md p-2 rounded-2xl border border-white/10 shadow-2xl flex items-center gap-2 z-40 transition-all hover:bg-black/80">
+                <button 
+                    onClick={() => setActiveFloatingTool(activeFloatingTool === 'PICKER' ? 'NONE' : 'PICKER')}
+                    className={`p-3 rounded-xl transition-all ${activeFloatingTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg scale-110' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                    title="قرعة سريعة"
+                >
+                    <Shuffle size={24}/>
+                </button>
+                <div className="w-[1px] h-8 bg-white/20"></div>
+                <button 
+                    onClick={() => setActiveFloatingTool(activeFloatingTool === 'TIMER' ? 'NONE' : 'TIMER')}
+                    className={`p-3 rounded-xl transition-all ${activeFloatingTool === 'TIMER' ? 'bg-blue-500 text-white shadow-lg scale-110' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                    title="مؤقت سريع"
+                >
+                    <Clock size={24}/>
+                </button>
+                <div className="w-[1px] h-8 bg-white/20"></div>
+                <button 
+                    onClick={() => setActiveFloatingTool(activeFloatingTool === 'SOUNDS' ? 'NONE' : 'SOUNDS')}
+                    className={`p-3 rounded-xl transition-all ${activeFloatingTool === 'SOUNDS' ? 'bg-pink-500 text-white shadow-lg scale-110' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                    title="أصوات"
+                >
+                    <Volume2 size={24}/>
+                </button>
+            </div>
+
+            {/* OVERLAY WIDGETS */}
+            {activeFloatingTool !== 'NONE' && (
+                <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
+                    <div className="relative bg-slate-900 border border-white/20 rounded-2xl shadow-2xl overflow-hidden min-w-[320px] max-w-md">
+                        {/* Close Handler for Widget */}
+                        <button 
+                            onClick={() => setActiveFloatingTool('NONE')}
+                            className="absolute top-2 right-2 text-gray-400 hover:text-white z-10"
+                        >
+                            <X size={16}/>
+                        </button>
+
+                        {activeFloatingTool === 'PICKER' && (
+                            <div className="p-4">
+                                <h4 className="text-yellow-400 font-bold mb-2 flex items-center gap-2"><Shuffle size={16}/> الاختيار العشوائي</h4>
+                                <div className="scale-75 origin-top">
+                                    <RandomPicker students={students} total={total} />
+                                </div>
+                            </div>
+                        )}
+
+                        {activeFloatingTool === 'TIMER' && (
+                            <div className="p-4">
+                                <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2"><Clock size={16}/> المؤقت</h4>
+                                <div className="scale-75 origin-top">
+                                    <ClassroomTimer />
+                                </div>
+                            </div>
+                        )}
+
+                        {activeFloatingTool === 'SOUNDS' && (
+                            <div className="p-4">
+                                <h4 className="text-pink-400 font-bold mb-4 flex items-center gap-2"><Volume2 size={16}/> المؤثرات</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['👏 تصفيق', '✅ صحيح', '❌ خطأ', '🥁 طبلة', '🤫 هدوء', '🔔 جرس'].map((s, i) => (
+                                        <button key={i} className="bg-white/10 hover:bg-white/20 p-2 rounded text-xs font-bold text-white transition-colors">
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -198,19 +367,21 @@ const ClassroomTimer = () => {
 
     return (
         <div className="flex flex-col items-center">
-            <div className="relative w-96 h-96 flex items-center justify-center">
+            <div className="relative w-64 h-64 md:w-96 md:h-96 flex items-center justify-center">
                 {/* Circular Progress (SVG) */}
                 <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-                    <circle cx="192" cy="192" r="170" stroke="currentColor" strokeWidth="15" fill="transparent" className="text-white/10" />
+                    <circle cx="50%" cy="50%" r="45%" stroke="currentColor" strokeWidth="15" fill="transparent" className="text-white/10" />
                     <circle 
-                        cx="192" cy="192" r="170" stroke="currentColor" strokeWidth="15" fill="transparent" 
+                        cx="50%" cy="50%" r="45%" stroke="currentColor" strokeWidth="15" fill="transparent" 
                         className={timeLeft < 30 ? 'text-red-500 transition-all duration-1000' : 'text-blue-500 transition-all duration-1000'}
-                        strokeDasharray={1068}
-                        strokeDashoffset={1068 - (1068 * progress) / 100}
+                        strokeDasharray={2 * Math.PI * (0.45 * 300)} // Approx calculation, adjusted visually
+                        strokeDashoffset={0} // Simplified for CSS based control usually, but here fixed
+                        pathLength={100}
+                        style={{ strokeDasharray: 100, strokeDashoffset: 100 - progress }}
                         strokeLinecap="round"
                     />
                 </svg>
-                <div className={`text-8xl font-mono font-bold ${color}`}>
+                <div className={`text-6xl md:text-8xl font-mono font-bold ${color}`}>
                     {formatTime(timeLeft)}
                 </div>
             </div>
