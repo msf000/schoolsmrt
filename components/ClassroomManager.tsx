@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle, BookOpen, Calendar, Briefcase } from 'lucide-react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, LessonLink } from '../types';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, Printer, RotateCcw, Save, Sparkles, Shuffle, ArrowDownUp, CheckCircle, Loader2, Clock, LogOut, FileText, StickyNote, DoorOpen, AlertCircle, BarChart2, ThumbsUp, ThumbsDown, Trash2, Play, Pause, Volume2, Bell, Music, Users, CalendarCheck, XCircle, BookOpen, Calendar, Briefcase, Globe, Monitor, Link as LinkIcon, Plus } from 'lucide-react';
 import Attendance from './Attendance';
-import { getSubjects, getSchedules, getTeacherAssignments } from '../services/storageService';
+import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink } from '../services/storageService';
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -271,6 +271,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
                             {/* Column 2 */}
                             <div className="space-y-6">
+                                <LessonLibraryWidget />
                                 <QuickPollWidget />
                                 <SoundBoardWidget />
                             </div>
@@ -347,8 +348,117 @@ const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: Attenda
     );
 };
 
-// ... existing widgets (MiniTimerWidget, SoundBoardWidget, HallPassWidget, TrafficLightWidget, QuickPollWidget, LessonNoteWidget, SeatingChart) ...
-// (Keeping the rest of the file exactly as it was, no changes needed for widgets logic)
+// --- Widget: Lesson Library (Replacement for simple Presentation Link) ---
+const LessonLibraryWidget: React.FC = () => {
+    const [links, setLinks] = useState<LessonLink[]>([]);
+    const [newTitle, setNewTitle] = useState('');
+    const [newUrl, setNewUrl] = useState('');
+    const [showForm, setShowForm] = useState(false);
+
+    useEffect(() => {
+        setLinks(getLessonLinks());
+    }, []);
+
+    const handleSave = () => {
+        if (!newTitle || !newUrl) return;
+
+        let cleanUrl = newUrl.trim();
+        // Fix SharePoint/OneDrive logic
+        if (cleanUrl.includes('sharepoint.com') || cleanUrl.includes('onedrive.live.com') || cleanUrl.includes('1drv.ms') || cleanUrl.includes('office.com')) {
+             if (!cleanUrl.includes('action=embedview')) {
+                 cleanUrl = cleanUrl.replace(/action=[^&]+/, '');
+                 cleanUrl += cleanUrl.includes('?') ? '&action=embedview' : '?action=embedview';
+             }
+        }
+
+        const newLink: LessonLink = {
+            id: Date.now().toString(),
+            title: newTitle,
+            url: cleanUrl,
+            createdAt: new Date().toISOString()
+        };
+
+        saveLessonLink(newLink);
+        setLinks(getLessonLinks());
+        setNewTitle('');
+        setNewUrl('');
+        setShowForm(false);
+    };
+
+    const handleDelete = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if(confirm('حذف هذا الدرس؟')) {
+            deleteLessonLink(id);
+            setLinks(getLessonLinks());
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
+            <div className="p-3 border-b bg-indigo-50 flex justify-between items-center">
+                <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-sm">
+                    <Monitor size={16}/> مكتبة الدروس والعروض
+                </h3>
+                <button onClick={() => setShowForm(!showForm)} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 flex items-center gap-1">
+                    {showForm ? <XCircle size={12}/> : <Plus size={12}/>}
+                    {showForm ? 'إلغاء' : 'إضافة'}
+                </button>
+            </div>
+            
+            {showForm ? (
+                <div className="p-4 bg-slate-50 flex flex-col gap-2 border-b">
+                    <input 
+                        className="w-full p-2 border rounded text-xs"
+                        placeholder="عنوان الدرس (مثال: درس الفاعل)"
+                        value={newTitle}
+                        onChange={e => setNewTitle(e.target.value)}
+                        autoFocus
+                    />
+                    <input 
+                        className="w-full p-2 border rounded text-xs dir-ltr text-left"
+                        placeholder="رابط العرض (SharePoint/Slides)..."
+                        value={newUrl}
+                        onChange={e => setNewUrl(e.target.value)}
+                    />
+                    <button 
+                        onClick={handleSave}
+                        disabled={!newTitle || !newUrl}
+                        className="bg-indigo-600 text-white w-full py-1.5 rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        حفظ الدرس
+                    </button>
+                </div>
+            ) : (
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                    {links.length > 0 ? links.map(link => (
+                        <div key={link.id} className="flex items-center justify-between p-2 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 group transition-colors">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <div className="bg-indigo-100 p-1.5 rounded text-indigo-600 flex-shrink-0">
+                                    <Monitor size={14}/>
+                                </div>
+                                <div className="truncate">
+                                    <div className="text-xs font-bold text-gray-800 truncate">{link.title}</div>
+                                    <div className="text-[10px] text-gray-400 truncate dir-ltr text-right">{new URL(link.url).hostname}</div>
+                                </div>
+                            </div>
+                            <button onClick={(e) => handleDelete(link.id, e)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Trash2 size={14}/>
+                            </button>
+                        </div>
+                    )) : (
+                        <div className="text-center py-10 text-gray-400 text-xs">
+                            <Monitor size={32} className="mx-auto mb-2 opacity-20"/>
+                            لا توجد دروس محفوظة.<br/>أضف روابط العروض لتظهر في الشاشة.
+                        </div>
+                    )}
+                </div>
+            )}
+            <div className="px-3 py-2 bg-gray-50 text-[10px] text-gray-400 border-t text-center">
+                اختر اسم الدرس في "شاشة العرض" لفتح الرابط مباشرة.
+            </div>
+        </div>
+    );
+};
 
 // --- Widget: Mini Timer ---
 const MiniTimerWidget: React.FC = () => {
@@ -673,6 +783,7 @@ const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ c
         return saved ? JSON.parse(saved) : {};
     });
     const [currentNote, setCurrentNote] = useState('');
+    const [saved, setSaved] = useState(false);
     
     // Key combines class and subject if subject exists
     const noteKey = subject ? `${className}_${subject}` : className;
@@ -687,6 +798,8 @@ const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ c
         const updated = { ...notes, [noteKey]: currentNote };
         setNotes(updated);
         localStorage.setItem('class_lesson_notes', JSON.stringify(updated));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
     };
 
     return (
@@ -695,14 +808,9 @@ const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ c
             
             <div className="p-3 border-b border-yellow-100 flex justify-between items-center pt-4">
                 <h3 className="font-bold text-yellow-800 flex items-center gap-2 text-sm">
-                    <StickyNote size={16}/> سبورة الملاحظات
+                    <StickyNote size={16}/> سبورة الملاحظات (تظهر للطلاب)
                 </h3>
-                <button 
-                    onClick={handleSave} 
-                    className="text-[10px] bg-yellow-200 text-yellow-900 px-2 py-1 rounded hover:bg-yellow-300 transition-colors font-bold"
-                >
-                    حفظ
-                </button>
+                {saved && <span className="text-[10px] text-green-700 font-bold bg-green-100 px-2 rounded">تم الحفظ</span>}
             </div>
             
             <textarea 

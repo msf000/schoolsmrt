@@ -57,14 +57,69 @@ function tryRepairJson(jsonString: string): string {
     }
 
     // Append missing closures
-    // Note: This naive approach assumes standard nesting order (usually correct for cut-off JSON)
-    // Often we are inside an object inside the main array: [ { ...
-    // So we need to close object then array.
     while (openBraces > 0) { fixed += '}'; openBraces--; }
     while (openBrackets > 0) { fixed += ']'; openBrackets--; }
 
     return fixed;
 }
+
+// --- NEW: Generate Questions from Slide ---
+export const generateSlideQuestions = async (
+    contextText: string,
+    imageBase64?: string
+): Promise<any[]> => {
+    const prompt = `
+    Act as a teacher in a Saudi School (Curriculum 1447 AH). Based on the provided context (text or image from a presentation slide), generate 3 interactive multiple-choice questions to check students' understanding.
+    
+    Language: Arabic (Saudi Educational Context 1447).
+    Difficulty: Suitable for school students.
+    
+    Requirements:
+    1. Questions should be directly related to the content if provided, otherwise general relevant questions based on the topic.
+    2. Provide 3 or 4 options for each question.
+    3. Identify the correct answer.
+    
+    Output Format: JSON Array ONLY.
+    Schema:
+    [
+      {
+        "question": "Question text here?",
+        "options": ["Option A", "Option B", "Option C"],
+        "correctAnswer": "Option A" 
+      }
+    ]
+    
+    Context/Topic: ${contextText || "General Topic"}
+    `;
+
+    try {
+        const parts: any[] = [{ text: prompt }];
+        
+        if (imageBase64) {
+            // Ensure clean base64 (remove data:image/...,)
+            const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+            parts.push({
+                inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: cleanBase64
+                }
+            });
+        }
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts },
+            config: { responseMimeType: "application/json" }
+        });
+
+        const text = response.text || "[]";
+        const cleanText = cleanJsonString(text);
+        return JSON.parse(cleanText);
+    } catch (error) {
+        console.error("Quiz Generation Error:", error);
+        return [];
+    }
+};
 
 // --- Existing Analysis Function ---
 export const generateStudentAnalysis = async (
@@ -72,7 +127,6 @@ export const generateStudentAnalysis = async (
   attendance: AttendanceRecord[],
   performance: PerformanceRecord[]
 ): Promise<string> => {
-  
   // 1. Prepare data context
   const studentAttendance = attendance.filter(a => a.studentId === student.id);
   const studentPerformance = performance.filter(p => p.studentId === student.id);
@@ -96,7 +150,7 @@ export const generateStudentAnalysis = async (
   ).join('\n');
 
   const prompt = `
-    قم بتحليل أداء الطالب التالي كمعلم خبير وموجه طلابي في مدرسة.
+    قم بتحليل أداء الطالب التالي كمرشد طلابي في مدرسة سعودية (وفق لائحة 1447).
     
     بيانات الطالب:
     الاسم: ${student.name}
@@ -116,11 +170,11 @@ export const generateStudentAnalysis = async (
     المطلوب:
     اكتب تقريراً قصيراً وشاملاً (حوالي 120 كلمة) باللغة العربية موجه لولي الأمر.
     1. لخص مستوى التزام الطالب بالحضور.
-    2. قيم السلوك والانضباط داخل الفصل بناءً على الملاحظات المسجلة أعلاه.
+    2. قيم السلوك والانضباط داخل الفصل.
     3. حلل المستوى الأكاديمي ونقاط القوة والضعف.
     4. قدم نصيحة تربوية محددة وعملية للتحسين.
     
-    الأسلوب: مهني، مشجع، ومباشر. ابدأ التحليل مباشرة بدون مقدمات رسمية طويلة.
+    الأسلوب: مهني، مشجع، ومباشر.
   `;
 
   try {
@@ -144,7 +198,7 @@ export const generateQuiz = async (
     difficulty: 'EASY' | 'MEDIUM' | 'HARD'
 ): Promise<string> => {
     const prompt = `
-    بصفتك معلماً خبيراً لمادة ${subject}، قم بإنشاء اختبار قصير (Quiz) للطلاب في ${gradeLevel || 'المرحلة العامة'}.
+    بصفتك معلماً خبيراً لمادة ${subject} في المناهج السعودية (طبعة 1447هـ)، قم بإنشاء اختبار قصير (Quiz) للطلاب في ${gradeLevel || 'المرحلة العامة'}.
     
     الموضوع: ${topic}
     عدد الأسئلة: ${questionCount}
@@ -164,7 +218,7 @@ export const generateQuiz = async (
     
     - السؤال 2: ...
     
-    استخدم لغة عربية سليمة وواضحة ومناسبة للفئة العمرية.
+    استخدم لغة عربية سليمة ومصطلحات متوافقة مع الكتب المدرسية السعودية الطبعة الجديدة 1447هـ.
     `;
 
     try {
@@ -187,20 +241,20 @@ export const generateRemedialPlan = async (
     weaknessAreas: string
 ): Promise<string> => {
     const prompt = `
-    أنت مستشار تربوي وأكاديمي. قم بوضع "خطة علاجية" (Remedial Plan) للطالب المتعثر دراسياً.
+    أنت خبير تربوي ومختص في صعوبات التعلم. قم بوضع "خطة علاجية" (Remedial Plan) متوافقة مع معايير وزارة التعليم السعودية (1447هـ).
     
     بيانات الطالب:
     - الاسم: ${studentName}
     - الصف: ${gradeLevel}
     - المادة: ${subject}
-    - نقاط الضعف الملاحظة / الدرجات المنخفضة في: ${weaknessAreas}
+    - المهارات المفقودة / نقاط الضعف: ${weaknessAreas}
     
     المطلوب:
-    أنشئ خطة علاجية عملية ومختصرة تتكون من 4 أقسام رئيسية:
-    1. **أهداف الخطة:** (ماذا نريد أن يحقق الطالب؟)
-    2. **إجراءات المعلم داخل الفصل:** (استراتيجيات تدريس، تكليفات خاصة).
-    3. **مهام الطالب المنزلية:** (تمارين، فيديوهات مقترحة بشكل عام، مراجعة).
-    4. **دور ولي الأمر:** (كيف يمكن للأهل المساعدة؟).
+    أنشئ خطة علاجية عملية ومختصرة تتكون من:
+    1. **المهارة المستهدفة:** (تحديد نواتج التعلم غير المحققة وفق المنهج الجديد).
+    2. **إجراءات المعلم (داخل الفصل):** (استراتيجيات التدريس المتمايز، أوراق عمل، تكليف الأقران).
+    3. **مهام الطالب (الواجبات العلاجية):** (تمارين عبر منصة مدرستي، فيديوهات إثرائية من عين).
+    4. **دور الأسرة:** (كيف يمكن للأهل المساعدة في المنزل).
     
     اجعل الخطة مشجعة وقابلة للتطبيق في أسبوعين.
     `;
@@ -217,33 +271,43 @@ export const generateRemedialPlan = async (
     }
 };
 
-// --- NEW: Lesson Planner ---
+// --- NEW: Lesson Planner (Enhanced for Saudi Curriculum 1447) ---
 export const generateLessonPlan = async (
     subject: string,
     topic: string,
     gradeLevel: string,
-    duration: string
+    duration: string,
+    strategies: string[] = [],
+    resources: string[] = [],
+    objectives: string = ""
 ): Promise<string> => {
     const prompt = `
-    أنت خبير تربوي. قم بإعداد "تحضير درس" (Lesson Plan) نموذجي ومحترف.
+    أنت معلم خبير في المناهج السعودية (إصدار 1447هـ). قم بإعداد "تحضير درس" (Lesson Plan) نموذجي ومتكامل يراعي متطلبات "منصة مدرستي" ونظام "نور".
     
     المعلومات الأساسية:
     - المادة: ${subject}
     - موضوع الدرس: ${topic}
     - الصف: ${gradeLevel}
-    - مدة الحصة: ${duration} دقيقة
+    - الزمن: ${duration} دقيقة
     
-    المطلوب:
-    أنشئ تحضيراً مرتباً يحتوي على الأقسام التالية بوضوح:
+    المدخلات الإضافية:
+    - استراتيجيات التعلم النشط: ${strategies.join('، ') || 'اختر استراتيجيات مناسبة مثل (فكر-زاوج-شارك، الرؤوس المرقمة، العصف الذهني)'}
+    - الوسائل ومصادر التعلم: ${resources.join('، ') || 'الكتاب المدرسي (طبعة 1447)، منصة مدرستي، بوابة عين، السبورة الذكية'}
+    - الأهداف الخاصة (إن وجدت): ${objectives}
     
-    1. **الأهداف السلوكية/التعليمية:** (أن يكون الطالب قادراً على...)
-    2. **الوسائل التعليمية:** (ماذا يحتاج المعلم؟)
-    3. **التهيئة (Introduction):** (كيف ستبدأ الدرس لجذب الانتباه؟)
-    4. **إجراءات التدريس والأنشطة:** (خطوات شرح الدرس مقسمة زمنياً بشكل تقريبي)
-    5. **التقويم المرحلي والختامي:** (كيف تتأكد من الفهم؟)
-    6. **الواجب المنزلي المقترح.**
+    المطلوب تحضير مفصل يحتوي على العناصر التالية (بترتيب التحضير الكتابي):
     
-    اللغة: عربية فصحى تربوية سليمة.
+    1. **الأهداف التعليمية (نواتج التعلم):** (أن يكون الطالب قادراً على... - وتشمل أهداف معرفية ومهارية ووجدانية).
+    2. **استراتيجيات التدريس:** (ذكر الاستراتيجيات المستخدمة).
+    3. **الوسائل والأدوات:** (بما في ذلك المصادر الرقمية).
+    4. **التهيئة الحافزة (التمهيد):** (سؤال مثير للتفكير، ربط بالواقع، أو رابط بدرس سابق - 5 دقائق).
+    5. **إجراءات التدريس (عرض الدرس):** (خطوات سير الدرس، دور المعلم، ودور الطالب - تقسيم زمني مقترح).
+    6. **مهارات التفكير:** (أسئلة لتنمية التفكير الناقد والإبداعي).
+    7. **القيم الوطنية والإسلامية:** (ربط الدرس بقيمة أخلاقية أو هوية وطنية).
+    8. **التقويم (غلق الدرس):** (أسئلة تقويم تكويني وختامي للتحقق من الفهم).
+    9. **الواجب المنزلي:** (إحالة لتمارين الكتاب أو نشاط في منصة مدرستي).
+    
+    اللغة: عربية فصحى تربوية. التنسيق: Markdown واضح وجاهز للطباعة.
     `;
 
     try {
@@ -254,6 +318,86 @@ export const generateLessonPlan = async (
         return response.text || "فشل في إنشاء التحضير.";
     } catch (error) {
         console.error("Gemini API Error:", error);
+        return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- NEW: Semester Plan Generator (Saudi 1447 AH) ---
+export const generateSemesterPlan = async (
+    subject: string,
+    gradeLevel: string,
+    term: string
+): Promise<string> => {
+    const prompt = `
+    أنت خبير مناهج في وزارة التعليم السعودية (إصدار 1447هـ). قم بإعداد "توزيع منهج" (Semester Plan) للمادة المحددة.
+    
+    المادة: ${subject}
+    الصف: ${gradeLevel}
+    الفصل الدراسي: ${term} (نظام الفصول الدراسية الثلاثة لعام 1447هـ)
+    
+    المطلوب:
+    أنشئ جدولاً نصياً يوزع وحدات ودروس المادة على أسابيع الفصل الدراسي.
+    
+    المعايير الهامة:
+    1. اعتمد على **طبعة 1447هـ** للكتاب المدرسي في المملكة العربية السعودية.
+    2. راعِ التقويم الدراسي لعام 1447هـ والإجازات المطولة إن وجدت.
+    3. خصص الأسبوع الأخير للمراجعة والاختبارات النهائية.
+    
+    التنسيق المطلوب (جدول Markdown):
+    | الأسبوع | الوحدة / المجال | موضوعات الدروس | عدد الحصص المقترح |
+    |---|---|---|---|
+    | الأسبوع 1 | ... | ... | ... |
+    ...
+    | الأسبوع 13 | مراجعة | اختبارات عملية / تحريرية | - |
+    
+    تأكد من تغطية كامل المنهج بشكل متوازن.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        return response.text || "فشل في إنشاء الخطة الفصلية.";
+    } catch (error) {
+        console.error("Semester Plan Error:", error);
+        return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- NEW: Learning Plan Generator (Saudi Standards) ---
+export const generateLearningPlan = async (
+    subject: string,
+    gradeLevel: string,
+    goal: string,
+    durationWeeks: string
+): Promise<string> => {
+    const prompt = `
+    قم بإعداد "خطة تعلم فردية" (Individual Learning Plan) لطالب في المدرسة السعودية (مناهج 1447هـ).
+    
+    الهدف من الخطة: ${goal} (مثال: إثراء الموهبة، معالجة الفاقد التعليمي، تحسين مهارات القراءة)
+    المادة: ${subject}
+    الصف: ${gradeLevel}
+    المدة: ${durationWeeks} أسابيع
+    
+    المطلوب:
+    خطة تنفيذية مقسمة أسبوعياً تحتوي على:
+    1. **الهدف الأسبوعي:** (مرتبط بنواتج التعلم للمرحلة).
+    2. **المحتوى التعليمي:** (دروس من قناة عين، إثراءات من منصة مدرستي).
+    3. **الأنشطة والتدريبات:** (أوراق عمل، مشاريع صغيرة).
+    4. **أدوات التقييم:** (اختبار قصير، ملاحظة، ملف إنجاز).
+    
+    اجعل الخطة متوافقة مع مصادر التعلم المتاحة للطالب السعودي.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        return response.text || "فشل في إنشاء خطة التعلم.";
+    } catch (error) {
+        console.error("Learning Plan Error:", error);
         return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
     }
 };
@@ -344,8 +488,6 @@ export const parseRawDataWithAI = async (
         `;
     }
 
-    // Slice input to avoid hitting max input/output tokens too easily, 
-    // but keep enough for reasonable data extraction. Reduced to 6000 for stability.
     const truncatedInput = rawText.slice(0, 6000);
 
     const prompt = `

@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus } from '../types';
-import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
+import { Student, AttendanceRecord, AttendanceStatus, LessonLink } from '../types';
+import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles } from 'lucide-react';
+import { getLessonLinks } from '../services/storageService';
+import { generateSlideQuestions } from '../services/geminiService';
 
 interface ClassroomScreenProps {
     students: Student[];
@@ -11,6 +13,7 @@ interface ClassroomScreenProps {
 const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance }) => {
     const [selectedClass, setSelectedClass] = useState('');
     const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION'>('PRESENTATION');
+    const [isFullscreen, setIsFullscreen] = useState(false);
     
     // --- Unique Classes ---
     const uniqueClasses = useMemo(() => {
@@ -24,6 +27,22 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
             setSelectedClass(uniqueClasses[0]);
         }
     }, [uniqueClasses]);
+
+    // Handle Fullscreen Toggle
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(err => console.error(err));
+        } else {
+            document.exitFullscreen().then(() => setIsFullscreen(false));
+        }
+    };
+
+    // Listen for fullscreen change (ESC key)
+    useEffect(() => {
+        const handleChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleChange);
+        return () => document.removeEventListener('fullscreenchange', handleChange);
+    }, []);
 
     const filteredStudents = useMemo(() => {
         if (!selectedClass) return [];
@@ -40,15 +59,15 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
     }, [filteredStudents, attendance]);
 
     return (
-        <div className="h-full flex flex-col bg-slate-900 text-white animate-fade-in relative overflow-hidden font-sans">
+        <div className="h-screen w-screen flex flex-col bg-slate-900 text-white animate-fade-in relative overflow-hidden font-sans">
             {/* Background Effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 z-0"></div>
             
             {/* Header / Controls */}
-            <div className="relative z-20 p-4 flex flex-col md:flex-row justify-between items-center bg-white/5 backdrop-blur-md border-b border-white/10">
-                <div className="flex items-center gap-4 mb-4 md:mb-0">
+            <div className={`relative z-20 flex flex-col md:flex-row justify-between items-center bg-white/5 backdrop-blur-md border-b border-white/10 transition-all ${isFullscreen ? 'p-2' : 'p-4'}`}>
+                <div className="flex items-center gap-4 mb-2 md:mb-0">
                     <h2 className="text-xl font-bold flex items-center gap-2">
-                        <Maximize className="text-yellow-400"/> شاشة الفصل
+                        <Monitor className="text-yellow-400"/> شاشة الفصل
                     </h2>
                     <select 
                         value={selectedClass} 
@@ -62,206 +81,571 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
                     </span>
                 </div>
 
-                <div className="flex bg-black/30 p-1 rounded-xl overflow-x-auto max-w-full">
+                <div className="flex items-center gap-4">
+                    <div className="flex bg-black/30 p-1 rounded-xl overflow-x-auto max-w-full">
+                        <button 
+                            onClick={() => setActiveTool('PRESENTATION')}
+                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PRESENTATION' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        >
+                            <Monitor size={18}/> السبورة
+                        </button>
+                        <button 
+                            onClick={() => setActiveTool('PICKER')}
+                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        >
+                            <Shuffle size={18}/> القرعة
+                        </button>
+                        <button 
+                            onClick={() => setActiveTool('TIMER')}
+                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'TIMER' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        >
+                            <Clock size={18}/> المؤقت
+                        </button>
+                        <button 
+                            onClick={() => setActiveTool('GROUPS')}
+                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'GROUPS' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        >
+                            <Grid size={18}/> المجموعات
+                        </button>
+                    </div>
+
                     <button 
-                        onClick={() => setActiveTool('PRESENTATION')}
-                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PRESENTATION' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        onClick={toggleFullscreen}
+                        className="p-3 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors"
+                        title={isFullscreen ? 'إنهاء ملء الشاشة' : 'ملء الشاشة'}
                     >
-                        <Monitor size={18}/> العرض والسبورة
-                    </button>
-                    <button 
-                        onClick={() => setActiveTool('PICKER')}
-                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
-                    >
-                        <Shuffle size={18}/> القرعة
-                    </button>
-                    <button 
-                        onClick={() => setActiveTool('TIMER')}
-                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'TIMER' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
-                    >
-                        <Clock size={18}/> المؤقت
-                    </button>
-                    <button 
-                        onClick={() => setActiveTool('GROUPS')}
-                        className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'GROUPS' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
-                    >
-                        <Grid size={18}/> المجموعات
+                        {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
                     </button>
                 </div>
             </div>
 
             {/* Main Content Area */}
-            <div className="relative z-10 flex-1 flex items-center justify-center p-4 md:p-8 overflow-hidden">
+            <div className="relative z-10 flex-1 flex items-center justify-center p-4 md:p-6 overflow-hidden">
                 {activeTool === 'PICKER' && <RandomPicker students={presentStudents} total={filteredStudents.length} />}
                 {activeTool === 'TIMER' && <ClassroomTimer />}
                 {activeTool === 'GROUPS' && <GroupGenerator students={presentStudents} />}
-                {activeTool === 'PRESENTATION' && <PresentationBoard students={presentStudents} total={filteredStudents.length} />}
+                {activeTool === 'PRESENTATION' && <PresentationBoard students={presentStudents} total={filteredStudents.length} currentClass={selectedClass} />}
             </div>
         </div>
     );
 };
 
-// --- Sub-Component: Presentation Board with Floating Tools ---
-const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ students, total }) => {
-    const [sourceType, setSourceType] = useState<'NONE' | 'IFRAME' | 'IMAGE' | 'PDF'>('NONE');
-    const [sourceUrl, setSourceUrl] = useState<string>('');
-    const [inputUrl, setInputUrl] = useState('');
-    const [activeFloatingTool, setActiveFloatingTool] = useState<'NONE' | 'TIMER' | 'PICKER' | 'SOUNDS'>('NONE');
+// --- AUDIO SYNTHESIS UTILS ---
+const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 'QUIET') => {
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const t = ctx.currentTime;
 
-    // Handle File Upload
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        switch (type) {
+            case 'CORRECT': // Pleasant "Ding"
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, t); // A5
+                osc.frequency.exponentialRampToValueAtTime(1760, t + 0.1); // A6
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+                osc.start(t);
+                osc.stop(t + 0.5);
+                break;
+            
+            case 'WRONG': // "Buzz"
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.linearRampToValueAtTime(100, t + 0.3);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.linearRampToValueAtTime(0.001, t + 0.3);
+                osc.start(t);
+                osc.stop(t + 0.3);
+                break;
+
+            case 'BELL': // School Bell Simulation
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, t);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+                osc.start(t);
+                osc.stop(t + 2.0);
+                break;
+
+            case 'DRUM': // Deep thud
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(80, t);
+                osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.3);
+                gain.gain.setValueAtTime(0.5, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+                osc.start(t);
+                osc.stop(t + 0.3);
+                break;
+
+            case 'CLAP': // Short bursts of noise
+                const count = 15;
+                for(let i=0; i<count; i++) {
+                    const cOsc = ctx.createOscillator();
+                    const cGain = ctx.createGain();
+                    cOsc.connect(cGain);
+                    cGain.connect(ctx.destination);
+                    cOsc.type = 'square';
+                    cOsc.frequency.value = 100 + Math.random() * 200;
+                    cGain.gain.setValueAtTime(0.05, t + i * 0.06);
+                    cGain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.05);
+                    cOsc.start(t + i * 0.06);
+                    cOsc.stop(t + i * 0.06 + 0.05);
+                }
+                break;
+                
+            case 'QUIET': // Long soft tone
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, t);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.linearRampToValueAtTime(0, t + 1.5);
+                osc.start(t);
+                osc.stop(t + 1.5);
+                break;
+        }
+    } catch (e) {
+        console.error("Audio playback error", e);
+    }
+};
+
+// --- Sub-Component: Presentation Board with Handwriting & Multi-Screen ---
+
+interface SlidePage {
+    id: string;
+    type: 'NONE' | 'IFRAME' | 'IMAGE' | 'PDF';
+    contentUrl: string;
+    drawingData?: string; // Base64 of the canvas
+}
+
+// Predefined Exit Ticket Questions
+const EXIT_QUESTIONS = [
+    "ما هو أهم شيء تعلمته اليوم؟",
+    "شيء واحد لم تفهمه تماماً وتود مراجعته؟",
+    "كيف يمكنك تطبيق درس اليوم في حياتك؟",
+    "لخص درس اليوم في جملة واحدة.",
+    "سؤال تود طرحه على المعلم؟",
+    "قيم فهمك للدرس من 1 إلى 5 واشرح السبب.",
+    "ما هي الكلمة المفتاحية في درس اليوم؟",
+    "ارسم شكلاً يعبر عن فكرة الدرس."
+];
+
+interface QuizQuestion {
+    question: string;
+    options: string[];
+    correctAnswer: string;
+}
+
+const PresentationBoard: React.FC<{ students: Student[], total: number, currentClass: string }> = ({ students, total, currentClass }) => {
+    // Multi-Page State
+    const [pages, setPages] = useState<SlidePage[]>([{ id: '1', type: 'NONE', contentUrl: '' }]);
+    const [currentPageIndex, setCurrentPageIndex] = useState(0);
+
+    // Inputs
+    const [inputUrl, setInputUrl] = useState('');
+    
+    // Tools State
+    const [activeFloatingTool, setActiveFloatingTool] = useState<'NONE' | 'TIMER' | 'PICKER' | 'SOUNDS' | 'NOTE' | 'PEN' | 'EXIT_TICKET' | 'AI_QUIZ'>('NONE');
+    const [laserMode, setLaserMode] = useState(false);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const [lessonLinks, setLessonLinks] = useState<LessonLink[]>([]);
+    const [classNote, setClassNote] = useState('');
+    
+    // Exit Ticket State
+    const [exitQuestion, setExitQuestion] = useState(EXIT_QUESTIONS[0]);
+
+    // AI Quiz State
+    const [quizContext, setQuizContext] = useState('');
+    const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+    const [isQuizLoading, setIsQuizLoading] = useState(false);
+    const [showAnswerFor, setShowAnswerFor] = useState<number | null>(null);
+
+    // Drawing State
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [penColor, setPenColor] = useState('#ef4444'); // Default Red
+    const [penSize, setPenSize] = useState(3);
+    const [isEraser, setIsEraser] = useState(false);
+
+    // Initialization
+    useEffect(() => {
+        setLessonLinks(getLessonLinks());
+        const savedUrl = localStorage.getItem('last_presentation_url');
+        if (savedUrl) setInputUrl(savedUrl);
+
+        const allNotes = JSON.parse(localStorage.getItem('class_lesson_notes') || '{}');
+        const noteKey = Object.keys(allNotes).find(k => k.startsWith(currentClass));
+        if (noteKey && allNotes[noteKey]) setClassNote(allNotes[noteKey]);
+        else setClassNote('');
+    }, [currentClass]);
+
+    // Resize Canvas on Window Resize
+    useEffect(() => {
+        const handleResize = () => {
+            if (containerRef.current && canvasRef.current) {
+                // Save current drawing
+                const currentData = canvasRef.current.toDataURL();
+                
+                canvasRef.current.width = containerRef.current.clientWidth;
+                canvasRef.current.height = containerRef.current.clientHeight;
+                
+                // Restore
+                const img = new Image();
+                img.src = currentData;
+                img.onload = () => {
+                    canvasRef.current?.getContext('2d')?.drawImage(img, 0, 0);
+                }
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        // Initial sizing
+        setTimeout(handleResize, 100); 
+        return () => window.removeEventListener('resize', handleResize);
+    }, [currentPageIndex]); // Re-run when page changes to ensure correct sizing
+
+    // --- CANVAS LOGIC ---
+    // Load drawing when page changes
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (canvas && ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear previous
+            const savedData = pages[currentPageIndex].drawingData;
+            if (savedData) {
+                const img = new Image();
+                img.src = savedData;
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                };
+            }
+        }
+    }, [currentPageIndex]); // Only when index changes
+
+    const saveCanvasToState = () => {
+        if (canvasRef.current) {
+            const dataUrl = canvasRef.current.toDataURL();
+            setPages(prev => {
+                const newPages = [...prev];
+                newPages[currentPageIndex] = { ...newPages[currentPageIndex], drawingData: dataUrl };
+                return newPages;
+            });
+        }
+    };
+
+    const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+        if (activeFloatingTool !== 'PEN') return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        setIsDrawing(true);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = ('touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX) - rect.left;
+        const y = ('touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY) - rect.top;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.strokeStyle = isEraser ? 'rgba(0,0,0,1)' : penColor; // Eraser uses destination-out
+        ctx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
+        ctx.lineWidth = isEraser ? 20 : penSize;
+        ctx.lineCap = 'round';
+    };
+
+    const draw = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isDrawing || activeFloatingTool !== 'PEN') return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = ('touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX) - rect.left;
+        const y = ('touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY) - rect.top;
+
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => {
+        if (isDrawing) {
+            setIsDrawing(false);
+            saveCanvasToState(); // Save to state on stroke end
+        }
+    };
+
+    const clearCanvas = () => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+            saveCanvasToState();
+        }
+    };
+
+    // --- NAVIGATION & CONTENT LOGIC ---
+    const updateCurrentPageContent = (type: SlidePage['type'], url: string) => {
+        setPages(prev => {
+            const newPages = [...prev];
+            newPages[currentPageIndex] = { ...newPages[currentPageIndex], type, contentUrl: url };
+            return newPages;
+        });
+    };
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             const url = URL.createObjectURL(file);
-            setSourceUrl(url);
-            if (file.type === 'application/pdf') setSourceType('PDF');
-            else if (file.type.startsWith('image/')) setSourceType('IMAGE');
-            else alert('يرجى اختيار ملف PDF أو صورة');
+            updateCurrentPageContent(file.type === 'application/pdf' ? 'PDF' : 'IMAGE', url);
         }
     };
 
-    const handleUrlSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        // Simple logic to detect if it needs embed processing
-        let url = inputUrl.trim();
-        
-        // Handle SharePoint / Office Online links (Force Embed View)
+    const processUrl = (rawUrl: string) => {
+        let url = rawUrl.trim();
         if (url.includes('sharepoint.com') || url.includes('onedrive.live.com') || url.includes('1drv.ms') || url.includes('office.com')) {
              if (!url.includes('action=embedview')) {
-                 // Remove other action params if they exist
                  url = url.replace(/action=[^&]+/, '');
-                 // Append embedview
                  url += url.includes('?') ? '&action=embedview' : '?action=embedview';
              }
         }
-        
-        // Handle Google Slides
         if (url.includes('docs.google.com/presentation') && !url.includes('/embed')) {
             url = url.replace('/edit', '/embed').replace('/pub', '/embed');
         }
+        return url;
+    }
 
-        setSourceUrl(url);
-        setSourceType('IFRAME');
+    const handleUrlSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const url = processUrl(inputUrl);
+        localStorage.setItem('last_presentation_url', url);
+        updateCurrentPageContent('IFRAME', url);
     };
 
+    const handleLessonSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const url = e.target.value;
+        if (!url) return;
+        const processed = processUrl(url);
+        setInputUrl(processed);
+        updateCurrentPageContent('IFRAME', processed);
+    };
+
+    // Page Management
+    const addNewPage = () => {
+        setPages(prev => [...prev, { id: Date.now().toString(), type: 'NONE', contentUrl: '' }]);
+        setCurrentPageIndex(prev => prev + 1);
+    };
+
+    const deleteCurrentPage = () => {
+        if (pages.length === 1) {
+            updateCurrentPageContent('NONE', '');
+            clearCanvas();
+            return;
+        }
+        setPages(prev => prev.filter((_, i) => i !== currentPageIndex));
+        if (currentPageIndex >= pages.length - 1) setCurrentPageIndex(pages.length - 2);
+    };
+
+    const handleNoteChange = (newNote: string) => {
+        setClassNote(newNote);
+        const allNotes = JSON.parse(localStorage.getItem('class_lesson_notes') || '{}');
+        allNotes[currentClass] = newNote; 
+        localStorage.setItem('class_lesson_notes', JSON.stringify(allNotes));
+    };
+
+    const spinExitQuestion = () => {
+        const randomIdx = Math.floor(Math.random() * EXIT_QUESTIONS.length);
+        setExitQuestion(EXIT_QUESTIONS[randomIdx]);
+    };
+
+    // AI Quiz Generation
+    const handleGenerateQuiz = async () => {
+        setIsQuizLoading(true);
+        setQuizQuestions([]);
+        
+        let imageBase64 = undefined;
+        // If current page is Image, try to use it
+        if (pages[currentPageIndex].type === 'IMAGE' && pages[currentPageIndex].contentUrl) {
+            try {
+                // Fetch blob and convert to base64
+                const response = await fetch(pages[currentPageIndex].contentUrl);
+                const blob = await response.blob();
+                const reader = new FileReader();
+                imageBase64 = await new Promise<string>((resolve) => {
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(blob);
+                });
+            } catch (e) {
+                console.error("Failed to process image for AI", e);
+            }
+        }
+
+        const questions = await generateSlideQuestions(quizContext, imageBase64);
+        setQuizQuestions(questions);
+        setIsQuizLoading(false);
+    };
+
+    const currentPage = pages[currentPageIndex];
+
     return (
-        <div className="w-full h-full flex flex-col relative">
+        <div className="w-full h-full flex flex-col relative bg-slate-100 rounded-2xl overflow-hidden shadow-2xl">
             
-            {/* Main Stage (The Presentation) */}
-            <div className="flex-1 bg-white rounded-2xl border border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
-                {sourceType === 'NONE' ? (
-                    <div className="text-center p-8 animate-fade-in w-full h-full flex flex-col items-center justify-center bg-slate-900/50">
-                        <div className="bg-white/10 p-6 rounded-full inline-flex mb-6">
-                            <Monitor size={64} className="text-indigo-400 opacity-80"/>
-                        </div>
-                        <h2 className="text-2xl font-bold mb-6 text-white">وضع العرض التقديمي (Smart Board)</h2>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl w-full">
-                            <div className="bg-slate-800 p-6 rounded-xl border border-white/10 hover:bg-slate-700 transition-colors">
-                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2 text-white"><Upload/> رفع ملف (PDF/Image)</h3>
-                                <p className="text-xs text-gray-400 mb-4">ارفع الدرس بصيغة PDF أو صور (Export PowerPoint to PDF)</p>
-                                <label className="block w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer font-bold transition-colors text-white">
-                                    اختيار ملف
-                                    <input type="file" accept="application/pdf, image/*" className="hidden" onChange={handleFileUpload}/>
-                                </label>
-                            </div>
+            {/* LASER OVERLAY */}
+            {laserMode && (
+                <div 
+                    className="fixed inset-0 z-[100] cursor-none"
+                    onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                    onClick={() => setLaserMode(false)}
+                >
+                    <div 
+                        className="fixed w-4 h-4 bg-red-600 rounded-full shadow-[0_0_15px_2px_rgba(255,0,0,0.8)] pointer-events-none transition-transform duration-75"
+                        style={{ left: mousePos.x, top: mousePos.y, transform: 'translate(-50%, -50%)' }}
+                    />
+                </div>
+            )}
 
-                            <div className="bg-slate-800 p-6 rounded-xl border border-white/10 hover:bg-slate-700 transition-colors">
-                                <h3 className="font-bold mb-4 flex items-center justify-center gap-2 text-white"><Globe/> رابط سحابي</h3>
-                                <p className="text-xs text-gray-400 mb-4">رابط PowerPoint (SharePoint) أو Google Slides</p>
-                                <form onSubmit={handleUrlSubmit} className="flex gap-2">
-                                    <input 
-                                        className="w-full bg-black/30 border border-white/20 rounded-lg px-3 text-sm outline-none focus:border-indigo-500 dir-ltr text-left text-white"
-                                        placeholder="https://mkhboys-my.sharepoint.com/..."
-                                        value={inputUrl}
-                                        onChange={e => setInputUrl(e.target.value)}
-                                    />
-                                    <button className="bg-indigo-600 p-2 rounded-lg hover:bg-indigo-700 text-white"><Monitor size={18}/></button>
-                                </form>
+            {/* MAIN STAGE */}
+            <div className="flex-1 relative group" ref={containerRef}>
+                
+                {/* 1. Background Content Layer */}
+                <div className="absolute inset-0 z-0 bg-white flex items-center justify-center">
+                    {currentPage.type === 'NONE' && (
+                        <div className="text-center p-8 animate-fade-in w-full h-full flex flex-col items-center justify-center bg-slate-50">
+                            <div className="bg-white p-6 rounded-full inline-flex mb-6 shadow-sm border border-slate-200">
+                                <Monitor size={48} className="text-indigo-400 opacity-80"/>
+                            </div>
+                            <h2 className="text-xl font-bold mb-6 text-slate-700">شاشة {currentPageIndex + 1} فارغة</h2>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl w-full">
+                                <div className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm">
+                                    <h3 className="font-bold mb-3 flex items-center justify-center gap-2 text-slate-700 text-sm"><Upload size={16}/> رفع ملف (PDF/Image)</h3>
+                                    <label className="block w-full py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg cursor-pointer font-bold transition-colors text-center text-xs">
+                                        استعراض...
+                                        <input type="file" accept="application/pdf, image/*" className="hidden" onChange={handleFileUpload}/>
+                                    </label>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm">
+                                    <h3 className="font-bold mb-3 flex items-center justify-center gap-2 text-slate-700 text-sm"><Globe size={16}/> درس محفوظ / رابط</h3>
+                                    <div className="space-y-2">
+                                        {lessonLinks.length > 0 && (
+                                            <select 
+                                                onChange={handleLessonSelect} 
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none cursor-pointer"
+                                            >
+                                                <option value="">-- اختر درس --</option>
+                                                {lessonLinks.map(l => <option key={l.id} value={l.url}>{l.title}</option>)}
+                                            </select>
+                                        )}
+                                        <form onSubmit={handleUrlSubmit} className="flex gap-1">
+                                            <input 
+                                                className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs outline-none dir-ltr text-left"
+                                                placeholder="Link..."
+                                                value={inputUrl}
+                                                onChange={e => setInputUrl(e.target.value)}
+                                            />
+                                            <button className="bg-indigo-600 p-1.5 rounded text-white hover:bg-indigo-700"><CheckCircle size={14}/></button>
+                                        </form>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ) : (
-                    <div className="w-full h-full relative group bg-white">
-                        {/* Clear Button */}
-                        <button 
-                            onClick={() => { setSourceType('NONE'); setSourceUrl(''); }}
-                            className="absolute top-4 right-4 z-50 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="إغلاق العرض"
-                        >
-                            <X size={20}/>
-                        </button>
+                    )}
+                    {currentPage.type === 'PDF' && <iframe src={currentPage.contentUrl} className="w-full h-full border-none" title="PDF"></iframe>}
+                    {currentPage.type === 'IFRAME' && <iframe src={currentPage.contentUrl} className="w-full h-full border-none" title="Web" allowFullScreen allow="autoplay"></iframe>}
+                    {currentPage.type === 'IMAGE' && <img src={currentPage.contentUrl} className="w-full h-full object-contain" alt="Slide"/>}
+                </div>
 
-                        {/* Content */}
-                        {sourceType === 'PDF' && <iframe src={sourceUrl} className="w-full h-full border-none" title="PDF Viewer"></iframe>}
-                        {sourceType === 'IFRAME' && (
-                            <iframe 
-                                src={sourceUrl} 
-                                className="w-full h-full border-none" 
-                                title="Web Viewer" 
-                                allowFullScreen 
-                                allow="autoplay; encrypted-media"
-                            ></iframe>
-                        )}
-                        {sourceType === 'IMAGE' && <img src={sourceUrl} className="w-full h-full object-contain bg-black" alt="Presentation Slide"/>}
-                    </div>
+                {/* 2. Canvas Layer (Handwriting) */}
+                <canvas 
+                    ref={canvasRef}
+                    className={`absolute inset-0 z-10 touch-none ${activeFloatingTool === 'PEN' ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                />
+
+                {/* Clear Content Button (Top Right) */}
+                {currentPage.type !== 'NONE' && (
+                    <button 
+                        onClick={() => { updateCurrentPageContent('NONE', ''); clearCanvas(); }}
+                        className="absolute top-4 right-4 z-20 bg-red-600/80 hover:bg-red-700 text-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="مسح المحتوى"
+                    >
+                        <Trash2 size={16}/>
+                    </button>
                 )}
             </div>
 
-            {/* FLOATING TOOLBAR */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-900/90 backdrop-blur-md p-2 rounded-2xl border border-white/20 shadow-2xl flex items-center gap-2 z-40 transition-all hover:bg-slate-800">
-                <button 
-                    onClick={() => setActiveFloatingTool(activeFloatingTool === 'PICKER' ? 'NONE' : 'PICKER')}
-                    className={`p-3 rounded-xl transition-all ${activeFloatingTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg scale-110' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
-                    title="قرعة سريعة"
-                >
-                    <Shuffle size={24}/>
-                </button>
-                <div className="w-[1px] h-8 bg-white/20"></div>
-                <button 
-                    onClick={() => setActiveFloatingTool(activeFloatingTool === 'TIMER' ? 'NONE' : 'TIMER')}
-                    className={`p-3 rounded-xl transition-all ${activeFloatingTool === 'TIMER' ? 'bg-blue-500 text-white shadow-lg scale-110' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
-                    title="مؤقت سريع"
-                >
-                    <Clock size={24}/>
-                </button>
-                <div className="w-[1px] h-8 bg-white/20"></div>
-                <button 
-                    onClick={() => setActiveFloatingTool(activeFloatingTool === 'SOUNDS' ? 'NONE' : 'SOUNDS')}
-                    className={`p-3 rounded-xl transition-all ${activeFloatingTool === 'SOUNDS' ? 'bg-pink-500 text-white shadow-lg scale-110' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
-                    title="أصوات"
-                >
-                    <Volume2 size={24}/>
-                </button>
+            {/* BOTTOM NAVIGATION BAR */}
+            <div className="h-16 bg-white border-t border-gray-200 flex items-center justify-between px-4 z-30">
+                
+                {/* Slide Controls */}
+                <div className="flex items-center gap-2">
+                    <button onClick={addNewPage} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700" title="صفحة جديدة"><Plus size={20}/></button>
+                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                        <button onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))} disabled={currentPageIndex === 0} className="p-1.5 hover:bg-white rounded disabled:opacity-30"><ChevronRight size={20}/></button>
+                        <span className="px-3 font-bold font-mono text-gray-700">{currentPageIndex + 1} / {pages.length}</span>
+                        <button onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))} disabled={currentPageIndex === pages.length - 1} className="p-1.5 hover:bg-white rounded disabled:opacity-30"><ChevronLeft size={20}/></button>
+                    </div>
+                    <button onClick={deleteCurrentPage} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="حذف الصفحة"><Trash2 size={20}/></button>
+                </div>
+
+                {/* Pen Controls (Visible when Pen Active) */}
+                {activeFloatingTool === 'PEN' && (
+                    <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full animate-fade-in shadow-inner">
+                        <button onClick={() => {setIsEraser(false); setPenColor('#000000')}} className={`w-6 h-6 rounded-full bg-black border-2 ${!isEraser && penColor==='#000000' ? 'border-indigo-500 scale-110' : 'border-white'}`}></button>
+                        <button onClick={() => {setIsEraser(false); setPenColor('#ef4444')}} className={`w-6 h-6 rounded-full bg-red-500 border-2 ${!isEraser && penColor==='#ef4444' ? 'border-indigo-500 scale-110' : 'border-white'}`}></button>
+                        <button onClick={() => {setIsEraser(false); setPenColor('#22c55e')}} className={`w-6 h-6 rounded-full bg-green-500 border-2 ${!isEraser && penColor==='#22c55e' ? 'border-indigo-500 scale-110' : 'border-white'}`}></button>
+                        <button onClick={() => {setIsEraser(false); setPenColor('#3b82f6')}} className={`w-6 h-6 rounded-full bg-blue-500 border-2 ${!isEraser && penColor==='#3b82f6' ? 'border-indigo-500 scale-110' : 'border-white'}`}></button>
+                        <div className="w-[1px] h-6 bg-gray-300 mx-1"></div>
+                        <button onClick={() => setIsEraser(!isEraser)} className={`p-1.5 rounded ${isEraser ? 'bg-indigo-200 text-indigo-800' : 'text-gray-500 hover:bg-gray-200'}`} title="ممحاة"><Eraser size={18}/></button>
+                        <button onClick={clearCanvas} className="p-1.5 text-red-500 hover:bg-red-100 rounded" title="مسح الرسم"><Trash2 size={18}/></button>
+                    </div>
+                )}
+
+                {/* Main Toolbar */}
+                <div className="flex items-center gap-2">
+                    <div className="bg-slate-900 p-1.5 rounded-xl flex items-center gap-1 shadow-lg">
+                        <ToolBtn icon={<PenTool size={20}/>} active={activeFloatingTool === 'PEN'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'PEN' ? 'NONE' : 'PEN')} label="قلم" />
+                        <div className="w-[1px] h-6 bg-white/20 mx-1"></div>
+                        <ToolBtn icon={<Shuffle size={20}/>} active={activeFloatingTool === 'PICKER'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'PICKER' ? 'NONE' : 'PICKER')} />
+                        <ToolBtn icon={<Clock size={20}/>} active={activeFloatingTool === 'TIMER'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'TIMER' ? 'NONE' : 'TIMER')} />
+                        <ToolBtn icon={<Volume2 size={20}/>} active={activeFloatingTool === 'SOUNDS'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'SOUNDS' ? 'NONE' : 'SOUNDS')} />
+                        <ToolBtn icon={<DoorOpen size={20}/>} active={activeFloatingTool === 'EXIT_TICKET'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'EXIT_TICKET' ? 'NONE' : 'EXIT_TICKET')} label="خروج" />
+                        <ToolBtn icon={<BrainCircuit size={20}/>} active={activeFloatingTool === 'AI_QUIZ'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'AI_QUIZ' ? 'NONE' : 'AI_QUIZ')} label="مسابقة AI" />
+                        <ToolBtn icon={<MousePointer2 size={20}/>} active={laserMode} onClick={() => setLaserMode(!laserMode)} color="red" />
+                        <ToolBtn icon={<StickyNote size={20}/>} active={activeFloatingTool === 'NOTE'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'NOTE' ? 'NONE' : 'NOTE')} />
+                    </div>
+                </div>
             </div>
 
-            {/* OVERLAY WIDGETS */}
-            {activeFloatingTool !== 'NONE' && (
-                <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
+            {/* OVERLAY WIDGETS (Popups) */}
+            {activeFloatingTool !== 'NONE' && activeFloatingTool !== 'PEN' && (
+                <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
                     <div className="relative bg-slate-900 border border-white/20 rounded-2xl shadow-2xl overflow-hidden min-w-[320px] max-w-md">
-                        {/* Close Handler for Widget */}
-                        <button 
-                            onClick={() => setActiveFloatingTool('NONE')}
-                            className="absolute top-2 right-2 text-gray-400 hover:text-white z-10"
-                        >
-                            <X size={16}/>
-                        </button>
+                        <button onClick={() => setActiveFloatingTool('NONE')} className="absolute top-2 right-2 text-gray-400 hover:text-white z-10"><X size={16}/></button>
 
                         {activeFloatingTool === 'PICKER' && (
                             <div className="p-4">
                                 <h4 className="text-yellow-400 font-bold mb-2 flex items-center gap-2"><Shuffle size={16}/> الاختيار العشوائي</h4>
-                                <div className="scale-75 origin-top">
-                                    <RandomPicker students={students} total={total} />
-                                </div>
+                                <div className="scale-75 origin-top"><RandomPicker students={students} total={total} /></div>
                             </div>
                         )}
 
                         {activeFloatingTool === 'TIMER' && (
                             <div className="p-4">
                                 <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2"><Clock size={16}/> المؤقت</h4>
-                                <div className="scale-75 origin-top">
-                                    <ClassroomTimer />
-                                </div>
+                                <div className="scale-75 origin-top"><ClassroomTimer /></div>
                             </div>
                         )}
 
@@ -269,12 +653,142 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
                             <div className="p-4">
                                 <h4 className="text-pink-400 font-bold mb-4 flex items-center gap-2"><Volume2 size={16}/> المؤثرات</h4>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {['👏 تصفيق', '✅ صحيح', '❌ خطأ', '🥁 طبلة', '🤫 هدوء', '🔔 جرس'].map((s, i) => (
-                                        <button key={i} className="bg-white/10 hover:bg-white/20 p-3 rounded text-xs font-bold text-white transition-colors border border-white/5">
-                                            {s}
+                                    {[
+                                        { id: 'CLAP', label: '👏 تصفيق' }, 
+                                        { id: 'CORRECT', label: '✅ صحيح' }, 
+                                        { id: 'WRONG', label: '❌ خطأ' }, 
+                                        { id: 'DRUM', label: '🥁 طبلة' }, 
+                                        { id: 'QUIET', label: '🤫 هدوء' }, 
+                                        { id: 'BELL', label: '🔔 جرس' }
+                                    ].map((s) => (
+                                        <button 
+                                            key={s.id} 
+                                            onClick={() => playSoundEffect(s.id as any)}
+                                            className="bg-white/10 hover:bg-white/20 p-3 rounded text-xs font-bold text-white transition-colors border border-white/5 active:bg-white/30"
+                                        >
+                                            {s.label}
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* --- EXIT TICKET WIDGET --- */}
+                        {activeFloatingTool === 'EXIT_TICKET' && (
+                            <div className="p-6 bg-teal-900 text-white min-w-[350px]">
+                                <h4 className="text-teal-400 font-bold mb-4 flex items-center gap-2">
+                                    <DoorOpen size={18}/> بطاقة الخروج (Exit Ticket)
+                                </h4>
+                                
+                                <div className="bg-white/10 p-4 rounded-xl border border-white/10 min-h-[120px] flex items-center justify-center text-center relative mb-4">
+                                    <p className="text-xl font-bold leading-relaxed">{exitQuestion}</p>
+                                    <HelpCircle className="absolute top-2 right-2 text-white/20" size={24}/>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={spinExitQuestion}
+                                        className="flex-1 bg-teal-500 hover:bg-teal-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <Shuffle size={16}/> سؤال عشوائي
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            const q = prompt("أدخل سؤال الخروج:");
+                                            if(q) setExitQuestion(q);
+                                        }}
+                                        className="px-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                                        title="كتابة سؤال"
+                                    >
+                                        <PenTool size={16}/>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- AI QUIZ WIDGET --- */}
+                        {activeFloatingTool === 'AI_QUIZ' && (
+                            <div className="p-6 bg-purple-900 text-white min-w-[380px] max-w-lg">
+                                <h4 className="text-purple-300 font-bold mb-4 flex items-center gap-2">
+                                    <BrainCircuit size={18}/> مسابقة من العرض (AI)
+                                </h4>
+
+                                {quizQuestions.length === 0 ? (
+                                    <div className="space-y-4">
+                                        {pages[currentPageIndex].type === 'IMAGE' ? (
+                                            <div className="bg-white/10 p-3 rounded-lg border border-white/10 text-xs text-purple-200">
+                                                سيتم تحليل الصورة الحالية في الشاشة لتوليد أسئلة.
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-300 mb-1">موضوع الأسئلة (أو اترك فارغاً لأسئلة عامة)</label>
+                                                <input 
+                                                    className="w-full p-2 rounded bg-black/30 border border-white/10 text-white text-sm focus:ring-1 focus:ring-purple-500 outline-none"
+                                                    placeholder="مثال: الجملة الاسمية، قانون نيوتن..."
+                                                    value={quizContext}
+                                                    onChange={e => setQuizContext(e.target.value)}
+                                                />
+                                            </div>
+                                        )}
+                                        
+                                        <button 
+                                            onClick={handleGenerateQuiz}
+                                            disabled={isQuizLoading}
+                                            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                                        >
+                                            {isQuizLoading ? <Loader2 className="animate-spin"/> : <Sparkles size={18}/>}
+                                            {isQuizLoading ? 'جاري التحليل...' : 'توليد الأسئلة'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="max-h-60 overflow-y-auto custom-scrollbar pr-1 space-y-3">
+                                            {quizQuestions.map((q, idx) => (
+                                                <div key={idx} className="bg-white/10 p-4 rounded-xl border border-white/10 relative">
+                                                    <div className="font-bold mb-3 text-sm">{idx + 1}. {q.question}</div>
+                                                    <div className="space-y-1">
+                                                        {q.options.map((opt, i) => (
+                                                            <div 
+                                                                key={i} 
+                                                                className={`p-2 rounded text-xs flex justify-between items-center ${showAnswerFor === idx && opt === q.correctAnswer ? 'bg-green-600 text-white font-bold' : 'bg-black/20 text-gray-300'}`}
+                                                            >
+                                                                <span>{opt}</span>
+                                                                {showAnswerFor === idx && opt === q.correctAnswer && <CheckCircle size={14}/>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => setShowAnswerFor(showAnswerFor === idx ? null : idx)}
+                                                        className="mt-3 text-xs text-purple-300 hover:text-white underline"
+                                                    >
+                                                        {showAnswerFor === idx ? 'إخفاء الإجابة' : 'عرض الإجابة'}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button 
+                                            onClick={() => setQuizQuestions([])}
+                                            className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-bold text-sm"
+                                        >
+                                            إنشاء اختبار جديد
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeFloatingTool === 'NOTE' && (
+                            <div className="p-4 bg-yellow-100 min-w-[300px]">
+                                <h4 className="text-yellow-800 font-bold mb-2 flex items-center gap-2 justify-between">
+                                    <span className="flex items-center gap-2"><StickyNote size={16}/> ملاحظات</span>
+                                    <span className="text-[10px] bg-yellow-200 px-2 py-0.5 rounded text-yellow-900">حفظ تلقائي</span>
+                                </h4>
+                                <textarea
+                                    className="w-full h-40 bg-yellow-50 border border-yellow-200 rounded p-2 text-gray-800 text-sm outline-none resize-none focus:ring-2 focus:ring-yellow-300"
+                                    placeholder="اكتب ملاحظات الدرس هنا..."
+                                    value={classNote}
+                                    onChange={(e) => handleNoteChange(e.target.value)}
+                                />
                             </div>
                         )}
                     </div>
@@ -283,6 +797,17 @@ const PresentationBoard: React.FC<{ students: Student[], total: number }> = ({ s
         </div>
     );
 };
+
+// Helper Component for Toolbar Buttons
+const ToolBtn = ({ icon, active, onClick, color, label }: any) => (
+    <button 
+        onClick={onClick}
+        className={`p-2.5 rounded-lg transition-all flex flex-col items-center justify-center ${active ? (color === 'red' ? 'bg-red-600 text-white shadow-lg shadow-red-500/50' : 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50') : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+        title={label}
+    >
+        {icon}
+    </button>
+);
 
 // --- Sub-Component: Random Picker ---
 const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ students, total }) => {
@@ -309,6 +834,7 @@ const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ studen
             setWinner(students[finalIdx]);
             setCurrentName(students[finalIdx].name);
             setIsRolling(false);
+            playSoundEffect('CORRECT');
         }, 2000);
     };
 
@@ -366,10 +892,10 @@ const ClassroomTimer = () => {
             }, 1000);
         } else if (timeLeft === 0) {
             setIsActive(false);
-            // Optional: Play sound
+            if(initialTime > 0) playSoundEffect('BELL');
         }
         return () => clearInterval(interval);
-    }, [isActive, timeLeft]);
+    }, [isActive, timeLeft, initialTime]);
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -444,6 +970,7 @@ const GroupGenerator: React.FC<{ students: Student[] }> = ({ students }) => {
         });
 
         setGroups(newGroups);
+        playSoundEffect('CORRECT');
     };
 
     return (

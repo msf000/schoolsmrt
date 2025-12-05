@@ -1,4 +1,5 @@
-import { Student, AttendanceRecord, PerformanceRecord, School, SystemUser, Teacher, Parent, Subject, ScheduleItem, ReportHeaderConfig, CustomTable, Assignment, MessageLog, TeacherAssignment } from '../types';
+
+import { Student, AttendanceRecord, PerformanceRecord, School, SystemUser, Teacher, Parent, Subject, ScheduleItem, ReportHeaderConfig, CustomTable, Assignment, MessageLog, TeacherAssignment, LessonLink } from '../types';
 import { supabase } from './supabaseClient';
 
 const BASE_KEYS = {
@@ -16,7 +17,8 @@ const BASE_KEYS = {
   ASSIGNMENTS: 'assignments',
   MESSAGES: 'messages',
   TEACHER_ASSIGNMENTS: 'teacher_assignments',
-  WORKS_MASTER_URL: 'works_master_url'
+  WORKS_MASTER_URL: 'works_master_url',
+  LESSON_LINKS: 'lesson_links'
 };
 
 // Internal Cache
@@ -33,6 +35,7 @@ let _customTables: CustomTable[] = [];
 let _assignments: Assignment[] = [];
 let _messages: MessageLog[] = [];
 let _teacherAssignments: TeacherAssignment[] = [];
+let _lessonLinks: LessonLink[] = [];
 let _reportConfig: ReportHeaderConfig = { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' };
 let _worksMasterUrl: string = '';
 
@@ -135,6 +138,7 @@ export const initAutoSync = async () => {
   _assignments = loadLocal(BASE_KEYS.ASSIGNMENTS, []);
   _messages = loadLocal(BASE_KEYS.MESSAGES, []);
   _teacherAssignments = loadLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, []);
+  _lessonLinks = loadLocal(BASE_KEYS.LESSON_LINKS, []);
   _reportConfig = loadLocal(BASE_KEYS.CONFIG, { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' });
   _worksMasterUrl = loadLocal(BASE_KEYS.WORKS_MASTER_URL, '');
   
@@ -310,6 +314,16 @@ export const bulkSaveAssignments = (list: Assignment[]) => {
 export const getMessages = () => _messages;
 export const saveMessage = (m: MessageLog) => { _messages.push(m); saveLocal(BASE_KEYS.MESSAGES, _messages); };
 
+// --- Lesson Links (NEW) ---
+export const getLessonLinks = () => _lessonLinks.sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+export const saveLessonLink = (l: LessonLink) => {
+    const idx = _lessonLinks.findIndex(x => x.id === l.id);
+    if (idx >= 0) _lessonLinks[idx] = l;
+    else _lessonLinks.push(l);
+    saveLocal(BASE_KEYS.LESSON_LINKS, _lessonLinks);
+};
+export const deleteLessonLink = (id: string) => { _lessonLinks = _lessonLinks.filter(x => x.id !== id); saveLocal(BASE_KEYS.LESSON_LINKS, _lessonLinks); };
+
 // --- Backup / Restore / Clear ---
 export const createBackup = () => {
     const backup = {
@@ -320,6 +334,7 @@ export const createBackup = () => {
         teachers: _teachers,
         assignments: _assignments,
         teacherAssignments: _teacherAssignments,
+        lessonLinks: _lessonLinks,
         // ... include other stores
     };
     return JSON.stringify(backup);
@@ -330,6 +345,7 @@ export const restoreBackup = (json: string) => {
         const data = JSON.parse(json);
         if (data.students) { _students = data.students; saveLocal(BASE_KEYS.STUDENTS, _students); }
         if (data.attendance) { _attendance = data.attendance; saveLocal(BASE_KEYS.ATTENDANCE, _attendance); }
+        if (data.lessonLinks) { _lessonLinks = data.lessonLinks; saveLocal(BASE_KEYS.LESSON_LINKS, _lessonLinks); }
         // ... restore others
         initAutoSync();
         return true;
