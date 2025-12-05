@@ -231,6 +231,7 @@ const App: React.FC = () => {
   // 2. If in Demo Mode, remove ADMIN_DASHBOARD specifically (per user request)
   const filteredNavItems = navItems.filter(item => {
       const roleMatch = item.roles.includes(userRole);
+      // STRICT: Hide Admin Dashboard in Demo Mode
       const demoRestriction = isDemo && item.id === 'ADMIN_DASHBOARD' ? false : true;
       return roleMatch && demoRestriction;
   });

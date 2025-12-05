@@ -86,30 +86,19 @@ const saveLocal = (baseKey: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
 };
 
-// --- Auto Sync Helper ---
-const triggerBackgroundSync = async () => {
-    if (IS_DEMO_MODE) return; // Never sync demo data to cloud
-
-    const hasKeys = (localStorage.getItem('custom_supabase_url') && localStorage.getItem('custom_supabase_key')) || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
-    if (!hasKeys) return;
-
-    if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
-    (window as any)._syncTimer = setTimeout(async () => {
-        try {
-            await uploadToSupabase();
-        } catch(e) {
-            console.error('⚠️ فشل المزامنة التلقائية:', e);
-        }
-    }, 3000); 
-};
-
 // --- Switch Mode & Reload ---
 export const setSystemMode = (isDemo: boolean) => {
     IS_DEMO_MODE = isDemo;
+    
+    // Clear current memory to prevent leakage
+    _students = []; _attendance = []; _performance = []; _teachers = [];
+    _parents = []; _subjects = []; _schedules = []; _schools = [];
+    _users = []; _teacherAssignments = [];
+
     if (isDemo) {
-        // If switching to demo, check if data exists, if not seed it
-        const demoUsers = localStorage.getItem('demo_users');
-        if (!demoUsers) {
+        // Check if demo data exists, if not, seed it immediately
+        const existingDemoStudents = localStorage.getItem('demo_students');
+        if (!existingDemoStudents) {
             seedDemoDataInternal();
         } else {
             loadAll();
@@ -121,10 +110,8 @@ export const setSystemMode = (isDemo: boolean) => {
 
 export const isSystemDemo = () => IS_DEMO_MODE;
 
-// Internal Seed Function
+// Internal Seed Function - RUNS ONLY IN DEMO MODE
 const seedDemoDataInternal = () => {
-    console.log("🌱 Seeding Demo Data...");
-    
     // 1. School
     _schools = [{
         id: 'demo_school', name: 'مدرسة المستقبل التجريبية', type: 'PRIVATE', managerName: 'أ. تجريبي', phone: '0500000000', studentCount: 500, subscriptionStatus: 'ACTIVE'
@@ -156,7 +143,7 @@ const seedDemoDataInternal = () => {
     _users = [
         { id: 't_demo_1', name: 'أ. محمد (معلم)', email: 'teacher@demo.com', password: '123', role: 'TEACHER', schoolId: 'demo_school', status: 'ACTIVE' },
         { id: 'u_demo_manager', name: 'مدير المدرسة', email: 'manager@demo.com', password: '123', role: 'SCHOOL_MANAGER', schoolId: 'demo_school', status: 'ACTIVE' },
-        // No Super Admin in Demo usually, or limited
+        // No Super Admin in Demo
     ];
 
     // 6. Schedule
@@ -183,7 +170,7 @@ const seedDemoDataInternal = () => {
     saveLocal(BASE_KEYS.SCHEDULES, _schedules);
     saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
     
-    // Clear others
+    // Clear others for demo
     _attendance = []; saveLocal(BASE_KEYS.ATTENDANCE, []);
     _performance = []; saveLocal(BASE_KEYS.PERFORMANCE, []);
     _parents = []; saveLocal(BASE_KEYS.PARENTS, []);
@@ -203,7 +190,7 @@ const loadAll = () => {
     
     _users = loadLocal(BASE_KEYS.USERS, []);
     
-    // Ensure Admin Exists ALWAYS in Production Mode
+    // Ensure Admin Exists ALWAYS in Production Mode ONLY
     if (!IS_DEMO_MODE) {
         const adminExists = _users.some(u => u.email === 'admin@school.com');
         if (!adminExists || _users.length === 0) {
@@ -230,7 +217,24 @@ const loadAll = () => {
 // Trigger initial load (Production by default)
 loadAll();
 
-// ================= EXPORTS =================
+// --- Auto Sync Helper ---
+const triggerBackgroundSync = async () => {
+    if (IS_DEMO_MODE) return; // Prevent Sync in Demo Mode
+
+    const hasKeys = (localStorage.getItem('custom_supabase_url') && localStorage.getItem('custom_supabase_key')) || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
+    if (!hasKeys) return;
+
+    if ((window as any)._syncTimer) clearTimeout((window as any)._syncTimer);
+    (window as any)._syncTimer = setTimeout(async () => {
+        try {
+            await uploadToSupabase();
+        } catch(e) {
+            console.error('⚠️ فشل المزامنة التلقائية:', e);
+        }
+    }, 3000); 
+};
+
+// ================= EXPORTS (CRUD Operations) =================
 
 // --- Students ---
 export const getStudents = (): Student[] => [..._students];
@@ -594,6 +598,7 @@ export const clearDatabase = () => {
 
 // ... existing cloud functions ...
 export const checkConnection = async () => {
+    if (IS_DEMO_MODE) return { success: false, message: 'Demo Mode - Cloud Disabled' };
     const start = Date.now();
     try {
         const { error } = await supabase.from('schools').select('id').limit(1);
@@ -615,6 +620,7 @@ export const getStorageStatistics = () => ({
 });
 
 export const getCloudStatistics = async () => {
+    if (IS_DEMO_MODE) return null;
     const getCount = async (table: string) => {
         const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
         return error ? -1 : count;
@@ -631,6 +637,7 @@ export const getCloudStatistics = async () => {
 };
 
 export const fetchCloudTableData = async (table: string) => {
+    if (IS_DEMO_MODE) return [];
     const { data, error } = await supabase.from(table).select('*').limit(50);
     if (error) throw error;
     return data;

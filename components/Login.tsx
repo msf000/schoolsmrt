@@ -20,7 +20,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError('');
     setLoading(true);
 
-    // Ensure we are in Production Mode for normal login
+    // IMPORTANT: Ensure we are in Production Mode for normal login form
     setSystemMode(false);
 
     // Simulate network delay for better UX
@@ -38,7 +38,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             return;
         }
 
-        // 2. Check System Users (Admins/Teachers)
+        // 2. Check System Users (Admins/Teachers) from Real DB
         const users = getSystemUsers();
         const foundUser = users.find(u => u.email.toLowerCase().trim() === cleanIdentifier.toLowerCase());
 
@@ -53,7 +53,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             return;
         }
 
-        // 3. Check Students (By National ID)
+        // 3. Check Students (By National ID) from Real DB
         if (/^\d{10}$/.test(cleanIdentifier)) {
             const students = getStudents();
             const foundStudent = students.find(s => s.nationalId === cleanIdentifier);
@@ -76,18 +76,19 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             }
         }
 
-        setError('البيانات المدخلة غير صحيحة أو غير مسجلة.');
+        setError('البيانات المدخلة غير صحيحة أو غير مسجلة في النظام.');
         setLoading(false);
     }, 800);
   };
 
   const handleDemoLogin = (role: 'MANAGER' | 'TEACHER' | 'STUDENT') => {
       setLoading(true);
-      // 1. Activate Demo Mode
+      
+      // 1. Activate Demo Mode & Auto-Seed
       setSystemMode(true);
 
       setTimeout(() => {
-          // 2. Get fake users created by storageService
+          // 2. Get fake users created by storageService (now accessible due to mode switch)
           if (role === 'MANAGER') {
               const u = getSystemUsers().find(u => u.email === 'manager@demo.com');
               if(u) onLoginSuccess({ ...u, isDemo: true }, false);
