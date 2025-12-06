@@ -6,12 +6,13 @@ import {
     Assignment, Subject, ScheduleItem, 
     TeacherAssignment, CustomTable, 
     ReportHeaderConfig, MessageLog, Feedback, 
-    AISettings, LessonLink 
+    AISettings, LessonLink, UserTheme 
 } from '../types';
 import { supabase } from './supabaseClient';
 
 const KEYS = {
-    WORKS_MASTER_URL: 'works_master_url'
+    WORKS_MASTER_URL: 'works_master_url',
+    USER_THEME: 'app_user_theme_config'
 };
 
 // ... existing CACHE definition and helpers ...
@@ -32,10 +33,11 @@ const CACHE: any = {
     lesson_links: [],
     report_header_config: null,
     ai_settings: null,
-    works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || '' 
+    works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || '',
+    user_theme: JSON.parse(localStorage.getItem(KEYS.USER_THEME) || 'null')
 };
 
-// --- COLOR GENERATOR UTILITY ---
+// ... existing generateEntityColor and toDb/fromDb functions ...
 export const generateEntityColor = (str: string) => {
     if (!str) return { bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-200' };
     
@@ -131,7 +133,7 @@ export const initAutoSync = async () => {
     }
 };
 
-// ... GENERIC CRUD HELPERS ...
+// ... GENERIC CRUD HELPERS (addToCloud, updateInCloud, deleteFromCloud) ...
 const addToCloud = async (table: string, item: any, cacheKey: string) => {
     if (Array.isArray(CACHE[cacheKey])) {
         CACHE[cacheKey] = [...CACHE[cacheKey], item];
@@ -182,7 +184,7 @@ const deleteFromCloud = async (table: string, id: string, cacheKey: string) => {
     }
 };
 
-// --- Students ---
+// ... Existing exports for Students, Teachers, Schools, etc ...
 export const getStudents = (): Student[] => CACHE.students;
 export const addStudent = async (s: Student) => await addToCloud('students', s, 'students');
 export const updateStudent = async (s: Student) => await updateInCloud('students', s, 'students');
@@ -369,6 +371,15 @@ export const getAISettings = (): AISettings => {
 export const saveAISettings = async (s: AISettings) => {
     CACHE.ai_settings = s;
     await supabase.from('ai_settings').upsert({ id: '1', ...toDb(s) });
+};
+
+// --- Theme Settings ---
+export const getUserTheme = (): UserTheme => {
+    return CACHE.user_theme || { mode: 'LIGHT', backgroundStyle: 'FLAT' };
+};
+export const saveUserTheme = (theme: UserTheme) => {
+    CACHE.user_theme = theme;
+    localStorage.setItem(KEYS.USER_THEME, JSON.stringify(theme));
 };
 
 export const getWorksMasterUrl = (): string => CACHE.works_master_url || '';

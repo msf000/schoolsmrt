@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase, uploadToSupabase, isSystemDemo } from './services/storageService';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase, uploadToSupabase, isSystemDemo, getUserTheme } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
-import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, Assignment } from './types';
+import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, Assignment, UserTheme } from './types';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -38,6 +38,9 @@ const App: React.FC = () => {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
   
+  // Theme State
+  const [theme, setTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
+
   // Persist Current View State
   const [currentView, setCurrentView] = useState<ViewState>(() => {
       const savedView = localStorage.getItem('app_last_view');
@@ -76,6 +79,8 @@ const App: React.FC = () => {
 
     const initialize = async () => {
         setIsLoading(true);
+        // Load Theme
+        setTheme(getUserTheme());
         // FORCE CLOUD SYNC FIRST
         await initAutoSync();
         checkAuth();
@@ -158,18 +163,12 @@ const App: React.FC = () => {
     }
 
     // 2. SCHOOL MANAGER / TEACHER / STUDENT - Filter by School ID
-    // If user has a schoolId, strictly filter.
-    // If data has NO schoolId (legacy), we might choose to show it or hide it. 
-    // SECURITY DECISION: Hide legacy data to force migration/security, OR show only if matching.
-    // Here we show if schoolId matches OR if user has no schoolId (local/legacy mode)
-    
     let filteredStudents = allStudents;
 
     if (userContext.schoolId) {
         filteredStudents = allStudents.filter(s => s.schoolId === userContext.schoolId);
     } else if (userContext.role === 'TEACHER') {
         // Fallback for standalone teachers without schoolId yet (legacy/local mode)
-        // They see everything (local storage behavior)
         filteredStudents = allStudents;
     }
 
@@ -221,19 +220,34 @@ const App: React.FC = () => {
       refreshData(currentUser);
   };
 
+  // --- Dynamic Theme Classes ---
+  const getThemeClasses = () => {
+      let bgClass = 'bg-gray-50';
+      if (theme.backgroundStyle === 'GRADIENT') {
+          if (theme.mode === 'LIGHT') bgClass = 'bg-gradient-to-br from-slate-50 to-slate-200';
+          if (theme.mode === 'NATURE') bgClass = 'bg-gradient-to-br from-green-50 to-emerald-100';
+          if (theme.mode === 'OCEAN') bgClass = 'bg-gradient-to-br from-cyan-50 to-blue-100';
+          if (theme.mode === 'SUNSET') bgClass = 'bg-gradient-to-br from-rose-50 to-orange-100';
+      } else if (theme.backgroundStyle === 'MESH') {
+          // Simple mesh simulation with radial gradients
+          if (theme.mode === 'LIGHT') bgClass = 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100 via-white to-purple-100';
+          if (theme.mode === 'NATURE') bgClass = 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-green-100 via-white to-emerald-100';
+          if (theme.mode === 'OCEAN') bgClass = 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-100 via-white to-blue-100';
+          if (theme.mode === 'SUNSET') bgClass = 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-100 via-white to-pink-100';
+      } else {
+          // Flat fallback
+          if (theme.mode === 'NATURE') bgClass = 'bg-green-50/30';
+          if (theme.mode === 'OCEAN') bgClass = 'bg-blue-50/30';
+          if (theme.mode === 'SUNSET') bgClass = 'bg-purple-50/30';
+      }
+      return bgClass;
+  };
+
   const navItems = [
     { id: 'DASHBOARD', label: 'لوحة التحكم', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
-    
-    // System Manager ONLY
     { id: 'ADMIN_DASHBOARD', label: 'إدارة النظام (System)', icon: Server, roles: ['SUPER_ADMIN'] },
-    
-    // School Manager & TEACHER (for Profile)
     { id: 'SCHOOL_MANAGEMENT', label: 'الإعدادات / الملف', icon: Settings, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
-    
-    // Subscription (TEACHER only)
     { id: 'SUBSCRIPTION', label: 'الاشتراك', icon: CreditCard, roles: ['TEACHER'] },
-
-    // Teachers & School Managers
     { id: 'CLASSROOM_MANAGEMENT', label: 'الإدارة الصفية', icon: LayoutGrid, roles: ['SCHOOL_MANAGER', 'TEACHER'] }, 
     { id: 'LESSON_PLANNING', label: 'إعداد الدروس', icon: BookOpen, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
     { id: 'STUDENTS', label: 'الطلاب', icon: Users, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
@@ -293,19 +307,16 @@ const App: React.FC = () => {
   const filteredNavItems = navItems.filter(item => {
       // 1. Check Role Access
       const roleMatch = item.roles.includes(userRole);
-      
       // 2. Strict Separation Check
-      // If I am SCHOOL_MANAGER, I must NOT see ADMIN_DASHBOARD even if logic somehow allows.
       if (userRole === 'SCHOOL_MANAGER' && item.id === 'ADMIN_DASHBOARD') return false;
-
       return roleMatch;
   });
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden text-right">
+    <div className={`flex h-screen overflow-hidden text-right ${getThemeClasses()}`}>
       
-      {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200 shadow-sm z-30">
+      {/* Sidebar - Desktop (Updated with glassmorphism) */}
+      <aside className="hidden md:flex flex-col w-64 bg-white/90 backdrop-blur-md border-l border-gray-200 shadow-sm z-30 transition-all">
         <div className="p-6 border-b border-gray-100 flex items-center justify-center bg-gray-50/50">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold ml-3 shadow-lg ${userRole === 'SUPER_ADMIN' ? 'bg-gray-800' : 'bg-primary'}`}>
                 {userRole === 'SUPER_ADMIN' ? <ShieldCheck size={24}/> : <Building2 size={24}/>}
@@ -324,7 +335,7 @@ const App: React.FC = () => {
               key={item.id}
               onClick={() => { setCurrentView(item.id as ViewState); setIsMobileMenuOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                currentView === item.id ? 'bg-primary/10 text-primary font-bold shadow-sm border border-primary/10' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                currentView === item.id ? 'bg-primary/10 text-primary font-bold shadow-sm border border-primary/10' : 'text-gray-500 hover:bg-gray-50/80 hover:text-gray-900'
               }`}
             >
               <item.icon size={20} />
@@ -338,7 +349,7 @@ const App: React.FC = () => {
             </button>
           </div>
         </nav>
-        <div className="p-4 border-t border-gray-100 bg-gray-50">
+        <div className="p-4 border-t border-gray-100 bg-gray-50/50">
             <div className="flex items-center justify-between text-xs mb-2">
                  <span className="font-bold text-gray-600 flex items-center gap-1"><Cloud size={10}/> السحابة</span>
                  {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : (isDemo ? <span className="text-orange-500 font-bold">تجريبي</span> : <CheckCircle size={12} className="text-green-500"/>)}
@@ -413,7 +424,7 @@ const App: React.FC = () => {
             </div>
         )}
 
-        <header className="md:hidden bg-white p-4 border-b flex justify-between items-center z-20 shadow-sm shrink-0">
+        <header className="md:hidden bg-white/90 backdrop-blur-sm p-4 border-b flex justify-between items-center z-20 shadow-sm shrink-0">
             <div className="flex items-center gap-2">
                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold">م</div>
                 <span className="font-bold text-gray-800">نظام المدرس</span>
@@ -423,7 +434,7 @@ const App: React.FC = () => {
             </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden w-full custom-scrollbar bg-gray-50">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden w-full custom-scrollbar">
             {currentView === 'DASHBOARD' && (
                 <Dashboard 
                     students={students} 
@@ -434,7 +445,16 @@ const App: React.FC = () => {
                 />
             )}
             {/* School Management is for School Manager AND Teacher Profile */}
-            {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} currentUser={currentUser}/>}
+            {currentView === 'SCHOOL_MANAGEMENT' && (
+                <SchoolManagement 
+                    students={students} 
+                    onImportStudents={handleBulkAddStudents} 
+                    onImportPerformance={handleBulkAddPerformance} 
+                    onImportAttendance={handleBulkAddAttendance} 
+                    currentUser={currentUser}
+                    onUpdateTheme={(newTheme) => setTheme(newTheme)}
+                />
+            )}
             
             {/* Admin Dashboard is strictly for System Manager */}
             {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}

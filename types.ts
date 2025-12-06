@@ -257,4 +257,10 @@ export interface AISettings {
     systemInstruction: string; // Custom persona
 }
 
+// --- UI Theme Settings (NEW) ---
+export interface UserTheme {
+    mode: 'LIGHT' | 'DARK' | 'NATURE' | 'OCEAN' | 'SUNSET';
+    backgroundStyle: 'FLAT' | 'GRADIENT' | 'MESH';
+}
+
 export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION';

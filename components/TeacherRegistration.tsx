@@ -53,13 +53,11 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
             // Smart Retry: If error implies missing columns, try saving without optional manager fields
             if (e.message && (e.message.includes('column') || e.message.includes('manager_national_id'))) {
                 console.warn("Schema mismatch detected, retrying with basic school data...");
-                const basicSchool = { ...school };
-                delete basicSchool.managerNationalId; // Remove problematic field
-                delete basicSchool.managerName;
-                delete basicSchool.ministryCode;
+                // Create a clean object without the problematic fields
+                const { managerNationalId, managerName, ministryCode, ...basicSchoolData } = school;
                 
-                await addSchool(basicSchool);
-                return basicSchool.id;
+                await addSchool(basicSchoolData as School);
+                return basicSchoolData.id;
             }
             throw e;
         }

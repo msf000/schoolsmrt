@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig } from '../types';
+import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme } from '../types';
 import { 
     getTeachers, addTeacher, updateTeacher,
     getSchools, getSubjects, addSubject, deleteSubject,
@@ -8,9 +8,10 @@ import {
     getTeacherAssignments, saveTeacherAssignment,
     getReportHeaderConfig, saveReportHeaderConfig,
     getFeedback, addFeedback, addSchool,
-    generateEntityColor
+    generateEntityColor,
+    getUserTheme, saveUserTheme
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, AlertCircle, CheckCircle, Search, Mail, Send, FileText, Lock, ShieldCheck, Calendar, BookOpen, Settings, Upload, Copy, Grid, Clock, Link as LinkIcon, Unlink, Phone, Edit, PlusCircle, AlertTriangle, Monitor, Eraser, CheckSquare } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, AlertCircle, CheckCircle, Search, Mail, Send, FileText, Lock, ShieldCheck, Calendar, BookOpen, Settings, Upload, Copy, Grid, Clock, Link as LinkIcon, Unlink, Phone, Edit, PlusCircle, AlertTriangle, Monitor, Eraser, CheckSquare, Palette, Sun, Moon, Cloud, Sunset } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -18,9 +19,10 @@ interface SchoolManagementProps {
     onImportPerformance: any;
     onImportAttendance: any;
     currentUser?: SystemUser | null;
+    onUpdateTheme?: (theme: UserTheme) => void;
 }
 
-const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students }) => {
+const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onUpdateTheme }) => {
   // Determine Role: Super Admin or School Manager gets full access
   const isManager = currentUser?.role === 'SCHOOL_MANAGER' || currentUser?.role === 'SUPER_ADMIN';
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'PROFILE' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS'>(() => {
@@ -40,6 +42,9 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   const [reportConfig, setReportConfig] = useState<ReportHeaderConfig>({
       schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: ''
   });
+  
+  // Theme State
+  const [userTheme, setUserTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
 
   // --- UI States ---
   const [feedbackList, setFeedbackList] = useState<Feedback[]>([]);
@@ -73,6 +78,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
       setSchedules(getSchedules());
       setAssignments(getTeacherAssignments());
       setReportConfig(getReportHeaderConfig());
+      setUserTheme(getUserTheme());
 
       const allTeachers = getTeachers();
       setTeachers(allTeachers);
@@ -245,7 +251,9 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
 
   const handleSaveSettings = () => {
       saveReportHeaderConfig(reportConfig);
-      alert('تم حفظ إعدادات التقارير بنجاح');
+      saveUserTheme(userTheme);
+      if(onUpdateTheme) onUpdateTheme(userTheme);
+      alert('تم حفظ الإعدادات بنجاح');
   };
 
   // --- ACTIONS: FEEDBACK (Manager Only) ---
@@ -322,7 +330,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   const periods = [1, 2, 3, 4, 5, 6, 7, 8];
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-50">
+    <div className="p-6 h-full flex flex-col bg-gray-50/50">
         <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <Settings size={28} className="text-gray-600"/>
@@ -346,7 +354,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                     <Clock size={16}/> الجدول المدرسي
                 </button>
                 <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 ${activeTab === 'SETTINGS' ? 'bg-orange-50 text-orange-700' : 'text-gray-500'}`}>
-                    <FileText size={16}/> إعدادات التقارير
+                    <Palette size={16}/> الإعدادات والمظهر
                 </button>
             </div>
         </div>
@@ -660,66 +668,117 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                 </div>
             )}
 
-            {/* --- TAB: SETTINGS (Reports) --- */}
+            {/* --- TAB: SETTINGS (Reports & THEMES) --- */}
             {activeTab === 'SETTINGS' && (
-                <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="font-bold text-lg mb-6 flex items-center gap-2"><FileText size={20}/> ترويسة التقارير الرسمية</h3>
+                <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
                     
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">إدارة التعليم</label>
-                                <input className="w-full p-2 border rounded" value={reportConfig.educationAdmin} onChange={e => setReportConfig({...reportConfig, educationAdmin: e.target.value})} placeholder="الرياض"/>
+                    {/* 1. Report Header Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-gray-800"><FileText size={20}/> ترويسة التقارير الرسمية</h3>
+                        
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">إدارة التعليم</label>
+                                    <input className="w-full p-2 border rounded" value={reportConfig.educationAdmin} onChange={e => setReportConfig({...reportConfig, educationAdmin: e.target.value})} placeholder="الرياض"/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label>
+                                    <input className="w-full p-2 border rounded" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})}/>
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label>
-                                <input className="w-full p-2 border rounded" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})}/>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">اسم المعلم (الافتراضي)</label>
+                                    <input className="w-full p-2 border rounded" value={reportConfig.teacherName} onChange={e => setReportConfig({...reportConfig, teacherName: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">مدير المدرسة</label>
+                                    <input className="w-full p-2 border rounded" value={reportConfig.schoolManager} onChange={e => setReportConfig({...reportConfig, schoolManager: e.target.value})}/>
+                                </div>
                             </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">اسم المعلم (الافتراضي)</label>
-                                <input className="w-full p-2 border rounded" value={reportConfig.teacherName} onChange={e => setReportConfig({...reportConfig, teacherName: e.target.value})}/>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">العام الدراسي</label>
+                                    <input className="w-full p-2 border rounded" value={reportConfig.academicYear} onChange={e => setReportConfig({...reportConfig, academicYear: e.target.value})} placeholder="1447هـ"/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">الفصل الدراسي</label>
+                                    <input className="w-full p-2 border rounded" value={reportConfig.term} onChange={e => setReportConfig({...reportConfig, term: e.target.value})} placeholder="الأول"/>
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">مدير المدرسة</label>
-                                <input className="w-full p-2 border rounded" value={reportConfig.schoolManager} onChange={e => setReportConfig({...reportConfig, schoolManager: e.target.value})}/>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">العام الدراسي</label>
-                                <input className="w-full p-2 border rounded" value={reportConfig.academicYear} onChange={e => setReportConfig({...reportConfig, academicYear: e.target.value})} placeholder="1447هـ"/>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">الفصل الدراسي</label>
-                                <input className="w-full p-2 border rounded" value={reportConfig.term} onChange={e => setReportConfig({...reportConfig, term: e.target.value})} placeholder="الأول"/>
-                            </div>
-                        </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">شعار المدرسة</label>
-                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 relative">
-                                <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
-                                {reportConfig.logoBase64 ? (
-                                    <img src={reportConfig.logoBase64} alt="Logo" className="h-20 mx-auto object-contain"/>
-                                ) : (
-                                    <div className="text-gray-400 flex flex-col items-center">
-                                        <Upload size={24} className="mb-2"/>
-                                        <span className="text-xs">اضغط لرفع الشعار</span>
-                                    </div>
-                                )}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">شعار المدرسة</label>
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 relative">
+                                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                                    {reportConfig.logoBase64 ? (
+                                        <img src={reportConfig.logoBase64} alt="Logo" className="h-20 mx-auto object-contain"/>
+                                    ) : (
+                                        <div className="text-gray-400 flex flex-col items-center">
+                                            <Upload size={24} className="mb-2"/>
+                                            <span className="text-xs">اضغط لرفع الشعار</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-
-                        <button onClick={handleSaveSettings} className="w-full bg-orange-600 text-white py-2 rounded font-bold hover:bg-orange-700 mt-4">
-                            حفظ الإعدادات
-                        </button>
                     </div>
+
+                    {/* 2. Theme & Appearance Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-gray-800"><Palette size={20}/> مظهر النظام (Themes)</h3>
+                        
+                        <div className="space-y-6">
+                            {/* Color Mode */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-600 mb-3">لون النظام الأساسي</label>
+                                <div className="flex gap-4 overflow-x-auto pb-2">
+                                    <button onClick={() => setUserTheme({...userTheme, mode: 'LIGHT'})} className={`flex-1 min-w-[100px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${userTheme.mode === 'LIGHT' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                        <Sun size={24} className={userTheme.mode === 'LIGHT' ? 'text-blue-500' : 'text-gray-400'}/>
+                                        <span className="text-sm font-bold">فاتح (أزرق)</span>
+                                    </button>
+                                    <button onClick={() => setUserTheme({...userTheme, mode: 'NATURE'})} className={`flex-1 min-w-[100px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${userTheme.mode === 'NATURE' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                        <Cloud size={24} className={userTheme.mode === 'NATURE' ? 'text-green-500' : 'text-gray-400'}/>
+                                        <span className="text-sm font-bold">طبيعة (أخضر)</span>
+                                    </button>
+                                    <button onClick={() => setUserTheme({...userTheme, mode: 'OCEAN'})} className={`flex-1 min-w-[100px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${userTheme.mode === 'OCEAN' ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                        <Monitor size={24} className={userTheme.mode === 'OCEAN' ? 'text-cyan-500' : 'text-gray-400'}/>
+                                        <span className="text-sm font-bold">محيط (سماوي)</span>
+                                    </button>
+                                    <button onClick={() => setUserTheme({...userTheme, mode: 'SUNSET'})} className={`flex-1 min-w-[100px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${userTheme.mode === 'SUNSET' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                        <Sunset size={24} className={userTheme.mode === 'SUNSET' ? 'text-purple-500' : 'text-gray-400'}/>
+                                        <span className="text-sm font-bold">غروب (بنفسجي)</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Background Style */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-600 mb-3">نمط الخلفية</label>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <button onClick={() => setUserTheme({...userTheme, backgroundStyle: 'FLAT'})} className={`p-3 rounded-lg border text-sm font-bold transition-all ${userTheme.backgroundStyle === 'FLAT' ? 'bg-gray-800 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                                        بسيط (Flat)
+                                    </button>
+                                    <button onClick={() => setUserTheme({...userTheme, backgroundStyle: 'GRADIENT'})} className={`p-3 rounded-lg border text-sm font-bold transition-all ${userTheme.backgroundStyle === 'GRADIENT' ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                                        تدرج (Gradient)
+                                    </button>
+                                    <button onClick={() => setUserTheme({...userTheme, backgroundStyle: 'MESH'})} className={`p-3 rounded-lg border text-sm font-bold transition-all ${userTheme.backgroundStyle === 'MESH' ? 'bg-indigo-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                                        شبكي (Mesh)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onClick={handleSaveSettings} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black shadow-lg mt-4 flex justify-center items-center gap-2 transition-transform active:scale-95">
+                        <Save size={20}/> حفظ وتطبيق الإعدادات
+                    </button>
                 </div>
             )}
         </div>
-    );
+    </div>
+  );
 };
 
 export default SchoolManagement;
