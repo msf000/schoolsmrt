@@ -1,3 +1,4 @@
+
 // Replaced vite/client reference to avoid missing definition error
 
 interface ImportMetaEnv {
@@ -20,4 +21,10 @@ declare namespace NodeJS {
     SUPABASE_KEY?: string;
     [key: string]: any;
   }
+}
+
+// Fix for remark-gfm missing types in TypeScript build
+declare module 'remark-gfm' {
+  const remarkGfm: any;
+  export default remarkGfm;
 }
