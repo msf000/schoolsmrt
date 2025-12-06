@@ -10,19 +10,20 @@ import {
     getDatabaseSchemaSQL, getDatabaseUpdateSQL,
     clearCloudTable, resetCloudDatabase,
     getAISettings, saveAISettings,
-    backupCloudDatabase, restoreCloudDatabase
+    backupCloudDatabase, restoreCloudDatabase,
+    getTeachers, updateTeacher
 } from '../services/storageService';
 import { updateSupabaseConfig } from '../services/supabaseClient';
-import { School, SystemUser, AISettings } from '../types';
+import { School, SystemUser, AISettings, Teacher } from '../types';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
     Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
     CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
-    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson
+    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson, Crown, Star
 } from 'lucide-react';
 
 // ==========================================
-// 1. SCHOOLS MANAGER COMPONENT
+// 1. SCHOOLS MANAGER COMPONENT (Cleaned up)
 // ==========================================
 const SchoolsManager = () => {
     const [schools, setSchools] = useState<School[]>([]);
@@ -47,7 +48,7 @@ const SchoolsManager = () => {
             setFormData(school);
         } else {
             setEditingSchool(null);
-            setFormData({ type: 'PUBLIC', subscriptionStatus: 'ACTIVE', studentCount: 0 });
+            setFormData({ type: 'PUBLIC', studentCount: 0 });
         }
         setIsModalOpen(true);
     };
@@ -64,7 +65,7 @@ const SchoolsManager = () => {
             type: formData.type as any || 'PUBLIC',
             phone: formData.phone || '',
             studentCount: Number(formData.studentCount) || 0,
-            subscriptionStatus: formData.subscriptionStatus as any || 'TRIAL',
+            subscriptionStatus: 'ACTIVE', // Default to active, irrelevant now
             educationAdministration: formData.educationAdministration || ''
         };
 
@@ -109,7 +110,6 @@ const SchoolsManager = () => {
                             <th className="p-4">الرمز الوزاري</th>
                             <th className="p-4">المدير</th>
                             <th className="p-4">النوع</th>
-                            <th className="p-4">الاشتراك</th>
                             <th className="p-4 text-center">إجراءات</th>
                         </tr>
                     </thead>
@@ -123,11 +123,6 @@ const SchoolsManager = () => {
                                     <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
                                         {school.type === 'PRIVATE' ? 'أهلي' : school.type === 'INTERNATIONAL' ? 'دولي' : 'حكومي'}
                                     </span>
-                                </td>
-                                <td className="p-4">
-                                    {school.subscriptionStatus === 'ACTIVE' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">نشط</span>}
-                                    {school.subscriptionStatus === 'EXPIRED' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">منتهي</span>}
-                                    {school.subscriptionStatus === 'TRIAL' && <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">تجريبي</span>}
                                 </td>
                                 <td className="p-4 flex justify-center gap-2">
                                     <button onClick={() => handleOpenModal(school)} className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Edit size={16}/></button>
@@ -182,14 +177,6 @@ const SchoolsManager = () => {
                                         <option value="INTERNATIONAL">دولي</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold mb-1">حالة الاشتراك</label>
-                                    <select className="w-full p-2 border rounded bg-white" value={formData.subscriptionStatus} onChange={e => setFormData({...formData, subscriptionStatus: e.target.value as any})}>
-                                        <option value="ACTIVE">نشط</option>
-                                        <option value="TRIAL">تجريبي</option>
-                                        <option value="EXPIRED">منتهي</option>
-                                    </select>
-                                </div>
                             </div>
                             <button onClick={handleSave} className="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 mt-2">حفظ البيانات</button>
                         </div>
@@ -201,7 +188,7 @@ const SchoolsManager = () => {
 };
 
 // ==========================================
-// 2. USERS MANAGER COMPONENT
+// 2. USERS MANAGER COMPONENT (Unchanged)
 // ==========================================
 const UsersManager = () => {
     const [users, setUsers] = useState<SystemUser[]>([]);
@@ -372,45 +359,91 @@ const UsersManager = () => {
 };
 
 // ==========================================
-// 3. SUBSCRIPTIONS MANAGER COMPONENT
+// 3. SUBSCRIPTIONS MANAGER (UPDATED FOR TEACHERS)
 // ==========================================
 const SubscriptionsManager = () => {
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        setTeachers(getTeachers());
+    }, []);
+
+    const filteredTeachers = useMemo(() => 
+        teachers.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.email?.toLowerCase().includes(searchTerm.toLowerCase()) || t.nationalId?.includes(searchTerm)),
+    [teachers, searchTerm]);
+
+    const handleUpdateSubscription = (teacher: Teacher, newStatus: 'FREE' | 'PRO' | 'ENTERPRISE') => {
+        if (confirm(`هل أنت متأكد من تغيير باقة المعلم ${teacher.name} إلى ${newStatus}؟`)) {
+            const updatedTeacher = { 
+                ...teacher, 
+                subscriptionStatus: newStatus,
+                subscriptionEndDate: newStatus === 'FREE' ? undefined : new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
+            };
+            updateTeacher(updatedTeacher);
+            setTeachers(getTeachers());
+        }
+    };
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 bg-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">مجاني</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">الباقة التجريبية</h3>
-                <p className="text-3xl font-black text-gray-900 mb-4">0 <span className="text-sm font-normal text-gray-500">ر.س / شهر</span></p>
-                <ul className="space-y-2 text-sm text-gray-600 mb-6">
-                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> عدد 1 مدرسة</li>
-                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> 50 طالب كحد أقصى</li>
-                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> أدوات المعلم الأساسية</li>
-                </ul>
-                <button className="w-full border border-gray-300 py-2 rounded-lg font-bold text-gray-600">تعديل</button>
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200">
+                <div className="flex items-center gap-2">
+                    <CreditCard className="text-teal-600"/>
+                    <h3 className="font-bold text-gray-800">إدارة اشتراكات المعلمين</h3>
+                </div>
+                <div className="relative w-64">
+                    <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
+                    <input 
+                        className="w-full pr-10 pl-4 py-2 border rounded-lg text-sm" 
+                        placeholder="بحث عن معلم..." 
+                        value={searchTerm} 
+                        onChange={e => setSearchTerm(e.target.value)} 
+                    />
+                </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border-2 border-blue-500 shadow-lg relative overflow-hidden transform scale-105">
-                <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">الأكثر شيوعاً</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">الباقة المتقدمة (Pro)</h3>
-                <p className="text-3xl font-black text-blue-600 mb-4">299 <span className="text-sm font-normal text-gray-500">ر.س / شهر</span></p>
-                <ul className="space-y-2 text-sm text-gray-600 mb-6">
-                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> مدارس متعددة</li>
-                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> طلاب غير محدود</li>
-                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> الذكاء الاصطناعي (Gemini)</li>
-                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> المزامنة السحابية</li>
-                </ul>
-                <button className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700">تعديل الباقة</button>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
-                <h3 className="text-xl font-bold text-gray-800 mb-2">باقة المؤسسات</h3>
-                <p className="text-3xl font-black text-gray-900 mb-4">تواصل معنا</p>
-                <ul className="space-y-2 text-sm text-gray-600 mb-6">
-                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> تخصيص كامل للنظام</li>
-                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> خوادم خاصة</li>
-                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> دعم فني 24/7</li>
-                </ul>
-                <button className="w-full border border-gray-300 py-2 rounded-lg font-bold text-gray-600">تعديل</button>
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <table className="w-full text-right text-sm">
+                    <thead className="bg-gray-50 text-gray-700 font-bold border-b">
+                        <tr>
+                            <th className="p-4">اسم المعلم</th>
+                            <th className="p-4">الهوية / البريد</th>
+                            <th className="p-4">الباقة الحالية</th>
+                            <th className="p-4">تاريخ الانتهاء</th>
+                            <th className="p-4 text-center">ترقية / تغيير</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {filteredTeachers.map(teacher => {
+                            const sub = teacher.subscriptionStatus || 'FREE';
+                            return (
+                                <tr key={teacher.id} className="hover:bg-gray-50">
+                                    <td className="p-4 font-bold text-gray-800">{teacher.name}</td>
+                                    <td className="p-4 font-mono text-gray-600 text-xs">{teacher.nationalId} <br/> {teacher.email}</td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit ${
+                                            sub === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 
+                                            sub === 'ENTERPRISE' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                            {sub === 'PRO' ? <Crown size={12}/> : sub === 'ENTERPRISE' ? <Building size={12}/> : <Star size={12}/>}
+                                            {sub}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-gray-600 text-xs">
+                                        {teacher.subscriptionEndDate ? new Date(teacher.subscriptionEndDate).toLocaleDateString('ar-SA') : 'غير محدود'}
+                                    </td>
+                                    <td className="p-4 flex justify-center gap-2">
+                                        <button onClick={() => handleUpdateSubscription(teacher, 'FREE')} className={`px-3 py-1 rounded text-xs border ${sub === 'FREE' ? 'bg-gray-800 text-white' : 'bg-white hover:bg-gray-50'}`}>Basic</button>
+                                        <button onClick={() => handleUpdateSubscription(teacher, 'PRO')} className={`px-3 py-1 rounded text-xs border ${sub === 'PRO' ? 'bg-indigo-600 text-white' : 'bg-white hover:bg-indigo-50 text-indigo-600 border-indigo-200'}`}>Pro</button>
+                                        <button onClick={() => handleUpdateSubscription(teacher, 'ENTERPRISE')} className={`px-3 py-1 rounded text-xs border ${sub === 'ENTERPRISE' ? 'bg-purple-600 text-white' : 'bg-white hover:bg-purple-50 text-purple-600 border-purple-200'}`}>Ent</button>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                        {filteredTeachers.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400">لا يوجد معلمين</td></tr>}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
@@ -908,7 +941,7 @@ const AdminDashboard: React.FC = () => {
                         <Users size={16}/> المستخدمين
                     </button>
                     <button onClick={() => setActiveTab('SUBSCRIPTIONS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'SUBSCRIPTIONS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
-                        <CreditCard size={16}/> الاشتراكات
+                        <CreditCard size={16}/> اشتراكات المعلمين
                     </button>
                     <button onClick={() => setActiveTab('AI_SETTINGS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'AI_SETTINGS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
                         <BrainCircuit size={16}/> إعدادات الذكاء الاصطناعي

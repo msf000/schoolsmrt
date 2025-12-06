@@ -114,7 +114,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         type: 'PUBLIC',
                         phone: '',
                         studentCount: 0,
-                        subscriptionStatus: 'TRIAL'
+                        subscriptionStatus: 'ACTIVE' // Default to active, no trial
                     };
                     
                     // Attempt to save with retry logic
@@ -134,7 +134,8 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 subjectSpecialty: formData.specialty,
                 password: formData.password,
                 schoolId: schoolId,
-                managerId: managerId
+                managerId: managerId,
+                subscriptionStatus: 'FREE' // Start teacher as free user
             };
 
             // Await cloud save (which also adds to system_users)

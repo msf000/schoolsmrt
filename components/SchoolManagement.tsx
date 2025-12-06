@@ -325,7 +325,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
           type: 'PUBLIC',
           phone: '',
           studentCount: 0,
-          subscriptionStatus: 'TRIAL'
+          subscriptionStatus: 'ACTIVE' // No longer trial, just active by default
       };
 
       addSchool(newSchool);
