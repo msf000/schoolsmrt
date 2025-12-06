@@ -8,7 +8,8 @@ import {
     getSchedules, saveScheduleItem, deleteScheduleItem,
     getTeacherAssignments, saveTeacherAssignment,
     getReportHeaderConfig, saveReportHeaderConfig,
-    getFeedback, addFeedback, addSchool
+    getFeedback, addFeedback, addSchool,
+    generateEntityColor
 } from '../services/storageService';
 import { Trash2, User, Building2, Save, Users, AlertCircle, CheckCircle, Search, Mail, Send, FileText, Lock, ShieldCheck, Calendar, BookOpen, Settings, Upload, Copy, Grid, Clock, Link as LinkIcon, Unlink, Phone, Edit, PlusCircle, AlertTriangle, Monitor, Eraser, CheckSquare } from 'lucide-react';
 
@@ -98,6 +99,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
               setTeacherProfile(me);
               // Auto-select active teacher for schedule building
               setActiveTeacher(me.id);
+              setSelectedTeacherForSchedule(me.id); // Auto-select for full view
               
               // Check if linked to school to show manager details
               if (me.schoolId) {
@@ -390,15 +392,13 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                     >
                         <Grid size={16}/> جدول الحصص (إعداد)
                     </button>
-                    {/* Show Full Schedule View button only for Managers */}
-                    {isManager && (
-                        <button 
-                            onClick={() => setScheduleViewMode('TEACHER')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${scheduleViewMode === 'TEACHER' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-                        >
-                            <User size={16}/> جدول المعلم الشامل
-                        </button>
-                    )}
+                    {/* Show Full Schedule View button for EVERYONE (Teachers need to see their full schedule too) */}
+                    <button 
+                        onClick={() => setScheduleViewMode('TEACHER')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${scheduleViewMode === 'TEACHER' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                    >
+                        <User size={16}/> جدول المعلم الشامل
+                    </button>
                 </div>
           </div>
 
@@ -468,24 +468,43 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                                             // Find teacher name based on ID stored in schedule
                                             const teacherObj = schedItem?.teacherId ? teachers.find(t => t.id === schedItem.teacherId) : null;
                                             const teacherName = teacherObj ? teacherObj.name : null;
+                                            const subjectColors = generateEntityColor(schedItem?.subjectName || '');
+
+                                            // CHECK BUSY STATUS FOR ACTIVE TEACHER
+                                            let isBusy = false;
+                                            let busyClass = '';
+                                            if (activeTeacher && !schedItem) {
+                                                const conflict = checkTeacherConflict(activeTeacher, day, period, selectedClassForSchedule);
+                                                if (conflict.conflict) {
+                                                    isBusy = true;
+                                                    busyClass = conflict.className || '';
+                                                }
+                                            }
 
                                             return (
                                                 <td 
                                                     key={period} 
                                                     onClick={() => handleScheduleCellClick(day, period)}
-                                                    className={`p-1 border h-24 align-top cursor-pointer transition-all hover:shadow-inner ${schedItem ? 'bg-indigo-50 hover:bg-red-50 hover:border-red-300 group' : 'hover:bg-green-50'}`}
+                                                    className={`p-1 border h-24 align-top cursor-pointer transition-all hover:shadow-inner 
+                                                        ${schedItem ? `${subjectColors.bg} group` : isBusy ? 'bg-gray-200 cursor-not-allowed opacity-75' : 'hover:bg-green-50'}`
+                                                    }
                                                 >
                                                     {schedItem ? (
                                                         <div className="flex flex-col justify-between h-full p-1 relative">
-                                                            <span className="font-bold text-indigo-700 block text-sm">{schedItem.subjectName}</span>
+                                                            <span className={`font-bold block text-sm ${subjectColors.text}`}>{schedItem.subjectName}</span>
                                                             {teacherName && (
-                                                                <span className="text-[10px] bg-white border rounded px-1 text-gray-500 mt-1 block truncate">
+                                                                <span className="text-[10px] bg-white/50 border border-white/20 rounded px-1 text-gray-700 mt-1 block truncate">
                                                                     {teacherName}
                                                                 </span>
                                                             )}
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-red-100/80 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold rounded">
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-red-100/90 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold rounded backdrop-blur-sm">
                                                                 <Eraser size={20}/> حذف
                                                             </div>
+                                                        </div>
+                                                    ) : isBusy ? (
+                                                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGQ9Ik0wIDhMOCAwTTggOEwwIDAiIHN0cm9rZT0iI2NjYyIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+')]">
+                                                            <span className="text-xs font-bold text-red-500 bg-white/80 px-1 rounded">مشغول</span>
+                                                            <span className="text-[10px] bg-white/80 px-1 rounded mt-1">{busyClass}</span>
                                                         </div>
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-gray-200 hover:text-green-400">
@@ -509,8 +528,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
               </>
           )}
 
-          {/* VIEW 2: TEACHER COMPREHENSIVE SCHEDULE (MANAGER ONLY) */}
-          {scheduleViewMode === 'TEACHER' && isManager && (
+          {/* VIEW 2: TEACHER COMPREHENSIVE SCHEDULE (NOW FOR ALL) */}
+          {scheduleViewMode === 'TEACHER' && (
               <>
                 <div className="flex items-center gap-4 bg-purple-50 p-4 rounded-lg border border-purple-200">
                     <label className="font-bold text-purple-800 flex items-center gap-2"><User size={18}/> اختر المعلم:</label>
@@ -519,8 +538,11 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                         value={selectedTeacherForSchedule} 
                         onChange={e => setSelectedTeacherForSchedule(e.target.value)}
                     >
-                        <option value="">-- كل الجدول --</option>
-                        {myTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        <option value="">-- كل الجدول (مشاهدة عامة) --</option>
+                        {isManager 
+                            ? myTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                            : teachers.filter(t => t.id === currentUser?.id || t.nationalId === currentUser?.nationalId).map(t => <option key={t.id} value={t.id}>{t.name} (أنا)</option>)
+                        }
                     </select>
                 </div>
 
@@ -559,20 +581,23 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                                                     }
                                                 }
                                             } else {
-                                                // If "All Schedule", show generic
-                                                // This view is messy for "All", usually better to force selection, but here's generic logic:
-                                                // We won't show EVERY class in one cell, maybe just count or "Busy"
+                                                // If "All Schedule" - Show general info? Or maybe disable this view for ALL if messy
+                                                // For now, let's just show if teacher matches ANYONE in the list to indicate occupied slots
+                                                // Simplified: Show count or first match
                                             }
                                         });
 
                                         return (
-                                            <td key={period} className={`p-2 border h-20 align-middle ${myClasses.length > 0 ? 'bg-purple-100' : ''}`}>
-                                                {myClasses.map((cls, idx) => (
-                                                    <div key={idx} className="bg-white rounded border border-purple-200 p-1 mb-1 shadow-sm text-xs">
-                                                        <span className="font-bold block text-purple-800">{cls.class}</span>
-                                                        <span className="text-gray-500">{cls.subject}</span>
-                                                    </div>
-                                                ))}
+                                            <td key={period} className={`p-2 border h-20 align-middle ${myClasses.length > 0 ? 'bg-purple-50' : ''}`}>
+                                                {myClasses.map((cls, idx) => {
+                                                    const classColors = generateEntityColor(cls.class);
+                                                    return (
+                                                        <div key={idx} className={`rounded border p-1 mb-1 shadow-sm text-xs ${classColors.bg} ${classColors.border}`}>
+                                                            <span className={`font-bold block ${classColors.text}`}>{cls.class}</span>
+                                                            <span className="text-gray-500">{cls.subject}</span>
+                                                        </div>
+                                                    )
+                                                })}
                                                 {myClasses.length === 0 && <span className="text-gray-300">-</span>}
                                             </td>
                                         );

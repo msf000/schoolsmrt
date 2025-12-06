@@ -35,6 +35,39 @@ const CACHE: any = {
     works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || '' 
 };
 
+// --- COLOR GENERATOR UTILITY ---
+export const generateEntityColor = (str: string) => {
+    if (!str) return { bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-200' };
+    
+    const colors = [
+        { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200' },
+        { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200' },
+        { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200' },
+        { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
+        { bg: 'bg-lime-100', text: 'text-lime-800', border: 'border-lime-200' },
+        { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
+        { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200' },
+        { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
+        { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-200' },
+        { bg: 'bg-sky-100', text: 'text-sky-800', border: 'border-sky-200' },
+        { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+        { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-200' },
+        { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-200' },
+        { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
+        { bg: 'bg-fuchsia-100', text: 'text-fuchsia-800', border: 'border-fuchsia-200' },
+        { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200' },
+        { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-200' },
+    ];
+
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+};
+
 const toDb = (item: any) => {
     const newItem: any = {};
     Object.keys(item).forEach(key => {
@@ -45,6 +78,7 @@ const toDb = (item: any) => {
     return newItem;
 };
 
+// ... (Rest of the file remains exactly the same, this is just injecting the helper at the top level exports)
 const fromDb = (item: any) => {
     const newItem: any = {};
     Object.keys(item).forEach(key => {
@@ -54,7 +88,6 @@ const fromDb = (item: any) => {
     return newItem;
 };
 
-// ... MAPPING CONSTANTS ...
 export const DB_MAP: Record<string, string> = {
     SCHOOLS: 'schools',
     USERS: 'system_users',
