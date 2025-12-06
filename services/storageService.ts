@@ -555,6 +555,8 @@ CREATE TABLE IF NOT EXISTS students (
     parent_phone TEXT,
     parent_email TEXT,
     seat_index NUMERIC,
+    school_id TEXT,
+    created_by_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -677,6 +679,7 @@ CREATE TABLE IF NOT EXISTS lesson_links (
     id TEXT PRIMARY KEY,
     title TEXT,
     url TEXT,
+    teacher_id TEXT,
     created_at TEXT
 );
 
@@ -716,6 +719,13 @@ ALTER TABLE system_users ADD COLUMN IF NOT EXISTS national_id TEXT;
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS password TEXT;
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'FREE';
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_end_date TEXT;
+
+-- Fix for Students (Strict Isolation)
+ALTER TABLE students ADD COLUMN IF NOT EXISTS created_by_id TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id TEXT;
+
+-- Fix for Lesson Links
+ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS teacher_id TEXT;
 
 -- Reload Schema Cache (Important for PostgREST)
 NOTIFY pgrst, 'reload config';

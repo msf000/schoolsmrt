@@ -154,22 +154,25 @@ const App: React.FC = () => {
     const allAttendance = getAttendance();
     const allPerformance = getPerformance();
 
+    if (!userContext) return;
+
     // 1. SUPER ADMIN sees everything
-    if (!userContext || userContext.role === 'SUPER_ADMIN') {
+    if (userContext.role === 'SUPER_ADMIN') {
         setStudents(allStudents);
         setAttendance(allAttendance);
         setPerformance(allPerformance);
         return;
     }
 
-    // 2. SCHOOL MANAGER / TEACHER / STUDENT - Filter by School ID
+    // 2. SCHOOL MANAGER - Filter by School ID
     let filteredStudents = allStudents;
 
-    if (userContext.schoolId) {
+    if (userContext.role === 'SCHOOL_MANAGER' && userContext.schoolId) {
         filteredStudents = allStudents.filter(s => s.schoolId === userContext.schoolId);
-    } else if (userContext.role === 'TEACHER') {
-        // Fallback for standalone teachers without schoolId yet (legacy/local mode)
-        filteredStudents = allStudents;
+    } 
+    // 3. TEACHER - Strict Isolation: Only show students created by this teacher
+    else if (userContext.role === 'TEACHER') {
+        filteredStudents = allStudents.filter(s => s.createdById === userContext.id);
     }
 
     // Filter dependent records based on filtered students
@@ -183,9 +186,10 @@ const App: React.FC = () => {
   };
 
   const handleAddStudent = async (s: Student) => { 
-      // Ensure strict linking: Always attach current user's schoolId
-      if (currentUser?.schoolId) {
+      // Ensure strict linking: Always attach current user's schoolId AND ID
+      if (currentUser) {
           s.schoolId = currentUser.schoolId;
+          s.createdById = currentUser.id; // STRICT ISOLATION
       }
       await addStudent(s); 
       refreshData(currentUser); 
@@ -197,11 +201,11 @@ const App: React.FC = () => {
   };
   
   const handleBulkAddStudents = async (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
-    // Inject school ID into bulk imported students
-    const schoolId = currentUser?.schoolId;
+    // Inject IDs into bulk imported students
     const secureList = list.map(s => ({
         ...s,
-        schoolId: s.schoolId || schoolId // Use existing or inject current
+        schoolId: s.schoolId || currentUser?.schoolId,
+        createdById: s.createdById || currentUser?.id // Inject Creator ID
     }));
 
     if (matchKey && strategy) await bulkUpsertStudents(secureList, matchKey, strategy, updateFields || []);

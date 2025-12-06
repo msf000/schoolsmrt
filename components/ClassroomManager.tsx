@@ -278,7 +278,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
                             {/* Column 2 */}
                             <div className="space-y-6">
-                                <LessonLibraryWidget />
+                                <LessonLibraryWidget currentUser={currentUser} />
                                 <QuickPollWidget />
                                 <SoundBoardWidget />
                             </div>
@@ -356,15 +356,23 @@ const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: Attenda
 };
 
 // --- Widget: Lesson Library (Replacement for simple Presentation Link) ---
-const LessonLibraryWidget: React.FC = () => {
+const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ currentUser }) => {
     const [links, setLinks] = useState<LessonLink[]>([]);
     const [newTitle, setNewTitle] = useState('');
     const [newUrl, setNewUrl] = useState('');
     const [showForm, setShowForm] = useState(false);
 
     useEffect(() => {
+        // Load all links initially, filtering is done in render or load if preferred
         setLinks(getLessonLinks());
     }, []);
+
+    const filteredLinks = useMemo(() => {
+        if (!currentUser) return links;
+        if (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'SCHOOL_MANAGER') return links;
+        // Strict isolation for Teachers
+        return links.filter(l => l.teacherId === currentUser.id);
+    }, [links, currentUser]);
 
     const handleSave = () => {
         if (!newTitle || !newUrl) return;
@@ -382,6 +390,7 @@ const LessonLibraryWidget: React.FC = () => {
             id: Date.now().toString(),
             title: newTitle,
             url: cleanUrl,
+            teacherId: currentUser?.id, // Link to creator
             createdAt: new Date().toISOString()
         };
 
@@ -437,7 +446,7 @@ const LessonLibraryWidget: React.FC = () => {
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                    {links.length > 0 ? links.map(link => (
+                    {filteredLinks.length > 0 ? filteredLinks.map(link => (
                         <div key={link.id} className="flex items-center justify-between p-2 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 group transition-colors">
                             <div className="flex items-center gap-2 overflow-hidden">
                                 <div className="bg-indigo-100 p-1.5 rounded text-indigo-600 flex-shrink-0">

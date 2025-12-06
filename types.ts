@@ -22,7 +22,8 @@ export interface Student {
   nationalId?: string; // New: National ID / Identity Number
   password?: string; // New: Student Login Password
   classId?: string; // Link to ClassRoom
-  schoolId?: string; // NEW: Link to School for strict isolation
+  schoolId?: string; // Link to School
+  createdById?: string; // NEW: Strict link to the Teacher who added this student
   // Denormalized fields for easier display if class is deleted, or for imports
   gradeLevel?: string; 
   className?: string;
@@ -234,6 +235,7 @@ export interface LessonLink {
     id: string;
     title: string;
     url: string;
+    teacherId?: string; // NEW: Link to the teacher who created it
     createdAt: string;
 }
 
