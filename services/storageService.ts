@@ -39,6 +39,9 @@ const CACHE: any = {
 const toDb = (item: any) => {
     const newItem: any = {};
     Object.keys(item).forEach(key => {
+        // Skip undefined values to allow DB defaults or avoid errors
+        if (item[key] === undefined) return;
+        
         const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         newItem[dbKey] = item[key];
     });
@@ -114,8 +117,9 @@ const addToCloud = async (table: string, item: any, cacheKey: string) => {
     const dbItem = toDb(item);
     const { error } = await supabase.from(table).upsert(dbItem);
     if (error) {
-        console.error(`Error adding to ${table}:`, error);
-        throw error;
+        // IMPROVED LOGGING: Stringify the error object
+        console.error(`Error adding to ${table}:`, JSON.stringify(error, null, 2));
+        throw new Error(`Cloud Error (${table}): ${error.message || JSON.stringify(error)}`);
     }
 };
 
@@ -133,7 +137,10 @@ const updateInCloud = async (table: string, item: any, cacheKey: string) => {
     // 2. Send to Cloud
     const dbItem = toDb(item);
     const { error } = await supabase.from(table).upsert(dbItem);
-    if (error) throw error;
+    if (error) {
+        console.error(`Error updating ${table}:`, JSON.stringify(error, null, 2));
+        throw new Error(`Cloud Update Error: ${error.message}`);
+    }
 };
 
 const deleteFromCloud = async (table: string, id: string, cacheKey: string) => {
@@ -143,7 +150,10 @@ const deleteFromCloud = async (table: string, id: string, cacheKey: string) => {
     }
     // 2. Send to Cloud
     const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) throw error;
+    if (error) {
+        console.error(`Error deleting from ${table}:`, JSON.stringify(error, null, 2));
+        throw new Error(`Cloud Delete Error: ${error.message}`);
+    }
 };
 
 // --- Students ---
