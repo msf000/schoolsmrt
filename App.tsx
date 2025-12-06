@@ -156,7 +156,7 @@ const App: React.FC = () => {
   const handleAddStudent = (s: Student) => { addStudent(s); refreshData(); };
   const handleUpdateStudent = (s: Student) => { updateStudent(s); refreshData(); };
   const handleBulkAddStudents = (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
-    if (matchKey && strategy) bulkUpsertStudents(list, matchKey, strategy, updateFields);
+    if (matchKey && strategy) bulkUpsertStudents(list, matchKey, strategy, updateFields || []);
     else bulkAddStudents(list);
     refreshData();
   };

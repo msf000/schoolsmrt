@@ -277,16 +277,22 @@ export const getCloudStatistics = async () => {
 };
 
 export const fetchCloudTableData = async (table: string) => {
-    const { data } = await supabase.from(table).select('*').limit(100);
+    const { data, error } = await supabase.from(table).select('*').limit(100);
+    if(error) throw error;
     return data;
 };
 
 export const clearCloudTable = async (table: string) => {
+    // Note: Supabase policy must allow delete
     await supabase.from(table).delete().neq('id', '0');
 };
 
 export const resetCloudDatabase = async () => {
     // Dangerous operation
+    // Iterating all tables and clearing them
+    for(const table of Object.values(DB_MAP)) {
+        await clearCloudTable(table);
+    }
 };
 
 // --- Backup ---
@@ -306,22 +312,76 @@ export const restoreBackup = (json: string) => {
     }
 };
 
+// --- NEW: Cloud Backup & Restore ---
+export const backupCloudDatabase = async (): Promise<string> => {
+    const backup: Record<string, any[]> = {};
+    for (const table of Object.values(DB_MAP)) {
+        const { data, error } = await supabase.from(table).select('*');
+        if(!error && data) {
+            backup[table] = data;
+        }
+    }
+    return JSON.stringify(backup);
+};
+
+export const restoreCloudDatabase = async (jsonString: string) => {
+    try {
+        const data = JSON.parse(jsonString);
+        for (const table of Object.keys(data)) {
+            const rows = data[table];
+            if(Array.isArray(rows) && rows.length > 0) {
+                // Upsert in chunks to avoid payload limits
+                const chunkSize = 100;
+                for (let i = 0; i < rows.length; i += chunkSize) {
+                    const chunk = rows.slice(i, i + chunkSize);
+                    await supabase.from(table).upsert(chunk);
+                }
+            }
+        }
+        return true;
+    } catch (e) {
+        console.error(e);
+        throw new Error('فشل استعادة النسخة السحابية. تأكد من صحة الملف والاتصال.');
+    }
+};
+
 export const clearDatabase = () => {
     localStorage.clear();
 };
 
 // --- Constants ---
+// Updated to include ALL tables
 export const DB_MAP: Record<string, string> = {
     SCHOOLS: 'schools',
     USERS: 'system_users',
-    STUDENTS: 'students',
     TEACHERS: 'teachers',
+    STUDENTS: 'students',
+    SUBJECTS: 'subjects',
     ATTENDANCE: 'attendance_records',
-    PERFORMANCE: 'performance_records'
+    PERFORMANCE: 'performance_records',
+    ASSIGNMENTS: 'assignments',
+    SCHEDULES: 'weekly_schedules',
+    TEACHER_ASSIGNMENTS: 'teacher_assignments',
+    PARENTS: 'parents',
+    MESSAGES: 'messages'
 };
 
 export const getTableDisplayName = (table: string) => {
-    return table;
+    const names: Record<string, string> = {
+        schools: 'المدارس (Schools)',
+        system_users: 'المستخدمين (System Users)',
+        teachers: 'المعلمين (Teachers)',
+        students: 'الطلاب (Students)',
+        subjects: 'المواد (Subjects)',
+        attendance_records: 'سجل الحضور (Attendance)',
+        performance_records: 'سجل الدرجات (Performance)',
+        assignments: 'تعريف الأعمدة (Assignments)',
+        weekly_schedules: 'الجدول الأسبوعي (Schedule)',
+        teacher_assignments: 'توزيع المعلمين (Assignments)',
+        parents: 'أولياء الأمور (Parents)',
+        messages: 'سجل الرسائل (Messages)'
+    };
+    return names[table] || table;
 };
 
 // --- SQL Helpers ---

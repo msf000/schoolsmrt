@@ -9,7 +9,8 @@ import {
     DB_MAP, getTableDisplayName,
     getDatabaseSchemaSQL, getDatabaseUpdateSQL,
     clearCloudTable, resetCloudDatabase,
-    getAISettings, saveAISettings
+    getAISettings, saveAISettings,
+    backupCloudDatabase, restoreCloudDatabase
 } from '../services/storageService';
 import { updateSupabaseConfig } from '../services/supabaseClient';
 import { School, SystemUser, AISettings } from '../types';
@@ -17,7 +18,7 @@ import {
     Shield, Building, Users, CreditCard, Settings, Database, 
     Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
     CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
-    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server
+    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson
 } from 'lucide-react';
 
 // ==========================================
@@ -626,6 +627,44 @@ const DatabaseSettings = () => {
         }
     };
 
+    const handleCloudBackup = async () => {
+        setCloudLoading(true);
+        try {
+            const json = await backupCloudDatabase();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cloud_backup_${new Date().toISOString()}.json`;
+            a.click();
+        } catch(e:any) {
+            alert(e.message);
+        } finally {
+            setCloudLoading(false);
+        }
+    };
+
+    const handleCloudRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if(!file) return;
+        if(!confirm('تحذير: سيتم استعادة البيانات إلى السحابة ودمجها. تأكد من الملف.')) return;
+
+        setCloudLoading(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const json = event.target?.result as string;
+                await restoreCloudDatabase(json);
+                alert('تمت استعادة النسخة السحابية بنجاح!');
+            } catch(e:any) {
+                alert(e.message);
+            } finally {
+                setCloudLoading(false);
+            }
+        };
+        reader.readAsText(file);
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex gap-4 border-b border-gray-200 pb-2">
@@ -765,6 +804,8 @@ const DatabaseSettings = () => {
                         <h4 className="font-bold text-lg mb-2 flex items-center gap-2"><Code size={20} className="text-yellow-400"/> إعداد قاعدة البيانات بالكامل (Full Schema)</h4>
                         <p className="text-gray-400 text-sm mb-4">
                             استخدم هذا الكود عند إعداد قاعدة بيانات <b>جديدة وفارغة</b> لأول مرة.
+                            <br/>
+                            <span className="text-yellow-300 font-bold">* تنبيه: لا يمكن تنفيذ أوامر "إنشاء الجداول" مباشرة من هنا لأسباب أمنية. انسخ الكود ونفذه في لوحة تحكم Supabase.</span>
                         </p>
                         
                         <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-green-400 overflow-x-auto h-32 mb-4 relative border border-gray-700">
@@ -773,6 +814,25 @@ const DatabaseSettings = () => {
                         <button onClick={handleCopySQL} className="bg-white text-gray-900 px-4 py-2 rounded font-bold text-sm hover:bg-gray-200 flex items-center gap-2">
                             <Copy size={16}/> نسخ الكود الكامل
                         </button>
+                    </div>
+
+                    {/* Cloud Backup/Restore */}
+                    <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                        <h4 className="font-bold text-indigo-800 mb-4 flex items-center gap-2"><CloudLightning size={18}/> النسخ الاحتياطي السحابي</h4>
+                        <p className="text-xs text-indigo-600 mb-4">تحميل نسخة كاملة من بيانات السحابة (JSON) أو استعادتها.</p>
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={handleCloudBackup} 
+                                disabled={cloudLoading}
+                                className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
+                            >
+                                <Download size={18}/> {cloudLoading ? 'جاري التحميل...' : 'تحميل نسخة سحابية'}
+                            </button>
+                            <label className="bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg font-bold hover:bg-indigo-50 flex items-center gap-2 cursor-pointer">
+                                <Upload size={18}/> استعادة نسخة سحابية
+                                <input type="file" className="hidden" accept=".json" onChange={handleCloudRestore} disabled={cloudLoading} />
+                            </label>
+                        </div>
                     </div>
 
                     <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
@@ -789,7 +849,7 @@ const DatabaseSettings = () => {
                             }} 
                             className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2"
                         >
-                            <Download size={18}/> تحميل نسخة كاملة
+                            <FileJson size={18}/> تحميل نسخة محلية
                         </button>
                     </div>
 
