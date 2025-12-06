@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus } from '../types';
 import { getMessages, saveMessage } from '../services/storageService';
-import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X } from 'lucide-react';
+import { generateParentMessage } from '../services/geminiService';
+import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface MessageCenterProps {
@@ -28,6 +29,11 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
     const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
     const [messageText, setMessageText] = useState('');
     const [previewMessage, setPreviewMessage] = useState('');
+
+    // AI Generation State
+    const [isAiGenerating, setIsAiGenerating] = useState(false);
+    const [aiTopic, setAiTopic] = useState('');
+    const [aiTone, setAiTone] = useState<'OFFICIAL' | 'FRIENDLY' | 'URGENT'>('OFFICIAL');
 
     // Smart Triggers State
     const [triggerType, setTriggerType] = useState<'ABSENT_TODAY' | 'LOW_ATTENDANCE' | 'HIGH_PERFORMANCE'>('ABSENT_TODAY');
@@ -86,7 +92,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
 
     const handleSelectTemplate = (text: string) => {
         setMessageText(text);
-        updatePreview(text, students[0]); // Preview with first student just as example
+        updatePreview(text, filteredStudents[0]); 
     };
 
     const updatePreview = (text: string, student?: Student) => {
@@ -150,6 +156,31 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         if (selectedStudents.size === filteredStudents.length) setSelectedStudents(new Set());
         else setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
     }
+
+    // --- AI Generation Logic ---
+    const handleAiGenerate = async () => {
+        if (!aiTopic) return;
+        setIsAiGenerating(true);
+        // Use the first selected student name as context, or generic "الطالب" if none selected
+        const studentName = selectedStudents.size > 0 
+            ? filteredStudents.find(s => s.id === Array.from(selectedStudents)[0])?.name || "{اسم_الطالب}"
+            : "{اسم_الطالب}";
+            
+        try {
+            const result = await generateParentMessage(studentName, aiTopic, aiTone);
+            // Replace specific name back to placeholder if multiple selected
+            const generalized = selectedStudents.size > 1 
+                ? result.replace(studentName, "{اسم_الطالب}") 
+                : result;
+                
+            setMessageText(generalized);
+            updatePreview(generalized, filteredStudents[0]);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsAiGenerating(false);
+        }
+    };
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
@@ -291,11 +322,44 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                         </button>
                                     ))}
                                 </div>
+                                
+                                {/* AI Compose Section */}
+                                <div className="bg-purple-50 p-3 rounded-lg border border-purple-200 mb-3 animate-fade-in">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-bold text-purple-800 flex items-center gap-1"><Bot size={12}/> صياغة ذكية (AI)</span>
+                                        <span className="text-[10px] text-purple-600">تعتمد على شخصية النظام</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            className="flex-1 p-1.5 text-xs border rounded outline-none" 
+                                            placeholder="موضوع الرسالة (مثال: شغب، تأخر...)"
+                                            value={aiTopic}
+                                            onChange={e => setAiTopic(e.target.value)}
+                                        />
+                                        <select 
+                                            className="p-1.5 text-xs border rounded bg-white"
+                                            value={aiTone}
+                                            onChange={(e) => setAiTone(e.target.value as any)}
+                                        >
+                                            <option value="OFFICIAL">رسمي</option>
+                                            <option value="FRIENDLY">ودي</option>
+                                            <option value="URGENT">حازم</option>
+                                        </select>
+                                        <button 
+                                            onClick={handleAiGenerate}
+                                            disabled={isAiGenerating || !aiTopic}
+                                            className="bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-purple-700 flex items-center gap-1 disabled:opacity-50"
+                                        >
+                                            {isAiGenerating ? <Loader2 className="animate-spin" size={12}/> : <Sparkles size={12}/>} صياغة
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <textarea 
                                     className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-teal-500 outline-none text-sm"
                                     placeholder="اكتب نص الرسالة هنا... استخدم {اسم_الطالب} كمتغير"
                                     value={messageText}
-                                    onChange={e => { setMessageText(e.target.value); updatePreview(e.target.value, students[0]); }}
+                                    onChange={e => { setMessageText(e.target.value); updatePreview(e.target.value, filteredStudents[0]); }}
                                 />
                                 <div className="mt-2 text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-100">
                                     <b>متغيرات ذكية:</b> {`{اسم_الطالب}`} سيتم استبداله تلقائياً.
@@ -306,7 +370,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                 <button 
                                     disabled={selectedStudents.size === 0 || !messageText}
                                     onClick={() => {
-                                        const targets = students.filter(s => selectedStudents.has(s.id));
+                                        const targets = filteredStudents.filter(s => selectedStudents.has(s.id));
                                         targets.forEach(s => handleSendMessage(s, messageText, 'WHATSAPP'));
                                     }}
                                     className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 flex justify-center items-center gap-2 disabled:opacity-50 shadow-md"

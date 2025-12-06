@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord } from '../types';
+import { Student, PerformanceRecord, PerformanceCategory } from '../types';
 import { formatDualDate } from '../services/dateService';
 import { PlusCircle, FileText, Check, FileSpreadsheet, Filter } from 'lucide-react';
 import DataImport from './DataImport';
@@ -18,6 +19,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [score, setScore] = useState('');
   const [maxScore, setMaxScore] = useState('20');
   const [notes, setNotes] = useState('');
+  const [category, setCategory] = useState<PerformanceCategory>('OTHER');
   const [isSuccess, setIsSuccess] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
@@ -67,7 +69,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       maxScore: Number(maxScore),
       date: new Date().toISOString().split('T')[0],
       notes,
-      category: 'OTHER' // Default for manual single entry
+      category: category 
     };
 
     onAddPerformance(record);
@@ -166,6 +168,22 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                 </select>
                 </div>
                 <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">تصنيف التقييم</label>
+                <select 
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none bg-white"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as PerformanceCategory)}
+                >
+                    <option value="OTHER">عام / مشاركة</option>
+                    <option value="ACTIVITY">نشاط</option>
+                    <option value="HOMEWORK">واجب</option>
+                    <option value="PLATFORM_EXAM">اختبار منصة</option>
+                </select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">عنوان التقييم</label>
                 <input 
                     type="text" 
@@ -176,28 +194,24 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                     required
                 />
                 </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
                 <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">الدرجة المستحقة</label>
-                <input 
-                    type="number" 
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
-                    value={score}
-                    onChange={(e) => setScore(e.target.value)}
-                    required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">الدرجة (من {maxScore})</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="number" 
+                        className="w-2/3 p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                        value={score}
+                        onChange={(e) => setScore(e.target.value)}
+                        required
+                    />
+                    <input 
+                        type="number" 
+                        className="w-1/3 p-2 border rounded-lg text-center bg-gray-50 text-gray-500"
+                        value={maxScore}
+                        onChange={(e) => setMaxScore(e.target.value)}
+                        placeholder="العظمى"
+                    />
                 </div>
-                <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">من أصل</label>
-                <input 
-                    type="number" 
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
-                    value={maxScore}
-                    onChange={(e) => setMaxScore(e.target.value)}
-                    required
-                />
                 </div>
             </div>
 

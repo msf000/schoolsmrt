@@ -1,5 +1,5 @@
 
-import { Student, AttendanceRecord, PerformanceRecord, School, SystemUser, Teacher, Parent, Subject, ScheduleItem, ReportHeaderConfig, CustomTable, Assignment, MessageLog, TeacherAssignment, LessonLink } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, School, SystemUser, Teacher, Parent, Subject, ScheduleItem, ReportHeaderConfig, CustomTable, Assignment, MessageLog, TeacherAssignment, LessonLink, AISettings, Feedback } from '../types';
 import { supabase } from './supabaseClient';
 
 const BASE_KEYS = {
@@ -18,7 +18,9 @@ const BASE_KEYS = {
   MESSAGES: 'messages',
   TEACHER_ASSIGNMENTS: 'teacher_assignments',
   WORKS_MASTER_URL: 'works_master_url',
-  LESSON_LINKS: 'lesson_links'
+  LESSON_LINKS: 'lesson_links',
+  AI_SETTINGS: 'ai_settings',
+  FEEDBACK: 'feedback'
 };
 
 // Internal Cache
@@ -36,20 +38,39 @@ let _assignments: Assignment[] = [];
 let _messages: MessageLog[] = [];
 let _teacherAssignments: TeacherAssignment[] = [];
 let _lessonLinks: LessonLink[] = [];
-let _reportConfig: ReportHeaderConfig = { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' };
+let _feedback: Feedback[] = [];
+let _reportConfig: ReportHeaderConfig = { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '1447هـ', term: '' };
 let _worksMasterUrl: string = '';
+let _aiSettings: AISettings = {
+    modelId: 'gemini-2.5-flash',
+    temperature: 0.7,
+    enableReports: true,
+    enableQuiz: true,
+    enablePlanning: true,
+    systemInstruction: 'أنت مساعد تعليمي خبير في المناهج السعودية (1447هـ). استخدم لغة عربية تربوية واضحة.'
+};
 
 let isDemoMode = false;
 
 // Helpers
 const saveLocal = (key: string, data: any) => {
   if (isDemoMode) return; // Don't save to LS in demo mode (optional, but good for separation)
-  localStorage.setItem(key, JSON.stringify(data));
+  try {
+      localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+      console.error("Error saving to localStorage (Quota might be exceeded):", e);
+  }
 };
 
 const loadLocal = <T>(key: string, defaultVal: T): T => {
   const saved = localStorage.getItem(key);
-  return saved ? JSON.parse(saved) : defaultVal;
+  if (!saved) return defaultVal;
+  try {
+      return JSON.parse(saved);
+  } catch (e) {
+      console.error(`Error parsing data for key ${key}:`, e);
+      return defaultVal;
+  }
 };
 
 // --- Cloud Sync (Supabase) ---
@@ -123,6 +144,20 @@ export const uploadToSupabase = async () => {
     await uploadTable(BASE_KEYS.MESSAGES, _messages);
 };
 
+// --- NEW: Clear Cloud Data ---
+export const clearCloudTable = async (tableName: string) => {
+    // Delete all records where ID is not '00000' (effectively all, assuming IDs are real strings)
+    const { error } = await supabase.from(tableName).delete().neq('id', '00000');
+    if (error) throw new Error(`Failed to clear table ${tableName}: ${error.message}`);
+};
+
+export const resetCloudDatabase = async () => {
+    const tables = Object.values(DB_MAP);
+    for (const table of tables) {
+        await clearCloudTable(table);
+    }
+};
+
 // --- Initialization ---
 export const initAutoSync = async () => {
   _students = loadLocal(BASE_KEYS.STUDENTS, []);
@@ -139,8 +174,10 @@ export const initAutoSync = async () => {
   _messages = loadLocal(BASE_KEYS.MESSAGES, []);
   _teacherAssignments = loadLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, []);
   _lessonLinks = loadLocal(BASE_KEYS.LESSON_LINKS, []);
-  _reportConfig = loadLocal(BASE_KEYS.CONFIG, { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' });
+  _feedback = loadLocal(BASE_KEYS.FEEDBACK, []);
+  _reportConfig = loadLocal(BASE_KEYS.CONFIG, { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '1447هـ', term: '' });
   _worksMasterUrl = loadLocal(BASE_KEYS.WORKS_MASTER_URL, '');
+  _aiSettings = loadLocal(BASE_KEYS.AI_SETTINGS, _aiSettings);
   
   // Try simple cloud pull if configured
   const hasCloudConfig = !isDemoMode && (localStorage.getItem('custom_supabase_url') || (process.env.SUPABASE_URL && process.env.SUPABASE_URL.length > 5));
@@ -159,17 +196,67 @@ export const initAutoSync = async () => {
 export const setSystemMode = (isDemo: boolean) => {
     isDemoMode = isDemo;
     if (isDemo) {
-        // Seed Fake Data
+        // Seed Fake Data with Hierarchy
+        const managerId = 'manager_1';
+        const teacherId = 'teacher_1';
+        const schoolId = 'school_1';
+
+        _schools = [{ 
+            id: schoolId, 
+            name: 'مدرسة المستقبل النموذجية', 
+            ministryCode: '12345',
+            managerName: 'أ. محمد المدير',
+            managerNationalId: '1000000001',
+            type: 'PRIVATE',
+            phone: '0112223333',
+            studentCount: 500,
+            subscriptionStatus: 'ACTIVE'
+        }];
+
+        _systemUsers = [
+            { id: managerId, name: 'أ. محمد المدير', email: 'manager@demo.com', nationalId: '1000000001', role: 'SCHOOL_MANAGER', status: 'ACTIVE', schoolId: schoolId },
+            { id: teacherId, name: 'أ. خالد المعلم', email: 'teacher@demo.com', nationalId: '1000000002', role: 'TEACHER', status: 'ACTIVE', schoolId: schoolId }
+        ];
+
+        // Explicit Teacher Record linked to Manager
+        _teachers = [{
+            id: teacherId,
+            name: 'أ. خالد المعلم',
+            nationalId: '1000000002',
+            password: '0002', // Last 4 digits logic demo
+            email: 'teacher@demo.com',
+            schoolId: schoolId,
+            managerId: '1000000001' // Link to Manager NID
+        }];
+
+        // Feedback Demo
+        _feedback = [{
+            id: 'fb_1',
+            teacherId: teacherId,
+            managerId: managerId,
+            content: 'شكراً لجهودك، نرجو التركيز على متابعة الغياب.',
+            date: new Date().toISOString(),
+            isRead: false
+        }];
+
         _students = [
-            { id: '1', name: 'أحمد محمد', className: '1/A', gradeLevel: 'First Grade', nationalId: '1010101010' },
-            { id: '2', name: 'سارة علي', className: '1/A', gradeLevel: 'First Grade', nationalId: '1020202020' }
+            { id: '1', name: 'أحمد محمد القحطاني', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1010101010' },
+            { id: '2', name: 'سارة علي الحربي', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1020202020' },
+            { id: '3', name: 'خالد عبدالله الشهري', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1030303030' },
+            { id: '4', name: 'نورة فهد السبيعي', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1040404040' }
         ];
         _attendance = [];
         _performance = [];
-        _systemUsers = [
-            { id: 'd1', name: 'Manager Demo', email: 'manager@demo.com', role: 'SCHOOL_MANAGER', status: 'ACTIVE' },
-            { id: 'd2', name: 'Teacher Demo', email: 'teacher@demo.com', role: 'TEACHER', status: 'ACTIVE' }
+        
+        // Add Earth & Space Subject
+        _subjects = [{ id: 'sub_earth_1', name: 'علوم الأرض والفضاء' }];
+        
+        const timestamp = Date.now();
+        _assignments = [
+            { id: `es_exam_1_${timestamp}`, title: 'اختبار: تطور الكون', category: 'PLATFORM_EXAM', maxScore: 20, isVisible: true, orderIndex: 1 },
+            { id: `es_act_1_${timestamp}`, title: 'بحث: نشأة الكون', category: 'ACTIVITY', maxScore: 5, isVisible: true, orderIndex: 1 },
         ];
+
     } else {
         // Reload real data
         initAutoSync();
@@ -233,7 +320,13 @@ export const bulkAddPerformance = (list: PerformanceRecord[]) => { _performance 
 
 // --- Teachers ---
 export const getTeachers = () => _teachers;
-export const addTeacher = (t: Teacher) => { _teachers.push(t); saveLocal(BASE_KEYS.TEACHERS, _teachers); };
+export const addTeacher = (t: Teacher) => { 
+    // Ensure uniqueness by ID
+    if (!_teachers.find(exist => exist.id === t.id)) {
+        _teachers.push(t); 
+        saveLocal(BASE_KEYS.TEACHERS, _teachers); 
+    }
+};
 export const updateTeacher = (t: Teacher) => { _teachers = _teachers.map(x => x.id === t.id ? t : x); saveLocal(BASE_KEYS.TEACHERS, _teachers); };
 export const deleteTeacher = (id: string) => { _teachers = _teachers.filter(x => x.id !== id); saveLocal(BASE_KEYS.TEACHERS, _teachers); };
 
@@ -274,6 +367,7 @@ export const deleteScheduleItem = (id: string) => { _schedules = _schedules.filt
 // --- Schools ---
 export const getSchools = () => _schools;
 export const addSchool = (s: School) => { _schools.push(s); saveLocal(BASE_KEYS.SCHOOLS, _schools); };
+export const updateSchool = (s: School) => { _schools = _schools.map(x => x.id === s.id ? s : x); saveLocal(BASE_KEYS.SCHOOLS, _schools); };
 export const deleteSchool = (id: string) => { _schools = _schools.filter(x => x.id !== id); saveLocal(BASE_KEYS.SCHOOLS, _schools); };
 
 // --- System Users ---
@@ -282,12 +376,24 @@ export const addSystemUser = (u: SystemUser) => { _systemUsers.push(u); saveLoca
 export const updateSystemUser = (u: SystemUser) => { _systemUsers = _systemUsers.map(x => x.id === u.id ? u : x); saveLocal(BASE_KEYS.SYSTEM_USERS, _systemUsers); };
 export const deleteSystemUser = (id: string) => { _systemUsers = _systemUsers.filter(x => x.id !== id); saveLocal(BASE_KEYS.SYSTEM_USERS, _systemUsers); };
 
+// --- Feedback (NEW) ---
+export const getFeedback = () => _feedback;
+export const addFeedback = (f: Feedback) => { _feedback.push(f); saveLocal(BASE_KEYS.FEEDBACK, _feedback); };
+export const markFeedbackRead = (id: string) => { 
+    _feedback = _feedback.map(f => f.id === id ? { ...f, isRead: true } : f); 
+    saveLocal(BASE_KEYS.FEEDBACK, _feedback); 
+};
+
 // --- Config ---
 export const getReportHeaderConfig = () => _reportConfig;
 export const saveReportHeaderConfig = (c: ReportHeaderConfig) => { _reportConfig = c; saveLocal(BASE_KEYS.CONFIG, _reportConfig); };
 
 export const getWorksMasterUrl = () => _worksMasterUrl;
 export const saveWorksMasterUrl = (url: string) => { _worksMasterUrl = url; saveLocal(BASE_KEYS.WORKS_MASTER_URL, _worksMasterUrl); };
+
+// --- AI Settings (NEW) ---
+export const getAISettings = () => _aiSettings;
+export const saveAISettings = (settings: AISettings) => { _aiSettings = settings; saveLocal(BASE_KEYS.AI_SETTINGS, _aiSettings); };
 
 // --- Custom Tables ---
 export const getCustomTables = () => _customTables;
@@ -335,6 +441,7 @@ export const createBackup = () => {
         assignments: _assignments,
         teacherAssignments: _teacherAssignments,
         lessonLinks: _lessonLinks,
+        aiSettings: _aiSettings,
         // ... include other stores
     };
     return JSON.stringify(backup);
@@ -346,6 +453,7 @@ export const restoreBackup = (json: string) => {
         if (data.students) { _students = data.students; saveLocal(BASE_KEYS.STUDENTS, _students); }
         if (data.attendance) { _attendance = data.attendance; saveLocal(BASE_KEYS.ATTENDANCE, _attendance); }
         if (data.lessonLinks) { _lessonLinks = data.lessonLinks; saveLocal(BASE_KEYS.LESSON_LINKS, _lessonLinks); }
+        if (data.aiSettings) { _aiSettings = data.aiSettings; saveLocal(BASE_KEYS.AI_SETTINGS, _aiSettings); }
         // ... restore others
         initAutoSync();
         return true;
@@ -396,4 +504,163 @@ export const fetchCloudTableData = async (table: string) => {
     const { data, error } = await supabase.from(table).select('*').limit(50);
     if(error) throw error;
     return data;
+};
+
+// --- SQL Schema Helper for Admin ---
+export const getDatabaseSchemaSQL = () => {
+    return `
+-- 1. Schools Table
+CREATE TABLE IF NOT EXISTS schools (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    ministry_code TEXT,
+    manager_name TEXT,
+    manager_national_id TEXT,
+    type TEXT,
+    phone TEXT,
+    student_count NUMERIC,
+    subscription_status TEXT,
+    works_master_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2. System Users Table
+CREATE TABLE IF NOT EXISTS system_users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    national_id TEXT,
+    password TEXT,
+    role TEXT NOT NULL,
+    school_id TEXT REFERENCES schools(id),
+    status TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3. Teachers Table (Expanded details)
+CREATE TABLE IF NOT EXISTS teachers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT,
+    password TEXT,
+    email TEXT,
+    phone TEXT,
+    subject_specialty TEXT,
+    school_id TEXT REFERENCES schools(id),
+    manager_id TEXT, -- Link to Manager NID
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. Students Table
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT,
+    grade_level TEXT,
+    class_name TEXT,
+    email TEXT,
+    phone TEXT,
+    parent_name TEXT,
+    parent_phone TEXT,
+    parent_email TEXT,
+    seat_index NUMERIC,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. Subjects Table
+CREATE TABLE IF NOT EXISTS subjects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. Assignments (Columns Config)
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    max_score NUMERIC,
+    url TEXT,
+    is_visible BOOLEAN DEFAULT TRUE,
+    order_index NUMERIC,
+    source_metadata TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 7. Performance Records (Grades)
+CREATE TABLE IF NOT EXISTS performance_records (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL REFERENCES students(id),
+    subject TEXT,
+    title TEXT,
+    category TEXT,
+    score NUMERIC,
+    max_score NUMERIC,
+    date TEXT, -- YYYY-MM-DD
+    notes TEXT,
+    url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 8. Attendance Records
+CREATE TABLE IF NOT EXISTS attendance_records (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL REFERENCES students(id),
+    date TEXT, -- YYYY-MM-DD
+    status TEXT, -- PRESENT, ABSENT, etc.
+    subject TEXT,
+    period NUMERIC,
+    behavior_status TEXT,
+    behavior_note TEXT,
+    excuse_note TEXT,
+    excuse_file TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 9. Weekly Schedules
+CREATE TABLE IF NOT EXISTS weekly_schedules (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    day TEXT,
+    period NUMERIC,
+    subject_name TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 10. Teacher Assignments (Mapping Class/Subject to Teacher)
+CREATE TABLE IF NOT EXISTS teacher_assignments (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    subject_name TEXT,
+    teacher_id TEXT REFERENCES teachers(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 11. Parents Table
+CREATE TABLE IF NOT EXISTS parents (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    phone TEXT,
+    children_ids TEXT[], -- Array of Student IDs
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 12. Messages Log
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    student_id TEXT,
+    student_name TEXT,
+    parent_phone TEXT,
+    type TEXT,
+    content TEXT,
+    status TEXT,
+    sent_by TEXT,
+    date TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ENABLE RLS (Row Level Security) - Optional but recommended
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+-- Add policies as needed...
+`;
 };

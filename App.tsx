@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase, isSystemDemo } from './services/storageService';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase, uploadToSupabase, isSystemDemo } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
 import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, Assignment } from './types';
 import Dashboard from './components/Dashboard';
@@ -76,33 +76,24 @@ const App: React.FC = () => {
         await initAutoSync();
         refreshData();
         setIsLoading(false);
-        setTimeout(() => syncWorksDataBackground(), 2000);
+        // Initial quick sync
+        if (!isSystemDemo()) {
+             handleForceSync(true); 
+        }
     };
     initialize();
 
-    const intervalId = setInterval(() => {
-        syncWorksDataBackground();
-    }, 5 * 60 * 1000);
-
-    // --- NEW: Cloud Sync Polling Interval (Every 2 minutes) ---
+    // --- NEW: Cloud Sync Polling Interval (Every 5 minutes) ---
     // Only if NOT in demo mode
     const cloudInterval = setInterval(async () => {
         if(isSystemDemo()) return;
-
-        const hasKeys = (localStorage.getItem('custom_supabase_url') && localStorage.getItem('custom_supabase_key')) || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY);
+        const hasKeys = (localStorage.getItem('custom_supabase_url') || (process.env.SUPABASE_URL));
         if(hasKeys && !isBgSyncing) {
-             try {
-                 // Fetch latest data from cloud to stay in sync with other devices
-                 await downloadFromSupabase();
-                 refreshData();
-             } catch (e) { 
-                 console.error("Cloud pull failed", e); 
-             }
+             handleForceSync(true); // Silent sync
         }
-    }, 120000); // 2 minutes
+    }, 300000); // 5 minutes
 
     return () => {
-        clearInterval(intervalId);
         clearInterval(cloudInterval);
     };
   }, []);
@@ -130,17 +121,27 @@ const App: React.FC = () => {
       setCurrentView('DASHBOARD');
   };
 
-  const syncWorksDataBackground = async () => {
-      // ... existing background sync logic ...
-      const masterUrl = getWorksMasterUrl();
-      if (!masterUrl || isBgSyncing) return;
+  // --- MANUAL / FORCE SYNC HANDLER ---
+  const handleForceSync = async (silent = false) => {
+      if (isSystemDemo()) {
+          if (!silent) alert('المزامنة غير متاحة في الوضع التجريبي.');
+          return;
+      }
+      if (isBgSyncing) return;
+      
       setIsBgSyncing(true);
       try {
-          // ... implementation kept same as before ...
-          setLastSyncTime(new Date().toLocaleTimeString('ar-EG'));
+          // 1. Push Local Changes
+          await uploadToSupabase(); 
+          // 2. Pull Remote Changes
+          await downloadFromSupabase(); 
+          
           refreshData();
-      } catch (e) {
-          console.error("Background sync failed:", e);
+          setLastSyncTime(new Date().toLocaleTimeString('ar-EG'));
+          if (!silent) alert('✅ تمت المزامنة مع قاعدة البيانات بنجاح!');
+      } catch (e: any) {
+          console.error("Sync failed:", e);
+          if (!silent) alert(`❌ فشل المزامنة: ${e.message || 'خطأ غير معروف'}`);
       } finally {
           setIsBgSyncing(false);
       }
@@ -177,8 +178,8 @@ const App: React.FC = () => {
     // System Manager ONLY
     { id: 'ADMIN_DASHBOARD', label: 'إدارة النظام (System)', icon: Server, roles: ['SUPER_ADMIN'] },
     
-    // School Manager Specific
-    { id: 'SCHOOL_MANAGEMENT', label: 'إعدادات المدرسة', icon: Settings, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER'] },
+    // School Manager & TEACHER (for Profile)
+    { id: 'SCHOOL_MANAGEMENT', label: 'الإعدادات / الملف', icon: Settings, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
     
     // Teachers & School Managers
     { id: 'CLASSROOM_MANAGEMENT', label: 'الإدارة الصفية', icon: LayoutGrid, roles: ['SCHOOL_MANAGER', 'TEACHER'] }, 
@@ -286,12 +287,24 @@ const App: React.FC = () => {
           </div>
         </nav>
         <div className="p-4 border-t border-gray-100 bg-gray-50">
-            <div className="flex items-center justify-between text-xs mb-1">
+            <div className="flex items-center justify-between text-xs mb-2">
                  <span className="font-bold text-gray-600 flex items-center gap-1"><Wifi size={10}/> المزامنة</span>
                  {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : (isDemo ? <span className="text-orange-500 font-bold">معطلة (تجريبي)</span> : <CheckCircle size={12} className="text-green-500"/>)}
             </div>
-            <p className="text-[10px] text-gray-400">
-                {isDemo ? 'البيانات مؤقتة ولن يتم حفظها سحابياً.' : 'يتم الحفظ تلقائياً في الخلفية'}
+            
+            {!isDemo && (
+                <button 
+                    onClick={() => handleForceSync(false)} 
+                    disabled={isBgSyncing}
+                    className="w-full bg-white border border-gray-300 rounded-lg py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 hover:text-primary flex items-center justify-center gap-2 transition-colors mb-2 shadow-sm"
+                >
+                    <RefreshCw size={12} className={isBgSyncing ? "animate-spin" : ""}/> 
+                    {isBgSyncing ? 'جاري المزامنة...' : 'مزامنة الآن'}
+                </button>
+            )}
+
+            <p className="text-[10px] text-gray-400 text-center">
+                {lastSyncTime ? `آخر تحديث: ${lastSyncTime}` : (isDemo ? 'البيانات مؤقتة' : 'يتم الحفظ تلقائياً')}
             </p>
         </div>
       </aside>
@@ -317,9 +330,22 @@ const App: React.FC = () => {
                         <span>{item.label}</span>
                         </button>
                     ))}
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700 mt-4 border-t border-gray-100">
-                        <LogOut size={20} /> <span>تسجيل الخروج</span>
-                    </button>
+                    
+                    <div className="my-4 border-t pt-4">
+                        {!isDemo && (
+                            <button 
+                                onClick={() => { handleForceSync(false); setIsMobileMenuOpen(false); }} 
+                                disabled={isBgSyncing}
+                                className="w-full bg-gray-50 border border-gray-300 rounded-xl py-3 text-sm font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-2 transition-colors mb-2"
+                            >
+                                <RefreshCw size={16} className={isBgSyncing ? "animate-spin" : ""}/> 
+                                {isBgSyncing ? 'جاري المزامنة...' : 'مزامنة البيانات'}
+                            </button>
+                        )}
+                        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700">
+                            <LogOut size={20} /> <span>تسجيل الخروج</span>
+                        </button>
+                    </div>
                 </nav>
             </div>
         </div>
@@ -355,8 +381,8 @@ const App: React.FC = () => {
                     currentUser={currentUser} // Pass User for context
                 />
             )}
-            {/* School Management is for School Manager specific settings */}
-            {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance}/>}
+            {/* School Management is for School Manager AND Teacher Profile */}
+            {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} currentUser={currentUser}/>}
             
             {/* Admin Dashboard is strictly for System Manager */}
             {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}

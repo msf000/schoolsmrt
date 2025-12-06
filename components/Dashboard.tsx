@@ -2,11 +2,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell, ScatterChart, Scatter 
+  PieChart, Pie, Cell, ScatterChart, Scatter, LineChart, Line
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser } from '../types';
-import { getSchedules, getTeacherAssignments } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School } from '../types';
+import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin, Mail, Server, Database, ShieldCheck, Building2, CreditCard } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -21,19 +21,212 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser }) => {
   const effectiveDate = selectedDate || new Date().toISOString().split('T')[0];
+  
+  // --- ROLE BASED ROUTING ---
+  if (currentUser?.role === 'SUPER_ADMIN') {
+      return <SystemAdminDashboard />;
+  }
+
+  if (currentUser?.role === 'SCHOOL_MANAGER') {
+      return <SchoolManagerDashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} />;
+  }
+
+  // Default: Teacher Dashboard
+  return <TeacherDashboard students={students} attendance={attendance} performance={performance} selectedDate={effectiveDate} currentUser={currentUser} />;
+};
+
+// ==========================================
+// 1. SYSTEM ADMIN DASHBOARD (Technical/Biz)
+// ==========================================
+const SystemAdminDashboard = () => {
+    const [stats, setStats] = useState<any>({ schools: 0, users: 0, dbSize: 0 });
+
+    useEffect(() => {
+        const storage = getStorageStatistics();
+        setStats({
+            schools: getSchools().length,
+            users: getSystemUsers().length,
+            dbSize: storage.students + storage.attendance + storage.performance // Rough metric
+        });
+    }, []);
+
+    return (
+        <div className="p-6 space-y-6 animate-fade-in">
+            <div className="bg-gray-900 text-white p-8 rounded-2xl shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                <div className="relative z-10">
+                    <h1 className="text-3xl font-bold flex items-center gap-3 mb-2">
+                        <Server className="text-blue-400"/> لوحة قيادة النظام (System Admin)
+                    </h1>
+                    <p className="text-gray-400">إدارة الإعدادات التقنية، الاشتراكات، وقواعد البيانات المركزية.</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
+                    <div className="p-4 bg-blue-50 text-blue-600 rounded-full"><Building2 size={32}/></div>
+                    <div>
+                        <p className="text-gray-500 text-sm font-bold">المدارس النشطة</p>
+                        <h3 className="text-4xl font-bold text-gray-800">{stats.schools}</h3>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
+                    <div className="p-4 bg-purple-50 text-purple-600 rounded-full"><Users size={32}/></div>
+                    <div>
+                        <p className="text-gray-500 text-sm font-bold">المستخدمين (المعلمين/المدراء)</p>
+                        <h3 className="text-4xl font-bold text-gray-800">{stats.users}</h3>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
+                    <div className="p-4 bg-green-50 text-green-600 rounded-full"><Database size={32}/></div>
+                    <div>
+                        <p className="text-gray-500 text-sm font-bold">حجم السجلات</p>
+                        <h3 className="text-4xl font-bold text-gray-800">{stats.dbSize}</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><CreditCard size={20}/> حالة الاشتراكات</h3>
+                    <div className="h-64 flex items-center justify-center text-gray-400 bg-gray-50 rounded-lg border border-dashed">
+                        (مخطط بياني للإيرادات - قريباً)
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><ShieldCheck size={20}/> الدعم الفني والنظام</h3>
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center p-3 bg-green-50 text-green-800 rounded-lg text-sm font-bold">
+                            <span>حالة الخوادم (Supabase)</span>
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> متصل</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-blue-50 text-blue-800 rounded-lg text-sm font-bold">
+                            <span>الذكاء الاصطناعي (Gemini)</span>
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-500 rounded-full"></span> نشط</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ==========================================
+// 2. SCHOOL MANAGER DASHBOARD (Reports/Achievements)
+// ==========================================
+const SchoolManagerDashboard: React.FC<{students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser: SystemUser}> = ({ students, attendance, performance, currentUser }) => {
+    // Determine my school
+    const mySchoolId = currentUser.schoolId; // Should be linked
+    
+    // Stats Calculations
+    const totalStudents = students.length;
+    const avgAttendance = attendance.length > 0 
+        ? Math.round((attendance.filter(a => a.status === 'PRESENT').length / attendance.length) * 100) 
+        : 0;
+    const avgPerformance = performance.length > 0
+        ? Math.round(performance.reduce((acc, curr) => acc + (curr.score/curr.maxScore), 0) / performance.length * 100)
+        : 0;
+
+    return (
+        <div className="p-6 space-y-6 animate-fade-in">
+            <div className="bg-gradient-to-br from-indigo-900 to-blue-900 text-white p-8 rounded-2xl shadow-lg">
+                <h1 className="text-3xl font-bold flex items-center gap-3 mb-2">
+                    <Building2 className="text-yellow-400"/> لوحة مدير المدرسة
+                </h1>
+                <p className="text-blue-200">متابعة الإنجازات، التقارير، وأداء المعلمين والطلاب.</p>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <p className="text-gray-500 text-xs font-bold uppercase">إجمالي الطلاب</p>
+                    <h3 className="text-3xl font-black text-indigo-900 mt-1">{totalStudents}</h3>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <p className="text-gray-500 text-xs font-bold uppercase">نسبة الحضور العامة</p>
+                    <h3 className={`text-3xl font-black mt-1 ${avgAttendance >= 90 ? 'text-green-600' : 'text-orange-500'}`}>{avgAttendance}%</h3>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <p className="text-gray-500 text-xs font-bold uppercase">مؤشر الأداء الأكاديمي</p>
+                    <h3 className="text-3xl font-black text-blue-600 mt-1">{avgPerformance}%</h3>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <p className="text-gray-500 text-xs font-bold uppercase">المخالفات السلوكية</p>
+                    <h3 className="text-3xl font-black text-red-600 mt-1">
+                        {attendance.filter(a => a.behaviorStatus === 'NEGATIVE').length}
+                    </h3>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Teacher Performance (Mocked for Demo) */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Award className="text-yellow-500"/> إنجازات المعلمين</h3>
+                    <div className="space-y-4">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">م</div>
+                                    <div>
+                                        <div className="font-bold text-sm">معلم {i}</div>
+                                        <div className="text-xs text-gray-500">اللغة العربية</div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs font-bold text-green-600">95% تحضير</div>
+                                    <div className="w-24 h-1.5 bg-gray-200 rounded-full mt-1"><div className="bg-green-500 h-1.5 rounded-full" style={{width: '95%'}}></div></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Recent Feedbacks */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><MessageSquare className="text-blue-500"/> آخر التوجيهات المرسلة</h3>
+                    <div className="text-center text-gray-400 py-10 border-2 border-dashed border-gray-100 rounded-lg">
+                        <Mail size={32} className="mx-auto mb-2 opacity-20"/>
+                        <p className="text-sm">لم يتم إرسال توجيهات حديثة.</p>
+                        <p className="text-xs mt-1">اذهب إلى "إدارة المدرسة" لإرسال تغذية راجعة للمعلمين.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ==========================================
+// 3. TEACHER DASHBOARD (Operational)
+// ==========================================
+const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser }) => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+  const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
 
   useEffect(() => {
       setSchedules(getSchedules());
       setAssignments(getTeacherAssignments());
-  }, []);
+      
+      // Load Feedback for this teacher
+      if (currentUser?.role === 'TEACHER') {
+          // Find teacher ID
+          const teachers = getTeachers();
+          const me = teachers.find(t => 
+              (currentUser.nationalId && t.nationalId === currentUser.nationalId) || 
+              (currentUser.email && t.email === currentUser.email)
+          );
+          if (me) {
+              const allFeedback = getFeedback();
+              setMyFeedback(allFeedback.filter(f => f.teacherId === me.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+          }
+      }
+  }, [currentUser]);
 
   // --- Teacher Schedule Logic ---
   const myDailySchedule = useMemo(() => {
       if (!currentUser || currentUser.role !== 'TEACHER') return [];
       
-      const dateObj = new Date(effectiveDate);
+      const dateObj = new Date(selectedDate || new Date());
       const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const currentDay = dayMap[dateObj.getDay()];
 
@@ -45,12 +238,12 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
             const assignment = assignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
             return assignment?.teacherId === currentUser.id;
       }).sort((a,b) => a.period - b.period);
-  }, [schedules, assignments, currentUser, effectiveDate]);
+  }, [schedules, assignments, currentUser, selectedDate]);
 
   const stats = useMemo(() => {
     const totalStudents = students.length;
-    // Use effectiveDate for stats
-    const todaysAttendance = attendance.filter(a => a.date === effectiveDate);
+    // Use selectedDate for stats
+    const todaysAttendance = attendance.filter(a => a.date === selectedDate);
     
     const present = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
     const absent = todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
@@ -62,7 +255,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     const avgScore = performance.length > 0 ? Math.round((totalScore / performance.length) * 100) : 0;
 
     return { totalStudents, present, absent, attendanceRate, avgScore };
-  }, [students, attendance, performance, effectiveDate]);
+  }, [students, attendance, performance, selectedDate]);
 
   const attendanceData = useMemo(() => {
     const counts = { [AttendanceStatus.PRESENT]: 0, [AttendanceStatus.ABSENT]: 0, [AttendanceStatus.LATE]: 0, [AttendanceStatus.EXCUSED]: 0 };
@@ -200,49 +393,66 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
       </div>
 
+      {/* FEEDBACK SECTION FOR TEACHER */}
+      {myFeedback.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm animate-slide-up mb-6">
+              <h3 className="font-bold text-amber-800 mb-3 flex items-center gap-2">
+                  <Mail size={20}/> رسائل وتوجيهات من مدير المدرسة
+              </h3>
+              <div className="space-y-3 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                  {myFeedback.map(f => (
+                      <div key={f.id} className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm text-sm">
+                          <p className="text-gray-800 mb-1 leading-relaxed">{f.content}</p>
+                          <div className="flex justify-between items-center text-xs text-gray-400">
+                              <span>{formatDualDate(f.date)}</span>
+                              {!f.isRead && <span className="bg-red-500 w-2 h-2 rounded-full"></span>}
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
           <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-gray-800">نظرة عامة</h2>
-              {currentUser?.role === 'TEACHER' && <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-1 rounded-full border border-purple-200">حساب معلم</span>}
+              <h2 className="text-2xl font-bold text-gray-800">نظرة عامة (المعلم)</h2>
           </div>
           <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-bold border border-gray-200 flex items-center gap-2">
-              <Calendar size={14}/> {formatDualDate(effectiveDate)}
+              <Calendar size={14}/> {formatDualDate(selectedDate || new Date())}
           </span>
       </div>
 
       {/* --- TEACHER'S DAILY SCHEDULE WIDGET --- */}
-      {currentUser?.role === 'TEACHER' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <Clock className="text-indigo-600"/> جدولي اليومي
-              </h3>
-              
-              {myDailySchedule.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {myDailySchedule.map((sched, idx) => (
-                          <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors bg-gray-50">
-                              <div className="w-10 h-10 rounded-lg bg-white flex flex-col items-center justify-center border shadow-sm text-indigo-700 font-bold">
-                                  <span className="text-[10px] text-gray-400">حصة</span>
-                                  {sched.period}
-                              </div>
-                              <div>
-                                  <div className="font-bold text-gray-800">{sched.classId}</div>
-                                  <div className="text-xs text-gray-500 flex items-center gap-1">
-                                      <BookOpen size={10}/> {sched.subjectName}
-                                  </div>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+          <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Clock className="text-indigo-600"/> جدولي اليومي
+          </h3>
+          
+          {myDailySchedule.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {myDailySchedule.map((sched, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors bg-gray-50">
+                          <div className="w-10 h-10 rounded-lg bg-white flex flex-col items-center justify-center border shadow-sm text-indigo-700 font-bold">
+                              <span className="text-[10px] text-gray-400">حصة</span>
+                              {sched.period}
+                          </div>
+                          <div>
+                              <div className="font-bold text-gray-800">{sched.classId}</div>
+                              <div className="text-xs text-gray-500 flex items-center gap-1">
+                                  <BookOpen size={10}/> {sched.subjectName}
                               </div>
                           </div>
-                      ))}
-                  </div>
-              ) : (
-                  <div className="text-center py-6 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
-                      <Clock size={32} className="mx-auto mb-2 opacity-20"/>
-                      <p>لا توجد حصص مسجلة لك في هذا اليوم.</p>
-                  </div>
-              )}
-          </div>
-      )}
+                      </div>
+                  ))}
+              </div>
+          ) : (
+              <div className="text-center py-6 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                  <Clock size={32} className="mx-auto mb-2 opacity-20"/>
+                  <p>لا توجد حصص مسجلة لك في هذا اليوم.</p>
+              </div>
+          )}
+      </div>
       
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

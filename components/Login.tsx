@@ -1,19 +1,32 @@
 
 import React, { useState } from 'react';
 import { getSystemUsers, getStudents, getTeachers, setSystemMode } from '../services/storageService';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus } from 'lucide-react';
+import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
   onLoginSuccess: (user: any, rememberMe: boolean) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [identifier, setIdentifier] = useState('admin@school.com'); // Pre-fill for UX
+  const [view, setView] = useState<'LOGIN' | 'REGISTER'>('LOGIN'); // Toggle State
+  const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Auto-login handler for registration success
+  const handleRegisterSuccess = (email: string, pass: string) => {
+      setIdentifier(email);
+      setPassword(pass);
+      setView('LOGIN');
+      // Auto trigger login logic
+      setTimeout(() => {
+          document.getElementById('login-btn')?.click();
+      }, 500);
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +142,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }, 500);
   };
 
+  // --- RENDER REGISTRATION VIEW ---
+  if (view === 'REGISTER') {
+      return <TeacherRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={handleRegisterSuccess} />;
+  }
+
+  // --- RENDER LOGIN VIEW ---
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4" dir="rtl">
       
@@ -194,7 +213,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     </div>
                 </div>
 
-                <div className="flex items-center">
+                <div className="flex items-center justify-between">
                     <button 
                         type="button"
                         onClick={() => setRememberMe(!rememberMe)}
@@ -213,6 +232,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 )}
 
                 <button 
+                    id="login-btn"
                     type="submit" 
                     disabled={loading}
                     className="w-full bg-gray-900 hover:bg-black text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group"
@@ -221,7 +241,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </button>
             </form>
 
-            <div className="relative my-8">
+            <div className="mt-4 text-center">
+                <button 
+                    onClick={() => setView('REGISTER')}
+                    className="text-primary font-bold text-sm hover:underline flex items-center justify-center gap-1 w-full py-2 hover:bg-teal-50 rounded-lg transition-colors"
+                >
+                    <UserPlus size={16}/> معلم جديد؟ سجل حسابك الآن
+                </button>
+            </div>
+
+            <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-gray-200"></div>
                 </div>

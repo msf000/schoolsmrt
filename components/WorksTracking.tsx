@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, bulkAddPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, AlertCircle, Link as LinkIcon, Edit2, Cloud, PieChart, Calculator, TrendingUp, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, Globe, List, Layout, PenTool } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, AlertCircle, Link as LinkIcon, Edit2, Cloud, PieChart, Calculator, TrendingUp, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, Globe, List, Layout, PenTool, BookOpenCheck } from 'lucide-react';
 
 interface WorksTrackingProps {
   students: Student[];
@@ -281,6 +281,38 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setAssignments([...assignments, newAssign]);
     };
 
+    const handleApplyEarthSpaceTemplate = () => {
+        if (!confirm('هل أنت متأكد؟ سيتم إضافة أعمدة جديدة خاصة بمنهج علوم الأرض والفضاء (1447هـ) لهذا التبويب.')) return;
+
+        const newAssignments: Assignment[] = [];
+        const timestamp = Date.now();
+
+        if (activeTab === 'PLATFORM_EXAM') {
+            newAssignments.push(
+                { id: `es_exam_1_${timestamp}`, title: 'اختبار: تطور الكون', category: 'PLATFORM_EXAM', maxScore: 20, isVisible: true, orderIndex: 1 },
+                { id: `es_exam_2_${timestamp}`, title: 'اختبار: المعادن والصخور', category: 'PLATFORM_EXAM', maxScore: 20, isVisible: true, orderIndex: 2 },
+                { id: `es_exam_3_${timestamp}`, title: 'اختبار: البراكين والزلازل', category: 'PLATFORM_EXAM', maxScore: 20, isVisible: true, orderIndex: 3 }
+            );
+        } else if (activeTab === 'ACTIVITY') {
+            newAssignments.push(
+                { id: `es_act_1_${timestamp}`, title: 'بحث: نشأة الكون', category: 'ACTIVITY', maxScore: 5, isVisible: true, orderIndex: 1 },
+                { id: `es_act_2_${timestamp}`, title: 'مشروع: دورة الصخور', category: 'ACTIVITY', maxScore: 10, isVisible: true, orderIndex: 2 },
+                { id: `es_act_3_${timestamp}`, title: 'تقرير: الصفائح الأرضية', category: 'ACTIVITY', maxScore: 5, isVisible: true, orderIndex: 3 },
+                { id: `es_act_4_${timestamp}`, title: 'مطوية: أنواع البراكين', category: 'ACTIVITY', maxScore: 5, isVisible: true, orderIndex: 4 }
+            );
+        } else if (activeTab === 'HOMEWORK') {
+            newAssignments.push(
+                { id: `es_hw_1_${timestamp}`, title: 'واجب: النجوم والمجرات', category: 'HOMEWORK', maxScore: 5, isVisible: true, orderIndex: 1 },
+                { id: `es_hw_2_${timestamp}`, title: 'واجب: خصائص المعادن', category: 'HOMEWORK', maxScore: 5, isVisible: true, orderIndex: 2 },
+                { id: `es_hw_3_${timestamp}`, title: 'واجب: أنواع الصخور', category: 'HOMEWORK', maxScore: 5, isVisible: true, orderIndex: 3 }
+            );
+        }
+
+        newAssignments.forEach(a => saveAssignment(a));
+        setAssignments(prev => [...prev, ...newAssignments]);
+        alert('تم تطبيق القالب بنجاح!');
+    };
+
     const handleUpdateColumn = (index: number, field: keyof Assignment, value: any) => {
         const updated = [...assignments];
         updated[index] = { ...updated[index], [field]: value };
@@ -502,9 +534,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <div className="p-6 flex-1 overflow-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-gray-700 text-sm md:text-base">إعداد أعمدة {activeTab === 'ACTIVITY' ? 'الأنشطة' : activeTab === 'HOMEWORK' ? 'الواجبات' : 'الاختبارات'}</h3>
-                            <button onClick={handleAddColumn} className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg font-bold text-xs md:text-sm hover:bg-purple-100 shadow-sm whitespace-nowrap">
-                                <Plus size={16}/> إضافة
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={handleApplyEarthSpaceTemplate} className="flex items-center gap-2 bg-teal-50 text-teal-700 border border-teal-200 px-3 py-2 rounded-lg font-bold text-xs md:text-sm hover:bg-teal-100 shadow-sm whitespace-nowrap">
+                                    <BookOpenCheck size={16}/> تطبيق قالب: علوم الأرض والفضاء (1447)
+                                </button>
+                                <button onClick={handleAddColumn} className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg font-bold text-xs md:text-sm hover:bg-purple-100 shadow-sm whitespace-nowrap">
+                                    <Plus size={16}/> إضافة عمود يدوي
+                                </button>
+                            </div>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -693,7 +730,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         if (activeTab === 'HOMEWORK') {
                                             const totalItems = assignments.filter(c => c.isVisible).length;
                                             const completedCount = assignments.filter(c => c.isVisible && gridData[student.id]?.[c.id]).length;
-                                            const percentage = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
+                                            const percentage = totalItems > 0 ? Math.round((completedCount / totalItems) * 100 : 0;
                                             homeworkStats = (
                                                 <>
                                                     <td className="p-3 border-b border-l text-center font-bold text-blue-600 bg-blue-50/30">{completedCount}</td>

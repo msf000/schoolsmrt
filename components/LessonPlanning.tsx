@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { generateLessonPlan, generateSemesterPlan, generateLearningPlan } from '../services/geminiService';
-import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table } from 'lucide-react';
+import { generateLessonPlan, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, suggestSyllabus, organizeCourseContent } from '../services/geminiService';
+import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table, Target, ListTree, BookOpenCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const TEACHING_STRATEGIES = [
     'التعلم التعاوني', 'العصف الذهني', 'حل المشكلات', 'التعلم باللعب', 
@@ -16,8 +17,8 @@ const TEACHING_RESOURCES = [
 ];
 
 const LessonPlanning: React.FC = () => {
-    // Tab State
-    const [activeTab, setActiveTab] = useState<'LESSON' | 'SEMESTER' | 'LEARNING'>('LESSON');
+    // Tab State - Default is now CONTENT (Course Preparation)
+    const [activeTab, setActiveTab] = useState<'CONTENT' | 'SEMESTER' | 'LESSON' | 'OUTCOMES' | 'LEARNING'>('CONTENT');
 
     // --- LESSON PREPARATION STATE ---
     const [lessonStep, setLessonStep] = useState<1 | 2 | 3>(1);
@@ -35,8 +36,16 @@ const LessonPlanning: React.FC = () => {
     const [semGrade, setSemGrade] = useState('');
     const [semTerm, setSemTerm] = useState('الفصل الدراسي الأول');
     const [semWeeks, setSemWeeks] = useState(13); // Default 13 weeks
+    const [semClassesPerWeek, setSemClassesPerWeek] = useState(4); // Default 4 classes
     const [semContent, setSemContent] = useState('');
     const [semResult, setSemResult] = useState('');
+    const [suggestLoading, setSuggestLoading] = useState(false);
+
+    // --- COURSE CONTENT (PREPARATION) STATE ---
+    const [contentSubject, setContentSubject] = useState('');
+    const [contentGrade, setContentGrade] = useState('');
+    const [manualContent, setManualContent] = useState(''); // New State for manual text box
+    const [contentResult, setContentResult] = useState('');
 
     // --- LEARNING PLAN STATE ---
     const [learnSubject, setLearnSubject] = useState('');
@@ -44,6 +53,12 @@ const LessonPlanning: React.FC = () => {
     const [learnGoal, setLearnGoal] = useState('');
     const [learnDuration, setLearnDuration] = useState('2');
     const [learnResult, setLearnResult] = useState('');
+
+    // --- LEARNING OUTCOMES MAP STATE ---
+    const [outcomesSubject, setOutcomesSubject] = useState('');
+    const [outcomesGrade, setOutcomesGrade] = useState('');
+    const [outcomesContent, setOutcomesContent] = useState('');
+    const [outcomesResult, setOutcomesResult] = useState('');
 
     // Shared State
     const [loading, setLoading] = useState(false);
@@ -80,12 +95,48 @@ const LessonPlanning: React.FC = () => {
         setLoading(true);
         setSemResult('');
         try {
-            const result = await generateSemesterPlan(semSubject, semGrade, semTerm, semWeeks, semContent);
+            const result = await generateSemesterPlan(semSubject, semGrade, semTerm, semWeeks, semClassesPerWeek, semContent);
             setSemResult(result);
         } catch (error) {
             setSemResult("فشل توليد الخطة الفصلية.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGenerateContent = async () => {
+        if (!contentSubject || !contentGrade) return;
+        setLoading(true);
+        setContentResult('');
+        try {
+            // If manual content is provided, use AI to format/organize it
+            if (manualContent.trim()) {
+                 const result = await organizeCourseContent(manualContent, contentSubject, contentGrade);
+                 setContentResult(result); 
+            } else {
+                 const result = await suggestSyllabus(contentSubject, contentGrade);
+                 setContentResult(result);
+            }
+        } catch (error) {
+            setContentResult("فشل جلب أو تنسيق محتويات المادة.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSuggestContent = async () => {
+        if (!semSubject || !semGrade) {
+            alert('يرجى إدخال المادة والصف أولاً');
+            return;
+        }
+        setSuggestLoading(true);
+        try {
+            const suggested = await suggestSyllabus(semSubject, semGrade);
+            setSemContent(suggested);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setSuggestLoading(false);
         }
     };
 
@@ -98,6 +149,20 @@ const LessonPlanning: React.FC = () => {
             setLearnResult(result);
         } catch (error) {
             setLearnResult("فشل توليد خطة التعلم.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGenerateOutcomes = async () => {
+        if (!outcomesSubject || !outcomesGrade) return;
+        setLoading(true);
+        setOutcomesResult('');
+        try {
+            const result = await generateLearningOutcomesMap(outcomesSubject, outcomesGrade, outcomesContent);
+            setOutcomesResult(result);
+        } catch (error) {
+            setOutcomesResult("فشل توليد خريطة النواتج.");
         } finally {
             setLoading(false);
         }
@@ -132,7 +197,7 @@ const LessonPlanning: React.FC = () => {
         tbody: ({node, ...props}: any) => <tbody className="bg-white divide-y divide-gray-200" {...props} />,
         tr: ({node, ...props}: any) => <tr className="hover:bg-gray-50 transition-colors" {...props} />,
         th: ({node, ...props}: any) => <th className="px-4 py-3 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider" {...props} />,
-        td: ({node, ...props}: any) => <td className="px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap" {...props} />,
+        td: ({node, ...props}: any) => <td className="px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed" {...props} />,
         blockquote: ({node, ...props}: any) => <blockquote className="border-r-4 border-indigo-300 bg-indigo-50/50 p-4 rounded-l my-4 italic text-gray-600" {...props} />,
     };
 
@@ -162,7 +227,7 @@ const LessonPlanning: React.FC = () => {
                     </div>
                 ) : content ? (
                     <div className="max-w-4xl mx-auto" dir="rtl">
-                        <ReactMarkdown components={markdownComponents}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                             {content}
                         </ReactMarkdown>
                     </div>
@@ -187,28 +252,84 @@ const LessonPlanning: React.FC = () => {
                     <p className="text-gray-500 mt-1 text-sm">أدوات متكاملة للمعلم: تحضير الدروس، وتوزيع المنهج (إصدار 1447هـ).</p>
                 </div>
                 
-                {/* Tabs */}
-                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200">
+                {/* Tabs - Reordered */}
+                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
                     <button 
-                        onClick={() => setActiveTab('LESSON')}
-                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'LESSON' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                        onClick={() => setActiveTab('CONTENT')}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'CONTENT' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
                     >
-                        <PenTool size={16}/> تحضير درس
+                        <BookOpenCheck size={16}/> إعداد المادة الدراسية
                     </button>
                     <button 
                         onClick={() => setActiveTab('SEMESTER')}
-                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'SEMESTER' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'SEMESTER' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
                     >
                         <Table size={16}/> الخطة الفصلية
                     </button>
                     <button 
+                        onClick={() => setActiveTab('LESSON')}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'LESSON' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                    >
+                        <PenTool size={16}/> تحضير درس
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('OUTCOMES')}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'OUTCOMES' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                    >
+                        <Target size={16}/> خريطة النواتج
+                    </button>
+                    <button 
                         onClick={() => setActiveTab('LEARNING')}
-                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'LEARNING' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'LEARNING' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
                     >
                         <Map size={16}/> خطة التعلم
                     </button>
                 </div>
             </div>
+
+            {/* --- TAB: COURSE PREPARATION (Formerly Content) --- */}
+            {activeTab === 'CONTENT' && (
+                <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
+                    {/* Inputs */}
+                    <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
+                        <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
+                            <BookOpenCheck size={20} className="text-indigo-500"/> إعداد المادة الدراسية
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">هذه الصفحة مخصصة لتحديد محتويات المادة (الفهرس والوحدات) لتكون مرجعاً لباقي الخطط.</p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">المادة الدراسية</label>
+                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={contentSubject} onChange={e => setContentSubject(e.target.value)} placeholder="مثال: علوم الأرض والفضاء"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">الصف</label>
+                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={contentGrade} onChange={e => setContentGrade(e.target.value)} placeholder="مثال: ثالث ثانوي"/>
+                            </div>
+                            
+                            {/* Manual Content Text Area */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">محتويات المادة (الفهرس / الوحدات)</label>
+                                <textarea 
+                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-40 text-sm"
+                                    placeholder="يمكنك كتابة أو لصق فهرس الكتاب هنا (اختياري).&#10;مثال:&#10;الوحدة الأولى: ...&#10;الدرس 1: ...&#10;أو اتركها فارغة ليقوم الذكاء الاصطناعي باقتراح المنهج."
+                                    value={manualContent}
+                                    onChange={e => setManualContent(e.target.value)}
+                                />
+                            </div>
+
+                            <button onClick={handleGenerateContent} disabled={!contentSubject || !contentGrade || loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg mt-4 disabled:opacity-50">
+                                {loading ? <Loader2 className="animate-spin inline"/> : <Sparkles className="inline mr-2"/>} 
+                                {manualContent ? 'تنسيق المحتوى (AI)' : 'جلب واقتراح المنهج (AI)'}
+                            </button>
+                        </div>
+                    </div>
+                    {/* Output */}
+                    <div className="flex-1 h-full min-h-[500px]">
+                        {renderOutput(contentResult)}
+                    </div>
+                </div>
+            )}
 
             {/* --- TAB 1: LESSON PREPARATION (WIZARD) --- */}
             {activeTab === 'LESSON' && (
@@ -356,8 +477,30 @@ const LessonPlanning: React.FC = () => {
                                     />
                                 </div>
                             </div>
+                            {/* New Input for Classes Per Week */}
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">محتويات المقرر (الوحدات / الدروس)</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">عدد الحصص الأسبوعية</label>
+                                <input 
+                                    type="number"
+                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    value={semClassesPerWeek}
+                                    onChange={e => setSemClassesPerWeek(Number(e.target.value))}
+                                    min={1}
+                                    max={10}
+                                />
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-bold text-gray-700">محتويات المقرر (الوحدات / الدروس)</label>
+                                    <button 
+                                        onClick={handleSuggestContent} 
+                                        className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-100 flex items-center gap-1"
+                                        disabled={suggestLoading}
+                                    >
+                                        {suggestLoading ? <Loader2 size={10} className="animate-spin"/> : <Sparkles size={10}/>}
+                                        اقترح المواضيع (AI)
+                                    </button>
+                                </div>
                                 <textarea 
                                     className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-32 text-sm" 
                                     value={semContent} 
@@ -377,7 +520,46 @@ const LessonPlanning: React.FC = () => {
                 </div>
             )}
 
-            {/* --- TAB 3: LEARNING PLAN --- */}
+            {/* --- TAB 3: LEARNING OUTCOMES MAP --- */}
+            {activeTab === 'OUTCOMES' && (
+                <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
+                    {/* Inputs */}
+                    <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
+                        <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
+                            <Target size={20} className="text-indigo-500"/> خريطة نواتج التعلم
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">إنشاء مصفوفة تربط الوحدات بنواتج التعلم المعرفية والمهارية والوجدانية.</p>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">المادة</label>
+                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={outcomesSubject} onChange={e => setOutcomesSubject(e.target.value)} placeholder="مثال: فيزياء"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">الصف</label>
+                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={outcomesGrade} onChange={e => setOutcomesGrade(e.target.value)} placeholder="مثال: ثاني ثانوي"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">الوحدات الدراسية (اختياري)</label>
+                                <textarea 
+                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-32 text-sm" 
+                                    value={outcomesContent} 
+                                    onChange={e => setOutcomesContent(e.target.value)} 
+                                    placeholder="اكتب أسماء الوحدات أو الدروس هنا لتخصيص الخريطة..."
+                                />
+                            </div>
+                            <button onClick={handleGenerateOutcomes} disabled={!outcomesSubject || !outcomesGrade || loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg mt-4 disabled:opacity-50">
+                                {loading ? <Loader2 className="animate-spin inline"/> : <Sparkles className="inline mr-2"/>} إنشاء الخريطة
+                            </button>
+                        </div>
+                    </div>
+                    {/* Output */}
+                    <div className="flex-1 h-full min-h-[500px]">
+                        {renderOutput(outcomesResult)}
+                    </div>
+                </div>
+            )}
+
+            {/* --- TAB 4: LEARNING PLAN --- */}
             {activeTab === 'LEARNING' && (
                 <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
                     {/* Inputs */}

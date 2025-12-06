@@ -45,6 +45,8 @@ export interface Teacher {
   email?: string;
   phone?: string;
   subjectSpecialty?: string;
+  schoolId?: string;   // Link to School
+  managerId?: string;  // Link to School Manager (Direct link via National ID search)
 }
 
 export interface TeacherAssignment {
@@ -161,9 +163,11 @@ export interface WorksColumnConfig {
 export interface School {
     id: string;
     name: string;
+    ministryCode?: string; // NEW: Ministry Code
     educationAdministration?: string; // New: e.g., "Riyadh Education"
     type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL';
     managerName: string;
+    managerNationalId?: string; // Link to Manager User
     phone: string;
     studentCount: number;
     subscriptionStatus: 'ACTIVE' | 'EXPIRED' | 'TRIAL';
@@ -173,10 +177,11 @@ export interface School {
 export interface SystemUser {
     id: string;
     name: string;
-    email: string; // OR National ID for Students
+    email: string; // OR National ID for Students/Managers
+    nationalId?: string; // Added for linking
     password?: string; // New: Password field
     role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT';
-    schoolId?: string; // If null, super admin
+    schoolId?: string; // If null, super admin. If Manager, lists owned schools logic handled elsewhere
     status: 'ACTIVE' | 'INACTIVE';
 }
 
@@ -226,6 +231,26 @@ export interface LessonLink {
     title: string;
     url: string;
     createdAt: string;
+}
+
+// --- Feedback Types (NEW) ---
+export interface Feedback {
+    id: string;
+    teacherId: string;
+    managerId: string;
+    content: string;
+    date: string;
+    isRead: boolean;
+}
+
+// --- AI Settings (NEW) ---
+export interface AISettings {
+    modelId: string; // 'gemini-2.5-flash' | 'gemini-3-pro-preview'
+    temperature: number; // 0.0 to 1.0
+    enableReports: boolean;
+    enableQuiz: boolean;
+    enablePlanning: boolean;
+    systemInstruction: string; // Custom persona
 }
 
 export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING';

@@ -1,8 +1,27 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from "../types";
+import { getAISettings } from "./storageService";
 
+// Initialize with ENV key - but config can be dynamic
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// Helper to get current config
+const getConfig = () => {
+    const settings = getAISettings();
+    return {
+        model: settings.modelId || 'gemini-2.5-flash',
+        config: {
+            temperature: settings.temperature || 0.7,
+            systemInstruction: settings.systemInstruction
+        },
+        enabled: {
+            quiz: settings.enableQuiz !== false,
+            reports: settings.enableReports !== false,
+            planning: settings.enablePlanning !== false
+        }
+    };
+};
 
 // Helper to clean JSON string from Markdown
 function cleanJsonString(text: string): string {
@@ -63,13 +82,99 @@ function tryRepairJson(jsonString: string): string {
     return fixed;
 }
 
+// --- NEW: Generate Parent Message ---
+export const generateParentMessage = async (
+    studentName: string,
+    topic: string, // e.g., "تأخر متكرر", "انخفاض درجات"
+    tone: 'OFFICIAL' | 'FRIENDLY' | 'URGENT'
+): Promise<string> => {
+    const { model, config } = getConfig();
+    
+    const toneDesc = tone === 'OFFICIAL' ? 'رسمية ومهنية' : tone === 'FRIENDLY' ? 'ودية ومشجعة' : 'حازمة وعاجلة';
+    
+    const prompt = `
+    بصفتك مساعداً إدارياً في المدرسة، قم بصياغة رسالة قصيرة (SMS/WhatsApp) لولي أمر الطالب "${studentName}".
+    
+    الموضوع: ${topic}
+    النبرة المطلوبة: ${toneDesc}
+    
+    المتطلبات:
+    1. الرسالة يجب أن تكون جاهزة للإرسال فوراً (بدون مقدمات مثل "إليك الرسالة").
+    2. استخدم المتغيرات {اسم_الطالب} في النص إذا لزم الأمر، لكن يفضل ذكر الاسم مباشرة.
+    3. الاختصار والوضوح (لا تتجاوز 3 أسطر).
+    4. التزم بـ "شخصية النظام" المحددة مسبقاً في التعليمات (System Instruction).
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                temperature: 0.7,
+                systemInstruction: config.systemInstruction // Inherit global persona
+            }
+        });
+        return response.text || "";
+    } catch (error) {
+        console.error("Message Gen Error:", error);
+        return "عذراً، تعذر صياغة الرسالة آلياً.";
+    }
+};
+
+// --- NEW: Organize Raw Content ---
+export const organizeCourseContent = async (
+    rawText: string,
+    subject: string,
+    grade: string
+): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) return rawText; // Return raw if AI disabled
+
+    const prompt = `
+    أنت مساعد خبير في تنظيم المناهج الدراسية.
+    لديك نص غير منظم يمثل فهرس أو محتويات مادة "${subject}" للصف "${grade}".
+    
+    المطلوب:
+    إعادة صياغة وتنظيم هذا النص في هيكلية واضحة ومرتبة بتنسيق Markdown.
+    
+    القواعد:
+    1. استخدم العناوين (###) للوحدات الدراسية.
+    2. استخدم القوائم النقطية (-) للدروس.
+    3. صحح الأخطاء الإملائية البسيطة إن وجدت.
+    4. حافظ على جميع المعلومات الواردة في النص الأصلي.
+    
+    النص الأصلي:
+    """
+    ${rawText}
+    """
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                temperature: 0.3, // Low temp for formatting
+                systemInstruction: config.systemInstruction
+            }
+        });
+        return response.text || rawText;
+    } catch (error) {
+        console.error("Organize Content Error:", error);
+        return rawText; // Fallback
+    }
+};
+
 // --- NEW: Generate Questions from Slide ---
 export const generateSlideQuestions = async (
     contextText: string,
     imageBase64?: string
 ): Promise<any[]> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.quiz) return [];
+
     const prompt = `
-    Act as a teacher in a Saudi School (Curriculum 1447 AH). Based on the provided context (text or image from a presentation slide), generate 3 interactive multiple-choice questions to check students' understanding.
+    Based on the provided context (text or image from a presentation slide), generate 3 interactive multiple-choice questions to check students' understanding.
     
     Language: Arabic (Saudi Educational Context 1447).
     Difficulty: Suitable for school students.
@@ -107,9 +212,13 @@ export const generateSlideQuestions = async (
         }
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: { parts },
-            config: { responseMimeType: "application/json" }
+            config: { 
+                responseMimeType: "application/json",
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
         });
 
         const text = response.text || "[]";
@@ -127,6 +236,9 @@ export const generateStudentAnalysis = async (
   attendance: AttendanceRecord[],
   performance: PerformanceRecord[]
 ): Promise<string> => {
+  const { model, config, enabled } = getConfig();
+  if (!enabled.reports) return "التحليل الذكي معطل من قبل مدير النظام.";
+
   // 1. Prepare data context
   const studentAttendance = attendance.filter(a => a.studentId === student.id);
   const studentPerformance = performance.filter(p => p.studentId === student.id);
@@ -150,7 +262,7 @@ export const generateStudentAnalysis = async (
   ).join('\n');
 
   const prompt = `
-    قم بتحليل أداء الطالب التالي كمرشد طلابي في مدرسة سعودية (وفق لائحة 1447).
+    قم بتحليل أداء الطالب التالي كمرشد طلابي.
     
     بيانات الطالب:
     الاسم: ${student.name}
@@ -179,8 +291,12 @@ export const generateStudentAnalysis = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: model,
       contents: prompt,
+      config: {
+          temperature: config.temperature,
+          systemInstruction: config.systemInstruction
+      }
     });
     return response.text || "لم يتم إنشاء تحليل.";
   } catch (error) {
@@ -197,6 +313,9 @@ export const generateQuiz = async (
     questionCount: number = 5,
     difficulty: 'EASY' | 'MEDIUM' | 'HARD'
 ): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.quiz) return "خدمة إنشاء الاختبارات معطلة.";
+
     const prompt = `
     بصفتك معلماً خبيراً لمادة ${subject} في المناهج السعودية (طبعة 1447هـ)، قم بإنشاء اختبار قصير (Quiz) للطلاب في ${gradeLevel || 'المرحلة العامة'}.
     
@@ -223,8 +342,12 @@ export const generateQuiz = async (
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
+            config: {
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
         });
         return response.text || "فشل في توليد الأسئلة.";
     } catch (error) {
@@ -240,6 +363,9 @@ export const generateRemedialPlan = async (
     subject: string,
     weaknessAreas: string
 ): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) return "الخطط العلاجية معطلة.";
+
     const prompt = `
     أنت خبير تربوي ومختص في صعوبات التعلم. قم بوضع "خطة علاجية" (Remedial Plan) متوافقة مع معايير وزارة التعليم السعودية (1447هـ).
     
@@ -261,8 +387,12 @@ export const generateRemedialPlan = async (
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
+            config: {
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
         });
         return response.text || "فشل في إنشاء الخطة.";
     } catch (error) {
@@ -281,6 +411,9 @@ export const generateLessonPlan = async (
     resources: string[] = [],
     objectives: string = ""
 ): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) return "خدمة تحضير الدروس معطلة.";
+
     const prompt = `
     أنت معلم خبير في المناهج السعودية (إصدار 1447هـ). قم بإعداد "تحضير درس" (Lesson Plan) نموذجي ومتكامل يراعي متطلبات "منصة مدرستي" ونظام "نور".
     
@@ -308,6 +441,7 @@ export const generateLessonPlan = async (
     
     ## 3. إجراءات الدرس (السيناريو المقترح)
     (يرجى وضع هذا القسم في جدول Markdown يحتوي على: التوقيت، النشاط، دور المعلم، دور الطالب)
+    (تنبيه: لا تستخدم وسوم HTML مثل <br> داخل الجدول، استخدم تنسيق القائمة النقطية (-) أو فواصل عادية)
     
     | التوقيت | النشاط / الخطوة | دور المعلم | دور الطالب |
     |---|---|---|---|
@@ -325,13 +459,52 @@ export const generateLessonPlan = async (
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
+            config: {
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
         });
         return response.text || "فشل في إنشاء التحضير.";
     } catch (error) {
         console.error("Gemini API Error:", error);
         return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- NEW: Syllabus Suggestion (Chapters/Topics) ---
+export const suggestSyllabus = async (
+    subject: string,
+    gradeLevel: string
+): Promise<string> => {
+    const { model, config } = getConfig();
+    const prompt = `
+    بصفتك خبيراً في المناهج الدراسية السعودية لعام 1447هـ، قم بسرد قائمة الفصول والمواضيع الرئيسية لمادة "${subject}" للصف "${gradeLevel}".
+    
+    المطلوب:
+    قائمة نقطية بسيطة وواضحة (بدون مقدمات أو جداول معقدة) تحتوي على:
+    - أسماء الوحدات / الفصول.
+    - تحت كل فصل، أبرز 3-4 دروس.
+    
+    مثال للتنسيق:
+    الفصل الأول: [اسم الفصل]
+    - الدرس 1
+    - الدرس 2
+    
+    الدقة مهمة جداً ومطابقة للكتاب المدرسي الرسمي لطبعة 1446-1447هـ.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: { temperature: config.temperature }
+        });
+        return response.text || "";
+    } catch (error) {
+        console.error("Syllabus Error:", error);
+        return "فشل في جلب المواضيع.";
     }
 };
 
@@ -341,8 +514,12 @@ export const generateSemesterPlan = async (
     gradeLevel: string,
     term: string,
     weeks: number,
+    classesPerWeek: number,
     content: string = ""
 ): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) return "الخطط الفصلية معطلة.";
+
     const prompt = `
     أنت خبير مناهج في وزارة التعليم السعودية (إصدار 1447هـ). قم بإعداد "توزيع منهج" (Semester Plan) للمادة المحددة.
     
@@ -350,18 +527,18 @@ export const generateSemesterPlan = async (
     الصف: ${gradeLevel}
     الفصل الدراسي: ${term} (نظام الفصول الدراسية الثلاثة لعام 1447هـ)
     عدد الأسابيع الدراسية: ${weeks} أسبوعاً
+    عدد الحصص الأسبوعية: ${classesPerWeek} حصص
     
     ${content ? `**محتويات المقرر (الوحدات/الدروس) كما قدمها المعلم:**\n${content}\n\nيجب الالتزام بتوزيع هذه المحتويات بدقة على ${weeks} أسبوعاً.` : `**تنبيه:** لم يتم تقديم محتوى محدد، لذا قم باقتراح الوحدات بناءً على أحدث طبعة للكتاب المدرسي لعام 1447هـ وتوزيعها على ${weeks} أسبوعاً.`}
     
     المطلوب:
     أنشئ جدولاً بتنسيق Markdown يوزع وحدات ودروس المادة على ${weeks} أسبوع دراسي.
+    (تنبيه: لا تستخدم وسوم HTML داخل الجدول، ولا تكتب مقدمات طويلة مثل "بصفتي خبيراً...". ابدأ بالجدول مباشرة أو مقدمة قصيرة جداً).
     
-    يجب أن يكون الرد عبارة عن جدول Markdown فقط مع مقدمة بسيطة.
-    
-    التنسيق المطلوب (جدول Markdown):
-    | الأسبوع | الوحدة / المجال | موضوعات الدروس | عدد الحصص | ملاحظات |
+    التنسيق المطلوب (جدول Markdown) بدقة، مع التأكد من تعبئة عمود "عدد الحصص":
+    | الأسبوع | الوحدة / المجال | موضوعات الدروس | عدد الحصص (تقريبي) | ملاحظات |
     |---|---|---|---|---|
-    | الأسبوع 1 | ... | ... | ... | ... |
+    | الأسبوع 1 | ... | ... | ${classesPerWeek} حصص | ... |
     ...
     | الأسبوع ${weeks} | مراجعة | اختبارات عملية / تحريرية | - | ... |
     
@@ -370,8 +547,12 @@ export const generateSemesterPlan = async (
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
+            config: {
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
         });
         return response.text || "فشل في إنشاء الخطة الفصلية.";
     } catch (error) {
@@ -387,6 +568,9 @@ export const generateLearningPlan = async (
     goal: string,
     durationWeeks: string
 ): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) return "خطط التعلم معطلة.";
+
     const prompt = `
     قم بإعداد "خطة تعلم فردية" (Individual Learning Plan) لطالب في المدرسة السعودية (مناهج 1447هـ).
     
@@ -396,7 +580,7 @@ export const generateLearningPlan = async (
     المدة: ${durationWeeks} أسابيع
     
     المطلوب:
-    خطة تنفيذية بتنسيق جدول Markdown مقسمة أسبوعياً:
+    خطة تنفيذية بتنسيق جدول Markdown مقسمة أسبوعياً (بدون استخدام HTML tags):
     
     | الأسبوع | الهدف الأسبوعي | المحتوى التعليمي (عين/مدرستي) | النشاط المقترح | أسلوب التقييم |
     |---|---|---|---|---|
@@ -407,12 +591,63 @@ export const generateLearningPlan = async (
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
+            config: {
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
         });
         return response.text || "فشل في إنشاء خطة التعلم.";
     } catch (error) {
         console.error("Learning Plan Error:", error);
+        return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- NEW: Learning Outcomes Map Generator (Saudi 1447) ---
+export const generateLearningOutcomesMap = async (
+    subject: string,
+    gradeLevel: string,
+    content: string = ""
+): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) return "خرائط النواتج معطلة.";
+
+    const prompt = `
+    بصفتك خبيراً في المناهج وطرق التدريس (المملكة العربية السعودية 1447هـ)، قم ببناء "خريطة نواتج التعلم" (Learning Outcomes Map) للمادة المحددة.
+    
+    المادة: ${subject}
+    الصف: ${gradeLevel}
+    ${content ? `محتوى الوحدات/الدروس والمواضيع: ${content}` : ''}
+    
+    المطلوب:
+    إنشاء مصفوفة (جدول Markdown) تربط بين الوحدات الدراسية ونواتج التعلم الثلاثة (المعرفية، المهارية، الوجدانية) وأساليب التقويم.
+    
+    التنسيق المطلوب (جدول Markdown):
+    | الوحدة / الدرس | النواتج المعرفية (Knowledge) | النواتج المهارية (Skills) | النواتج الوجدانية (Values) | أساليب التقويم المقترحة |
+    |---|---|---|---|---|
+    | ... | ... | ... | ... | ... |
+    
+    القواعد:
+    1. استخدم أفعالاً سلوكية قابلة للقياس (يعدد، يشرح، يطبق، يحلل، يقدر...).
+    2. تأكد من شمولية النواتج للمجالات الثلاثة.
+    3. اقترح أساليب تقويم متنوعة (اختبار قصير، ملاحظة، مشروع، ملف إنجاز).
+    4. لا تكتب مقدمات طويلة، ابدأ بالجدول مباشرة.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
+        });
+        return response.text || "فشل في إنشاء خريطة نواتج التعلم.";
+    } catch (error) {
+        console.error("Outcomes Map Error:", error);
         return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
     }
 };
@@ -423,6 +658,8 @@ export const predictColumnMapping = async (
     targetFields: { key: string; label: string }[],
     sampleData: any[]
 ): Promise<Record<string, string>> => {
+    const { model, config } = getConfig();
+    
     const prompt = `
     Act as a data processing expert. I have an Excel file uploaded by a teacher with these Headers:
     ${JSON.stringify(headers)}
@@ -448,10 +685,11 @@ export const predictColumnMapping = async (
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
             config: {
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                temperature: config.temperature
             }
         });
         
@@ -469,6 +707,8 @@ export const parseRawDataWithAI = async (
     rawText: string,
     targetType: 'STUDENTS' | 'GRADES' | 'ATTENDANCE'
 ): Promise<any[]> => {
+    const { model, config } = getConfig();
+    
     let schemaDescription = "";
     if (targetType === 'STUDENTS') {
         schemaDescription = `
@@ -525,10 +765,11 @@ export const parseRawDataWithAI = async (
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
             config: {
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                temperature: config.temperature
             }
         });
         const text = response.text || "[]";
