@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { generateLessonPlan, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, suggestSyllabus, organizeCourseContent } from '../services/geminiService';
 import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table, Target, ListTree, BookOpenCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+// @ts-ignore
 import remarkGfm from 'remark-gfm';
 
 const TEACHING_STRATEGIES = [
