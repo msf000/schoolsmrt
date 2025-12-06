@@ -29,7 +29,6 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
 
-    // Watch School Code changes to look up existing schools
     useEffect(() => {
         if (formData.schoolCode.length >= 3) {
             const schools = getSchools();
@@ -50,7 +49,6 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
         setLoading(true);
         setError('');
 
-        // 1. Validation
         if (formData.password !== formData.confirmPassword) {
             setError('كلمات المرور غير متطابقة.');
             setLoading(false);
@@ -62,7 +60,6 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
             return;
         }
 
-        // 2. Check duplicates (Teacher)
         const teachers = getTeachers();
         const exists = teachers.find(t => t.nationalId === formData.nationalId || t.email === formData.email);
         if (exists) {
@@ -71,45 +68,40 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
             return;
         }
 
-        // 3. Handle School Logic (Link Existing OR Create New)
-        let schoolId = undefined;
-        let managerId = undefined;
-
-        if (formData.schoolCode) {
-            if (foundSchool) {
-                // Case A: School Exists -> Link to it
-                schoolId = foundSchool.id;
-                managerId = foundSchool.managerNationalId;
-            } else {
-                // Case B: New Code -> Create New School -> Require Manager Details
-                if (!formData.schoolName || !formData.managerName || !formData.managerNationalId) {
-                    setError('الرمز الوزاري جديد. يجب تعبئة بيانات المدرسة والمدير كاملة لإنشائها.');
-                    setLoading(false);
-                    return;
-                }
-
-                const newSchool: School = {
-                    id: Date.now().toString() + '_sch',
-                    name: formData.schoolName,
-                    ministryCode: formData.schoolCode,
-                    managerName: formData.managerName,
-                    managerNationalId: formData.managerNationalId,
-                    type: 'PUBLIC', // Default
-                    phone: '',
-                    studentCount: 0,
-                    subscriptionStatus: 'TRIAL'
-                };
-                
-                // Add the new school to storage
-                await addSchool(newSchool);
-                schoolId = newSchool.id;
-                managerId = formData.managerNationalId;
-            }
-        }
-
-        // 4. Create Teacher
-        // Use await to ensure data is pushed to Cloud before showing success
         try {
+            let schoolId = undefined;
+            let managerId = undefined;
+
+            if (formData.schoolCode) {
+                if (foundSchool) {
+                    schoolId = foundSchool.id;
+                    managerId = foundSchool.managerNationalId;
+                } else {
+                    if (!formData.schoolName || !formData.managerName || !formData.managerNationalId) {
+                        setError('الرمز الوزاري جديد. يجب تعبئة بيانات المدرسة والمدير كاملة لإنشائها.');
+                        setLoading(false);
+                        return;
+                    }
+
+                    const newSchool: School = {
+                        id: Date.now().toString() + '_sch',
+                        name: formData.schoolName,
+                        ministryCode: formData.schoolCode,
+                        managerName: formData.managerName,
+                        managerNationalId: formData.managerNationalId,
+                        type: 'PUBLIC',
+                        phone: '',
+                        studentCount: 0,
+                        subscriptionStatus: 'TRIAL'
+                    };
+                    
+                    // Await cloud save
+                    await addSchool(newSchool);
+                    schoolId = newSchool.id;
+                    managerId = formData.managerNationalId;
+                }
+            }
+
             const newTeacher: Teacher = {
                 id: Date.now().toString(),
                 name: formData.name,
@@ -122,15 +114,16 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 managerId: managerId
             };
 
+            // Await cloud save (which also adds to system_users)
             await addTeacher(newTeacher);
             
             setSuccess(true);
             setTimeout(() => {
-                // Determine login identifier (National ID is preferred for system users now)
                 onRegisterSuccess(formData.nationalId, formData.password);
             }, 1500);
         } catch (e: any) {
-            setError('حدث خطأ أثناء الحفظ في قاعدة البيانات: ' + e.message);
+            console.error(e);
+            setError('حدث خطأ أثناء الحفظ في قاعدة البيانات. تحقق من الاتصال.');
         } finally {
             setLoading(false);
         }

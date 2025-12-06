@@ -13,7 +13,7 @@ const KEYS = {
     WORKS_MASTER_URL: 'works_master_url'
 };
 
-// --- IN-MEMORY CACHE (Single Source of Truth for UI) ---
+// --- IN-MEMORY CACHE (Starts Empty - Populated from Cloud) ---
 const CACHE: any = {
     students: [],
     teachers: [],
@@ -31,7 +31,7 @@ const CACHE: any = {
     lesson_links: [],
     report_header_config: null,
     ai_settings: null,
-    works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || ''
+    works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || '' // Only config stays local for now if needed
 };
 
 // --- HELPER: DATA MAPPING (App <-> DB) ---
@@ -55,6 +55,27 @@ const fromDb = (item: any) => {
     return newItem;
 };
 
+// --- MAPPING CONSTANTS ---
+export const DB_MAP: Record<string, string> = {
+    SCHOOLS: 'schools',
+    USERS: 'system_users',
+    TEACHERS: 'teachers',
+    STUDENTS: 'students',
+    SUBJECTS: 'subjects',
+    ATTENDANCE: 'attendance_records',
+    PERFORMANCE: 'performance_records',
+    ASSIGNMENTS: 'assignments',
+    SCHEDULES: 'weekly_schedules',
+    TEACHER_ASSIGNMENTS: 'teacher_assignments',
+    PARENTS: 'parents',
+    MESSAGES: 'messages',
+    CUSTOM_TABLES: 'custom_tables',
+    FEEDBACK: 'feedback',
+    LESSON_LINKS: 'lesson_links',
+    REPORT_CONFIG: 'report_header_config',
+    AI_SETTINGS: 'ai_settings'
+};
+
 // --- INITIALIZATION (Load all from Cloud) ---
 export const initAutoSync = async () => {
     try {
@@ -74,9 +95,7 @@ export const initAutoSync = async () => {
                 }
             }
         }));
-        
-        // Special case for mappings manual fix if needed
-        // console.log("Cloud Data Loaded:", CACHE);
+        console.log("Cloud Data Loaded Successfully");
     } catch (e) {
         console.error("Failed to load cloud data", e);
     }
@@ -85,29 +104,46 @@ export const initAutoSync = async () => {
 // --- GENERIC CRUD HELPERS ---
 const addToCloud = async (table: string, item: any, cacheKey: string) => {
     // 1. Update Cache Optimistically
-    CACHE[cacheKey] = [...(CACHE[cacheKey] || []), item];
+    if (Array.isArray(CACHE[cacheKey])) {
+        CACHE[cacheKey] = [...CACHE[cacheKey], item];
+    } else {
+        CACHE[cacheKey] = item;
+    }
+    
     // 2. Send to Cloud
     const dbItem = toDb(item);
-    await supabase.from(table).upsert(dbItem);
+    const { error } = await supabase.from(table).upsert(dbItem);
+    if (error) {
+        console.error(`Error adding to ${table}:`, error);
+        throw error;
+    }
 };
 
 const updateInCloud = async (table: string, item: any, cacheKey: string) => {
     // 1. Update Cache
-    const list = CACHE[cacheKey] || [];
-    const idx = list.findIndex((x: any) => x.id === item.id);
-    if (idx > -1) list[idx] = item;
-    CACHE[cacheKey] = [...list];
+    const list = CACHE[cacheKey];
+    if (Array.isArray(list)) {
+        const idx = list.findIndex((x: any) => x.id === item.id);
+        if (idx > -1) list[idx] = item;
+        CACHE[cacheKey] = [...list];
+    } else {
+        CACHE[cacheKey] = item;
+    }
     
     // 2. Send to Cloud
     const dbItem = toDb(item);
-    await supabase.from(table).upsert(dbItem);
+    const { error } = await supabase.from(table).upsert(dbItem);
+    if (error) throw error;
 };
 
 const deleteFromCloud = async (table: string, id: string, cacheKey: string) => {
     // 1. Update Cache
-    CACHE[cacheKey] = (CACHE[cacheKey] || []).filter((x: any) => x.id !== id);
+    if (Array.isArray(CACHE[cacheKey])) {
+        CACHE[cacheKey] = CACHE[cacheKey].filter((x: any) => x.id !== id);
+    }
     // 2. Send to Cloud
-    await supabase.from(table).delete().eq('id', id);
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) throw error;
 };
 
 // --- Students ---
@@ -167,10 +203,11 @@ export const addTeacher = async (t: Teacher) => {
     await addToCloud('teachers', t, 'teachers');
     
     // 2. Add to System Users Table (For Login)
+    // We check if the user already exists to avoid PK violation, or use upsert
     const systemUser: SystemUser = {
-        id: t.id,
+        id: t.id, // Keep IDs consistent
         name: t.name,
-        email: t.email || t.nationalId || '', // Fallback for email field
+        email: t.email || t.nationalId || `t${t.id}@school.com`, // Fallback for email
         nationalId: t.nationalId,
         password: t.password,
         role: 'TEACHER',
@@ -178,21 +215,24 @@ export const addTeacher = async (t: Teacher) => {
         status: 'ACTIVE'
     };
     
-    // Check if user exists first to avoid duplicate key error if reusing ID
-    const existingUser = CACHE.system_users.find((u: SystemUser) => u.id === t.id || u.nationalId === t.nationalId);
-    if (!existingUser) {
-        await addToCloud('system_users', systemUser, 'system_users');
-    } else {
-        await updateInCloud('system_users', { ...existingUser, ...systemUser }, 'system_users');
-    }
+    // This allows teachers to log in immediately after registration
+    await addToCloud('system_users', systemUser, 'system_users');
 };
 
 export const updateTeacher = async (t: Teacher) => {
     await updateInCloud('teachers', t, 'teachers');
+    
     // Sync update to system user if exists
     const user = CACHE.system_users.find((u: SystemUser) => u.id === t.id);
     if (user) {
-        await updateInCloud('system_users', { ...user, name: t.name, email: t.email, nationalId: t.nationalId, password: t.password }, 'system_users');
+        await updateInCloud('system_users', { 
+            ...user, 
+            name: t.name, 
+            email: t.email, 
+            nationalId: t.nationalId, 
+            password: t.password,
+            schoolId: t.schoolId
+        }, 'system_users');
     }
 };
 
@@ -218,7 +258,7 @@ export const getSchedules = (): ScheduleItem[] => CACHE.weekly_schedules;
 export const saveScheduleItem = async (item: ScheduleItem) => {
     // Check if exists in cache to decide insert vs update logic if ID matches
     // But since we use upsert, simple add/update logic works
-    // Maintain uniqueness in cache
+    // Maintain uniqueness in cache based on ID
     const list = CACHE.weekly_schedules;
     const idx = list.findIndex((x: any) => x.id === item.id);
     if (idx > -1) list[idx] = item; else list.push(item);
@@ -258,7 +298,7 @@ export const bulkAddAttendance = async (list: AttendanceRecord[]) => {
 
 // --- Performance ---
 export const getPerformance = (): PerformanceRecord[] => CACHE.performance_records;
-export const addPerformance = async (p: PerformanceRecord) => await addToCloud('performance_records', p, 'performance_records'); // Note: Single add
+export const addPerformance = async (p: PerformanceRecord) => await addToCloud('performance_records', p, 'performance_records'); 
 export const bulkAddPerformance = async (list: PerformanceRecord[]) => {
     CACHE.performance_records = [...CACHE.performance_records, ...list];
     await supabase.from('performance_records').upsert(list.map(toDb));
@@ -302,7 +342,6 @@ export const getReportHeaderConfig = (): ReportHeaderConfig => {
 };
 export const saveReportHeaderConfig = async (c: ReportHeaderConfig) => {
     CACHE.report_header_config = c;
-    // Assuming single config row with ID '1' or similar strategy
     await supabase.from('report_header_config').upsert({ id: '1', ...toDb(c) });
 };
 
@@ -317,7 +356,6 @@ export const saveAISettings = async (s: AISettings) => {
 export const getWorksMasterUrl = (): string => CACHE.works_master_url || '';
 export const saveWorksMasterUrl = (url: string) => {
     CACHE.works_master_url = url;
-    // Logic to save this specific string setting to DB if needed, or keep local for now as per legacy
     localStorage.setItem(KEYS.WORKS_MASTER_URL, url); 
 };
 
@@ -347,7 +385,7 @@ export const checkConnection = async () => {
     } catch { return { success: false }; }
 };
 
-// --- Sync Stubs (Now mostly redundant as we are Cloud-First, but kept for compatibility) ---
+// --- Sync Stubs (Cloud-First compatibility) ---
 export const uploadToSupabase = async () => { return true; };
 export const downloadFromSupabase = async () => { await initAutoSync(); return true; };
 
@@ -360,7 +398,6 @@ export const getStorageStatistics = () => {
 };
 
 export const getCloudStatistics = async () => {
-    // Real check
     const { count: s } = await supabase.from('schools').select('*', { count: 'exact', head: true });
     const { count: u } = await supabase.from('system_users').select('*', { count: 'exact', head: true });
     return { schools: s || 0, users: u || 0 };
@@ -391,8 +428,7 @@ export const restoreBackup = (json: string) => {
     try {
         const backup = JSON.parse(json);
         Object.keys(backup).forEach(key => CACHE[key] = backup[key]);
-        // TODO: Push restored data to Cloud
-        alert('Data loaded to memory. Please implement full restore logic to push to cloud.');
+        alert('Data loaded to memory. To persist, please use the Cloud Sync/Restore features.');
     } catch (e) {
         alert('Invalid backup file');
     }
@@ -437,31 +473,222 @@ export const clearDatabase = () => {
     });
 };
 
-export const DB_MAP: Record<string, string> = {
-    SCHOOLS: 'schools',
-    USERS: 'system_users',
-    TEACHERS: 'teachers',
-    STUDENTS: 'students',
-    SUBJECTS: 'subjects',
-    ATTENDANCE: 'attendance_records',
-    PERFORMANCE: 'performance_records',
-    ASSIGNMENTS: 'assignments',
-    SCHEDULES: 'weekly_schedules',
-    TEACHER_ASSIGNMENTS: 'teacher_assignments',
-    PARENTS: 'parents',
-    MESSAGES: 'messages',
-    CUSTOM_TABLES: 'custom_tables',
-    FEEDBACK: 'feedback',
-    LESSON_LINKS: 'lesson_links',
-    REPORT_CONFIG: 'report_header_config',
-    AI_SETTINGS: 'ai_settings'
-};
-
 export const getTableDisplayName = (table: string) => {
     // Helper names
     return table;
 };
 
-// SQL Helpers maintained for AdminDashboard usage
-export const getDatabaseSchemaSQL = () => `/* SQL Definition ... */`;
-export const getDatabaseUpdateSQL = () => `/* SQL Updates ... */`;
+// --- SQL SCHEMA WITH RELATIONSHIPS ---
+export const getDatabaseSchemaSQL = () => {
+    return `
+-- 1. Schools Table
+CREATE TABLE IF NOT EXISTS schools (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    ministry_code TEXT,
+    education_administration TEXT,
+    manager_name TEXT,
+    manager_national_id TEXT,
+    type TEXT,
+    phone TEXT,
+    student_count NUMERIC,
+    subscription_status TEXT,
+    works_master_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2. System Users Table (Enforce School Relationship)
+CREATE TABLE IF NOT EXISTS system_users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    national_id TEXT,
+    password TEXT,
+    role TEXT NOT NULL,
+    school_id TEXT REFERENCES schools(id) ON DELETE SET NULL,
+    status TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3. Teachers Table (Linked to School & Users)
+CREATE TABLE IF NOT EXISTS teachers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT,
+    password TEXT,
+    email TEXT,
+    phone TEXT,
+    subject_specialty TEXT,
+    school_id TEXT REFERENCES schools(id) ON DELETE SET NULL,
+    manager_id TEXT, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. Students Table
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT,
+    grade_level TEXT,
+    class_name TEXT,
+    email TEXT,
+    phone TEXT,
+    parent_name TEXT,
+    parent_phone TEXT,
+    parent_email TEXT,
+    seat_index NUMERIC,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. Subjects Table
+CREATE TABLE IF NOT EXISTS subjects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. Assignments (Columns Config)
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    max_score NUMERIC,
+    url TEXT,
+    is_visible BOOLEAN DEFAULT TRUE,
+    order_index NUMERIC,
+    source_metadata TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 7. Performance Records
+CREATE TABLE IF NOT EXISTS performance_records (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    subject TEXT,
+    title TEXT,
+    category TEXT,
+    score NUMERIC,
+    max_score NUMERIC,
+    date TEXT,
+    notes TEXT,
+    url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 8. Attendance Records
+CREATE TABLE IF NOT EXISTS attendance_records (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    date TEXT,
+    status TEXT,
+    subject TEXT,
+    period NUMERIC,
+    behavior_status TEXT,
+    behavior_note TEXT,
+    excuse_note TEXT,
+    excuse_file TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 9. Weekly Schedules
+CREATE TABLE IF NOT EXISTS weekly_schedules (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    day TEXT,
+    period NUMERIC,
+    subject_name TEXT,
+    teacher_id TEXT REFERENCES teachers(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 10. Teacher Assignments
+CREATE TABLE IF NOT EXISTS teacher_assignments (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    subject_name TEXT,
+    teacher_id TEXT REFERENCES teachers(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 11. Parents Table
+CREATE TABLE IF NOT EXISTS parents (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    phone TEXT,
+    children_ids TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 12. Messages Log
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    student_name TEXT,
+    parent_phone TEXT,
+    type TEXT,
+    content TEXT,
+    status TEXT,
+    sent_by TEXT,
+    date TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 13. Other Configs
+CREATE TABLE IF NOT EXISTS report_header_config (
+    id TEXT PRIMARY KEY,
+    school_name TEXT,
+    education_admin TEXT,
+    teacher_name TEXT,
+    school_manager TEXT,
+    academic_year TEXT,
+    term TEXT,
+    logo_base64 TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+    id TEXT PRIMARY KEY,
+    model_id TEXT,
+    temperature NUMERIC,
+    enable_reports BOOLEAN,
+    enable_quiz BOOLEAN,
+    enable_planning BOOLEAN,
+    system_instruction TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lesson_links (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    url TEXT,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    manager_id TEXT,
+    content TEXT,
+    date TEXT,
+    is_read BOOLEAN
+);
+
+CREATE TABLE IF NOT EXISTS custom_tables (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    created_at TEXT,
+    columns TEXT[], 
+    rows JSONB,
+    source_url TEXT,
+    last_updated TEXT
+);
+`;
+};
+
+export const getDatabaseUpdateSQL = () => {
+    return `
+-- SQL to Add missing columns or constraints for V2
+ALTER TABLE system_users ADD COLUMN IF NOT EXISTS national_id TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS password TEXT;
+ALTER TABLE system_users ADD CONSTRAINT fk_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL;
+ALTER TABLE teachers ADD CONSTRAINT fk_school_teacher FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL;
+`;
+};

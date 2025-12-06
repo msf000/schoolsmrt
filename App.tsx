@@ -72,7 +72,7 @@ const App: React.FC = () => {
 
     const initialize = async () => {
         setIsLoading(true);
-        // Load Cloud Data into Memory Cache FIRST
+        // FORCE CLOUD SYNC FIRST
         await initAutoSync();
         checkAuth();
         refreshData();
