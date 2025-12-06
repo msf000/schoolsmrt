@@ -1,7 +1,7 @@
 
 // ... existing imports ...
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus } from '../types';
+import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp } from 'lucide-react';
@@ -11,6 +11,7 @@ interface WorksTrackingProps {
   performance: PerformanceRecord[];
   attendance: AttendanceRecord[];
   onAddPerformance: (records: PerformanceRecord[]) => void;
+  currentUser?: SystemUser | null;
 }
 
 // Helper to extract label and max score from header
@@ -25,7 +26,7 @@ const extractHeaderMetadata = (header: string): { label: string, maxScore: numbe
     return { label, maxScore };
 };
 
-const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance }) => {
+const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>(() => {
         return localStorage.getItem('works_tracking_mode') as any || 'GRADING';
     });
@@ -53,7 +54,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isCloudLink, setIsCloudLink] = useState(false);
 
     useEffect(() => {
-        const loadedSubjects = getSubjects();
+        if (!currentUser) return;
+
+        // Fetch subjects filtered by current user
+        const loadedSubjects = getSubjects(currentUser.id);
         setSubjects(loadedSubjects);
         if (loadedSubjects.length > 0) setSelectedSubject(loadedSubjects[0].name);
         else setSelectedSubject('عام');
@@ -69,17 +73,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         
         const savedTarget = localStorage.getItem('works_activity_target');
         if (savedTarget) setActivityTarget(parseInt(savedTarget));
-    }, []);
+    }, [currentUser]);
 
     useEffect(() => {
-        const allAssignments = getAssignments(activeTab);
+        if (!currentUser) return;
+
+        const allAssignments = getAssignments(activeTab, currentUser.id);
         allAssignments.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
         setAssignments(allAssignments);
         
         if (activeMode === 'GRADING' && masterUrl && allAssignments.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
             handleAutoSyncForTab(activeTab);
         }
-    }, [activeTab, masterUrl, activeMode]);
+    }, [activeTab, masterUrl, activeMode, currentUser]);
 
     useEffect(() => {
         if (activeTab === 'YEAR_WORK') return;
@@ -139,12 +145,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const syncDataFromSheet = async (workbook: any, sheetName: string, category: PerformanceCategory) => {
+        if (!currentUser) return;
+
         const { headers, data } = getSheetHeadersAndData(workbook, sheetName);
         const excludeKeywords = ['name', 'id', 'student', 'phone', 'email', 'mobile', 'اسم', 'هوية', 'سجل', 'جوال', 'صف', 'فصل'];
         const gradeHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
         if (gradeHeaders.length === 0) return;
 
-        const currentAssignments = getAssignments(category);
+        const currentAssignments = getAssignments(category, currentUser.id);
         const newAssignments: Assignment[] = [];
 
         gradeHeaders.forEach((header, index) => {
@@ -168,7 +176,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 isVisible: true,
                 url: existing ? existing.url : '', 
                 sourceMetadata: JSON.stringify({ sheet: sheetName, header: header }),
-                orderIndex: index
+                orderIndex: index,
+                teacherId: currentUser.id // STRICT ISOLATION
             };
             saveAssignment(assignmentData);
             newAssignments.push(assignmentData);
@@ -264,6 +273,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const handleAddColumn = () => {
+        if (!currentUser) return;
         const newAssign: Assignment = {
             id: `manual_${Date.now()}`,
             title: 'عنوان جديد',
@@ -271,7 +281,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             maxScore: 10,
             isVisible: true,
             url: '',
-            orderIndex: assignments.length
+            orderIndex: assignments.length,
+            teacherId: currentUser.id // STRICT ISOLATION
         };
         saveAssignment(newAssign);
         setAssignments([...assignments, newAssign]);
@@ -378,7 +389,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         // --- YEAR WORK TAB LOGIC ---
         if (activeTab === 'YEAR_WORK') {
             const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
-            const hwCols = getAssignments('HOMEWORK');
+            const hwCols = getAssignments('HOMEWORK', currentUser?.id);
             const distinctHW = new Set(hwRecs.map(p => p.notes)).size;
             const hwGrade = hwCols.length > 0 ? (distinctHW / hwCols.length) * 10 : 0;
 

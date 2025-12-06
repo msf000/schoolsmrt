@@ -1,11 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
-import { CustomTable } from '../types';
+import { CustomTable, SystemUser } from '../types';
 import { getCustomTables, deleteCustomTable, updateCustomTable, addCustomTable } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData, getWorkbookStructure } from '../services/excelService';
 import { Database, Trash2, RefreshCw, Calendar, Link as LinkIcon, Table, X, ArrowLeft, Loader2, CheckCircle, AlertTriangle, DownloadCloud, Layers, FileSpreadsheet, ArrowRight, Upload, Plus, Globe, Clipboard } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
-const CustomTablesView: React.FC = () => {
+interface CustomTablesViewProps {
+    currentUser?: SystemUser | null;
+}
+
+const CustomTablesView: React.FC<CustomTablesViewProps> = ({ currentUser }) => {
     const [tables, setTables] = useState<CustomTable[]>([]);
     const [viewingTable, setViewingTable] = useState<CustomTable | null>(null);
     const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -29,8 +34,10 @@ const CustomTablesView: React.FC = () => {
     const [importLoading, setImportLoading] = useState(false);
 
     useEffect(() => {
-        setTables(getCustomTables());
-    }, []);
+        if(currentUser) {
+            setTables(getCustomTables(currentUser.id));
+        }
+    }, [currentUser]);
 
     const resetImportState = () => {
         setImportStep(1);
@@ -46,15 +53,15 @@ const CustomTablesView: React.FC = () => {
 
     const handleDelete = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (confirm('هل أنت متأكد من حذف هذا الجدول؟')) {
+        if (confirm('هل أنت متأكد من حذف هذا الجدول؟') && currentUser) {
             deleteCustomTable(id);
-            setTables(getCustomTables());
+            setTables(getCustomTables(currentUser.id));
             if (viewingTable?.id === id) setViewingTable(null);
         }
     };
 
     const handleRefreshData = async (table: CustomTable) => {
-        if (!table.sourceUrl) return;
+        if (!table.sourceUrl || !currentUser) return;
         
         setRefreshingId(table.id);
         setStatus(null);
@@ -82,7 +89,7 @@ const CustomTablesView: React.FC = () => {
             };
 
             updateCustomTable(updatedTable);
-            setTables(getCustomTables());
+            setTables(getCustomTables(currentUser.id));
             if (viewingTable?.id === table.id) setViewingTable(updatedTable);
             
             setStatus({ type: 'success', message: 'تم تحديث البيانات بنجاح من المصدر' });
@@ -128,7 +135,7 @@ const CustomTablesView: React.FC = () => {
 
     // Step 2: Final Save with selected sheet
     const handleFinalSave = () => {
-        if (!fetchedWorkbook || !selectedSheet) return;
+        if (!fetchedWorkbook || !selectedSheet || !currentUser) return;
         
         setImportLoading(true);
         try {
@@ -143,11 +150,12 @@ const CustomTablesView: React.FC = () => {
                 columns: headers,
                 rows: data,
                 sourceUrl: importMethod === 'URL' ? importUrl : undefined,
-                lastUpdated: new Date().toISOString()
+                lastUpdated: new Date().toISOString(),
+                teacherId: currentUser.id // STRICT ISOLATION
             };
 
             addCustomTable(newTable);
-            setTables(getCustomTables());
+            setTables(getCustomTables(currentUser.id));
             setStatus({ type: 'success', message: 'تم حفظ الجدول بنجاح!' });
             setIsImportModalOpen(false);
             resetImportState();

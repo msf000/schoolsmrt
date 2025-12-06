@@ -478,7 +478,7 @@ const App: React.FC = () => {
             )}
             {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}
             {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance}/>}
-            {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance}/>}
+            {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance} currentUser={currentUser}/>}
             {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance}/>}
             {currentView === 'PERFORMANCE' && <Performance students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance}/>}
             {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance}/>}
@@ -499,7 +499,7 @@ const App: React.FC = () => {
                     currentUser={currentUser} // Pass Current User for Teacher Schedule
                 />
             )}
-            {currentView === 'CUSTOM_TABLES' && <CustomTablesView />}
+            {currentView === 'CUSTOM_TABLES' && <CustomTablesView currentUser={currentUser} />}
             {currentView === 'DATA_IMPORT' && <DataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} existingStudents={students}/>}
             {currentView === 'AI_DATA_IMPORT' && <AIDataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} />}
         </div>

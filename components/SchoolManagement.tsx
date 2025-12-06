@@ -74,10 +74,16 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   // --- LOAD DATA ---
   useEffect(() => {
       // Common Data Load
-      setSubjects(getSubjects());
+      // Pass currentUser.id to filtering functions to ensure isolation
+      if (currentUser) {
+          setSubjects(getSubjects(currentUser.id));
+          setReportConfig(getReportHeaderConfig(currentUser.id));
+      } else {
+          setSubjects([]);
+      }
+      
       setSchedules(getSchedules());
       setAssignments(getTeacherAssignments());
-      setReportConfig(getReportHeaderConfig());
       setUserTheme(getUserTheme());
 
       const allTeachers = getTeachers();
@@ -141,17 +147,21 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
 
   // --- ACTIONS: SUBJECTS ---
   const handleAddSubject = () => {
-      if (newSubject.trim()) {
-          addSubject({ id: Date.now().toString(), name: newSubject.trim() });
-          setSubjects(getSubjects());
+      if (newSubject.trim() && currentUser) {
+          addSubject({ 
+              id: Date.now().toString(), 
+              name: newSubject.trim(),
+              teacherId: currentUser.id // Link subject to teacher
+          });
+          setSubjects(getSubjects(currentUser.id));
           setNewSubject('');
       }
   };
 
   const handleDeleteSubject = (id: string) => {
-      if (confirm('حذف المادة؟')) {
+      if (confirm('حذف المادة؟') && currentUser) {
           deleteSubject(id);
-          setSubjects(getSubjects());
+          setSubjects(getSubjects(currentUser.id));
       }
   };
 
@@ -250,10 +260,14 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   };
 
   const handleSaveSettings = () => {
-      saveReportHeaderConfig(reportConfig);
-      saveUserTheme(userTheme);
-      if(onUpdateTheme) onUpdateTheme(userTheme);
-      alert('تم حفظ الإعدادات بنجاح');
+      if (currentUser) {
+          // Link config to current user
+          const configWithId = { ...reportConfig, teacherId: currentUser.id };
+          saveReportHeaderConfig(configWithId);
+          saveUserTheme(userTheme);
+          if(onUpdateTheme) onUpdateTheme(userTheme);
+          alert('تم حفظ الإعدادات بنجاح');
+      }
   };
 
   // --- ACTIONS: FEEDBACK (Manager Only) ---

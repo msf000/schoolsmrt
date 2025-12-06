@@ -71,6 +71,7 @@ export interface Parent {
 export interface Subject {
   id: string;
   name: string;
+  teacherId?: string; // NEW: Private subject for this teacher
 }
 
 // --- Schedule Types ---
@@ -127,6 +128,7 @@ export interface Assignment {
     isVisible: boolean;
     orderIndex?: number;
     sourceMetadata?: string; // JSON string for excel source info
+    teacherId?: string; // NEW: Assignment belongs to teacher
 }
 
 export interface PerformanceRecord {
@@ -205,6 +207,7 @@ export interface CustomTable {
     rows: any[];
     sourceUrl?: string; // Link to refresh data from
     lastUpdated?: string; // Timestamp of last refresh
+    teacherId?: string; // NEW: Private table
 }
 
 export interface ReportHeaderConfig {
@@ -215,6 +218,7 @@ export interface ReportHeaderConfig {
     academicYear: string; // New: e.g., 1446
     term: string; // New: e.g., First Term
     logoBase64?: string; // New: To store image locally
+    teacherId?: string; // NEW: Private config
 }
 
 // --- Message Center Types ---
