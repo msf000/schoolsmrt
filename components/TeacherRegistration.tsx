@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Teacher, School } from '../types';
-import { addTeacher, getTeachers, getSchools, updateTeacher, addSchool } from '../services/storageService';
-import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Building, UserCheck } from 'lucide-react';
+import { addTeacher, getTeachers, getSchools, addSchool } from '../services/storageService';
+import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
 interface TeacherRegistrationProps {
     onBack: () => void;
@@ -101,14 +101,15 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 };
                 
                 // Add the new school to storage
-                addSchool(newSchool);
+                await addSchool(newSchool);
                 schoolId = newSchool.id;
                 managerId = formData.managerNationalId;
             }
         }
 
         // 4. Create Teacher
-        setTimeout(() => {
+        // Use await to ensure data is pushed to Cloud before showing success
+        try {
             const newTeacher: Teacher = {
                 id: Date.now().toString(),
                 name: formData.name,
@@ -121,18 +122,18 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 managerId: managerId
             };
 
-            try {
-                addTeacher(newTeacher);
-                setSuccess(true);
-                setTimeout(() => {
-                    onRegisterSuccess(formData.email || formData.nationalId, formData.password);
-                }, 1500);
-            } catch (e: any) {
-                setError('حدث خطأ أثناء الحفظ: ' + e.message);
-            } finally {
-                setLoading(false);
-            }
-        }, 800);
+            await addTeacher(newTeacher);
+            
+            setSuccess(true);
+            setTimeout(() => {
+                // Determine login identifier (National ID is preferred for system users now)
+                onRegisterSuccess(formData.nationalId, formData.password);
+            }, 1500);
+        } catch (e: any) {
+            setError('حدث خطأ أثناء الحفظ في قاعدة البيانات: ' + e.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (success) {

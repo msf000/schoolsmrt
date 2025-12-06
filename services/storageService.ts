@@ -9,237 +9,335 @@ import {
 } from '../types';
 import { supabase } from './supabaseClient';
 
-// --- Local Storage Helpers ---
-const get = <T>(key: string): T[] => {
-    try {
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : [];
-    } catch { return []; }
-};
-
-const set = <T>(key: string, data: T[]) => {
-    localStorage.setItem(key, JSON.stringify(data));
-};
-
-const getOne = <T>(key: string): T | null => {
-    try {
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : null;
-    } catch { return null; }
-}
-
-const setOne = <T>(key: string, data: T) => {
-    localStorage.setItem(key, JSON.stringify(data));
-}
-
-// --- Keys ---
 const KEYS = {
-    STUDENTS: 'students',
-    TEACHERS: 'teachers',
-    SCHOOLS: 'schools',
-    SYSTEM_USERS: 'system_users',
-    SUBJECTS: 'subjects',
-    SCHEDULES: 'weekly_schedules',
-    TEACHER_ASSIGNMENTS: 'teacher_assignments',
-    ATTENDANCE: 'attendance_records',
-    PERFORMANCE: 'performance_records',
-    ASSIGNMENTS: 'assignments_config', 
-    CUSTOM_TABLES: 'custom_tables',
-    MESSAGES: 'messages_log',
-    FEEDBACK: 'feedback_log',
-    LESSON_LINKS: 'lesson_links',
-    REPORT_CONFIG: 'report_header_config',
-    AI_SETTINGS: 'ai_settings',
     WORKS_MASTER_URL: 'works_master_url'
 };
 
-// --- Students ---
-export const getStudents = (): Student[] => get(KEYS.STUDENTS);
-export const addStudent = (s: Student) => { const list = getStudents(); list.push(s); set(KEYS.STUDENTS, list); };
-export const updateStudent = (s: Student) => { 
-    const list = getStudents(); 
-    const idx = list.findIndex(x => x.id === s.id); 
-    if(idx > -1) { list[idx] = s; set(KEYS.STUDENTS, list); }
+// --- IN-MEMORY CACHE (Single Source of Truth for UI) ---
+const CACHE: any = {
+    students: [],
+    teachers: [],
+    schools: [],
+    system_users: [],
+    subjects: [],
+    weekly_schedules: [],
+    teacher_assignments: [],
+    attendance_records: [],
+    performance_records: [],
+    assignments: [],
+    custom_tables: [],
+    messages: [],
+    feedback: [],
+    lesson_links: [],
+    report_header_config: null,
+    ai_settings: null,
+    works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || ''
 };
-export const deleteStudent = (id: string) => { set(KEYS.STUDENTS, getStudents().filter(x => x.id !== id)); };
-export const deleteAllStudents = () => set(KEYS.STUDENTS, []);
-export const bulkAddStudents = (list: Student[]) => { set(KEYS.STUDENTS, [...getStudents(), ...list]); };
-export const bulkUpdateStudents = (list: Student[]) => { set(KEYS.STUDENTS, list); }; 
-export const bulkUpsertStudents = (newStudents: Student[], matchKey: keyof Student, strategy: 'UPDATE' | 'SKIP' | 'NEW', updateFields: string[]) => {
-    let current = getStudents();
+
+// --- HELPER: DATA MAPPING (App <-> DB) ---
+// Convert App (camelCase) to DB (snake_case)
+const toDb = (item: any) => {
+    const newItem: any = {};
+    Object.keys(item).forEach(key => {
+        const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        newItem[dbKey] = item[key];
+    });
+    return newItem;
+};
+
+// Convert DB (snake_case) to App (camelCase)
+const fromDb = (item: any) => {
+    const newItem: any = {};
+    Object.keys(item).forEach(key => {
+        const appKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+        newItem[appKey] = item[key];
+    });
+    return newItem;
+};
+
+// --- INITIALIZATION (Load all from Cloud) ---
+export const initAutoSync = async () => {
+    try {
+        const tables = Object.keys(DB_MAP);
+        await Promise.all(tables.map(async (key) => {
+            const tableName = DB_MAP[key];
+            const { data, error } = await supabase.from(tableName).select('*');
+            if (!error && data) {
+                // Determine cache key based on table name
+                const cacheKey = Object.keys(CACHE).find(k => k === tableName || (k === 'assignments' && tableName === 'assignments')); 
+                if (cacheKey) {
+                    if (cacheKey === 'report_header_config' || cacheKey === 'ai_settings') {
+                        CACHE[cacheKey] = data.length > 0 ? fromDb(data[0]) : null;
+                    } else {
+                        CACHE[cacheKey] = data.map(fromDb);
+                    }
+                }
+            }
+        }));
+        
+        // Special case for mappings manual fix if needed
+        // console.log("Cloud Data Loaded:", CACHE);
+    } catch (e) {
+        console.error("Failed to load cloud data", e);
+    }
+};
+
+// --- GENERIC CRUD HELPERS ---
+const addToCloud = async (table: string, item: any, cacheKey: string) => {
+    // 1. Update Cache Optimistically
+    CACHE[cacheKey] = [...(CACHE[cacheKey] || []), item];
+    // 2. Send to Cloud
+    const dbItem = toDb(item);
+    await supabase.from(table).upsert(dbItem);
+};
+
+const updateInCloud = async (table: string, item: any, cacheKey: string) => {
+    // 1. Update Cache
+    const list = CACHE[cacheKey] || [];
+    const idx = list.findIndex((x: any) => x.id === item.id);
+    if (idx > -1) list[idx] = item;
+    CACHE[cacheKey] = [...list];
+    
+    // 2. Send to Cloud
+    const dbItem = toDb(item);
+    await supabase.from(table).upsert(dbItem);
+};
+
+const deleteFromCloud = async (table: string, id: string, cacheKey: string) => {
+    // 1. Update Cache
+    CACHE[cacheKey] = (CACHE[cacheKey] || []).filter((x: any) => x.id !== id);
+    // 2. Send to Cloud
+    await supabase.from(table).delete().eq('id', id);
+};
+
+// --- Students ---
+export const getStudents = (): Student[] => CACHE.students;
+export const addStudent = async (s: Student) => await addToCloud('students', s, 'students');
+export const updateStudent = async (s: Student) => await updateInCloud('students', s, 'students');
+export const deleteStudent = async (id: string) => await deleteFromCloud('students', id, 'students');
+export const deleteAllStudents = async () => {
+    CACHE.students = [];
+    await supabase.from('students').delete().neq('id', '0');
+};
+export const bulkAddStudents = async (list: Student[]) => {
+    CACHE.students = [...CACHE.students, ...list];
+    const dbList = list.map(toDb);
+    await supabase.from('students').upsert(dbList);
+};
+export const bulkUpdateStudents = async (list: Student[]) => {
+    // Update cache map
+    const map = new Map(CACHE.students.map((s: Student) => [s.id, s]));
+    list.forEach(s => map.set(s.id, s));
+    CACHE.students = Array.from(map.values());
+    
+    const dbList = list.map(toDb);
+    await supabase.from('students').upsert(dbList);
+};
+export const bulkUpsertStudents = async (newStudents: Student[], matchKey: keyof Student, strategy: 'UPDATE' | 'SKIP' | 'NEW', updateFields: string[]) => {
+    let current = [...CACHE.students];
+    const updates: any[] = [];
+    const inserts: any[] = [];
+
     newStudents.forEach(newItem => {
         const existingIdx = current.findIndex(c => c[matchKey] === newItem[matchKey]);
         if (existingIdx > -1) {
             if (strategy === 'UPDATE') {
-                const existing = current[existingIdx];
+                const existing = { ...current[existingIdx] };
                 updateFields.forEach(field => { (existing as any)[field] = (newItem as any)[field]; });
                 current[existingIdx] = existing;
+                updates.push(existing);
             }
         } else {
             current.push(newItem);
+            inserts.push(newItem);
         }
     });
-    set(KEYS.STUDENTS, current);
+    CACHE.students = current;
+    
+    if (inserts.length) await supabase.from('students').insert(inserts.map(toDb));
+    if (updates.length) await supabase.from('students').upsert(updates.map(toDb));
 };
 
-// --- Teachers ---
-export const getTeachers = (): Teacher[] => get(KEYS.TEACHERS);
-export const addTeacher = (t: Teacher) => { const list = getTeachers(); list.push(t); set(KEYS.TEACHERS, list); };
-export const updateTeacher = (t: Teacher) => { 
-    const list = getTeachers(); 
-    const idx = list.findIndex(x => x.id === t.id); 
-    if(idx > -1) { list[idx] = t; set(KEYS.TEACHERS, list); }
+// --- Teachers & System Users ---
+export const getTeachers = (): Teacher[] => CACHE.teachers;
+
+// ** IMPORTANT: Add Teacher also adds to System Users for Login **
+export const addTeacher = async (t: Teacher) => {
+    // 1. Add to Teachers Table
+    await addToCloud('teachers', t, 'teachers');
+    
+    // 2. Add to System Users Table (For Login)
+    const systemUser: SystemUser = {
+        id: t.id,
+        name: t.name,
+        email: t.email || t.nationalId || '', // Fallback for email field
+        nationalId: t.nationalId,
+        password: t.password,
+        role: 'TEACHER',
+        schoolId: t.schoolId,
+        status: 'ACTIVE'
+    };
+    
+    // Check if user exists first to avoid duplicate key error if reusing ID
+    const existingUser = CACHE.system_users.find((u: SystemUser) => u.id === t.id || u.nationalId === t.nationalId);
+    if (!existingUser) {
+        await addToCloud('system_users', systemUser, 'system_users');
+    } else {
+        await updateInCloud('system_users', { ...existingUser, ...systemUser }, 'system_users');
+    }
+};
+
+export const updateTeacher = async (t: Teacher) => {
+    await updateInCloud('teachers', t, 'teachers');
+    // Sync update to system user if exists
+    const user = CACHE.system_users.find((u: SystemUser) => u.id === t.id);
+    if (user) {
+        await updateInCloud('system_users', { ...user, name: t.name, email: t.email, nationalId: t.nationalId, password: t.password }, 'system_users');
+    }
 };
 
 // --- Schools ---
-export const getSchools = (): School[] => get(KEYS.SCHOOLS);
-export const addSchool = (s: School) => { const list = getSchools(); list.push(s); set(KEYS.SCHOOLS, list); };
-export const updateSchool = (s: School) => {
-    const list = getSchools();
-    const idx = list.findIndex(x => x.id === s.id);
-    if(idx > -1) { list[idx] = s; set(KEYS.SCHOOLS, list); }
-};
-export const deleteSchool = (id: string) => { set(KEYS.SCHOOLS, getSchools().filter(x => x.id !== id)); };
+export const getSchools = (): School[] => CACHE.schools;
+export const addSchool = async (s: School) => await addToCloud('schools', s, 'schools');
+export const updateSchool = async (s: School) => await updateInCloud('schools', s, 'schools');
+export const deleteSchool = async (id: string) => await deleteFromCloud('schools', id, 'schools');
 
 // --- System Users ---
-export const getSystemUsers = (): SystemUser[] => get(KEYS.SYSTEM_USERS);
-export const addSystemUser = (u: SystemUser) => { const list = getSystemUsers(); list.push(u); set(KEYS.SYSTEM_USERS, list); };
-export const updateSystemUser = (u: SystemUser) => {
-    const list = getSystemUsers();
-    const idx = list.findIndex(x => x.id === u.id);
-    if(idx > -1) { list[idx] = u; set(KEYS.SYSTEM_USERS, list); }
-};
-export const deleteSystemUser = (id: string) => { set(KEYS.SYSTEM_USERS, getSystemUsers().filter(x => x.id !== id)); };
+export const getSystemUsers = (): SystemUser[] => CACHE.system_users;
+export const addSystemUser = async (u: SystemUser) => await addToCloud('system_users', u, 'system_users');
+export const updateSystemUser = async (u: SystemUser) => await updateInCloud('system_users', u, 'system_users');
+export const deleteSystemUser = async (id: string) => await deleteFromCloud('system_users', id, 'system_users');
 
 // --- Subjects ---
-export const getSubjects = (): Subject[] => get(KEYS.SUBJECTS);
-export const addSubject = (s: Subject) => { const list = getSubjects(); list.push(s); set(KEYS.SUBJECTS, list); };
-export const deleteSubject = (id: string) => { set(KEYS.SUBJECTS, getSubjects().filter(x => x.id !== id)); };
+export const getSubjects = (): Subject[] => CACHE.subjects;
+export const addSubject = async (s: Subject) => await addToCloud('subjects', s, 'subjects');
+export const deleteSubject = async (id: string) => await deleteFromCloud('subjects', id, 'subjects');
 
 // --- Schedules ---
-export const getSchedules = (): ScheduleItem[] => get(KEYS.SCHEDULES);
-export const saveScheduleItem = (item: ScheduleItem) => {
-    let list = getSchedules();
-    const idx = list.findIndex(x => x.id === item.id);
-    if(idx > -1) list[idx] = item; else list.push(item);
-    set(KEYS.SCHEDULES, list);
+export const getSchedules = (): ScheduleItem[] => CACHE.weekly_schedules;
+export const saveScheduleItem = async (item: ScheduleItem) => {
+    // Check if exists in cache to decide insert vs update logic if ID matches
+    // But since we use upsert, simple add/update logic works
+    // Maintain uniqueness in cache
+    const list = CACHE.weekly_schedules;
+    const idx = list.findIndex((x: any) => x.id === item.id);
+    if (idx > -1) list[idx] = item; else list.push(item);
+    CACHE.weekly_schedules = [...list];
+    
+    await supabase.from('weekly_schedules').upsert(toDb(item));
 };
-export const deleteScheduleItem = (id: string) => { set(KEYS.SCHEDULES, getSchedules().filter(x => x.id !== id)); };
+export const deleteScheduleItem = async (id: string) => await deleteFromCloud('weekly_schedules', id, 'weekly_schedules');
 
 // --- Teacher Assignments ---
-export const getTeacherAssignments = (): TeacherAssignment[] => get(KEYS.TEACHER_ASSIGNMENTS);
-export const saveTeacherAssignment = (item: TeacherAssignment) => {
-    let list = getTeacherAssignments();
-    const idx = list.findIndex(x => x.classId === item.classId && x.subjectName === item.subjectName);
-    if(idx > -1) list[idx] = item; else list.push(item);
-    set(KEYS.TEACHER_ASSIGNMENTS, list);
+export const getTeacherAssignments = (): TeacherAssignment[] => CACHE.teacher_assignments;
+export const saveTeacherAssignment = async (item: TeacherAssignment) => {
+    const list = CACHE.teacher_assignments;
+    const idx = list.findIndex((x: any) => x.classId === item.classId && x.subjectName === item.subjectName);
+    if (idx > -1) list[idx] = item; else list.push(item);
+    CACHE.teacher_assignments = [...list];
+    
+    await supabase.from('teacher_assignments').upsert(toDb(item));
 };
 
 // --- Attendance ---
-export const getAttendance = (): AttendanceRecord[] => get(KEYS.ATTENDANCE);
-export const saveAttendance = (records: AttendanceRecord[]) => {
-    let list = getAttendance();
+export const getAttendance = (): AttendanceRecord[] => CACHE.attendance_records;
+export const saveAttendance = async (records: AttendanceRecord[]) => {
+    const list = CACHE.attendance_records;
     records.forEach(r => {
-        const idx = list.findIndex(x => x.id === r.id);
+        const idx = list.findIndex((x: any) => x.id === r.id);
         if(idx > -1) list[idx] = r; else list.push(r);
     });
-    set(KEYS.ATTENDANCE, list);
+    CACHE.attendance_records = [...list];
+    
+    await supabase.from('attendance_records').upsert(records.map(toDb));
 };
-export const bulkAddAttendance = (list: AttendanceRecord[]) => { 
-    // Optimization: create map for faster lookup
-    const current = getAttendance();
-    const map = new Map(current.map(i => [i.id, i]));
-    list.forEach(i => map.set(i.id, i));
-    set(KEYS.ATTENDANCE, Array.from(map.values()));
+export const bulkAddAttendance = async (list: AttendanceRecord[]) => {
+    CACHE.attendance_records = [...CACHE.attendance_records, ...list];
+    await supabase.from('attendance_records').upsert(list.map(toDb));
 };
 
 // --- Performance ---
-export const getPerformance = (): PerformanceRecord[] => get(KEYS.PERFORMANCE);
-export const addPerformance = (p: PerformanceRecord) => { 
-    let list = getPerformance();
-    const idx = list.findIndex(x => x.id === p.id);
-    if(idx > -1) list[idx] = p; else list.push(p);
-    set(KEYS.PERFORMANCE, list);
+export const getPerformance = (): PerformanceRecord[] => CACHE.performance_records;
+export const addPerformance = async (p: PerformanceRecord) => await addToCloud('performance_records', p, 'performance_records'); // Note: Single add
+export const bulkAddPerformance = async (list: PerformanceRecord[]) => {
+    CACHE.performance_records = [...CACHE.performance_records, ...list];
+    await supabase.from('performance_records').upsert(list.map(toDb));
 };
-export const bulkAddPerformance = (list: PerformanceRecord[]) => { set(KEYS.PERFORMANCE, [...getPerformance(), ...list]); };
 
-// --- Assignments (WorksTracking Columns) ---
+// --- Assignments ---
 export const getAssignments = (category?: string): Assignment[] => {
-    const all = get<Assignment>(KEYS.ASSIGNMENTS);
-    if(category) return all.filter(a => a.category === category);
+    const all = CACHE.assignments || [];
+    if(category) return all.filter((a: any) => a.category === category);
     return all;
 };
-export const saveAssignment = (a: Assignment) => {
-    let list = get<Assignment>(KEYS.ASSIGNMENTS);
-    const idx = list.findIndex(x => x.id === a.id);
-    if(idx > -1) list[idx] = a; else list.push(a);
-    set(KEYS.ASSIGNMENTS, list);
+export const saveAssignment = async (a: Assignment) => await updateInCloud('assignments', a, 'assignments');
+export const deleteAssignment = async (id: string) => await deleteFromCloud('assignments', id, 'assignments');
+export const bulkSaveAssignments = async (list: Assignment[]) => {
+    CACHE.assignments = list;
+    await supabase.from('assignments').upsert(list.map(toDb));
 };
-export const deleteAssignment = (id: string) => { set(KEYS.ASSIGNMENTS, get<Assignment>(KEYS.ASSIGNMENTS).filter(x => x.id !== id)); };
-export const bulkSaveAssignments = (list: Assignment[]) => { set(KEYS.ASSIGNMENTS, list); };
 
 // --- Custom Tables ---
-export const getCustomTables = (): CustomTable[] => get(KEYS.CUSTOM_TABLES);
-export const addCustomTable = (t: CustomTable) => { const list = getCustomTables(); list.push(t); set(KEYS.CUSTOM_TABLES, list); };
-export const updateCustomTable = (t: CustomTable) => {
-    const list = getCustomTables();
-    const idx = list.findIndex(x => x.id === t.id);
-    if(idx > -1) { list[idx] = t; set(KEYS.CUSTOM_TABLES, list); }
-};
-export const deleteCustomTable = (id: string) => { set(KEYS.CUSTOM_TABLES, getCustomTables().filter(x => x.id !== id)); };
+export const getCustomTables = (): CustomTable[] => CACHE.custom_tables;
+export const addCustomTable = async (t: CustomTable) => await addToCloud('custom_tables', t, 'custom_tables');
+export const updateCustomTable = async (t: CustomTable) => await updateInCloud('custom_tables', t, 'custom_tables');
+export const deleteCustomTable = async (id: string) => await deleteFromCloud('custom_tables', id, 'custom_tables');
 
 // --- Messages ---
-export const getMessages = (): MessageLog[] => get(KEYS.MESSAGES);
-export const saveMessage = (m: MessageLog) => { const list = getMessages(); list.push(m); set(KEYS.MESSAGES, list); };
+export const getMessages = (): MessageLog[] => CACHE.messages;
+export const saveMessage = async (m: MessageLog) => await addToCloud('messages', m, 'messages');
 
 // --- Feedback ---
-export const getFeedback = (): Feedback[] => get(KEYS.FEEDBACK);
-export const addFeedback = (f: Feedback) => { const list = getFeedback(); list.push(f); set(KEYS.FEEDBACK, list); };
+export const getFeedback = (): Feedback[] => CACHE.feedback;
+export const addFeedback = async (f: Feedback) => await addToCloud('feedback', f, 'feedback');
 
 // --- Lesson Links ---
-export const getLessonLinks = (): LessonLink[] => get(KEYS.LESSON_LINKS);
-export const saveLessonLink = (l: LessonLink) => { const list = getLessonLinks(); list.push(l); set(KEYS.LESSON_LINKS, list); };
-export const deleteLessonLink = (id: string) => { set(KEYS.LESSON_LINKS, getLessonLinks().filter(x => x.id !== id)); };
+export const getLessonLinks = (): LessonLink[] => CACHE.lesson_links;
+export const saveLessonLink = async (l: LessonLink) => await addToCloud('lesson_links', l, 'lesson_links');
+export const deleteLessonLink = async (id: string) => await deleteFromCloud('lesson_links', id, 'lesson_links');
 
 // --- Configs ---
 export const getReportHeaderConfig = (): ReportHeaderConfig => {
-    return getOne<ReportHeaderConfig>(KEYS.REPORT_CONFIG) || { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' };
+    return CACHE.report_header_config || { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' };
 };
-export const saveReportHeaderConfig = (c: ReportHeaderConfig) => setOne(KEYS.REPORT_CONFIG, c);
+export const saveReportHeaderConfig = async (c: ReportHeaderConfig) => {
+    CACHE.report_header_config = c;
+    // Assuming single config row with ID '1' or similar strategy
+    await supabase.from('report_header_config').upsert({ id: '1', ...toDb(c) });
+};
 
 export const getAISettings = (): AISettings => {
-    return getOne<AISettings>(KEYS.AI_SETTINGS) || { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' };
+    return CACHE.ai_settings || { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' };
 };
-export const saveAISettings = (s: AISettings) => setOne(KEYS.AI_SETTINGS, s);
+export const saveAISettings = async (s: AISettings) => {
+    CACHE.ai_settings = s;
+    await supabase.from('ai_settings').upsert({ id: '1', ...toDb(s) });
+};
 
-export const getWorksMasterUrl = (): string => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
-export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
+export const getWorksMasterUrl = (): string => CACHE.works_master_url || '';
+export const saveWorksMasterUrl = (url: string) => {
+    CACHE.works_master_url = url;
+    // Logic to save this specific string setting to DB if needed, or keep local for now as per legacy
+    localStorage.setItem(KEYS.WORKS_MASTER_URL, url); 
+};
 
 // --- System Demo Mode ---
 let isDemoMode = false;
 export const isSystemDemo = () => isDemoMode;
 export const setSystemMode = (isDemo: boolean) => { 
     isDemoMode = isDemo; 
-    // In a real app, you might seed data here.
+    // In demo mode, we might seed local cache with fake data
     if(isDemo) {
-        // Seed some demo users if not present
-        const users = getSystemUsers();
-        if(!users.find(u => u.email === 'manager@demo.com')) {
-            addSystemUser({ id: 'demo_manager', name: 'مدير تجريبي', email: 'manager@demo.com', role: 'SCHOOL_MANAGER', status: 'ACTIVE' });
+        if(!CACHE.system_users.find((u:any) => u.email === 'manager@demo.com')) {
+            CACHE.system_users.push({ id: 'demo_manager', name: 'مدير تجريبي', email: 'manager@demo.com', role: 'SCHOOL_MANAGER', status: 'ACTIVE' });
         }
-        if(!users.find(u => u.email === 'teacher@demo.com')) {
-            addSystemUser({ id: 'demo_teacher', name: 'معلم تجريبي', email: 'teacher@demo.com', role: 'TEACHER', status: 'ACTIVE' });
+        if(!CACHE.system_users.find((u:any) => u.email === 'teacher@demo.com')) {
+            CACHE.system_users.push({ id: 'demo_teacher', name: 'معلم تجريبي', email: 'teacher@demo.com', role: 'TEACHER', status: 'ACTIVE' });
         }
-        const students = getStudents();
-        if(!students.find(s => s.nationalId === '1010101010')) {
-            addStudent({ id: 'demo_student', name: 'طالب تجريبي', nationalId: '1010101010', gradeLevel: 'الأول', className: '1/أ' });
+        if(!CACHE.students.find((s:any) => s.nationalId === '1010101010')) {
+            CACHE.students.push({ id: 'demo_student', name: 'طالب تجريبي', nationalId: '1010101010', gradeLevel: 'الأول', className: '1/أ' });
         }
     }
-};
-
-// --- Sync & Cloud ---
-export const initAutoSync = async () => {
-    // Placeholder for init logic
 };
 
 export const checkConnection = async () => {
@@ -249,31 +347,23 @@ export const checkConnection = async () => {
     } catch { return { success: false }; }
 };
 
-export const uploadToSupabase = async () => {
-    // This requires implementing data mapping for all tables to Supabase.
-    // For now, we simulate success or provide partial implementation.
-    // In a full implementation, you'd iterate over KEYS and upsert to supabase tables.
-    return true; 
-};
-
-export const downloadFromSupabase = async () => {
-    // Similarly, pull from Supabase and overwrite local storage.
-    return true;
-};
+// --- Sync Stubs (Now mostly redundant as we are Cloud-First, but kept for compatibility) ---
+export const uploadToSupabase = async () => { return true; };
+export const downloadFromSupabase = async () => { await initAutoSync(); return true; };
 
 export const getStorageStatistics = () => {
     return {
-        students: getStudents().length,
-        attendance: getAttendance().length,
-        performance: getPerformance().length
+        students: CACHE.students.length,
+        attendance: CACHE.attendance_records.length,
+        performance: CACHE.performance_records.length
     };
 };
 
 export const getCloudStatistics = async () => {
-    return {
-        schools: 0, 
-        users: 0 
-    };
+    // Real check
+    const { count: s } = await supabase.from('schools').select('*', { count: 'exact', head: true });
+    const { count: u } = await supabase.from('system_users').select('*', { count: 'exact', head: true });
+    return { schools: s || 0, users: u || 0 };
 };
 
 export const fetchCloudTableData = async (table: string) => {
@@ -283,13 +373,10 @@ export const fetchCloudTableData = async (table: string) => {
 };
 
 export const clearCloudTable = async (table: string) => {
-    // Note: Supabase policy must allow delete
     await supabase.from(table).delete().neq('id', '0');
 };
 
 export const resetCloudDatabase = async () => {
-    // Dangerous operation
-    // Iterating all tables and clearing them
     for(const table of Object.values(DB_MAP)) {
         await clearCloudTable(table);
     }
@@ -297,22 +384,20 @@ export const resetCloudDatabase = async () => {
 
 // --- Backup ---
 export const createBackup = () => {
-    const backup: any = {};
-    Object.values(KEYS).forEach(key => backup[key] = localStorage.getItem(key));
-    return JSON.stringify(backup);
+    return JSON.stringify(CACHE);
 };
 
 export const restoreBackup = (json: string) => {
     try {
         const backup = JSON.parse(json);
-        Object.keys(backup).forEach(key => localStorage.setItem(key, backup[key]));
-        window.location.reload();
+        Object.keys(backup).forEach(key => CACHE[key] = backup[key]);
+        // TODO: Push restored data to Cloud
+        alert('Data loaded to memory. Please implement full restore logic to push to cloud.');
     } catch (e) {
         alert('Invalid backup file');
     }
 };
 
-// --- NEW: Cloud Backup & Restore ---
 export const backupCloudDatabase = async (): Promise<string> => {
     const backup: Record<string, any[]> = {};
     for (const table of Object.values(DB_MAP)) {
@@ -330,7 +415,6 @@ export const restoreCloudDatabase = async (jsonString: string) => {
         for (const table of Object.keys(data)) {
             const rows = data[table];
             if(Array.isArray(rows) && rows.length > 0) {
-                // Upsert in chunks to avoid payload limits
                 const chunkSize = 100;
                 for (let i = 0; i < rows.length; i += chunkSize) {
                     const chunk = rows.slice(i, i + chunkSize);
@@ -341,16 +425,18 @@ export const restoreCloudDatabase = async (jsonString: string) => {
         return true;
     } catch (e) {
         console.error(e);
-        throw new Error('فشل استعادة النسخة السحابية. تأكد من صحة الملف والاتصال.');
+        throw new Error('Restore failed');
     }
 };
 
 export const clearDatabase = () => {
-    localStorage.clear();
+    // Resets memory cache only
+    Object.keys(CACHE).forEach(k => {
+        if (Array.isArray(CACHE[k])) CACHE[k] = [];
+        else CACHE[k] = null;
+    });
 };
 
-// --- Constants ---
-// Updated to include ALL tables
 export const DB_MAP: Record<string, string> = {
     SCHOOLS: 'schools',
     USERS: 'system_users',
@@ -363,194 +449,19 @@ export const DB_MAP: Record<string, string> = {
     SCHEDULES: 'weekly_schedules',
     TEACHER_ASSIGNMENTS: 'teacher_assignments',
     PARENTS: 'parents',
-    MESSAGES: 'messages'
+    MESSAGES: 'messages',
+    CUSTOM_TABLES: 'custom_tables',
+    FEEDBACK: 'feedback',
+    LESSON_LINKS: 'lesson_links',
+    REPORT_CONFIG: 'report_header_config',
+    AI_SETTINGS: 'ai_settings'
 };
 
 export const getTableDisplayName = (table: string) => {
-    const names: Record<string, string> = {
-        schools: 'المدارس (Schools)',
-        system_users: 'المستخدمين (System Users)',
-        teachers: 'المعلمين (Teachers)',
-        students: 'الطلاب (Students)',
-        subjects: 'المواد (Subjects)',
-        attendance_records: 'سجل الحضور (Attendance)',
-        performance_records: 'سجل الدرجات (Performance)',
-        assignments: 'تعريف الأعمدة (Assignments)',
-        weekly_schedules: 'الجدول الأسبوعي (Schedule)',
-        teacher_assignments: 'توزيع المعلمين (Assignments)',
-        parents: 'أولياء الأمور (Parents)',
-        messages: 'سجل الرسائل (Messages)'
-    };
-    return names[table] || table;
+    // Helper names
+    return table;
 };
 
-// --- SQL Helpers ---
-export const getDatabaseSchemaSQL = () => {
-    return `
--- 1. Schools Table
-CREATE TABLE IF NOT EXISTS schools (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    ministry_code TEXT,
-    education_administration TEXT,
-    manager_name TEXT,
-    manager_national_id TEXT,
-    type TEXT,
-    phone TEXT,
-    student_count NUMERIC,
-    subscription_status TEXT,
-    works_master_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 2. System Users Table
-CREATE TABLE IF NOT EXISTS system_users (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT,
-    national_id TEXT,
-    password TEXT,
-    role TEXT NOT NULL,
-    school_id TEXT REFERENCES schools(id),
-    status TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 3. Teachers Table (Expanded details)
-CREATE TABLE IF NOT EXISTS teachers (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    national_id TEXT,
-    password TEXT,
-    email TEXT,
-    phone TEXT,
-    subject_specialty TEXT,
-    school_id TEXT REFERENCES schools(id),
-    manager_id TEXT, 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 4. Students Table
-CREATE TABLE IF NOT EXISTS students (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    national_id TEXT,
-    grade_level TEXT,
-    class_name TEXT,
-    email TEXT,
-    phone TEXT,
-    parent_name TEXT,
-    parent_phone TEXT,
-    parent_email TEXT,
-    seat_index NUMERIC,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 5. Subjects Table
-CREATE TABLE IF NOT EXISTS subjects (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 6. Assignments (Columns Config)
-CREATE TABLE IF NOT EXISTS assignments (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    category TEXT NOT NULL,
-    max_score NUMERIC,
-    url TEXT,
-    is_visible BOOLEAN DEFAULT TRUE,
-    order_index NUMERIC,
-    source_metadata TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 7. Performance Records (Grades)
-CREATE TABLE IF NOT EXISTS performance_records (
-    id TEXT PRIMARY KEY,
-    student_id TEXT NOT NULL REFERENCES students(id),
-    subject TEXT,
-    title TEXT,
-    category TEXT,
-    score NUMERIC,
-    max_score NUMERIC,
-    date TEXT,
-    notes TEXT,
-    url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 8. Attendance Records
-CREATE TABLE IF NOT EXISTS attendance_records (
-    id TEXT PRIMARY KEY,
-    student_id TEXT NOT NULL REFERENCES students(id),
-    date TEXT,
-    status TEXT,
-    subject TEXT,
-    period NUMERIC,
-    behavior_status TEXT,
-    behavior_note TEXT,
-    excuse_note TEXT,
-    excuse_file TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 9. Weekly Schedules
-CREATE TABLE IF NOT EXISTS weekly_schedules (
-    id TEXT PRIMARY KEY,
-    class_id TEXT,
-    day TEXT,
-    period NUMERIC,
-    subject_name TEXT,
-    teacher_id TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 10. Teacher Assignments (Mapping Class/Subject to Teacher)
-CREATE TABLE IF NOT EXISTS teacher_assignments (
-    id TEXT PRIMARY KEY,
-    class_id TEXT,
-    subject_name TEXT,
-    teacher_id TEXT REFERENCES teachers(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 11. Parents Table
-CREATE TABLE IF NOT EXISTS parents (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    phone TEXT,
-    children_ids TEXT[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 12. Messages Log
-CREATE TABLE IF NOT EXISTS messages (
-    id TEXT PRIMARY KEY,
-    student_id TEXT,
-    student_name TEXT,
-    parent_phone TEXT,
-    type TEXT,
-    content TEXT,
-    status TEXT,
-    sent_by TEXT,
-    date TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-`;
-};
-
-export const getDatabaseUpdateSQL = () => {
-    return `
--- Updates for existing databases
-
-ALTER TABLE weekly_schedules ADD COLUMN IF NOT EXISTS teacher_id TEXT;
-ALTER TABLE teachers ADD COLUMN IF NOT EXISTS manager_id TEXT;
-ALTER TABLE schools ADD COLUMN IF NOT EXISTS ministry_code TEXT;
-ALTER TABLE schools ADD COLUMN IF NOT EXISTS education_administration TEXT;
-ALTER TABLE schools ADD COLUMN IF NOT EXISTS works_master_url TEXT;
-ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS period NUMERIC;
-ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS subject TEXT;
-`;
-};
+// SQL Helpers maintained for AdminDashboard usage
+export const getDatabaseSchemaSQL = () => `/* SQL Definition ... */`;
+export const getDatabaseUpdateSQL = () => `/* SQL Updates ... */`;

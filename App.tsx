@@ -72,14 +72,11 @@ const App: React.FC = () => {
 
     const initialize = async () => {
         setIsLoading(true);
-        checkAuth();
+        // Load Cloud Data into Memory Cache FIRST
         await initAutoSync();
+        checkAuth();
         refreshData();
         setIsLoading(false);
-        // Initial quick sync
-        if (!isSystemDemo()) {
-             handleForceSync(true); 
-        }
     };
     initialize();
 
@@ -87,8 +84,7 @@ const App: React.FC = () => {
     // Only if NOT in demo mode
     const cloudInterval = setInterval(async () => {
         if(isSystemDemo()) return;
-        const hasKeys = (localStorage.getItem('custom_supabase_url') || (process.env.SUPABASE_URL));
-        if(hasKeys && !isBgSyncing) {
+        if(!isBgSyncing) {
              handleForceSync(true); // Silent sync
         }
     }, 300000); // 5 minutes
@@ -131,17 +127,14 @@ const App: React.FC = () => {
       
       setIsBgSyncing(true);
       try {
-          // 1. Push Local Changes
-          await uploadToSupabase(); 
-          // 2. Pull Remote Changes
-          await downloadFromSupabase(); 
-          
+          // Re-fetch all data from cloud to ensure UI is fresh
+          await initAutoSync();
           refreshData();
           setLastSyncTime(new Date().toLocaleTimeString('ar-EG'));
-          if (!silent) alert('✅ تمت المزامنة مع قاعدة البيانات بنجاح!');
+          if (!silent) alert('✅ تم تحديث البيانات من السحابة بنجاح!');
       } catch (e: any) {
           console.error("Sync failed:", e);
-          if (!silent) alert(`❌ فشل المزامنة: ${e.message || 'خطأ غير معروف'}`);
+          if (!silent) alert(`❌ فشل التحديث: ${e.message || 'خطأ غير معروف'}`);
       } finally {
           setIsBgSyncing(false);
       }
@@ -153,22 +146,22 @@ const App: React.FC = () => {
     setPerformance(getPerformance());
   };
 
-  const handleAddStudent = (s: Student) => { addStudent(s); refreshData(); };
-  const handleUpdateStudent = (s: Student) => { updateStudent(s); refreshData(); };
-  const handleBulkAddStudents = (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
-    if (matchKey && strategy) bulkUpsertStudents(list, matchKey, strategy, updateFields || []);
-    else bulkAddStudents(list);
+  const handleAddStudent = async (s: Student) => { await addStudent(s); refreshData(); };
+  const handleUpdateStudent = async (s: Student) => { await updateStudent(s); refreshData(); };
+  const handleBulkAddStudents = async (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
+    if (matchKey && strategy) await bulkUpsertStudents(list, matchKey, strategy, updateFields || []);
+    else await bulkAddStudents(list);
     refreshData();
   };
-  const handleDeleteStudent = (id: string) => { deleteStudent(id); refreshData(); };
-  const handleSaveAttendance = (recs: AttendanceRecord[]) => { saveAttendance(recs); refreshData(); };
-  const handleBulkAddAttendance = (list: AttendanceRecord[]) => { bulkAddAttendance(list); refreshData(); };
-  const handleAddPerformance = (rec: PerformanceRecord) => { addPerformance(rec); refreshData(); };
-  const handleBulkAddPerformance = (list: PerformanceRecord[]) => { bulkAddPerformance(list); refreshData(); };
+  const handleDeleteStudent = async (id: string) => { await deleteStudent(id); refreshData(); };
+  const handleSaveAttendance = async (recs: AttendanceRecord[]) => { await saveAttendance(recs); refreshData(); };
+  const handleBulkAddAttendance = async (list: AttendanceRecord[]) => { await bulkAddAttendance(list); refreshData(); };
+  const handleAddPerformance = async (rec: PerformanceRecord) => { await addPerformance(rec); refreshData(); };
+  const handleBulkAddPerformance = async (list: PerformanceRecord[]) => { await bulkAddPerformance(list); refreshData(); };
   
   // NEW: Handle Seating Plan Save
-  const handleSaveSeating = (updatedStudents: Student[]) => {
-      bulkUpdateStudents(updatedStudents);
+  const handleSaveSeating = async (updatedStudents: Student[]) => {
+      await bulkUpdateStudents(updatedStudents);
       refreshData();
   };
 
@@ -204,9 +197,9 @@ const App: React.FC = () => {
               <Loader2 size={64} className="text-primary animate-spin mb-4" />
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Cloud size={24} className="text-blue-500"/>
-                  جاري الاتصال بقاعدة البيانات السحابية...
+                  جاري الاتصال بالسحابة وجلب البيانات...
               </h2>
-              <p className="text-gray-500 mt-2">يرجى الانتظار، يتم جلب أحدث البيانات.</p>
+              <p className="text-gray-500 mt-2">يعتمد النظام الآن بالكامل على التخزين السحابي.</p>
           </div>
       );
   }
@@ -288,8 +281,8 @@ const App: React.FC = () => {
         </nav>
         <div className="p-4 border-t border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between text-xs mb-2">
-                 <span className="font-bold text-gray-600 flex items-center gap-1"><Wifi size={10}/> المزامنة</span>
-                 {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : (isDemo ? <span className="text-orange-500 font-bold">معطلة (تجريبي)</span> : <CheckCircle size={12} className="text-green-500"/>)}
+                 <span className="font-bold text-gray-600 flex items-center gap-1"><Cloud size={10}/> السحابة</span>
+                 {isBgSyncing ? <RefreshCw size={12} className="animate-spin text-blue-500"/> : (isDemo ? <span className="text-orange-500 font-bold">تجريبي</span> : <CheckCircle size={12} className="text-green-500"/>)}
             </div>
             
             {!isDemo && (
@@ -299,12 +292,12 @@ const App: React.FC = () => {
                     className="w-full bg-white border border-gray-300 rounded-lg py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 hover:text-primary flex items-center justify-center gap-2 transition-colors mb-2 shadow-sm"
                 >
                     <RefreshCw size={12} className={isBgSyncing ? "animate-spin" : ""}/> 
-                    {isBgSyncing ? 'جاري المزامنة...' : 'مزامنة الآن'}
+                    {isBgSyncing ? 'جاري التحديث...' : 'تحديث البيانات'}
                 </button>
             )}
 
             <p className="text-[10px] text-gray-400 text-center">
-                {lastSyncTime ? `آخر تحديث: ${lastSyncTime}` : (isDemo ? 'البيانات مؤقتة' : 'يتم الحفظ تلقائياً')}
+                {lastSyncTime ? `آخر تحديث: ${lastSyncTime}` : 'متصل بالسحابة'}
             </p>
         </div>
       </aside>
@@ -339,7 +332,7 @@ const App: React.FC = () => {
                                 className="w-full bg-gray-50 border border-gray-300 rounded-xl py-3 text-sm font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-2 transition-colors mb-2"
                             >
                                 <RefreshCw size={16} className={isBgSyncing ? "animate-spin" : ""}/> 
-                                {isBgSyncing ? 'جاري المزامنة...' : 'مزامنة البيانات'}
+                                {isBgSyncing ? 'جاري التحديث...' : 'تحديث البيانات'}
                             </button>
                         )}
                         <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-red-500 hover:bg-red-50 hover:text-red-700">
