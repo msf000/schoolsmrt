@@ -590,7 +590,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                       {/* Profile Settings */}
                       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                           <div className="flex justify-between items-center mb-4 border-b pb-2">
-                              <h3 className="font-bold text-gray-800 flex items-center gap-2"><FileText size={18}/> البيانات الأساسية</h3>
+                              <h3 className="font-bold text-gray-800 flex items-center gap-2"><FileText size={18}/> بياناتي الأساسية</h3>
                               <button 
                                 onClick={() => setIsEditingProfile(!isEditingProfile)}
                                 className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all ${isEditingProfile ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
