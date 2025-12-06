@@ -550,45 +550,47 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
         </div>
 
         {/* Attendance Pie Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-80">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-80 flex flex-col">
             <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
                 <Clock size={18} className="text-primary"/>
                 توزيع الحضور الكلي
             </h3>
-            <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                    <Pie
-                        data={attendanceData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        paddingAngle={5}
-                        dataKey="value"
-                        label
-                    >
-                        {attendanceData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                </PieChart>
-            </ResponsiveContainer>
+            <div className="flex-1 min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie
+                            data={attendanceData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            paddingAngle={5}
+                            dataKey="value"
+                            label
+                        >
+                            {attendanceData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                    </PieChart>
+                </ResponsiveContainer>
+            </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* Correlation Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 flex flex-col">
             <h3 className="text-lg font-semibold mb-2 text-gray-700 flex items-center gap-2">
                 <TrendingUp size={18} className="text-blue-600"/>
                 تحليل العلاقة (الحضور vs الأداء)
             </h3>
             <p className="text-xs text-gray-500 mb-4">كل نقطة تمثل طالباً. النقاط في الأعلى يميناً تمثل الطلاب المتميزين والملتزمين.</p>
             
-            <div className="h-72 w-full">
+            <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                     <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" />

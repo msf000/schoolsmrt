@@ -317,8 +317,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const updated = [...assignments];
         updated[index] = { ...updated[index], [field]: value };
         setAssignments(updated);
-        // Save immediately for better UX in management mode
-        // saveAssignment(updated[index]); 
     };
 
     const handleDeleteColumn = (index: number) => {
@@ -447,7 +445,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
                 
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
-                    {/* Subject Selector (Only relevant in grading usually, but maybe management too if we split config per subject later) */}
+                    {/* Subject Selector */}
                     <select 
                         value={selectedSubject} 
                         onChange={(e) => setSelectedSubject(e.target.value)}
