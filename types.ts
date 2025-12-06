@@ -22,6 +22,7 @@ export interface Student {
   nationalId?: string; // New: National ID / Identity Number
   password?: string; // New: Student Login Password
   classId?: string; // Link to ClassRoom
+  schoolId?: string; // NEW: Link to School for strict isolation
   // Denormalized fields for easier display if class is deleted, or for imports
   gradeLevel?: string; 
   className?: string;

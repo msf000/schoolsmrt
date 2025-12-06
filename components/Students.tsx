@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student } from '../types';
 import { deleteAllStudents } from '../services/storageService';
@@ -9,7 +10,7 @@ interface StudentsProps {
   onAddStudent: (student: Student) => void;
   onUpdateStudent: (student: Student) => void;
   onDeleteStudent: (id: string) => void;
-  onImportStudents: (students: Student[]) => void;
+  onImportStudents: (students: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => void;
 }
 
 const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents }) => {
@@ -81,7 +82,8 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
       phone: formData.phone,
       parentName: formData.parentName,
       parentPhone: formData.parentPhone,
-      parentEmail: formData.parentEmail
+      parentEmail: formData.parentEmail,
+      schoolId: editingStudent?.schoolId // Maintain existing or allow parent to inject (handled in App.tsx)
     };
 
     try {
@@ -368,7 +370,7 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
               <DataImport 
                   existingStudents={students}
                   onImportStudents={(data, matchKey, strategy, fields) => { 
-                      onImportStudents(data); 
+                      onImportStudents(data, matchKey, strategy, fields); 
                       setIsImportModalOpen(false); 
                   }}
                   onImportAttendance={() => {}} 
@@ -415,7 +417,7 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
                       <div className="border-t pt-4">
                           <p className="font-bold text-gray-800 mb-3 text-sm">بيانات ولي الأمر</p>
                           <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                                <p className="font-bold text-gray-800 flex items-center gap-2 mb-2"><User size={16}/> {viewStudent.parentName || 'غير مسجل'}</p>
+                                <p className="font-bold text-gray-800 flex items-center gap-2"><User size={16}/> {viewStudent.parentName || 'غير مسجل'}</p>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                     <span className="flex items-center gap-1 text-gray-600"><Phone size={14}/> {viewStudent.parentPhone || '-'}</span>
                                     <span className="flex items-center gap-1 text-gray-600"><Mail size={14}/> {viewStudent.parentEmail || '-'}</span>

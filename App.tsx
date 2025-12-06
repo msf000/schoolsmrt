@@ -64,8 +64,11 @@ const App: React.FC = () => {
         const savedUser = savedUserLocal || savedUserSession;
 
         if (savedUser) {
-            setCurrentUser(JSON.parse(savedUser));
+            const user = JSON.parse(savedUser);
+            setCurrentUser(user);
             setIsAuthenticated(true);
+            // Trigger data load with the user context
+            refreshData(user);
         } else {
             setIsAuthenticated(false);
         }
@@ -76,7 +79,6 @@ const App: React.FC = () => {
         // FORCE CLOUD SYNC FIRST
         await initAutoSync();
         checkAuth();
-        refreshData();
         setIsLoading(false);
     };
     initialize();
@@ -106,7 +108,7 @@ const App: React.FC = () => {
           sessionStorage.setItem('app_user', userStr);
           localStorage.removeItem('app_user');
       }
-      refreshData(); // Refresh data on login (important for switching modes)
+      refreshData(user); // Refresh data on login using specific user context
   };
 
   const handleLogout = () => {
@@ -130,7 +132,7 @@ const App: React.FC = () => {
       try {
           // Re-fetch all data from cloud to ensure UI is fresh
           await initAutoSync();
-          refreshData();
+          refreshData(currentUser);
           setLastSyncTime(new Date().toLocaleTimeString('ar-EG'));
           if (!silent) alert('✅ تم تحديث البيانات من السحابة بنجاح!');
       } catch (e: any) {
@@ -141,29 +143,82 @@ const App: React.FC = () => {
       }
   };
 
-  const refreshData = () => {
-    setStudents(getStudents());
-    setAttendance(getAttendance());
-    setPerformance(getPerformance());
+  // --- STRICT DATA ISOLATION LOGIC ---
+  const refreshData = (userContext = currentUser) => {
+    const allStudents = getStudents();
+    const allAttendance = getAttendance();
+    const allPerformance = getPerformance();
+
+    // 1. SUPER ADMIN sees everything
+    if (!userContext || userContext.role === 'SUPER_ADMIN') {
+        setStudents(allStudents);
+        setAttendance(allAttendance);
+        setPerformance(allPerformance);
+        return;
+    }
+
+    // 2. SCHOOL MANAGER / TEACHER / STUDENT - Filter by School ID
+    // If user has a schoolId, strictly filter.
+    // If data has NO schoolId (legacy), we might choose to show it or hide it. 
+    // SECURITY DECISION: Hide legacy data to force migration/security, OR show only if matching.
+    // Here we show if schoolId matches OR if user has no schoolId (local/legacy mode)
+    
+    let filteredStudents = allStudents;
+
+    if (userContext.schoolId) {
+        filteredStudents = allStudents.filter(s => s.schoolId === userContext.schoolId);
+    } else if (userContext.role === 'TEACHER') {
+        // Fallback for standalone teachers without schoolId yet (legacy/local mode)
+        // They see everything (local storage behavior)
+        filteredStudents = allStudents;
+    }
+
+    // Filter dependent records based on filtered students
+    const validStudentIds = new Set(filteredStudents.map(s => s.id));
+    const filteredAttendance = allAttendance.filter(a => validStudentIds.has(a.studentId));
+    const filteredPerformance = allPerformance.filter(p => validStudentIds.has(p.studentId));
+
+    setStudents(filteredStudents);
+    setAttendance(filteredAttendance);
+    setPerformance(filteredPerformance);
   };
 
-  const handleAddStudent = async (s: Student) => { await addStudent(s); refreshData(); };
-  const handleUpdateStudent = async (s: Student) => { await updateStudent(s); refreshData(); };
-  const handleBulkAddStudents = async (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
-    if (matchKey && strategy) await bulkUpsertStudents(list, matchKey, strategy, updateFields || []);
-    else await bulkAddStudents(list);
-    refreshData();
+  const handleAddStudent = async (s: Student) => { 
+      // Ensure strict linking: Always attach current user's schoolId
+      if (currentUser?.schoolId) {
+          s.schoolId = currentUser.schoolId;
+      }
+      await addStudent(s); 
+      refreshData(currentUser); 
   };
-  const handleDeleteStudent = async (id: string) => { await deleteStudent(id); refreshData(); };
-  const handleSaveAttendance = async (recs: AttendanceRecord[]) => { await saveAttendance(recs); refreshData(); };
-  const handleBulkAddAttendance = async (list: AttendanceRecord[]) => { await bulkAddAttendance(list); refreshData(); };
-  const handleAddPerformance = async (rec: PerformanceRecord) => { await addPerformance(rec); refreshData(); };
-  const handleBulkAddPerformance = async (list: PerformanceRecord[]) => { await bulkAddPerformance(list); refreshData(); };
   
-  // NEW: Handle Seating Plan Save
+  const handleUpdateStudent = async (s: Student) => { 
+      await updateStudent(s); 
+      refreshData(currentUser); 
+  };
+  
+  const handleBulkAddStudents = async (list: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => {
+    // Inject school ID into bulk imported students
+    const schoolId = currentUser?.schoolId;
+    const secureList = list.map(s => ({
+        ...s,
+        schoolId: s.schoolId || schoolId // Use existing or inject current
+    }));
+
+    if (matchKey && strategy) await bulkUpsertStudents(secureList, matchKey, strategy, updateFields || []);
+    else await bulkAddStudents(secureList);
+    refreshData(currentUser);
+  };
+  
+  const handleDeleteStudent = async (id: string) => { await deleteStudent(id); refreshData(currentUser); };
+  const handleSaveAttendance = async (recs: AttendanceRecord[]) => { await saveAttendance(recs); refreshData(currentUser); };
+  const handleBulkAddAttendance = async (list: AttendanceRecord[]) => { await bulkAddAttendance(list); refreshData(currentUser); };
+  const handleAddPerformance = async (rec: PerformanceRecord) => { await addPerformance(rec); refreshData(currentUser); };
+  const handleBulkAddPerformance = async (list: PerformanceRecord[]) => { await bulkAddPerformance(list); refreshData(currentUser); };
+  
   const handleSaveSeating = async (updatedStudents: Student[]) => {
       await bulkUpdateStudents(updatedStudents);
-      refreshData();
+      refreshData(currentUser);
   };
 
   const navItems = [
@@ -384,7 +439,7 @@ const App: React.FC = () => {
             {/* Admin Dashboard is strictly for System Manager */}
             {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
             
-            {currentView === 'SUBSCRIPTION' && currentUser && <TeacherSubscription currentUser={currentUser} onProfileUpdate={refreshData} />}
+            {currentView === 'SUBSCRIPTION' && currentUser && <TeacherSubscription currentUser={currentUser} onProfileUpdate={() => refreshData(currentUser)} />}
 
             {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleBulkAddStudents}/>}
             {currentView === 'ATTENDANCE' && (
