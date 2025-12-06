@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus } from '../types';
-import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, bulkAddPerformance } from '../services/storageService';
+import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, AlertCircle, Link as LinkIcon, Edit2, Cloud, PieChart, Calculator, TrendingUp, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, Globe, List, Layout, PenTool, BookOpenCheck, RefreshCw } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp } from 'lucide-react';
 
 interface WorksTrackingProps {
   students: Student[];
@@ -25,17 +25,14 @@ const extractHeaderMetadata = (header: string): { label: string, maxScore: numbe
 };
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance }) => {
-    // Main View State
     const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>('GRADING');
-
-    // Shared State
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [selectedSubject, setSelectedSubject] = useState('');
     const [activeTab, setActiveTab] = useState<PerformanceCategory>('ACTIVITY');
     
     // Data State
     const [assignments, setAssignments] = useState<Assignment[]>([]);
-    const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); // studentId -> assignmentId -> score
+    const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); 
     const [activityTarget, setActivityTarget] = useState<number>(13); 
     
     // Status States
@@ -66,22 +63,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     }, []);
 
     useEffect(() => {
-        // Load Assignments for current tab
         const allAssignments = getAssignments(activeTab);
-        // Sort by orderIndex if available
         allAssignments.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
         setAssignments(allAssignments);
         
-        // Auto-sync logic (only in grading mode and if empty)
         if (activeMode === 'GRADING' && masterUrl && allAssignments.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
             handleAutoSyncForTab(activeTab);
         }
     }, [activeTab, masterUrl, activeMode]);
 
-    // Build Grid Data
     useEffect(() => {
         if (activeTab === 'YEAR_WORK') return;
-        
         const newGrid: Record<string, Record<string, string>> = {};
         performance.forEach(p => {
             if (p.category === activeTab && p.subject === selectedSubject && p.notes) {
@@ -100,7 +92,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    // --- Sync Logic ---
     const getKeywordsForCategory = (cat: PerformanceCategory): string[] => {
         switch(cat) {
             case 'ACTIVITY': return ['نشاط', 'activity', 'أنشطة', 'activities'];
@@ -144,14 +135,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const gradeHeaders = headers.filter(h => !excludeKeywords.some(kw => h.toLowerCase().includes(kw)));
         if (gradeHeaders.length === 0) return;
 
-        // 1. Get Existing Assignments
         const currentAssignments = getAssignments(category);
         const newAssignments: Assignment[] = [];
 
         gradeHeaders.forEach((header, index) => {
             const { label, maxScore } = extractHeaderMetadata(header);
-            
-            // Try match by metadata first, then name
             let existing = currentAssignments.find(a => {
                 try {
                     const meta = JSON.parse(a.sourceMetadata || '{}');
@@ -173,14 +161,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 sourceMetadata: JSON.stringify({ sheet: sheetName, header: header }),
                 orderIndex: index
             };
-            
             saveAssignment(assignmentData);
             newAssignments.push(assignmentData);
         });
-        
         setAssignments(newAssignments);
 
-        // 2. Map Scores
         const recordsToSave: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
         
@@ -202,7 +187,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     const headerKey = meta.header;
                     const rawVal = row[headerKey];
                     const val = parseFloat(rawVal);
-                    
                     if (!isNaN(val)) {
                         recordsToSave.push({
                             id: `${student!.id}-${category}-${assign.id}`,
@@ -213,7 +197,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             score: val,
                             maxScore: assign.maxScore,
                             date: today,
-                            notes: assign.id, // Store Assignment ID for linking
+                            notes: assign.id,
                             url: assign.url
                         });
                     }
@@ -223,7 +207,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (recordsToSave.length > 0) onAddPerformance(recordsToSave);
     };
 
-    // --- Entry Logic ---
     const handleScoreChange = (studentId: string, assignId: string, val: string) => {
         setGridData(prev => ({
             ...prev,
@@ -271,7 +254,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (masterUrl) handleAutoSyncForTab(activeTab);
     };
 
-    // --- Management Logic ---
     const handleAddColumn = () => {
         const newAssign: Assignment = {
             id: `manual_${Date.now()}`,
@@ -306,26 +288,132 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setTimeout(() => setStatusMsg(''), 3000);
     };
 
-    // --- Render Helpers ---
     const sortedStudents = useMemo(() => {
         return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [students]);
 
+    // RENDER HELPER FOR STUDENT ROW
+    const renderStudentRow = (student: Student, i: number) => {
+        // --- ACTIVITY TAB LOGIC ---
+        if (activeTab === 'ACTIVITY') {
+            let actSum = 0;
+            assignments.filter(c => c.isVisible).forEach(col => {
+                const val = parseFloat(gridData[student.id]?.[col.id] || '0');
+                if(!col.title.includes('حضور') && !isNaN(val)) actSum += val;
+            });
+            const pct = activityTarget > 0 ? Math.round((actSum / activityTarget) * 100) : 0;
+            
+            return (
+                <tr key={student.id} className="hover:bg-gray-50 border-b group">
+                    <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
+                    <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50">{student.name}</td>
+                    {assignments.filter(c => c.isVisible).map(col => (
+                        <td key={col.id} className="p-1 border-l text-center relative">
+                            <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
+                            {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
+                        </td>
+                    ))}
+                    <td className="p-3 border-l text-center font-bold text-amber-700 bg-amber-50/30">{actSum}</td>
+                    <td className="p-3 border-l text-center bg-orange-50/30"><span className="text-xs font-bold text-orange-800">{pct}%</span></td>
+                </tr>
+            );
+        }
+
+        // --- HOMEWORK TAB LOGIC ---
+        if (activeTab === 'HOMEWORK') {
+            const total = assignments.filter(c => c.isVisible).length;
+            const completed = assignments.filter(c => c.isVisible && gridData[student.id]?.[c.id]).length;
+            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            
+            return (
+                <tr key={student.id} className="hover:bg-gray-50 border-b group">
+                    <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
+                    <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50">{student.name}</td>
+                    {assignments.filter(c => c.isVisible).map(col => (
+                        <td key={col.id} className="p-1 border-l text-center relative">
+                            <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
+                            {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
+                        </td>
+                    ))}
+                    <td className="p-3 border-l text-center font-bold text-blue-600 bg-blue-50/30">{completed}</td>
+                    <td className="p-3 border-l text-center bg-green-50/30"><span className="text-xs font-bold text-green-700">{pct}%</span></td>
+                </tr>
+            );
+        }
+
+        // --- PLATFORM EXAM TAB LOGIC ---
+        if (activeTab === 'PLATFORM_EXAM') {
+            const scores = assignments.filter(c => c.isVisible).map(c => ({
+                val: parseFloat(gridData[student.id]?.[c.id] || '0'),
+                max: c.maxScore || 20
+            }));
+            let totalWeighted = 0;
+            scores.forEach(s => { if (s.max > 0) totalWeighted += (s.val / s.max) * 20; });
+            const finalWeighted = scores.length > 0 ? (totalWeighted / scores.length) : 0;
+
+            return (
+                <tr key={student.id} className="hover:bg-gray-50 border-b group">
+                    <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
+                    <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50">{student.name}</td>
+                    {assignments.filter(c => c.isVisible).map(col => (
+                        <td key={col.id} className="p-1 border-l text-center relative">
+                            <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
+                            {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
+                        </td>
+                    ))}
+                    <td className="p-3 border-l text-center font-bold text-purple-700 bg-purple-50/30">{finalWeighted.toFixed(1)}</td>
+                </tr>
+            );
+        }
+
+        // --- YEAR WORK TAB LOGIC ---
+        if (activeTab === 'YEAR_WORK') {
+            const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
+            const hwCols = getAssignments('HOMEWORK');
+            const distinctHW = new Set(hwRecs.map(p => p.notes)).size;
+            const hwGrade = hwCols.length > 0 ? (distinctHW / hwCols.length) * 10 : 0;
+
+            const actRecs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
+            let actSumVal = 0;
+            actRecs.forEach(p => { if (!p.title.includes('حضور')) actSumVal += p.score; });
+            const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * 15, 15) : 0;
+
+            const attRecs = attendance.filter(a => a.studentId === student.id);
+            const present = attRecs.filter(a => a.status === AttendanceStatus.PRESENT).length;
+            const attGrade = attRecs.length > 0 ? (present / attRecs.length) * 15 : 15;
+
+            const examRecs = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject);
+            let examScoreTotal = 0;
+            let examMaxTotal = 0;
+            examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
+            const examGrade = examMaxTotal > 0 ? (examScoreTotal / examMaxTotal) * 20 : 0;
+
+            const total = hwGrade + actGrade + attGrade + examGrade;
+
+            return (
+                <tr key={student.id} className="hover:bg-gray-50 border-b">
+                    <td className="p-3 border-l text-center text-gray-500">{i + 1}</td>
+                    <td className="p-3 border-l font-bold text-gray-800 sticky right-0 bg-white shadow-sm border-r">{student.name}</td>
+                    <td className="p-3 border-l text-center font-bold bg-blue-50/50">{hwGrade.toFixed(1)}</td>
+                    <td className="p-3 border-l text-center font-bold bg-amber-50/50">{actGrade.toFixed(1)}</td>
+                    <td className="p-3 border-l text-center font-bold bg-green-50/50">{attGrade.toFixed(1)}</td>
+                    <td className="p-3 border-l text-center font-bold bg-purple-50/50">{examGrade.toFixed(1)}</td>
+                    <td className="p-3 border-l text-center font-black text-white bg-gray-800">{total.toFixed(1)}</td>
+                </tr>
+            );
+        }
+        
+        return null;
+    };
+
     return (
         <div className="p-4 md:p-6 h-full flex flex-col animate-fade-in relative bg-gray-50">
-             
              {/* MAIN TOP TABS */}
              <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-6 flex gap-2">
-                 <button 
-                    onClick={() => setActiveMode('GRADING')}
-                    className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'GRADING' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
-                 >
+                 <button onClick={() => setActiveMode('GRADING')} className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'GRADING' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                      <Table size={18}/> <span className="hidden md:inline">رصد الدرجات</span><span className="md:hidden">الرصد</span>
                  </button>
-                 <button 
-                    onClick={() => setActiveMode('MANAGEMENT')}
-                    className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'MANAGEMENT' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
-                 >
+                 <button onClick={() => setActiveMode('MANAGEMENT')} className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'MANAGEMENT' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                      <Settings size={18}/> <span className="hidden md:inline">إعداد الأعمدة</span><span className="md:hidden">الإعدادات</span>
                  </button>
              </div>
@@ -338,16 +426,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         {activeMode === 'GRADING' ? 'سجل الرصد والمتابعة' : 'تخصيص الأعمدة والروابط'}
                     </h2>
                 </div>
-                
                 <div className="flex items-center gap-2">
-                    <select 
-                        value={selectedSubject} 
-                        onChange={(e) => setSelectedSubject(e.target.value)}
-                        className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none text-sm"
-                    >
+                    <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none text-sm">
                         {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
                     </select>
-
                     {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && (
                         <button onClick={handleSaveGrid} className="bg-green-600 text-white px-6 py-2 rounded-lg flex justify-center items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700">
                             {savedSuccess ? <CheckCircle size={18} /> : <Save size={18} />} {savedSuccess ? 'تم الحفظ' : 'حفظ'}
@@ -388,11 +470,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => {
                     if (activeMode === 'MANAGEMENT' && cat === 'YEAR_WORK') return null; 
                     return (
-                        <button 
-                            key={cat} 
-                            onClick={() => setActiveTab(cat)} 
-                            className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors whitespace-nowrap ${activeTab === cat ? 'bg-white text-gray-800 border border-b-0 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
-                        >
+                        <button key={cat} onClick={() => setActiveTab(cat)} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors whitespace-nowrap ${activeTab === cat ? 'bg-white text-gray-800 border border-b-0 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
                             <div className="flex items-center gap-2">
                                 {cat === 'ACTIVITY' && <Activity size={16}/>}
                                 {cat === 'HOMEWORK' && <List size={16}/>}
@@ -417,7 +495,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             )}
 
             <div className="flex-1 bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px] flex flex-col overflow-hidden">
-                
                 {/* --- MANAGEMENT VIEW --- */}
                 {activeMode === 'MANAGEMENT' && (
                     <div className="p-6 flex-1 overflow-auto">
@@ -427,7 +504,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <Plus size={16}/> إضافة عمود
                             </button>
                         </div>
-
                         <table className="w-full text-right border-collapse text-sm">
                             <thead className="bg-gray-50 font-bold border-b">
                                 <tr>
@@ -482,7 +558,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 left-1 text-blue-400 hover:text-blue-600"><ExternalLink size={10}/></a>}
                                         </th>
                                     ))}
-                                    {/* Stats Headers based on Tab */}
                                     {activeTab === 'ACTIVITY' && (
                                         <>
                                             <th className="p-3 border-b border-l min-w-[80px] text-center bg-amber-50 text-amber-800">المجموع</th>
@@ -495,9 +570,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <th className="p-3 border-b border-l min-w-[100px] text-center bg-green-50 text-green-800">الإنجاز %</th>
                                         </>
                                     )}
-                                    {activeTab === 'PLATFORM_EXAM' && (
-                                        <th className="p-3 border-b border-l min-w-[100px] text-center bg-purple-50 text-purple-800">الموزونة (20)</th>
-                                    )}
+                                    {activeTab === 'PLATFORM_EXAM' && <th className="p-3 border-b border-l min-w-[100px] text-center bg-purple-50 text-purple-800">الموزونة (20)</th>}
                                     {activeTab === 'YEAR_WORK' && (
                                         <>
                                             <th className="p-3 border-b border-l bg-blue-50 text-blue-900 text-center">الواجبات (10)</th>
@@ -510,137 +583,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedStudents.map((student, i) => {
-                                    // Calculations
-                                    let rowStats = null;
-                                    
-                                    // Activity Calc
-                                    let actSum = 0;
-                                    if (activeTab === 'ACTIVITY') {
-                                        assignments.filter(c => c.isVisible).forEach(col => {
-                                            const val = parseFloat(gridData[student.id]?.[col.id] || '0');
-                                            if(!col.title.includes('حضور') && !isNaN(val)) actSum += val;
-                                        });
-                                        const pct = activityTarget > 0 ? Math.round((actSum / activityTarget) * 100) : 0;
-                                        rowStats = (
-                                            <>
-                                                <td className="p-3 border-l text-center font-bold text-amber-700 bg-amber-50/30">{actSum}</td>
-                                                <td className="p-3 border-l text-center bg-orange-50/30">
-                                                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1 overflow-hidden">
-                                                        <div className="bg-orange-500 h-1.5" style={{width: `${Math.min(pct, 100)}%`}}></div>
-                                                    </div>
-                                                    <span className="text-[10px] font-bold text-orange-800">{pct}%</span>
-                                                </td>
-                                            </>
-                                        );
-                                    }
-
-                                    // Homework Calc
-                                    if (activeTab === 'HOMEWORK') {
-                                        const total = assignments.filter(c => c.isVisible).length;
-                                        const completed = assignments.filter(c => c.isVisible && gridData[student.id]?.[c.id]).length;
-                                        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-                                        rowStats = (
-                                            <>
-                                                <td className="p-3 border-l text-center font-bold text-blue-600 bg-blue-50/30">{completed}</td>
-                                                <td className="p-3 border-l text-center bg-green-50/30">
-                                                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1 overflow-hidden">
-                                                        <div className="bg-green-500 h-1.5" style={{width: `${pct}%`}}></div>
-                                                    </div>
-                                                    <span className="text-[10px] font-bold text-green-700">{pct}%</span>
-                                                </td>
-                                            </>
-                                        );
-                                    }
-
-                                    // Platform Calc
-                                    if (activeTab === 'PLATFORM_EXAM') {
-                                        const scores = assignments.filter(c => c.isVisible).map(c => ({
-                                            val: parseFloat(gridData[student.id]?.[c.id] || '0'),
-                                            max: c.maxScore || 20
-                                        }));
-                                        let totalWeighted = 0;
-                                        scores.forEach(s => {
-                                            if (s.max > 0) totalWeighted += (s.val / s.max) * 20; // Normalize each exam to 20 then average? Or Sum? Assuming average for now if multiple.
-                                        });
-                                        const finalWeighted = scores.length > 0 ? (totalWeighted / scores.length) : 0; // Simple Average of weighted scores
-                                        rowStats = (
-                                            <td className="p-3 border-l text-center font-bold text-purple-700 bg-purple-50/30">{finalWeighted.toFixed(1)}</td>
-                                        );
-                                    }
-
-                                    // Year Work Calc (Complex)
-                                    if (activeTab === 'YEAR_WORK') {
-                                        // 1. Homework
-                                        const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
-                                        const hwCols = getAssignments('HOMEWORK');
-                                        const distinctHW = new Set(hwRecs.map(p => p.notes)).size;
-                                        const hwGrade = hwCols.length > 0 ? (distinctHW / hwCols.length) * 10 : 0;
-
-                                        // 2. Activity
-                                        const actRecs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
-                                        let actSumVal = 0;
-                                        actRecs.forEach(p => { if (!p.title.includes('حضور')) actSumVal += p.score; });
-                                        const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * 15, 15) : 0;
-
-                                        // 3. Attendance
-                                        const attRecs = attendance.filter(a => a.studentId === student.id);
-                                        const present = attRecs.filter(a => a.status === AttendanceStatus.PRESENT).length;
-                                        const attGrade = attRecs.length > 0 ? (present / attRecs.length) * 15 : 15;
-
-                                        // 4. Exams
-                                        const examRecs = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject);
-                                        let examScoreTotal = 0;
-                                        let examMaxTotal = 0;
-                                        examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
-                                        const examGrade = examMaxTotal > 0 ? (examScoreTotal / examMaxTotal) * 20 : 0;
-
-                                        const total = hwGrade + actGrade + attGrade + examGrade;
-
-                                        return (
-                                            <tr key={student.id} className="hover:bg-gray-50 border-b">
-                                                <td className="p-3 border-l text-center text-gray-500">{i + 1}</td>
-                                                <td className="p-3 border-l font-bold text-gray-800 sticky right-0 bg-white shadow-sm border-r">{student.name}</td>
-                                                <td className="p-3 border-l text-center font-bold bg-blue-50/50">{hwGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l text-center font-bold bg-amber-50/50">{actGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l text-center font-bold bg-green-50/50">{attGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l text-center font-bold bg-purple-50/50">{examGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l text-center font-black text-white bg-gray-800">{total.toFixed(1)}</td>
-                                            </tr>
-                                        );
-                                    }
-
-                                    return (
-                                        <tr key={student.id} className="hover:bg-gray-50 border-b group">
-                                            <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
-                                            <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50">{student.name}</td>
-                                            {assignments.filter(c => c.isVisible).map(col => {
-                                                const scoreVal = gridData[student.id]?.[col.id];
-                                                return (
-                                                    <td key={col.id} className="p-1 border-l text-center relative">
-                                                        <input 
-                                                            type="number" 
-                                                            className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" 
-                                                            value={scoreVal || ''} 
-                                                            onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} 
-                                                            placeholder="-"
-                                                        />
-                                                        {col.url && (
-                                                            <a 
-                                                                href={col.url} 
-                                                                target="_blank" 
-                                                                rel="noreferrer"
-                                                                className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform"
-                                                                title="رابط النشاط"
-                                                            ></a>
-                                                        )}
-                                                    </td>
-                                                );
-                                            })}
-                                            {rowStats}
-                                        </tr>
-                                    );
-                                })}
+                                {sortedStudents.map((student, i) => renderStudentRow(student, i))}
                             </tbody>
                         </table>
                     </div>
