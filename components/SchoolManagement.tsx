@@ -75,6 +75,9 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
       setAssignments(getTeacherAssignments());
       setReportConfig(getReportHeaderConfig());
 
+      const allTeachers = getTeachers();
+      setTeachers(allTeachers);
+
       if (isManager) {
           const allSchools = getSchools();
           // Find school managed by this user
@@ -84,22 +87,24 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
               school = allSchools[0];
           }
           setMySchool(school || null);
-          setTeachers(getTeachers());
           setFeedbackList(getFeedback());
       } else {
           // Teacher View Load
-          const allTeachers = getTeachers();
           const me = allTeachers.find(t => 
               (currentUser?.nationalId && t.nationalId === currentUser.nationalId) || 
               (currentUser?.email && t.email === currentUser.email)
           );
           if (me) {
               setTeacherProfile(me);
+              // Auto-select active teacher for schedule building
+              setActiveTeacher(me.id);
+              
               // Check if linked to school to show manager details
               if (me.schoolId) {
                   const schools = getSchools();
                   const school = schools.find(s => s.id === me.schoolId);
                   setLinkedManagerSchool(school || null);
+                  setMySchool(school || null); // Load school context for teacher too
               }
           } else {
               // Temporary profile for new session
@@ -110,6 +115,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                   nationalId: currentUser?.nationalId,
                   password: currentUser?.nationalId ? currentUser.nationalId.slice(-4) : '1234'
               });
+              // Ensure we have an ID for schedule
+              setActiveTeacher(currentUser?.id || '');
           }
       }
   }, [currentUser, isManager]);
@@ -383,12 +390,15 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                     >
                         <Grid size={16}/> جدول الحصص (إعداد)
                     </button>
-                    <button 
-                        onClick={() => setScheduleViewMode('TEACHER')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${scheduleViewMode === 'TEACHER' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-                    >
-                        <User size={16}/> جدول المعلم الشامل
-                    </button>
+                    {/* Show Full Schedule View button only for Managers */}
+                    {isManager && (
+                        <button 
+                            onClick={() => setScheduleViewMode('TEACHER')}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${scheduleViewMode === 'TEACHER' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                        >
+                            <User size={16}/> جدول المعلم الشامل
+                        </button>
+                    )}
                 </div>
           </div>
 
@@ -416,17 +426,26 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
 
                     {/* 3. Select Teacher (Tool) */}
                     <div>
-                        <label className="block text-xs font-bold text-indigo-600 mb-1 flex items-center gap-1"><User size={14}/> المعلم (اختياري / للربط)</label>
-                        <select className="w-full p-2 border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold text-indigo-700" value={activeTeacher} onChange={e => setActiveTeacher(e.target.value)}>
-                            <option value="">-- بدون معلم محدد --</option>
-                            {myTeachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.subjectSpecialty})</option>)}
-                        </select>
+                        <label className="block text-xs font-bold text-indigo-600 mb-1 flex items-center gap-1"><User size={14}/> المعلم</label>
+                        {isManager ? (
+                            // Managers can select ANY teacher
+                            <select className="w-full p-2 border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold text-indigo-700" value={activeTeacher} onChange={e => setActiveTeacher(e.target.value)}>
+                                <option value="">-- بدون معلم محدد --</option>
+                                {myTeachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.subjectSpecialty})</option>)}
+                            </select>
+                        ) : (
+                            // Teachers see THEMSELVES automatically
+                            <div className="w-full p-2 border border-green-200 bg-green-50 rounded-lg text-green-800 text-sm font-bold flex items-center gap-2">
+                                <CheckCircle size={16} />
+                                <span>سيتم ربط الجدول بك ({teacherProfile?.name || currentUser?.name})</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 mb-4 text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-100">
                     <CheckSquare size={14} className="text-blue-600"/>
-                    <span>طريقة الاستخدام: اختر <b>المادة</b> و <b>المعلم</b> من القائمة أعلاه، ثم اضغط على الخانات في الجدول لإضافتها. اضغط مرة أخرى للحذف.</span>
+                    <span>طريقة الاستخدام: اختر <b>المادة</b> {isManager ? 'والمعلم ' : ''}من القائمة أعلاه، ثم اضغط على الخانات في الجدول لإضافتها. اضغط مرة أخرى للحذف.</span>
                 </div>
 
                 {selectedClassForSchedule ? (
@@ -447,7 +466,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                                         {[1, 2, 3, 4, 5, 6, 7, 8].map(period => {
                                             const schedItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
                                             // Find teacher name based on ID stored in schedule
-                                            const teacherName = schedItem?.teacherId ? myTeachers.find(t => t.id === schedItem.teacherId)?.name : null;
+                                            const teacherObj = schedItem?.teacherId ? teachers.find(t => t.id === schedItem.teacherId) : null;
+                                            const teacherName = teacherObj ? teacherObj.name : null;
 
                                             return (
                                                 <td 
@@ -489,8 +509,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
               </>
           )}
 
-          {/* VIEW 2: TEACHER COMPREHENSIVE SCHEDULE */}
-          {scheduleViewMode === 'TEACHER' && (
+          {/* VIEW 2: TEACHER COMPREHENSIVE SCHEDULE (MANAGER ONLY) */}
+          {scheduleViewMode === 'TEACHER' && isManager && (
               <>
                 <div className="flex items-center gap-4 bg-purple-50 p-4 rounded-lg border border-purple-200">
                     <label className="font-bold text-purple-800 flex items-center gap-2"><User size={18}/> اختر المعلم:</label>
