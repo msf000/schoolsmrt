@@ -47,6 +47,8 @@ export interface Teacher {
   subjectSpecialty?: string;
   schoolId?: string;   // Link to School
   managerId?: string;  // Link to School Manager (Direct link via National ID search)
+  subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE'; // New
+  subscriptionEndDate?: string; // New
 }
 
 export interface TeacherAssignment {
@@ -254,4 +256,4 @@ export interface AISettings {
     systemInstruction: string; // Custom persona
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING';
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION';

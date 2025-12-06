@@ -21,9 +21,10 @@ import ClassroomManager from './components/ClassroomManager'; // NEW HUB
 import MonthlyReport from './components/MonthlyReport';
 import MessageCenter from './components/MessageCenter';
 import LessonPlanning from './components/LessonPlanning'; // New Component
+import TeacherSubscription from './components/TeacherSubscription'; // New Component
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
-import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid, Wifi, Beaker, Settings, Server, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, TrendingUp, Menu, X, Database, Building2, ShieldCheck, Table, PenTool, Sparkles, Loader2, Cloud, FileText, RefreshCw, CheckCircle, CalendarDays, LogOut, MessageSquare, BrainCircuit, LayoutGrid, Wifi, Beaker, Settings, Server, BookOpen, CreditCard } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +41,7 @@ const App: React.FC = () => {
   // Persist Current View State
   const [currentView, setCurrentView] = useState<ViewState>(() => {
       const savedView = localStorage.getItem('app_last_view');
-      const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'AI_TOOLS', 'CLASSROOM_SCREEN', 'CLASSROOM_MANAGEMENT', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT', 'MESSAGE_CENTER', 'AI_DATA_IMPORT', 'LESSON_PLANNING'];
+      const validViews: ViewState[] = ['DASHBOARD', 'STUDENTS', 'ATTENDANCE', 'PERFORMANCE', 'WORKS_TRACKING', 'STUDENT_FOLLOWUP', 'AI_REPORTS', 'AI_TOOLS', 'CLASSROOM_SCREEN', 'CLASSROOM_MANAGEMENT', 'DATA_IMPORT', 'SCHOOL_MANAGEMENT', 'ADMIN_DASHBOARD', 'CUSTOM_TABLES', 'MONTHLY_REPORT', 'MESSAGE_CENTER', 'AI_DATA_IMPORT', 'LESSON_PLANNING', 'SUBSCRIPTION'];
       return (savedView && validViews.includes(savedView as ViewState)) ? (savedView as ViewState) : 'DASHBOARD';
   });
 
@@ -174,6 +175,9 @@ const App: React.FC = () => {
     // School Manager & TEACHER (for Profile)
     { id: 'SCHOOL_MANAGEMENT', label: 'الإعدادات / الملف', icon: Settings, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
     
+    // Subscription (TEACHER only)
+    { id: 'SUBSCRIPTION', label: 'الاشتراك', icon: CreditCard, roles: ['TEACHER'] },
+
     // Teachers & School Managers
     { id: 'CLASSROOM_MANAGEMENT', label: 'الإدارة الصفية', icon: LayoutGrid, roles: ['SCHOOL_MANAGER', 'TEACHER'] }, 
     { id: 'LESSON_PLANNING', label: 'إعداد الدروس', icon: BookOpen, roles: ['SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER'] },
@@ -380,6 +384,8 @@ const App: React.FC = () => {
             {/* Admin Dashboard is strictly for System Manager */}
             {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
             
+            {currentView === 'SUBSCRIPTION' && currentUser && <TeacherSubscription currentUser={currentUser} onProfileUpdate={refreshData} />}
+
             {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleBulkAddStudents}/>}
             {currentView === 'ATTENDANCE' && (
                 <Attendance 

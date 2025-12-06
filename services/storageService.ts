@@ -494,6 +494,8 @@ CREATE TABLE IF NOT EXISTS teachers (
     subject_specialty TEXT,
     school_id TEXT REFERENCES schools(id) ON DELETE SET NULL,
     manager_id TEXT, 
+    subscription_status TEXT DEFAULT 'FREE',
+    subscription_end_date TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -669,6 +671,8 @@ ALTER TABLE system_users ADD COLUMN IF NOT EXISTS national_id TEXT;
 
 -- Fix for Teachers
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS password TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'FREE';
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_end_date TEXT;
 
 -- Reload Schema Cache (Important for PostgREST)
 NOTIFY pgrst, 'reload config';
