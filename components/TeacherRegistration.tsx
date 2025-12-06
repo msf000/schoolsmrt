@@ -123,7 +123,8 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
             }, 1500);
         } catch (e: any) {
             console.error(e);
-            setError('حدث خطأ أثناء الحفظ في قاعدة البيانات. تحقق من الاتصال.');
+            // Display specific error message from storageService
+            setError(e.message || 'حدث خطأ أثناء الحفظ في قاعدة البيانات. تحقق من الاتصال.');
         } finally {
             setLoading(false);
         }

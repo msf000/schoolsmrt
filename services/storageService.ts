@@ -117,8 +117,13 @@ const addToCloud = async (table: string, item: any, cacheKey: string) => {
     const dbItem = toDb(item);
     const { error } = await supabase.from(table).upsert(dbItem);
     if (error) {
-        // IMPROVED LOGGING: Stringify the error object
         console.error(`Error adding to ${table}:`, JSON.stringify(error, null, 2));
+        
+        // Handle Schema Mismatch Errors gracefully
+        if (error.code === 'PGRST204' && error.message.includes('column')) {
+             throw new Error(`خطأ في قاعدة البيانات: يوجد عمود مفقود (${error.message}). يرجى تشغيل "تحديثات القاعدة" من لوحة المدير.`);
+        }
+
         throw new Error(`Cloud Error (${table}): ${error.message || JSON.stringify(error)}`);
     }
 };
@@ -139,6 +144,11 @@ const updateInCloud = async (table: string, item: any, cacheKey: string) => {
     const { error } = await supabase.from(table).upsert(dbItem);
     if (error) {
         console.error(`Error updating ${table}:`, JSON.stringify(error, null, 2));
+        
+        if (error.code === 'PGRST204' && error.message.includes('column')) {
+             throw new Error(`خطأ في قاعدة البيانات: يوجد عمود مفقود (${error.message}). يرجى تشغيل "تحديثات القاعدة" من لوحة المدير.`);
+        }
+
         throw new Error(`Cloud Update Error: ${error.message}`);
     }
 };
@@ -695,10 +705,19 @@ CREATE TABLE IF NOT EXISTS custom_tables (
 
 export const getDatabaseUpdateSQL = () => {
     return `
--- SQL to Add missing columns or constraints for V2
+-- Fix for Schools Table
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS manager_national_id TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS education_administration TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS ministry_code TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS works_master_url TEXT;
+
+-- Fix for System Users
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS national_id TEXT;
+
+-- Fix for Teachers
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS password TEXT;
-ALTER TABLE system_users ADD CONSTRAINT fk_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL;
-ALTER TABLE teachers ADD CONSTRAINT fk_school_teacher FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL;
+
+-- Reload Schema Cache (Important for PostgREST)
+NOTIFY pgrst, 'reload config';
 `;
 };
