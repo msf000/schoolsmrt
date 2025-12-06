@@ -10,7 +10,7 @@ import {
     getReportHeaderConfig, saveReportHeaderConfig,
     getFeedback, addFeedback, addSchool
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, AlertCircle, CheckCircle, Search, Mail, Send, FileText, Lock, ShieldCheck, Calendar, BookOpen, Settings, Upload, Copy, Grid, Clock, Link as LinkIcon, Unlink, Phone, Edit, PlusCircle, AlertTriangle, Monitor } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, AlertCircle, CheckCircle, Search, Mail, Send, FileText, Lock, ShieldCheck, Calendar, BookOpen, Settings, Upload, Copy, Grid, Clock, Link as LinkIcon, Unlink, Phone, Edit, PlusCircle, AlertTriangle, Monitor, Eraser, CheckSquare } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -41,8 +41,6 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
       schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: ''
   });
 
-  // ... (rest of states and effects - no changes until handlers)
-
   // --- UI States ---
   const [feedbackList, setFeedbackList] = useState<Feedback[]>([]);
   const [viewingTeacher, setViewingTeacher] = useState<Teacher | null>(null);
@@ -52,8 +50,11 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   // Schedule UI State
   const [scheduleViewMode, setScheduleViewMode] = useState<'CLASS' | 'TEACHER'>('CLASS');
   const [selectedClassForSchedule, setSelectedClassForSchedule] = useState('');
-  const [selectedTeacherForSchedule, setSelectedTeacherForSchedule] = useState('');
-  const [editingCell, setEditingCell] = useState<{day: string, period: number} | null>(null);
+  const [selectedTeacherForSchedule, setSelectedTeacherForSchedule] = useState(''); // For View 2
+  
+  // NEW: Active Context for "Click-to-Assign"
+  const [activeSubject, setActiveSubject] = useState('');
+  const [activeTeacher, setActiveTeacher] = useState('');
 
   // Teacher Profile State (For Teacher View)
   const [teacherProfile, setTeacherProfile] = useState<Teacher | null>(null);
@@ -145,93 +146,90 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   const checkTeacherConflict = (teacherId: string, day: string, period: number, ignoreClassId?: string): { conflict: boolean, className?: string } => {
       if (!teacherId) return { conflict: false };
 
-      // Find all schedule items for this day/period
+      // Find all schedule items for this day/period across ALL classes
       const concurrentSessions = schedules.filter(s => s.day === day && s.period === period && s.classId !== ignoreClassId);
       
       for (const session of concurrentSessions) {
-          // Check who teaches this subject in that class
-          const assignment = assignments.find(a => a.classId === session.classId && a.subjectName === session.subjectName);
-          if (assignment && assignment.teacherId === teacherId) {
+          // If the scheduled item has this teacher ID directly
+          if (session.teacherId === teacherId) {
               return { conflict: true, className: session.classId };
+          }
+          
+          // Legacy check: Check assignments table if teacherId is missing on schedule item
+          if (!session.teacherId) {
+              const assignment = assignments.find(a => a.classId === session.classId && a.subjectName === session.subjectName);
+              if (assignment && assignment.teacherId === teacherId) {
+                  return { conflict: true, className: session.classId };
+              }
           }
       }
       return { conflict: false };
   };
 
-  // --- ACTIONS: SCHEDULE ---
-  const handleScheduleSave = (day: string, period: number, subjectName: string) => {
-      if (!selectedClassForSchedule) return;
+  // --- ACTIONS: CLICK TO ASSIGN (NEW LOGIC) ---
+  const handleScheduleCellClick = (day: string, period: number) => {
+      if (!selectedClassForSchedule) {
+          alert("الرجاء اختيار الفصل أولاً");
+          return;
+      }
+      if (!activeSubject) {
+          alert("الرجاء اختيار المادة من القائمة العلوية أولاً");
+          return;
+      }
+      // Teacher is optional, but preferred
       
-      // 1. Get Teacher assigned to this subject for this class
-      const assignment = assignments.find(a => a.classId === selectedClassForSchedule && a.subjectName === subjectName);
-      
-      // 2. Check Conflicts if teacher exists
-      if (assignment?.teacherId) {
-          const conflict = checkTeacherConflict(assignment.teacherId, day, period, selectedClassForSchedule);
+      const existingItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
+
+      // 1. TOGGLE OFF (Delete)
+      // If clicking same subject (and teacher matches if set), delete it
+      if (existingItem && existingItem.subjectName === activeSubject) {
+          // If activeTeacher is set, only delete if it matches, otherwise warn? 
+          // Simplification: Click same subject = remove, regardless of teacher for UX speed
+          deleteScheduleItem(existingItem.id);
+          setSchedules(getSchedules()); // Refresh
+          return;
+      }
+
+      // 2. ADD / OVERWRITE
+      // Check Conflict
+      if (activeTeacher) {
+          const conflict = checkTeacherConflict(activeTeacher, day, period, selectedClassForSchedule);
           if (conflict.conflict) {
-              const teacher = myTeachers.find(t => t.id === assignment.teacherId);
-              alert(`تنبيه تعارض: المعلم "${teacher?.name}" لديه حصة أخرى في نفس الوقت مع فصل "${conflict.className}".`);
-              // You can chose to return here to block saving, or proceed with warning. 
-              // Blocking is safer:
-              return; 
+              alert(`❌ تعارض: المعلم مشغول في هذا الوقت مع فصل "${conflict.className}".`);
+              return;
           }
       }
 
+      // Create/Update Schedule Item
       const newItem: ScheduleItem = {
           id: `${selectedClassForSchedule}-${day}-${period}`,
           classId: selectedClassForSchedule,
           day: day as any,
           period,
-          subjectName,
-          teacherId: assignment?.teacherId // Link Teacher directly in schedule
+          subjectName: activeSubject,
+          teacherId: activeTeacher || undefined
       };
-      
-      if (subjectName === '') {
-          deleteScheduleItem(newItem.id);
-      } else {
-          saveScheduleItem(newItem);
+
+      saveScheduleItem(newItem);
+
+      // Also ensure TeacherAssignment exists to link subject to teacher for this class permanently
+      if (activeTeacher) {
+          const assignment: TeacherAssignment = {
+              id: `${selectedClassForSchedule}-${activeSubject}`,
+              classId: selectedClassForSchedule,
+              subjectName: activeSubject,
+              teacherId: activeTeacher
+          };
+          saveTeacherAssignment(assignment);
+          setAssignments(getTeacherAssignments());
       }
+
       setSchedules(getSchedules());
-      setEditingCell(null);
   };
 
-  const handleAssignTeacher = (classId: string, subjectName: string, teacherId: string) => {
-      // Check conflict BEFORE saving assignment
-      // Note: This check only validates the currently scheduled slots for this class/subject.
-      // A more robust check would scan all slots where this subject is taught in this class.
-      
-      const classScheduleItems = schedules.filter(s => s.classId === classId && s.subjectName === subjectName);
-      for(const item of classScheduleItems) {
-          const conflict = checkTeacherConflict(teacherId, item.day, item.period, classId);
-          if (conflict.conflict) {
-               alert(`لا يمكن إسناد المعلم: يوجد تعارض في يوم ${item.day} حصة ${item.period} مع فصل ${conflict.className}`);
-               return; // Block assignment
-          }
-      }
+  // ... (rest of imports and data loading logic remains same)
 
-      const assignment: TeacherAssignment = {
-          id: `${classId}-${subjectName}`,
-          classId,
-          subjectName,
-          teacherId
-      };
-      saveTeacherAssignment(assignment);
-      setAssignments(getTeacherAssignments());
-
-      // NEW: Update existing schedule items for this class/subject with the new teacherId
-      // This ensures the weekly_schedule table always reflects the assigned teacher
-      const allSchedules = getSchedules();
-      let hasUpdates = false;
-      allSchedules.forEach(s => {
-          if (s.classId === classId && s.subjectName === subjectName) {
-              saveScheduleItem({ ...s, teacherId });
-              hasUpdates = true;
-          }
-      });
-      if (hasUpdates) setSchedules(getSchedules());
-  };
-
-  // ... (rest of the component)
+  // ... (Report Settings and Feedback handlers remain same)
   // --- ACTIONS: REPORT SETTINGS ---
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -357,8 +355,6 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
       }
   };
 
-  // ================= SHARED RENDER BLOCKS =================
-  
   const renderSubjectsTab = () => (
       <div className="max-w-2xl mx-auto">
           <div className="flex gap-2 mb-6">
@@ -385,7 +381,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                         onClick={() => setScheduleViewMode('CLASS')}
                         className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${scheduleViewMode === 'CLASS' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
                     >
-                        <Grid size={16}/> جدول الحصص (فصول)
+                        <Grid size={16}/> جدول الحصص (إعداد)
                     </button>
                     <button 
                         onClick={() => setScheduleViewMode('TEACHER')}
@@ -399,17 +395,42 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
           {/* VIEW 1: CLASS SCHEDULE BUILDER */}
           {scheduleViewMode === 'CLASS' && (
               <>
-                <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <label className="font-bold text-gray-700 flex items-center gap-2"><Grid size={18}/> اختر الفصل لإعداد الجدول:</label>
-                    <select className="p-2 border rounded-lg min-w-[200px] outline-none focus:ring-2 focus:ring-indigo-500" value={selectedClassForSchedule} onChange={e => setSelectedClassForSchedule(e.target.value)}>
-                        <option value="">-- اختر الفصل --</option>
-                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <p className="text-xs text-gray-500">* تأكد من إضافة الطلاب وتحديد فصولهم أولاً.</p>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200 mb-2">
+                    {/* 1. Select Class */}
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1"><Grid size={14}/> اختر الفصل (المستهدف)</label>
+                        <select className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold" value={selectedClassForSchedule} onChange={e => setSelectedClassForSchedule(e.target.value)}>
+                            <option value="">-- اختر الفصل --</option>
+                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+
+                    {/* 2. Select Subject (Tool) */}
+                    <div>
+                        <label className="block text-xs font-bold text-indigo-600 mb-1 flex items-center gap-1"><BookOpen size={14}/> المادة (أداة الرسم)</label>
+                        <select className="w-full p-2 border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold text-indigo-700" value={activeSubject} onChange={e => setActiveSubject(e.target.value)}>
+                            <option value="">-- اختر المادة للتعيين --</option>
+                            {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                        </select>
+                    </div>
+
+                    {/* 3. Select Teacher (Tool) */}
+                    <div>
+                        <label className="block text-xs font-bold text-indigo-600 mb-1 flex items-center gap-1"><User size={14}/> المعلم (اختياري / للربط)</label>
+                        <select className="w-full p-2 border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold text-indigo-700" value={activeTeacher} onChange={e => setActiveTeacher(e.target.value)}>
+                            <option value="">-- بدون معلم محدد --</option>
+                            {myTeachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.subjectSpecialty})</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 mb-4 text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-100">
+                    <CheckSquare size={14} className="text-blue-600"/>
+                    <span>طريقة الاستخدام: اختر <b>المادة</b> و <b>المعلم</b> من القائمة أعلاه، ثم اضغط على الخانات في الجدول لإضافتها. اضغط مرة أخرى للحذف.</span>
                 </div>
 
                 {selectedClassForSchedule ? (
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm animate-fade-in">
                         <table className="w-full text-center border-collapse">
                             <thead>
                                 <tr className="bg-indigo-900 text-white">
@@ -425,43 +446,30 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                                         </td>
                                         {[1, 2, 3, 4, 5, 6, 7, 8].map(period => {
                                             const schedItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
-                                            const assignment = assignments.find(a => a.classId === selectedClassForSchedule && a.subjectName === schedItem?.subjectName);
-                                            // Only Manager can see/assign teachers
-                                            const teacherName = isManager ? myTeachers.find(t => t.id === assignment?.teacherId)?.name : null;
+                                            // Find teacher name based on ID stored in schedule
+                                            const teacherName = schedItem?.teacherId ? myTeachers.find(t => t.id === schedItem.teacherId)?.name : null;
 
                                             return (
-                                                <td key={period} className="p-1 border h-24 align-top relative group">
-                                                    {editingCell?.day === day && editingCell?.period === period ? (
-                                                        <div className="absolute inset-0 bg-white z-10 p-2 shadow-lg flex flex-col gap-1 border-2 border-indigo-500">
-                                                            <select 
-                                                                autoFocus
-                                                                className="w-full text-xs p-1 border rounded"
-                                                                value={schedItem?.subjectName || ''}
-                                                                onChange={(e) => handleScheduleSave(day, period, e.target.value)}
-                                                                onBlur={() => setEditingCell(null)}
-                                                            >
-                                                                <option value="">(فراغ)</option>
-                                                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                                                            </select>
+                                                <td 
+                                                    key={period} 
+                                                    onClick={() => handleScheduleCellClick(day, period)}
+                                                    className={`p-1 border h-24 align-top cursor-pointer transition-all hover:shadow-inner ${schedItem ? 'bg-indigo-50 hover:bg-red-50 hover:border-red-300 group' : 'hover:bg-green-50'}`}
+                                                >
+                                                    {schedItem ? (
+                                                        <div className="flex flex-col justify-between h-full p-1 relative">
+                                                            <span className="font-bold text-indigo-700 block text-sm">{schedItem.subjectName}</span>
+                                                            {teacherName && (
+                                                                <span className="text-[10px] bg-white border rounded px-1 text-gray-500 mt-1 block truncate">
+                                                                    {teacherName}
+                                                                </span>
+                                                            )}
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-red-100/80 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold rounded">
+                                                                <Eraser size={20}/> حذف
+                                                            </div>
                                                         </div>
                                                     ) : (
-                                                        <div onClick={() => setEditingCell({ day, period })} className="w-full h-full cursor-pointer p-1 flex flex-col justify-between hover:bg-indigo-50 transition-colors">
-                                                            {schedItem ? (
-                                                                <>
-                                                                    <span className="font-bold text-indigo-700 block text-sm">{schedItem.subjectName}</span>
-                                                                    {isManager && (
-                                                                        <select 
-                                                                            className="text-[10px] w-full bg-transparent border-none outline-none text-gray-500 mt-1 cursor-pointer hover:bg-gray-200 rounded"
-                                                                            value={assignment?.teacherId || ''}
-                                                                            onClick={e => e.stopPropagation()}
-                                                                            onChange={e => handleAssignTeacher(selectedClassForSchedule, schedItem.subjectName, e.target.value)}
-                                                                        >
-                                                                            <option value="">-- المعلم --</option>
-                                                                            {myTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                                                        </select>
-                                                                    )}
-                                                                </>
-                                                            ) : <span className="text-gray-200 text-xs flex items-center justify-center h-full">-</span>}
+                                                        <div className="w-full h-full flex items-center justify-center text-gray-200 hover:text-green-400">
+                                                            <PlusCircle size={20}/>
                                                         </div>
                                                     )}
                                                 </td>
@@ -475,7 +483,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                 ) : (
                     <div className="text-center py-12 text-gray-400 bg-white border-2 border-dashed rounded-xl">
                         <Grid size={48} className="mx-auto mb-2 opacity-20"/>
-                        <p>الرجاء اختيار فصل لعرض الجدول</p>
+                        <p>الرجاء اختيار فصل لعرض وبناء الجدول</p>
                     </div>
                 )}
               </>
@@ -496,7 +504,7 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                     </select>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm animate-fade-in">
                     <table className="w-full text-center border-collapse">
                         <thead>
                             <tr className="bg-purple-800 text-white">
@@ -511,23 +519,29 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                                         {{'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس'}[day]}
                                     </td>
                                     {[1, 2, 3, 4, 5, 6, 7, 8].map(period => {
-                                        // Find all classes this teacher has at this time
-                                        let myClasses: {class: string, subject: string}[] = [];
-                                        
                                         // Get all schedules for this slot
                                         const slotSchedules = schedules.filter(s => s.day === day && s.period === period);
                                         
+                                        // Find relevant classes for the selected teacher (or all if none selected)
+                                        let myClasses: {class: string, subject: string}[] = [];
+                                        
                                         slotSchedules.forEach(s => {
-                                            // Find who teaches it
-                                            const assignment = assignments.find(a => a.classId === s.classId && a.subjectName === s.subjectName);
-                                            // If selected teacher matches OR if showing all and slot is occupied
+                                            // Check direct teacher assignment in ScheduleItem (Priority)
                                             if (selectedTeacherForSchedule) {
-                                                if (assignment?.teacherId === selectedTeacherForSchedule) {
+                                                if (s.teacherId === selectedTeacherForSchedule) {
                                                     myClasses.push({ class: s.classId, subject: s.subjectName });
                                                 }
+                                                // Check legacy assignment mapping if ID missing
+                                                else if (!s.teacherId) {
+                                                    const assignment = assignments.find(a => a.classId === s.classId && a.subjectName === s.subjectName);
+                                                    if (assignment?.teacherId === selectedTeacherForSchedule) {
+                                                        myClasses.push({ class: s.classId, subject: s.subjectName });
+                                                    }
+                                                }
                                             } else {
-                                                // Show all (maybe limit or show teacher name)
-                                                // Skipping "Show All" detailed logic for simplicity, forcing teacher selection usually better
+                                                // If "All Schedule", show generic
+                                                // This view is messy for "All", usually better to force selection, but here's generic logic:
+                                                // We won't show EVERY class in one cell, maybe just count or "Busy"
                                             }
                                         });
 
