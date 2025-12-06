@@ -672,7 +672,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <th key={col.id} className="p-2 border-b border-l min-w-[100px] text-center relative group bg-gray-50">
                                                 <div className="text-xs text-gray-500 mb-1">{col.title}</div>
                                                 <div className="text-[10px] text-gray-400">({col.maxScore})</div>
-                                                {col.url && <a href={col.url} target="_blank" className="absolute top-1 left-1 text-blue-400 hover:text-blue-600"><ExternalLink size={10}/></a>}
+                                                {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 left-1 text-blue-400 hover:text-blue-600"><ExternalLink size={10}/></a>}
                                             </th>
                                         ))}
                                         {activeTab === 'ACTIVITY' && (
@@ -697,16 +697,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </thead>
                                 <tbody>
                                     {students.map((student, i) => {
-                                        const renderedCells = assignments.filter(c => c.isVisible).map(col => {
-                                            const scoreVal = gridData[student.id]?.[col.id];
-                                            return (
-                                                <td key={col.id} className="p-1 border-b border-l text-center relative">
-                                                    <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={scoreVal || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-"/>
-                                                    {col.url && <a href={col.url} target="_blank" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></a>}
-                                                </td>
-                                            );
-                                        });
-
                                         // Activity Stats
                                         let activityStats = null;
                                         if (activeTab === 'ACTIVITY') {
@@ -755,7 +745,28 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <tr key={student.id} className="hover:bg-gray-50">
                                             <td className="p-3 border-b border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
                                             <td className="p-3 border-b border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r">{student.name}</td>
-                                            {renderedCells}
+                                            {assignments.filter(c => c.isVisible).map(col => {
+                                                const scoreVal = gridData[student.id]?.[col.id];
+                                                return (
+                                                    <td key={col.id} className="p-1 border-b border-l text-center relative">
+                                                        <input 
+                                                            type="number" 
+                                                            className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" 
+                                                            value={scoreVal || ''} 
+                                                            onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} 
+                                                            placeholder="-"
+                                                        />
+                                                        {col.url ? (
+                                                            <a 
+                                                                href={col.url} 
+                                                                target="_blank" 
+                                                                rel="noreferrer"
+                                                                className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"
+                                                            />
+                                                        ) : null}
+                                                    </td>
+                                                );
+                                            })}
                                             {activeTab === 'ACTIVITY' && activityStats}
                                             {activeTab === 'HOMEWORK' && homeworkStats}
                                             {activeTab === 'PLATFORM_EXAM' && platformStats}
