@@ -114,6 +114,8 @@ export interface AttendanceRecord {
   // New Excuse Fields
   excuseNote?: string; // Student's written excuse
   excuseFile?: string; // Base64 string of the image/pdf
+  
+  createdById?: string; // NEW: Link to the teacher who took attendance
 }
 
 export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
@@ -142,6 +144,7 @@ export interface PerformanceRecord {
   date: string;
   notes?: string; // Used to store Column Key / Assignment ID for linking
   url?: string; // Legacy: kept for compatibility, but Assignment.url is preferred
+  createdById?: string; // NEW: Link to the teacher who graded this
 }
 
 export interface ExternalSource {

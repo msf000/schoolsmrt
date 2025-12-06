@@ -782,6 +782,12 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS teacher_id TEXT;
 -- Fix for Report Config (Strict Isolation)
 ALTER TABLE report_header_config ADD COLUMN IF NOT EXISTS teacher_id TEXT;
 
+-- Fix for Attendance Records (Row Level Isolation)
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS created_by_id TEXT;
+
+-- Fix for Performance Records (Row Level Isolation)
+ALTER TABLE performance_records ADD COLUMN IF NOT EXISTS created_by_id TEXT;
+
 -- Reload Schema Cache (Important for PostgREST)
 NOTIFY pgrst, 'reload config';
 `;

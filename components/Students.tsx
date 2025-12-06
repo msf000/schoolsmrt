@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student } from '../types';
 import { deleteAllStudents } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface StudentsProps {
@@ -161,14 +161,13 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
             <thead className="bg-gray-50 text-gray-700 font-bold text-sm">
                 <tr>
                 <th className="p-4 whitespace-nowrap">اسم الطالب</th>
+                <th className="p-4 whitespace-nowrap">المصدر</th>
                 <th className="p-4 whitespace-nowrap">رقم الهوية / السجل</th>
                 <th className="p-4 whitespace-nowrap">الصف</th>
                 <th className="p-4 whitespace-nowrap">الفصل</th>
                 <th className="p-4 whitespace-nowrap">جوال الطالب</th>
-                <th className="p-4 whitespace-nowrap">ايميل الطالب</th>
                 <th className="p-4 whitespace-nowrap">اسم ولي الأمر</th>
                 <th className="p-4 whitespace-nowrap">جوال ولي الأمر</th>
-                <th className="p-4 whitespace-nowrap">ايميل ولي الأمر</th>
                 <th className="p-4 whitespace-nowrap w-40 text-center">إجراءات</th>
                 </tr>
             </thead>
@@ -176,14 +175,23 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
                 {filteredStudents.length > 0 ? filteredStudents.map(student => (
                 <tr key={student.id} className="hover:bg-gray-50 transition-colors">
                     <td className="p-4 font-bold text-gray-800">{student.name}</td>
+                    <td className="p-4">
+                        {student.schoolId ? (
+                            <span className="flex items-center gap-1 text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200 w-fit font-bold">
+                                <Building2 size={10}/> مدرسة
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-1 text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded border border-purple-200 w-fit font-bold">
+                                <Lock size={10}/> خاص
+                            </span>
+                        )}
+                    </td>
                     <td className="p-4 text-gray-600 font-mono">{student.nationalId || '-'}</td>
                     <td className="p-4 text-gray-600">{student.gradeLevel}</td>
                     <td className="p-4 text-gray-600">{student.className}</td>
                     <td className="p-4 text-gray-600 font-mono dir-ltr text-right">{student.phone || '-'}</td>
-                    <td className="p-4 text-gray-600 font-mono">{student.email || '-'}</td>
                     <td className="p-4 text-gray-600">{student.parentName || '-'}</td>
                     <td className="p-4 text-green-700 font-medium font-mono dir-ltr text-right">{student.parentPhone || '-'}</td>
-                    <td className="p-4 text-gray-500 font-mono">{student.parentEmail || '-'}</td>
                     <td className="p-4">
                         <div className="flex items-center justify-center gap-2">
                              <button 

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase, uploadToSupabase, isSystemDemo, getUserTheme } from './services/storageService';
+import { getStudents, getAttendance, getPerformance, addStudent, updateStudent, deleteStudent, saveAttendance, addPerformance, bulkAddStudents, bulkUpsertStudents, bulkAddPerformance, bulkAddAttendance, initAutoSync, getWorksMasterUrl, getSubjects, getAssignments, bulkSaveAssignments, bulkUpdateStudents, downloadFromSupabase, uploadToSupabase, isSystemDemo, getUserTheme, getTeacherAssignments } from './services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from './services/excelService';
 import { Student, AttendanceRecord, PerformanceRecord, ViewState, PerformanceCategory, Assignment, UserTheme } from './types';
 import Dashboard from './components/Dashboard';
@@ -148,11 +148,12 @@ const App: React.FC = () => {
       }
   };
 
-  // --- STRICT DATA ISOLATION LOGIC ---
+  // --- STRICT DATA ISOLATION & LINKING LOGIC ---
   const refreshData = (userContext = currentUser) => {
     const allStudents = getStudents();
     const allAttendance = getAttendance();
     const allPerformance = getPerformance();
+    const allAssignments = getTeacherAssignments();
 
     if (!userContext) return;
 
@@ -170,15 +171,36 @@ const App: React.FC = () => {
     if (userContext.role === 'SCHOOL_MANAGER' && userContext.schoolId) {
         filteredStudents = allStudents.filter(s => s.schoolId === userContext.schoolId);
     } 
-    // 3. TEACHER - Strict Isolation: Only show students created by this teacher
+    // 3. TEACHER - Smart Linking Logic
     else if (userContext.role === 'TEACHER') {
-        filteredStudents = allStudents.filter(s => s.createdById === userContext.id);
+        // Get the classes this teacher is assigned to (e.g. "1/A", "2/B")
+        const myAssignments = allAssignments.filter(a => a.teacherId === userContext.id);
+        const myClassNames = new Set(myAssignments.map(a => a.classId));
+
+        filteredStudents = allStudents.filter(s => 
+            // A: Student created by this teacher (Private Student)
+            s.createdById === userContext.id || 
+            // B: Student exists in the same school AND belongs to one of the teacher's assigned classes
+            (
+                userContext.schoolId && 
+                s.schoolId === userContext.schoolId && 
+                (myClassNames.has(s.className || '') || myClassNames.has(s.gradeLevel || ''))
+            )
+        );
     }
 
-    // Filter dependent records based on filtered students
+    // --- FILTER DEPENDENT RECORDS (Strictly by Creator for Teachers) ---
     const validStudentIds = new Set(filteredStudents.map(s => s.id));
-    const filteredAttendance = allAttendance.filter(a => validStudentIds.has(a.studentId));
-    const filteredPerformance = allPerformance.filter(p => validStudentIds.has(p.studentId));
+    
+    let filteredAttendance = allAttendance.filter(a => validStudentIds.has(a.studentId));
+    let filteredPerformance = allPerformance.filter(p => validStudentIds.has(p.studentId));
+
+    // STRICT: Teachers only see Attendance/Performance they created
+    // This ensures grades don't leak between teachers even if they share students
+    if (userContext.role === 'TEACHER') {
+        filteredAttendance = filteredAttendance.filter(a => a.createdById === userContext.id);
+        filteredPerformance = filteredPerformance.filter(p => p.createdById === userContext.id);
+    }
 
     setStudents(filteredStudents);
     setAttendance(filteredAttendance);
@@ -214,10 +236,31 @@ const App: React.FC = () => {
   };
   
   const handleDeleteStudent = async (id: string) => { await deleteStudent(id); refreshData(currentUser); };
-  const handleSaveAttendance = async (recs: AttendanceRecord[]) => { await saveAttendance(recs); refreshData(currentUser); };
-  const handleBulkAddAttendance = async (list: AttendanceRecord[]) => { await bulkAddAttendance(list); refreshData(currentUser); };
-  const handleAddPerformance = async (rec: PerformanceRecord) => { await addPerformance(rec); refreshData(currentUser); };
-  const handleBulkAddPerformance = async (list: PerformanceRecord[]) => { await bulkAddPerformance(list); refreshData(currentUser); };
+  
+  const handleSaveAttendance = async (recs: AttendanceRecord[]) => { 
+      // Inject Creator ID
+      const secureRecs = recs.map(r => ({ ...r, createdById: currentUser?.id }));
+      await saveAttendance(secureRecs); 
+      refreshData(currentUser); 
+  };
+  
+  const handleBulkAddAttendance = async (list: AttendanceRecord[]) => { 
+      const secureList = list.map(r => ({ ...r, createdById: currentUser?.id }));
+      await bulkAddAttendance(secureList); 
+      refreshData(currentUser); 
+  };
+  
+  const handleAddPerformance = async (rec: PerformanceRecord) => { 
+      const secureRec = { ...rec, createdById: currentUser?.id };
+      await addPerformance(secureRec); 
+      refreshData(currentUser); 
+  };
+  
+  const handleBulkAddPerformance = async (list: PerformanceRecord[]) => { 
+      const secureList = list.map(r => ({ ...r, createdById: currentUser?.id }));
+      await bulkAddPerformance(secureList); 
+      refreshData(currentUser); 
+  };
   
   const handleSaveSeating = async (updatedStudents: Student[]) => {
       await bulkUpdateStudents(updatedStudents);
