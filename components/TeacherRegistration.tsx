@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Teacher, School } from '../types';
 import { addTeacher, getTeachers, getSchools, addSchool } from '../services/storageService';
-import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info } from 'lucide-react';
 
 interface TeacherRegistrationProps {
     onBack: () => void;
@@ -44,6 +44,27 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
         setError('');
     };
 
+    // Helper to attempt saving school with fallback
+    const tryAddSchool = async (school: School) => {
+        try {
+            await addSchool(school);
+            return school.id;
+        } catch (e: any) {
+            // Smart Retry: If error implies missing columns, try saving without optional manager fields
+            if (e.message && (e.message.includes('column') || e.message.includes('manager_national_id'))) {
+                console.warn("Schema mismatch detected, retrying with basic school data...");
+                const basicSchool = { ...school };
+                delete basicSchool.managerNationalId; // Remove problematic field
+                delete basicSchool.managerName;
+                delete basicSchool.ministryCode;
+                
+                await addSchool(basicSchool);
+                return basicSchool.id;
+            }
+            throw e;
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -77,8 +98,9 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                     schoolId = foundSchool.id;
                     managerId = foundSchool.managerNationalId;
                 } else {
-                    if (!formData.schoolName || !formData.managerName || !formData.managerNationalId) {
-                        setError('الرمز الوزاري جديد. يجب تعبئة بيانات المدرسة والمدير كاملة لإنشائها.');
+                    // New School Logic - Relaxed Requirements
+                    if (!formData.schoolName) {
+                        setError('الرمز الوزاري جديد. الرجاء كتابة اسم المدرسة لإنشائها.');
                         setLoading(false);
                         return;
                     }
@@ -87,16 +109,17 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         id: Date.now().toString() + '_sch',
                         name: formData.schoolName,
                         ministryCode: formData.schoolCode,
-                        managerName: formData.managerName,
-                        managerNationalId: formData.managerNationalId,
+                        managerName: formData.managerName || 'غير مسجل', // Optional
+                        managerNationalId: formData.managerNationalId || undefined, // Optional (send undefined to skip column)
                         type: 'PUBLIC',
                         phone: '',
                         studentCount: 0,
                         subscriptionStatus: 'TRIAL'
                     };
                     
-                    // Await cloud save
-                    await addSchool(newSchool);
+                    // Attempt to save with retry logic
+                    await tryAddSchool(newSchool);
+                    
                     schoolId = newSchool.id;
                     managerId = formData.managerNationalId;
                 }
@@ -123,8 +146,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
             }, 1500);
         } catch (e: any) {
             console.error(e);
-            // Display specific error message from storageService
-            setError(e.message || 'حدث خطأ أثناء الحفظ في قاعدة البيانات. تحقق من الاتصال.');
+            setError(e.message || 'حدث خطأ أثناء الحفظ في قاعدة البيانات.');
         } finally {
             setLoading(false);
         }
@@ -231,8 +253,11 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         {/* School Section */}
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                             <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">
-                                <SchoolIcon size={14}/> بيانات المدرسة (للربط)
+                                <SchoolIcon size={14}/> المدرسة (اختياري)
                             </label>
+                            <p className="text-[10px] text-gray-500 mb-2">
+                                أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، يمكنك إضافتها الآن أو تخطي هذه الخطوة.
+                            </p>
                             
                             <div className="mb-3">
                                 <input 
@@ -259,12 +284,11 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                             <span className="font-bold">{foundSchool.managerName}</span>
                                         </div>
                                     </div>
-                                    <p className="text-[10px] text-teal-600 mt-2 text-center">سيتم ربط حسابك بهذه المدرسة تلقائياً.</p>
                                 </div>
                             ) : formData.schoolCode.length >= 3 ? (
                                 <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2">
                                     <div className="flex items-center gap-2 text-amber-600 text-xs font-bold">
-                                        <AlertCircle size={14}/> مدرسة جديدة؟ يرجى إكمال البيانات:
+                                        <Info size={14}/> مدرسة جديدة؟ أدخل الاسم:
                                     </div>
                                     <input 
                                         name="schoolName" 
@@ -273,26 +297,32 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                         className="w-full p-2 border rounded-lg text-sm bg-white" 
                                         placeholder="اسم المدرسة *"
                                     />
-                                    <div className="grid grid-cols-2 gap-2">
+                                    
+                                    <div className="text-[10px] text-gray-400 mt-1 cursor-pointer flex items-center gap-1" onClick={() => {
+                                        const el = document.getElementById('manager-fields');
+                                        if(el) el.style.display = el.style.display === 'none' ? 'grid' : 'none';
+                                    }}>
+                                        <span>+ إضافة بيانات المدير (اختياري)</span>
+                                    </div>
+
+                                    <div id="manager-fields" className="grid grid-cols-2 gap-2" style={{display: 'none'}}>
                                         <input 
                                             name="managerName" 
                                             value={formData.managerName} 
                                             onChange={handleChange} 
                                             className="w-full p-2 border rounded-lg text-sm bg-white" 
-                                            placeholder="اسم مدير المدرسة *"
+                                            placeholder="اسم المدير"
                                         />
                                         <input 
                                             name="managerNationalId" 
                                             value={formData.managerNationalId} 
                                             onChange={handleChange} 
                                             className="w-full p-2 border rounded-lg text-sm bg-white font-mono" 
-                                            placeholder="هوية المدير *"
+                                            placeholder="هوية المدير"
                                         />
                                     </div>
                                 </div>
-                            ) : (
-                                <p className="text-[10px] text-gray-400 text-center">أدخل الرمز الوزاري للبحث عن المدرسة أو إضافتها.</p>
-                            )}
+                            ) : null}
                         </div>
 
                         {/* Password Section */}

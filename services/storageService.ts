@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import { 
     Student, Teacher, School, SystemUser, 
     AttendanceRecord, PerformanceRecord, 
@@ -13,7 +14,7 @@ const KEYS = {
     WORKS_MASTER_URL: 'works_master_url'
 };
 
-// --- IN-MEMORY CACHE (Starts Empty - Populated from Cloud) ---
+// ... existing CACHE definition and helpers ...
 const CACHE: any = {
     students: [],
     teachers: [],
@@ -31,24 +32,19 @@ const CACHE: any = {
     lesson_links: [],
     report_header_config: null,
     ai_settings: null,
-    works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || '' // Only config stays local for now if needed
+    works_master_url: localStorage.getItem(KEYS.WORKS_MASTER_URL) || '' 
 };
 
-// --- HELPER: DATA MAPPING (App <-> DB) ---
-// Convert App (camelCase) to DB (snake_case)
 const toDb = (item: any) => {
     const newItem: any = {};
     Object.keys(item).forEach(key => {
-        // Skip undefined values to allow DB defaults or avoid errors
         if (item[key] === undefined) return;
-        
         const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         newItem[dbKey] = item[key];
     });
     return newItem;
 };
 
-// Convert DB (snake_case) to App (camelCase)
 const fromDb = (item: any) => {
     const newItem: any = {};
     Object.keys(item).forEach(key => {
@@ -58,7 +54,7 @@ const fromDb = (item: any) => {
     return newItem;
 };
 
-// --- MAPPING CONSTANTS ---
+// ... MAPPING CONSTANTS ...
 export const DB_MAP: Record<string, string> = {
     SCHOOLS: 'schools',
     USERS: 'system_users',
@@ -79,7 +75,6 @@ export const DB_MAP: Record<string, string> = {
     AI_SETTINGS: 'ai_settings'
 };
 
-// --- INITIALIZATION (Load all from Cloud) ---
 export const initAutoSync = async () => {
     try {
         const tables = Object.keys(DB_MAP);
@@ -87,7 +82,6 @@ export const initAutoSync = async () => {
             const tableName = DB_MAP[key];
             const { data, error } = await supabase.from(tableName).select('*');
             if (!error && data) {
-                // Determine cache key based on table name
                 const cacheKey = Object.keys(CACHE).find(k => k === tableName || (k === 'assignments' && tableName === 'assignments')); 
                 if (cacheKey) {
                     if (cacheKey === 'report_header_config' || cacheKey === 'ai_settings') {
@@ -104,32 +98,26 @@ export const initAutoSync = async () => {
     }
 };
 
-// --- GENERIC CRUD HELPERS ---
+// ... GENERIC CRUD HELPERS ...
 const addToCloud = async (table: string, item: any, cacheKey: string) => {
-    // 1. Update Cache Optimistically
     if (Array.isArray(CACHE[cacheKey])) {
         CACHE[cacheKey] = [...CACHE[cacheKey], item];
     } else {
         CACHE[cacheKey] = item;
     }
     
-    // 2. Send to Cloud
     const dbItem = toDb(item);
     const { error } = await supabase.from(table).upsert(dbItem);
     if (error) {
         console.error(`Error adding to ${table}:`, JSON.stringify(error, null, 2));
-        
-        // Handle Schema Mismatch Errors gracefully
         if (error.code === 'PGRST204' && error.message.includes('column')) {
-             throw new Error(`خطأ في قاعدة البيانات: يوجد عمود مفقود (${error.message}). يرجى تشغيل "تحديثات القاعدة" من لوحة المدير.`);
+             throw new Error(`خطأ في قاعدة البيانات: يوجد عمود مفقود (${error.message}). الرجاء تحديث قاعدة البيانات.`);
         }
-
         throw new Error(`Cloud Error (${table}): ${error.message || JSON.stringify(error)}`);
     }
 };
 
 const updateInCloud = async (table: string, item: any, cacheKey: string) => {
-    // 1. Update Cache
     const list = CACHE[cacheKey];
     if (Array.isArray(list)) {
         const idx = list.findIndex((x: any) => x.id === item.id);
@@ -139,26 +127,21 @@ const updateInCloud = async (table: string, item: any, cacheKey: string) => {
         CACHE[cacheKey] = item;
     }
     
-    // 2. Send to Cloud
     const dbItem = toDb(item);
     const { error } = await supabase.from(table).upsert(dbItem);
     if (error) {
         console.error(`Error updating ${table}:`, JSON.stringify(error, null, 2));
-        
         if (error.code === 'PGRST204' && error.message.includes('column')) {
-             throw new Error(`خطأ في قاعدة البيانات: يوجد عمود مفقود (${error.message}). يرجى تشغيل "تحديثات القاعدة" من لوحة المدير.`);
+             throw new Error(`خطأ في قاعدة البيانات: يوجد عمود مفقود (${error.message}). الرجاء تحديث قاعدة البيانات.`);
         }
-
         throw new Error(`Cloud Update Error: ${error.message}`);
     }
 };
 
 const deleteFromCloud = async (table: string, id: string, cacheKey: string) => {
-    // 1. Update Cache
     if (Array.isArray(CACHE[cacheKey])) {
         CACHE[cacheKey] = CACHE[cacheKey].filter((x: any) => x.id !== id);
     }
-    // 2. Send to Cloud
     const { error } = await supabase.from(table).delete().eq('id', id);
     if (error) {
         console.error(`Error deleting from ${table}:`, JSON.stringify(error, null, 2));
@@ -181,11 +164,9 @@ export const bulkAddStudents = async (list: Student[]) => {
     await supabase.from('students').upsert(dbList);
 };
 export const bulkUpdateStudents = async (list: Student[]) => {
-    // Update cache map
     const map = new Map(CACHE.students.map((s: Student) => [s.id, s]));
     list.forEach(s => map.set(s.id, s));
     CACHE.students = Array.from(map.values());
-    
     const dbList = list.map(toDb);
     await supabase.from('students').upsert(dbList);
 };
@@ -216,33 +197,23 @@ export const bulkUpsertStudents = async (newStudents: Student[], matchKey: keyof
 
 // --- Teachers & System Users ---
 export const getTeachers = (): Teacher[] => CACHE.teachers;
-
-// ** IMPORTANT: Add Teacher also adds to System Users for Login **
 export const addTeacher = async (t: Teacher) => {
-    // 1. Add to Teachers Table
     await addToCloud('teachers', t, 'teachers');
-    
-    // 2. Add to System Users Table (For Login)
-    // We check if the user already exists to avoid PK violation, or use upsert
     const systemUser: SystemUser = {
-        id: t.id, // Keep IDs consistent
+        id: t.id,
         name: t.name,
-        email: t.email || t.nationalId || `t${t.id}@school.com`, // Fallback for email
+        email: t.email || t.nationalId || `t${t.id}@school.com`,
         nationalId: t.nationalId,
         password: t.password,
         role: 'TEACHER',
         schoolId: t.schoolId,
         status: 'ACTIVE'
     };
-    
-    // This allows teachers to log in immediately after registration
     await addToCloud('system_users', systemUser, 'system_users');
 };
 
 export const updateTeacher = async (t: Teacher) => {
     await updateInCloud('teachers', t, 'teachers');
-    
-    // Sync update to system user if exists
     const user = CACHE.system_users.find((u: SystemUser) => u.id === t.id);
     if (user) {
         await updateInCloud('system_users', { 
@@ -276,14 +247,10 @@ export const deleteSubject = async (id: string) => await deleteFromCloud('subjec
 // --- Schedules ---
 export const getSchedules = (): ScheduleItem[] => CACHE.weekly_schedules;
 export const saveScheduleItem = async (item: ScheduleItem) => {
-    // Check if exists in cache to decide insert vs update logic if ID matches
-    // But since we use upsert, simple add/update logic works
-    // Maintain uniqueness in cache based on ID
     const list = CACHE.weekly_schedules;
     const idx = list.findIndex((x: any) => x.id === item.id);
     if (idx > -1) list[idx] = item; else list.push(item);
     CACHE.weekly_schedules = [...list];
-    
     await supabase.from('weekly_schedules').upsert(toDb(item));
 };
 export const deleteScheduleItem = async (id: string) => await deleteFromCloud('weekly_schedules', id, 'weekly_schedules');
@@ -295,7 +262,6 @@ export const saveTeacherAssignment = async (item: TeacherAssignment) => {
     const idx = list.findIndex((x: any) => x.classId === item.classId && x.subjectName === item.subjectName);
     if (idx > -1) list[idx] = item; else list.push(item);
     CACHE.teacher_assignments = [...list];
-    
     await supabase.from('teacher_assignments').upsert(toDb(item));
 };
 
@@ -308,7 +274,6 @@ export const saveAttendance = async (records: AttendanceRecord[]) => {
         if(idx > -1) list[idx] = r; else list.push(r);
     });
     CACHE.attendance_records = [...list];
-    
     await supabase.from('attendance_records').upsert(records.map(toDb));
 };
 export const bulkAddAttendance = async (list: AttendanceRecord[]) => {
@@ -379,12 +344,11 @@ export const saveWorksMasterUrl = (url: string) => {
     localStorage.setItem(KEYS.WORKS_MASTER_URL, url); 
 };
 
-// --- System Demo Mode ---
+// ... System Demo & Sync Stubs ...
 let isDemoMode = false;
 export const isSystemDemo = () => isDemoMode;
 export const setSystemMode = (isDemo: boolean) => { 
     isDemoMode = isDemo; 
-    // In demo mode, we might seed local cache with fake data
     if(isDemo) {
         if(!CACHE.system_users.find((u:any) => u.email === 'manager@demo.com')) {
             CACHE.system_users.push({ id: 'demo_manager', name: 'مدير تجريبي', email: 'manager@demo.com', role: 'SCHOOL_MANAGER', status: 'ACTIVE' });
@@ -405,7 +369,6 @@ export const checkConnection = async () => {
     } catch { return { success: false }; }
 };
 
-// --- Sync Stubs (Cloud-First compatibility) ---
 export const uploadToSupabase = async () => { return true; };
 export const downloadFromSupabase = async () => { await initAutoSync(); return true; };
 
@@ -439,11 +402,7 @@ export const resetCloudDatabase = async () => {
     }
 };
 
-// --- Backup ---
-export const createBackup = () => {
-    return JSON.stringify(CACHE);
-};
-
+export const createBackup = () => JSON.stringify(CACHE);
 export const restoreBackup = (json: string) => {
     try {
         const backup = JSON.parse(json);
@@ -458,9 +417,7 @@ export const backupCloudDatabase = async (): Promise<string> => {
     const backup: Record<string, any[]> = {};
     for (const table of Object.values(DB_MAP)) {
         const { data, error } = await supabase.from(table).select('*');
-        if(!error && data) {
-            backup[table] = data;
-        }
+        if(!error && data) backup[table] = data;
     }
     return JSON.stringify(backup);
 };
@@ -486,19 +443,15 @@ export const restoreCloudDatabase = async (jsonString: string) => {
 };
 
 export const clearDatabase = () => {
-    // Resets memory cache only
     Object.keys(CACHE).forEach(k => {
         if (Array.isArray(CACHE[k])) CACHE[k] = [];
         else CACHE[k] = null;
     });
 };
 
-export const getTableDisplayName = (table: string) => {
-    // Helper names
-    return table;
-};
+export const getTableDisplayName = (table: string) => table;
 
-// --- SQL SCHEMA WITH RELATIONSHIPS ---
+// ... SQL SCHEMAS ...
 export const getDatabaseSchemaSQL = () => {
     return `
 -- 1. Schools Table
@@ -517,7 +470,7 @@ CREATE TABLE IF NOT EXISTS schools (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. System Users Table (Enforce School Relationship)
+-- 2. System Users Table
 CREATE TABLE IF NOT EXISTS system_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -530,7 +483,7 @@ CREATE TABLE IF NOT EXISTS system_users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. Teachers Table (Linked to School & Users)
+-- 3. Teachers Table
 CREATE TABLE IF NOT EXISTS teachers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -567,7 +520,7 @@ CREATE TABLE IF NOT EXISTS subjects (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6. Assignments (Columns Config)
+-- 6. Assignments
 CREATE TABLE IF NOT EXISTS assignments (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -653,7 +606,7 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 13. Other Configs
+-- 13. Configs
 CREATE TABLE IF NOT EXISTS report_header_config (
     id TEXT PRIMARY KEY,
     school_name TEXT,
