@@ -730,7 +730,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         if (activeTab === 'HOMEWORK') {
                                             const totalItems = assignments.filter(c => c.isVisible).length;
                                             const completedCount = assignments.filter(c => c.isVisible && gridData[student.id]?.[c.id]).length;
-                                            const percentage = totalItems > 0 ? Math.round((completedCount / totalItems) * 100 : 0;
+                                            const percentage = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
                                             homeworkStats = (
                                                 <>
                                                     <td className="p-3 border-b border-l text-center font-bold text-blue-600 bg-blue-50/30">{completedCount}</td>
