@@ -1,3 +1,4 @@
+
 import * as XLSX from 'xlsx';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
 
@@ -94,6 +95,12 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
         
         const dateHeader = findHeader(['date', 'time', 'التاريخ', 'الوقت']);
         if (dateHeader) mapping['date'] = dateHeader;
+
+        const subjectHeader = findHeader(['subject', 'course', 'المادة', 'المقرر', 'حصص']);
+        if (subjectHeader) mapping['subject'] = subjectHeader;
+
+        const periodHeader = findHeader(['period', 'session', 'الحصة', 'رقم الحصة', 'الفترة']);
+        if (periodHeader) mapping['period'] = periodHeader;
     }
 
     return mapping;
@@ -213,13 +220,24 @@ export const processMappedData = (
                     }
 
                     const date = parseDate(getVal('date'));
+                    const subject = getVal('subject');
+                    const period = getVal('period');
+
+                    // Unique ID Construction to prevent overwrite of different sessions
+                    const idParts = [student.id, date];
+                    if (subject) idParts.push(subject);
+                    if (period) idParts.push(period);
+                    
+                    const id = idParts.join('-');
 
                     results.push({
-                        id: `${student.id}-${date}`,
+                        id: id,
                         studentId: student.id,
                         studentName: student.name,
                         date: date,
-                        status: status
+                        status: status,
+                        subject: subject,
+                        period: period ? parseInt(period) : undefined
                     });
                 }
             }

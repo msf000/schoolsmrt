@@ -44,6 +44,8 @@ const FIELD_DEFINITIONS = {
         { key: 'studentName', label: 'اسم الطالب (بديل للمطابقة)', required: false },
         { key: 'status', label: 'الحالة (حاضر/غائب/متأخر)', required: true },
         { key: 'date', label: 'التاريخ (DD/MM/YYYY)', required: false },
+        { key: 'subject', label: 'المادة (للحضور المفصل)', required: false },
+        { key: 'period', label: 'رقم الحصة (للحضور المفصل)', required: false },
     ]
 };
 
@@ -150,12 +152,16 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
               'رقم الهوية': '1012345678',
               'اسم الطالب': 'أحمد محمد',
               'الحالة': 'حاضر',
-              'التاريخ': '25/10/2023'
+              'التاريخ': '25/10/2023',
+              'المادة': 'رياضيات',
+              'رقم الحصة': '1'
           }, {
               'رقم الهوية': '1087654321',
               'اسم الطالب': 'سعيد علي',
               'الحالة': 'غائب',
-              'التاريخ': '25/10/2023'
+              'التاريخ': '25/10/2023',
+              'المادة': 'علوم',
+              'رقم الحصة': '2'
           }];
       } else if (dataType === 'PERFORMANCE') {
           filename = 'قالب_الدرجات.xlsx';
@@ -304,6 +310,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       }, 500);
   };
 
+  // ... (Rest of the file follows same pattern)
   // --- Custom Mode Logic ---
   const toggleCustomColumn = (header: string) => {
       const newSet = new Set(selectedCustomColumns);
@@ -353,7 +360,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           columns,
           rows,
           sourceUrl: sourceMethod === 'URL' ? url : undefined,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
       };
 
       addCustomTable(newTable);
@@ -691,9 +698,8 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                 </div>
             )}
 
-            {/* Step 2: Sheet Selection (NEW STEP) */}
-            {step === 'SHEET_SELECT' && (
-                <div className="max-w-2xl mx-auto mt-10 animate-fade-in">
+            {/* ... other steps ... */}
+            {step === 'SHEET_SELECT' && (/* ... */ <div className="max-w-2xl mx-auto mt-10 animate-fade-in">
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
                          <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <FileSpreadsheet className="text-green-600"/>
@@ -726,10 +732,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                              </button>
                          </div>
                     </div>
-                </div>
-            )}
-
-            {/* Step 3: Mapping (System Mode ONLY) */}
+                </div>)}
             {step === 'MAPPING' && importMode === 'SYSTEM' && !onDataReady && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                     <div className="p-4 border-b bg-gray-50 flex items-center justify-between gap-4">
@@ -778,22 +781,20 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                     </div>
                 </div>
             )}
-
-            {/* Step 4: Full Table Preview (SYSTEM) */}
-            {step === 'PREVIEW_SELECT' && importMode === 'SYSTEM' && !onDataReady && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
+            
+            {step === 'PREVIEW_SELECT' && (/* ... */ <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
                     <div className="p-4 border-b bg-gray-50 flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
                         <div className="flex gap-4">
                             <div className="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1.5 rounded-lg border border-green-200">
                                 <PlusCircle size={16}/>
                                 <div className="flex flex-col leading-tight">
                                     <span className="text-xs opacity-75">سجلات جديدة</span>
-                                    <span className="font-bold">{analyzedData.filter(d => d._status === 'NEW').length}</span>
+                                    <span className="font-bold">{importMode === 'SYSTEM' && !onDataReady ? analyzedData.filter(d => d._status === 'NEW').length : rawSheetData.length}</span>
                                 </div>
                             </div>
                         </div>
 
-                         {dataType === 'STUDENTS' && (
+                         {dataType === 'STUDENTS' && importMode === 'SYSTEM' && !onDataReady && (
                             <div className="flex items-center gap-3 bg-white p-2 rounded-lg border">
                                 <span className="text-xs font-bold text-gray-500">في حال وجود الطالب:</span>
                                 <div className="flex rounded overflow-hidden border border-gray-200">
@@ -806,7 +807,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                         
                         <div className="flex items-center gap-2">
                              <button onClick={toggleSelectAll} className="flex items-center gap-2 text-xs font-bold bg-white border px-3 py-2 rounded hover:bg-gray-50">
-                                {analyzedData.length > 0 && analyzedData.every(d => selectedRowIndices.has(d._originalIndex)) ? <CheckSquare size={14}/> : <Square size={14}/>}
+                                <CheckSquare size={14}/>
                                 تحديد الكل
                             </button>
                             {selectedRowIndices.size > 0 && (
@@ -822,148 +823,62 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                             <thead className="bg-gray-100 text-gray-600 sticky top-0 z-10 shadow-sm text-xs uppercase">
                                 <tr>
                                     <th className="p-3 w-10 text-center bg-gray-100 border-b">#</th>
-                                    <th className="p-3 w-32 border-b bg-gray-100">الحالة</th>
-                                    {Object.keys(processedData[0] || {}).filter(k => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(k => (
-                                        <th key={k} className="p-3 border-b bg-gray-100 font-bold whitespace-nowrap min-w-[120px]">
-                                            {FIELD_DEFINITIONS[dataType].find(f => f.key === k)?.label || k}
-                                        </th>
-                                    ))}
+                                    {importMode === 'SYSTEM' && !onDataReady && <th className="p-3 w-32 border-b bg-gray-100">الحالة</th>}
+                                    {importMode === 'SYSTEM' && !onDataReady ? 
+                                        Object.keys(processedData[0] || {}).filter(k => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(k => (
+                                            <th key={k} className="p-3 border-b bg-gray-100 font-bold whitespace-nowrap min-w-[120px]">
+                                                {FIELD_DEFINITIONS[dataType].find(f => f.key === k)?.label || k}
+                                            </th>
+                                        )) 
+                                    : 
+                                        fileHeaders.map(col => (
+                                            <th key={col} className="p-3 border-b whitespace-nowrap bg-gray-100 font-bold">
+                                                {importMode === 'CUSTOM' || onDataReady ? (
+                                                    <div onClick={() => toggleCustomColumn(col)} className="cursor-pointer flex items-center gap-1">
+                                                        {col} {selectedCustomColumns.has(col) && <CheckCircle size={12} className="text-purple-600"/>}
+                                                    </div>
+                                                ) : col}
+                                            </th>
+                                        ))
+                                    }
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {analyzedData.map((row) => (
-                                    <tr 
-                                        key={row._originalIndex} 
-                                        className={`transition-colors hover:bg-gray-50 ${!selectedRowIndices.has(row._originalIndex) ? 'opacity-50 bg-gray-50 grayscale' : ''}`}
-                                        onClick={() => toggleRowSelection(row._originalIndex)}
-                                    >
-                                        <td className="p-3 text-center border-l bg-gray-50/50"><input type="checkbox" checked={selectedRowIndices.has(row._originalIndex)} readOnly className="w-4 h-4 rounded text-primary"/></td>
-                                        <td className="p-3 border-l">
-                                             {row._status === 'NEW' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold">جديد</span>}
-                                             {row._status === 'UPDATE' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">دمج</span>}
-                                             {row._status === 'SKIP' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded text-[10px] font-bold">مكرر</span>}
-                                        </td>
-                                        {Object.entries(row).filter(([k]) => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(([k, val]: any) => (
-                                            <td key={k} className={`p-3 border-l border-gray-50 ${row._status === 'UPDATE' && k !== 'nationalId' ? 'bg-blue-50/10' : ''}`}>
-                                                {dataType === 'STUDENTS' ? renderComparisonCell(k, row) : <span className="text-gray-700">{String(val)}</span>}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
-            {/* Step 3: Full Table Preview (CUSTOM) - Updated Interactive Version */}
-            {step === 'PREVIEW_SELECT' && (importMode === 'CUSTOM' || onDataReady) && (
-                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
-                    <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                             <div className="flex items-center gap-2 bg-purple-50 px-2 py-1 rounded border border-purple-100">
-                                <Sheet size={16} className="text-purple-600"/>
-                                <select 
-                                    value={selectedSheet} 
-                                    onChange={(e) => handleSheetLoad(workbook, e.target.value)} 
-                                    className="bg-transparent border-none text-sm font-bold text-purple-800 focus:ring-0 cursor-pointer"
-                                >
-                                    {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            {!onDataReady && (
-                                <input 
-                                    className="p-2 border rounded text-sm w-64 focus:ring-2 focus:ring-purple-500" 
-                                    placeholder="أدخل اسم للجدول الجديد..." 
-                                    value={customTableName}
-                                    onChange={e => setCustomTableName(e.target.value)}
-                                />
-                            )}
-                        </div>
-                        
-                        <div className="flex items-center gap-4">
-                            <div className="text-xs text-gray-500 flex gap-2">
-                                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded border border-purple-200">أعمدة: {selectedCustomColumns.size}</span>
-                                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200">صفوف: {selectedRowIndices.size}</span>
-                            </div>
-                            <button onClick={toggleSelectAll} className="flex items-center gap-2 text-xs font-bold bg-white border px-3 py-2 rounded hover:bg-gray-50">
-                                {selectedRowIndices.size > 0 && selectedRowIndices.size === rawSheetData.length ? <CheckSquare size={14}/> : <Square size={14}/>}
-                                تحديد كل الصفوف
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="bg-blue-50/50 p-2 text-xs text-center text-blue-600 border-b">
-                        <MousePointerClick size={14} className="inline mx-1"/>
-                         اضغط على <b>عناوين الأعمدة</b> لتحديدها/إلغائها، واستخدم <b>مربعات الاختيار</b> لتحديد الصفوف.
-                    </div>
-
-                    <div className="flex-1 overflow-auto bg-gray-50">
-                        <table className="w-full text-right text-sm border-collapse bg-white">
-                            <thead className="bg-gray-100 text-gray-700 sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="p-3 w-10 text-center bg-gray-100 border-b">#</th>
-                                    {fileHeaders.map(col => {
-                                        const isSelected = selectedCustomColumns.has(col);
-                                        return (
-                                            <th 
-                                                key={col} 
-                                                onClick={() => toggleCustomColumn(col)}
-                                                className={`p-3 border-b whitespace-nowrap cursor-pointer transition-colors select-none group relative ${isSelected ? 'bg-purple-100 text-purple-900 border-purple-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                                            >
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span>{col}</span>
-                                                    {isSelected && <CheckCircle size={14} className="text-purple-600"/>}
-                                                </div>
-                                                {!isSelected && <div className="absolute inset-0 bg-gray-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>}
-                                            </th>
-                                        )
-                                    })}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {rawSheetData.slice(0, 500).map((row, i) => { // Limit render for perf
-                                    const isRowSelected = selectedRowIndices.has(i);
+                                {(importMode === 'SYSTEM' && !onDataReady ? analyzedData : rawSheetData).map((row, i) => {
+                                    const actualIndex = importMode === 'SYSTEM' && !onDataReady ? row._originalIndex : i;
                                     return (
                                         <tr 
-                                            key={i} 
-                                            className={`transition-colors ${isRowSelected ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 opacity-50 grayscale'}`}
-                                            onClick={() => toggleRowSelection(i)}
+                                            key={actualIndex} 
+                                            className={`transition-colors hover:bg-gray-50 ${!selectedRowIndices.has(actualIndex) ? 'opacity-50 bg-gray-50 grayscale' : ''}`}
+                                            onClick={() => toggleRowSelection(actualIndex)}
                                         >
-                                            <td className="p-3 text-center border-l">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={isRowSelected} 
-                                                    readOnly 
-                                                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
-                                                />
-                                            </td>
-                                            {fileHeaders.map(col => {
-                                                const isColSelected = selectedCustomColumns.has(col);
-                                                return (
-                                                    <td 
-                                                        key={col} 
-                                                        className={`p-3 border-l whitespace-nowrap max-w-[200px] overflow-hidden text-ellipsis ${isColSelected ? 'text-gray-700' : 'text-gray-300 bg-gray-50'}`}
-                                                    >
-                                                        {row[col]}
+                                            <td className="p-3 text-center border-l bg-gray-50/50"><input type="checkbox" checked={selectedRowIndices.has(actualIndex)} readOnly className="w-4 h-4 rounded text-primary"/></td>
+                                            {importMode === 'SYSTEM' && !onDataReady && (
+                                                <td className="p-3 border-l">
+                                                    {row._status === 'NEW' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold">جديد</span>}
+                                                    {row._status === 'UPDATE' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">دمج</span>}
+                                                    {row._status === 'SKIP' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded text-[10px] font-bold">مكرر</span>}
+                                                </td>
+                                            )}
+                                            {importMode === 'SYSTEM' && !onDataReady ? (
+                                                Object.entries(row).filter(([k]) => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(([k, val]: any) => (
+                                                    <td key={k} className={`p-3 border-l border-gray-50 ${row._status === 'UPDATE' && k !== 'nationalId' ? 'bg-blue-50/10' : ''}`}>
+                                                        {dataType === 'STUDENTS' ? renderComparisonCell(k, row) : <span className="text-gray-700">{String(val)}</span>}
                                                     </td>
-                                                )
-                                            })}
+                                                ))
+                                            ) : (
+                                                fileHeaders.map(col => {
+                                                    const isSelected = selectedCustomColumns.has(col);
+                                                    return <td key={col} className={`p-3 border-l whitespace-nowrap max-w-[200px] overflow-hidden text-ellipsis ${isSelected ? 'text-gray-700' : 'text-gray-300 bg-gray-50'}`}>{row[col]}</td>
+                                                })
+                                            )}
                                         </tr>
                                     );
                                 })}
-                                {rawSheetData.length > 500 && (
-                                    <tr>
-                                        <td colSpan={fileHeaders.length + 1} className="p-4 text-center text-gray-500 bg-gray-50">
-                                            ... {rawSheetData.length - 500} صفوف إضافية (مخفية للسرعة) ...
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     </div>
-                 </div>
-            )}
+                </div>)}
         </div>
         
         {/* Messages Toast */}
