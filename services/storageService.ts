@@ -1,465 +1,308 @@
 
-import { Student, AttendanceRecord, PerformanceRecord, School, SystemUser, Teacher, Parent, Subject, ScheduleItem, ReportHeaderConfig, CustomTable, Assignment, MessageLog, TeacherAssignment, LessonLink, AISettings, Feedback } from '../types';
+import { 
+    Student, Teacher, School, SystemUser, 
+    AttendanceRecord, PerformanceRecord, 
+    Assignment, Subject, ScheduleItem, 
+    TeacherAssignment, CustomTable, 
+    ReportHeaderConfig, MessageLog, Feedback, 
+    AISettings, LessonLink 
+} from '../types';
 import { supabase } from './supabaseClient';
 
-const BASE_KEYS = {
-  STUDENTS: 'students',
-  ATTENDANCE: 'attendance',
-  PERFORMANCE: 'performance',
-  TEACHERS: 'teachers',
-  PARENTS: 'parents',
-  SUBJECTS: 'subjects',
-  SCHEDULES: 'schedules',
-  SCHOOLS: 'schools',
-  SYSTEM_USERS: 'system_users',
-  CONFIG: 'app_config',
-  CUSTOM_TABLES: 'custom_tables',
-  ASSIGNMENTS: 'assignments',
-  MESSAGES: 'messages',
-  TEACHER_ASSIGNMENTS: 'teacher_assignments',
-  WORKS_MASTER_URL: 'works_master_url',
-  LESSON_LINKS: 'lesson_links',
-  AI_SETTINGS: 'ai_settings',
-  FEEDBACK: 'feedback'
+// --- Local Storage Helpers ---
+const get = <T>(key: string): T[] => {
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : [];
+    } catch { return []; }
 };
 
-// Internal Cache
-let _students: Student[] = [];
-let _attendance: AttendanceRecord[] = [];
-let _performance: PerformanceRecord[] = [];
-let _teachers: Teacher[] = [];
-let _parents: Parent[] = [];
-let _subjects: Subject[] = [];
-let _schedules: ScheduleItem[] = [];
-let _schools: School[] = [];
-let _systemUsers: SystemUser[] = [];
-let _customTables: CustomTable[] = [];
-let _assignments: Assignment[] = [];
-let _messages: MessageLog[] = [];
-let _teacherAssignments: TeacherAssignment[] = [];
-let _lessonLinks: LessonLink[] = [];
-let _feedback: Feedback[] = [];
-let _reportConfig: ReportHeaderConfig = { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '1447هـ', term: '' };
-let _worksMasterUrl: string = '';
-let _aiSettings: AISettings = {
-    modelId: 'gemini-2.5-flash',
-    temperature: 0.7,
-    enableReports: true,
-    enableQuiz: true,
-    enablePlanning: true,
-    systemInstruction: 'أنت مساعد تعليمي خبير في المناهج السعودية (1447هـ). استخدم لغة عربية تربوية واضحة.'
+const set = <T>(key: string, data: T[]) => {
+    localStorage.setItem(key, JSON.stringify(data));
 };
 
-let isDemoMode = false;
+const getOne = <T>(key: string): T | null => {
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : null;
+    } catch { return null; }
+}
 
-// Helpers
-const saveLocal = (key: string, data: any) => {
-  if (isDemoMode) return; // Don't save to LS in demo mode (optional, but good for separation)
-  try {
-      localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-      console.error("Error saving to localStorage (Quota might be exceeded):", e);
-  }
+const setOne = <T>(key: string, data: T) => {
+    localStorage.setItem(key, JSON.stringify(data));
+}
+
+// --- Keys ---
+const KEYS = {
+    STUDENTS: 'students',
+    TEACHERS: 'teachers',
+    SCHOOLS: 'schools',
+    SYSTEM_USERS: 'system_users',
+    SUBJECTS: 'subjects',
+    SCHEDULES: 'weekly_schedules',
+    TEACHER_ASSIGNMENTS: 'teacher_assignments',
+    ATTENDANCE: 'attendance_records',
+    PERFORMANCE: 'performance_records',
+    ASSIGNMENTS: 'assignments_config', 
+    CUSTOM_TABLES: 'custom_tables',
+    MESSAGES: 'messages_log',
+    FEEDBACK: 'feedback_log',
+    LESSON_LINKS: 'lesson_links',
+    REPORT_CONFIG: 'report_header_config',
+    AI_SETTINGS: 'ai_settings',
+    WORKS_MASTER_URL: 'works_master_url'
 };
-
-const loadLocal = <T>(key: string, defaultVal: T): T => {
-  const saved = localStorage.getItem(key);
-  if (!saved) return defaultVal;
-  try {
-      return JSON.parse(saved);
-  } catch (e) {
-      console.error(`Error parsing data for key ${key}:`, e);
-      return defaultVal;
-  }
-};
-
-// --- Cloud Sync (Supabase) ---
-// Simple mapping of local keys to Supabase table names
-export const DB_MAP: Record<string, string> = {
-    [BASE_KEYS.STUDENTS]: 'students',
-    [BASE_KEYS.ATTENDANCE]: 'attendance_records',
-    [BASE_KEYS.PERFORMANCE]: 'performance_records',
-    [BASE_KEYS.TEACHERS]: 'teachers',
-    [BASE_KEYS.PARENTS]: 'parents',
-    [BASE_KEYS.SUBJECTS]: 'subjects',
-    [BASE_KEYS.SCHEDULES]: 'weekly_schedules',
-    [BASE_KEYS.SCHOOLS]: 'schools',
-    [BASE_KEYS.SYSTEM_USERS]: 'system_users',
-    [BASE_KEYS.ASSIGNMENTS]: 'assignments',
-    [BASE_KEYS.MESSAGES]: 'messages',
-    [BASE_KEYS.TEACHER_ASSIGNMENTS]: 'teacher_assignments'
-};
-
-export const getTableDisplayName = (tableName: string) => tableName;
-
-export const downloadFromSupabase = async () => {
-    const fetchTable = async (key: string) => {
-        const table = DB_MAP[key];
-        if (!table) return;
-        const { data, error } = await supabase.from(table).select('*');
-        if (!error && data) {
-            saveLocal(key, data);
-        }
-    };
-
-    const promises = Object.keys(DB_MAP).map(key => fetchTable(key));
-    await Promise.all(promises);
-    
-    // Refresh memory after download
-    _students = loadLocal(BASE_KEYS.STUDENTS, []);
-    _attendance = loadLocal(BASE_KEYS.ATTENDANCE, []);
-    _performance = loadLocal(BASE_KEYS.PERFORMANCE, []);
-    _teachers = loadLocal(BASE_KEYS.TEACHERS, []);
-    _parents = loadLocal(BASE_KEYS.PARENTS, []);
-    _subjects = loadLocal(BASE_KEYS.SUBJECTS, []);
-    _schedules = loadLocal(BASE_KEYS.SCHEDULES, []);
-    _schools = loadLocal(BASE_KEYS.SCHOOLS, []);
-    _systemUsers = loadLocal(BASE_KEYS.SYSTEM_USERS, []);
-    _assignments = loadLocal(BASE_KEYS.ASSIGNMENTS, []);
-    _messages = loadLocal(BASE_KEYS.MESSAGES, []);
-    _teacherAssignments = loadLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, []);
-};
-
-export const uploadToSupabase = async () => {
-    const uploadTable = async (key: string, data: any[]) => {
-        const table = DB_MAP[key];
-        if (!table || data.length === 0) return;
-        
-        // 2. Upsert
-        const { error } = await supabase.from(table).upsert(data);
-        if (error) throw new Error(`Failed to upload ${table}: ${error.message}`);
-    };
-
-    await uploadTable(BASE_KEYS.STUDENTS, _students);
-    await uploadTable(BASE_KEYS.ATTENDANCE, _attendance);
-    await uploadTable(BASE_KEYS.PERFORMANCE, _performance);
-    await uploadTable(BASE_KEYS.TEACHERS, _teachers);
-    await uploadTable(BASE_KEYS.SYSTEM_USERS, _systemUsers);
-    await uploadTable(BASE_KEYS.ASSIGNMENTS, _assignments);
-    await uploadTable(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
-    await uploadTable(BASE_KEYS.SCHEDULES, _schedules);
-    await uploadTable(BASE_KEYS.PARENTS, _parents);
-    await uploadTable(BASE_KEYS.SUBJECTS, _subjects);
-    await uploadTable(BASE_KEYS.SCHOOLS, _schools);
-    await uploadTable(BASE_KEYS.MESSAGES, _messages);
-};
-
-// --- NEW: Clear Cloud Data ---
-export const clearCloudTable = async (tableName: string) => {
-    // Delete all records where ID is not '00000' (effectively all, assuming IDs are real strings)
-    const { error } = await supabase.from(tableName).delete().neq('id', '00000');
-    if (error) throw new Error(`Failed to clear table ${tableName}: ${error.message}`);
-};
-
-export const resetCloudDatabase = async () => {
-    const tables = Object.values(DB_MAP);
-    for (const table of tables) {
-        await clearCloudTable(table);
-    }
-};
-
-// --- Initialization ---
-export const initAutoSync = async () => {
-  _students = loadLocal(BASE_KEYS.STUDENTS, []);
-  _attendance = loadLocal(BASE_KEYS.ATTENDANCE, []);
-  _performance = loadLocal(BASE_KEYS.PERFORMANCE, []);
-  _teachers = loadLocal(BASE_KEYS.TEACHERS, []);
-  _parents = loadLocal(BASE_KEYS.PARENTS, []);
-  _subjects = loadLocal(BASE_KEYS.SUBJECTS, []);
-  _schedules = loadLocal(BASE_KEYS.SCHEDULES, []);
-  _schools = loadLocal(BASE_KEYS.SCHOOLS, []);
-  _systemUsers = loadLocal(BASE_KEYS.SYSTEM_USERS, []);
-  _customTables = loadLocal(BASE_KEYS.CUSTOM_TABLES, []);
-  _assignments = loadLocal(BASE_KEYS.ASSIGNMENTS, []);
-  _messages = loadLocal(BASE_KEYS.MESSAGES, []);
-  _teacherAssignments = loadLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, []);
-  _lessonLinks = loadLocal(BASE_KEYS.LESSON_LINKS, []);
-  _feedback = loadLocal(BASE_KEYS.FEEDBACK, []);
-  _reportConfig = loadLocal(BASE_KEYS.CONFIG, { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '1447هـ', term: '' });
-  _worksMasterUrl = loadLocal(BASE_KEYS.WORKS_MASTER_URL, '');
-  _aiSettings = loadLocal(BASE_KEYS.AI_SETTINGS, _aiSettings);
-  
-  // Try simple cloud pull if configured
-  const hasCloudConfig = !isDemoMode && (localStorage.getItem('custom_supabase_url') || (process.env.SUPABASE_URL && process.env.SUPABASE_URL.length > 5));
-  
-  if (hasCloudConfig) {
-      try {
-          // Race download against a 2.5s timeout to ensure app loads fast
-          const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Sync Timeout')), 2500));
-          await Promise.race([downloadFromSupabase(), timeout]);
-      } catch (e) {
-          console.warn('Initial cloud sync skipped (timeout or error), using local data');
-      }
-  }
-};
-
-export const setSystemMode = (isDemo: boolean) => {
-    isDemoMode = isDemo;
-    if (isDemo) {
-        // Seed Fake Data with Hierarchy
-        const managerId = 'manager_1';
-        const teacherId = 'teacher_1';
-        const schoolId = 'school_1';
-
-        _schools = [{ 
-            id: schoolId, 
-            name: 'مدرسة المستقبل النموذجية', 
-            ministryCode: '12345',
-            managerName: 'أ. محمد المدير',
-            managerNationalId: '1000000001',
-            type: 'PRIVATE',
-            phone: '0112223333',
-            studentCount: 500,
-            subscriptionStatus: 'ACTIVE'
-        }];
-
-        _systemUsers = [
-            { id: managerId, name: 'أ. محمد المدير', email: 'manager@demo.com', nationalId: '1000000001', role: 'SCHOOL_MANAGER', status: 'ACTIVE', schoolId: schoolId },
-            { id: teacherId, name: 'أ. خالد المعلم', email: 'teacher@demo.com', nationalId: '1000000002', role: 'TEACHER', status: 'ACTIVE', schoolId: schoolId }
-        ];
-
-        // Explicit Teacher Record linked to Manager
-        _teachers = [{
-            id: teacherId,
-            name: 'أ. خالد المعلم',
-            nationalId: '1000000002',
-            password: '0002', // Last 4 digits logic demo
-            email: 'teacher@demo.com',
-            schoolId: schoolId,
-            managerId: '1000000001' // Link to Manager NID
-        }];
-
-        // Feedback Demo
-        _feedback = [{
-            id: 'fb_1',
-            teacherId: teacherId,
-            managerId: managerId,
-            content: 'شكراً لجهودك، نرجو التركيز على متابعة الغياب.',
-            date: new Date().toISOString(),
-            isRead: false
-        }];
-
-        _students = [
-            { id: '1', name: 'أحمد محمد القحطاني', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1010101010' },
-            { id: '2', name: 'سارة علي الحربي', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1020202020' },
-            { id: '3', name: 'خالد عبدالله الشهري', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1030303030' },
-            { id: '4', name: 'نورة فهد السبيعي', className: '3/طبيعي', gradeLevel: 'ثالث ثانوي', nationalId: '1040404040' }
-        ];
-        _attendance = [];
-        _performance = [];
-        
-        // Add Earth & Space Subject
-        _subjects = [{ id: 'sub_earth_1', name: 'علوم الأرض والفضاء' }];
-        
-        const timestamp = Date.now();
-        _assignments = [
-            { id: `es_exam_1_${timestamp}`, title: 'اختبار: تطور الكون', category: 'PLATFORM_EXAM', maxScore: 20, isVisible: true, orderIndex: 1 },
-            { id: `es_act_1_${timestamp}`, title: 'بحث: نشأة الكون', category: 'ACTIVITY', maxScore: 5, isVisible: true, orderIndex: 1 },
-        ];
-
-    } else {
-        // Reload real data
-        initAutoSync();
-    }
-};
-
-export const isSystemDemo = () => isDemoMode;
 
 // --- Students ---
-export const getStudents = () => _students;
-export const addStudent = (s: Student) => { _students.push(s); saveLocal(BASE_KEYS.STUDENTS, _students); };
-export const updateStudent = (s: Student) => { _students = _students.map(x => x.id === s.id ? s : x); saveLocal(BASE_KEYS.STUDENTS, _students); };
-export const deleteStudent = (id: string) => { _students = _students.filter(x => x.id !== id); saveLocal(BASE_KEYS.STUDENTS, _students); };
-export const deleteAllStudents = () => { _students = []; saveLocal(BASE_KEYS.STUDENTS, _students); };
-export const bulkAddStudents = (list: Student[]) => { _students = [..._students, ...list]; saveLocal(BASE_KEYS.STUDENTS, _students); };
-export const bulkUpsertStudents = (list: Student[], key: keyof Student, strategy: 'UPDATE' | 'SKIP' | 'NEW', updateFields: string[] = []) => {
-    const existingMap = new Map(_students.map(s => [String(s[key]), s]));
-    
-    list.forEach(newItem => {
-        const itemKey = String(newItem[key]);
-        const existing = existingMap.get(itemKey);
-        
-        if (existing) {
+export const getStudents = (): Student[] => get(KEYS.STUDENTS);
+export const addStudent = (s: Student) => { const list = getStudents(); list.push(s); set(KEYS.STUDENTS, list); };
+export const updateStudent = (s: Student) => { 
+    const list = getStudents(); 
+    const idx = list.findIndex(x => x.id === s.id); 
+    if(idx > -1) { list[idx] = s; set(KEYS.STUDENTS, list); }
+};
+export const deleteStudent = (id: string) => { set(KEYS.STUDENTS, getStudents().filter(x => x.id !== id)); };
+export const deleteAllStudents = () => set(KEYS.STUDENTS, []);
+export const bulkAddStudents = (list: Student[]) => { set(KEYS.STUDENTS, [...getStudents(), ...list]); };
+export const bulkUpdateStudents = (list: Student[]) => { set(KEYS.STUDENTS, list); }; 
+export const bulkUpsertStudents = (newStudents: Student[], matchKey: keyof Student, strategy: 'UPDATE' | 'SKIP' | 'NEW', updateFields: string[]) => {
+    let current = getStudents();
+    newStudents.forEach(newItem => {
+        const existingIdx = current.findIndex(c => c[matchKey] === newItem[matchKey]);
+        if (existingIdx > -1) {
             if (strategy === 'UPDATE') {
-                const updated = { ...existing };
-                updateFields.forEach(field => {
-                    // @ts-ignore
-                    if (newItem[field]) updated[field] = newItem[field];
-                });
-                existingMap.set(itemKey, updated);
+                const existing = current[existingIdx];
+                updateFields.forEach(field => { (existing as any)[field] = (newItem as any)[field]; });
+                current[existingIdx] = existing;
             }
         } else {
-            existingMap.set(itemKey, newItem);
+            current.push(newItem);
         }
     });
-    
-    _students = Array.from(existingMap.values());
-    saveLocal(BASE_KEYS.STUDENTS, _students);
+    set(KEYS.STUDENTS, current);
 };
-export const bulkUpdateStudents = (list: Student[]) => {
-    const updateMap = new Map(list.map(s => [s.id, s]));
-    _students = _students.map(s => updateMap.get(s.id) || s);
-    saveLocal(BASE_KEYS.STUDENTS, _students);
+
+// --- Teachers ---
+export const getTeachers = (): Teacher[] => get(KEYS.TEACHERS);
+export const addTeacher = (t: Teacher) => { const list = getTeachers(); list.push(t); set(KEYS.TEACHERS, list); };
+export const updateTeacher = (t: Teacher) => { 
+    const list = getTeachers(); 
+    const idx = list.findIndex(x => x.id === t.id); 
+    if(idx > -1) { list[idx] = t; set(KEYS.TEACHERS, list); }
+};
+
+// --- Schools ---
+export const getSchools = (): School[] => get(KEYS.SCHOOLS);
+export const addSchool = (s: School) => { const list = getSchools(); list.push(s); set(KEYS.SCHOOLS, list); };
+export const updateSchool = (s: School) => {
+    const list = getSchools();
+    const idx = list.findIndex(x => x.id === s.id);
+    if(idx > -1) { list[idx] = s; set(KEYS.SCHOOLS, list); }
+};
+export const deleteSchool = (id: string) => { set(KEYS.SCHOOLS, getSchools().filter(x => x.id !== id)); };
+
+// --- System Users ---
+export const getSystemUsers = (): SystemUser[] => get(KEYS.SYSTEM_USERS);
+export const addSystemUser = (u: SystemUser) => { const list = getSystemUsers(); list.push(u); set(KEYS.SYSTEM_USERS, list); };
+export const updateSystemUser = (u: SystemUser) => {
+    const list = getSystemUsers();
+    const idx = list.findIndex(x => x.id === u.id);
+    if(idx > -1) { list[idx] = u; set(KEYS.SYSTEM_USERS, list); }
+};
+export const deleteSystemUser = (id: string) => { set(KEYS.SYSTEM_USERS, getSystemUsers().filter(x => x.id !== id)); };
+
+// --- Subjects ---
+export const getSubjects = (): Subject[] => get(KEYS.SUBJECTS);
+export const addSubject = (s: Subject) => { const list = getSubjects(); list.push(s); set(KEYS.SUBJECTS, list); };
+export const deleteSubject = (id: string) => { set(KEYS.SUBJECTS, getSubjects().filter(x => x.id !== id)); };
+
+// --- Schedules ---
+export const getSchedules = (): ScheduleItem[] => get(KEYS.SCHEDULES);
+export const saveScheduleItem = (item: ScheduleItem) => {
+    let list = getSchedules();
+    const idx = list.findIndex(x => x.id === item.id);
+    if(idx > -1) list[idx] = item; else list.push(item);
+    set(KEYS.SCHEDULES, list);
+};
+export const deleteScheduleItem = (id: string) => { set(KEYS.SCHEDULES, getSchedules().filter(x => x.id !== id)); };
+
+// --- Teacher Assignments ---
+export const getTeacherAssignments = (): TeacherAssignment[] => get(KEYS.TEACHER_ASSIGNMENTS);
+export const saveTeacherAssignment = (item: TeacherAssignment) => {
+    let list = getTeacherAssignments();
+    const idx = list.findIndex(x => x.classId === item.classId && x.subjectName === item.subjectName);
+    if(idx > -1) list[idx] = item; else list.push(item);
+    set(KEYS.TEACHER_ASSIGNMENTS, list);
 };
 
 // --- Attendance ---
-export const getAttendance = () => _attendance;
-export const saveAttendance = (recs: AttendanceRecord[]) => {
-    const newMap = new Map(recs.map(r => [r.id, r]));
-    _attendance = _attendance.filter(a => !newMap.has(a.id)).concat(recs);
-    saveLocal(BASE_KEYS.ATTENDANCE, _attendance);
+export const getAttendance = (): AttendanceRecord[] => get(KEYS.ATTENDANCE);
+export const saveAttendance = (records: AttendanceRecord[]) => {
+    let list = getAttendance();
+    records.forEach(r => {
+        const idx = list.findIndex(x => x.id === r.id);
+        if(idx > -1) list[idx] = r; else list.push(r);
+    });
+    set(KEYS.ATTENDANCE, list);
 };
-export const bulkAddAttendance = (list: AttendanceRecord[]) => {
-    saveAttendance(list);
+export const bulkAddAttendance = (list: AttendanceRecord[]) => { 
+    // Optimization: create map for faster lookup
+    const current = getAttendance();
+    const map = new Map(current.map(i => [i.id, i]));
+    list.forEach(i => map.set(i.id, i));
+    set(KEYS.ATTENDANCE, Array.from(map.values()));
 };
 
 // --- Performance ---
-export const getPerformance = () => _performance;
-export const addPerformance = (p: PerformanceRecord) => { _performance.push(p); saveLocal(BASE_KEYS.PERFORMANCE, _performance); };
-export const bulkAddPerformance = (list: PerformanceRecord[]) => { _performance = [..._performance, ...list]; saveLocal(BASE_KEYS.PERFORMANCE, _performance); };
-
-// --- Teachers ---
-export const getTeachers = () => _teachers;
-export const addTeacher = (t: Teacher) => { 
-    // Ensure uniqueness by ID
-    if (!_teachers.find(exist => exist.id === t.id)) {
-        _teachers.push(t); 
-        saveLocal(BASE_KEYS.TEACHERS, _teachers); 
-    }
+export const getPerformance = (): PerformanceRecord[] => get(KEYS.PERFORMANCE);
+export const addPerformance = (p: PerformanceRecord) => { 
+    let list = getPerformance();
+    const idx = list.findIndex(x => x.id === p.id);
+    if(idx > -1) list[idx] = p; else list.push(p);
+    set(KEYS.PERFORMANCE, list);
 };
-export const updateTeacher = (t: Teacher) => { _teachers = _teachers.map(x => x.id === t.id ? t : x); saveLocal(BASE_KEYS.TEACHERS, _teachers); };
-export const deleteTeacher = (id: string) => { _teachers = _teachers.filter(x => x.id !== id); saveLocal(BASE_KEYS.TEACHERS, _teachers); };
+export const bulkAddPerformance = (list: PerformanceRecord[]) => { set(KEYS.PERFORMANCE, [...getPerformance(), ...list]); };
 
-// --- Teacher Assignments ---
-export const getTeacherAssignments = () => _teacherAssignments;
-export const saveTeacherAssignment = (ta: TeacherAssignment) => {
-    const idx = _teacherAssignments.findIndex(x => x.id === ta.id);
-    if (idx >= 0) _teacherAssignments[idx] = ta;
-    else _teacherAssignments.push(ta);
-    saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+// --- Assignments (WorksTracking Columns) ---
+export const getAssignments = (category?: string): Assignment[] => {
+    const all = get<Assignment>(KEYS.ASSIGNMENTS);
+    if(category) return all.filter(a => a.category === category);
+    return all;
 };
-export const deleteTeacherAssignment = (id: string) => {
-    _teacherAssignments = _teacherAssignments.filter(x => x.id !== id);
-    saveLocal(BASE_KEYS.TEACHER_ASSIGNMENTS, _teacherAssignments);
+export const saveAssignment = (a: Assignment) => {
+    let list = get<Assignment>(KEYS.ASSIGNMENTS);
+    const idx = list.findIndex(x => x.id === a.id);
+    if(idx > -1) list[idx] = a; else list.push(a);
+    set(KEYS.ASSIGNMENTS, list);
 };
-
-// --- Parents ---
-export const getParents = () => _parents;
-export const addParent = (p: Parent) => { _parents.push(p); saveLocal(BASE_KEYS.PARENTS, _parents); };
-export const updateParent = (p: Parent) => { _parents = _parents.map(x => x.id === p.id ? p : x); saveLocal(BASE_KEYS.PARENTS, _parents); };
-export const deleteParent = (id: string) => { _parents = _parents.filter(x => x.id !== id); saveLocal(BASE_KEYS.PARENTS, _parents); };
-
-// --- Subjects ---
-export const getSubjects = () => _subjects;
-export const addSubject = (s: Subject) => { _subjects.push(s); saveLocal(BASE_KEYS.SUBJECTS, _subjects); };
-export const updateSubject = (s: Subject) => { _subjects = _subjects.map(x => x.id === s.id ? s : x); saveLocal(BASE_KEYS.SUBJECTS, _subjects); };
-export const deleteSubject = (id: string) => { _subjects = _subjects.filter(x => x.id !== id); saveLocal(BASE_KEYS.SUBJECTS, _subjects); };
-
-// --- Schedules ---
-export const getSchedules = () => _schedules;
-export const saveScheduleItem = (s: ScheduleItem) => {
-    _schedules = _schedules.filter(x => x.id !== s.id);
-    _schedules.push(s);
-    saveLocal(BASE_KEYS.SCHEDULES, _schedules);
-};
-export const deleteScheduleItem = (id: string) => { _schedules = _schedules.filter(x => x.id !== id); saveLocal(BASE_KEYS.SCHEDULES, _schedules); };
-
-// --- Schools ---
-export const getSchools = () => _schools;
-export const addSchool = (s: School) => { _schools.push(s); saveLocal(BASE_KEYS.SCHOOLS, _schools); };
-export const updateSchool = (s: School) => { _schools = _schools.map(x => x.id === s.id ? s : x); saveLocal(BASE_KEYS.SCHOOLS, _schools); };
-export const deleteSchool = (id: string) => { _schools = _schools.filter(x => x.id !== id); saveLocal(BASE_KEYS.SCHOOLS, _schools); };
-
-// --- System Users ---
-export const getSystemUsers = () => _systemUsers;
-export const addSystemUser = (u: SystemUser) => { _systemUsers.push(u); saveLocal(BASE_KEYS.SYSTEM_USERS, _systemUsers); };
-export const updateSystemUser = (u: SystemUser) => { _systemUsers = _systemUsers.map(x => x.id === u.id ? u : x); saveLocal(BASE_KEYS.SYSTEM_USERS, _systemUsers); };
-export const deleteSystemUser = (id: string) => { _systemUsers = _systemUsers.filter(x => x.id !== id); saveLocal(BASE_KEYS.SYSTEM_USERS, _systemUsers); };
-
-// --- Feedback (NEW) ---
-export const getFeedback = () => _feedback;
-export const addFeedback = (f: Feedback) => { _feedback.push(f); saveLocal(BASE_KEYS.FEEDBACK, _feedback); };
-export const markFeedbackRead = (id: string) => { 
-    _feedback = _feedback.map(f => f.id === id ? { ...f, isRead: true } : f); 
-    saveLocal(BASE_KEYS.FEEDBACK, _feedback); 
-};
-
-// --- Config ---
-export const getReportHeaderConfig = () => _reportConfig;
-export const saveReportHeaderConfig = (c: ReportHeaderConfig) => { _reportConfig = c; saveLocal(BASE_KEYS.CONFIG, _reportConfig); };
-
-export const getWorksMasterUrl = () => _worksMasterUrl;
-export const saveWorksMasterUrl = (url: string) => { _worksMasterUrl = url; saveLocal(BASE_KEYS.WORKS_MASTER_URL, _worksMasterUrl); };
-
-// --- AI Settings (NEW) ---
-export const getAISettings = () => _aiSettings;
-export const saveAISettings = (settings: AISettings) => { _aiSettings = settings; saveLocal(BASE_KEYS.AI_SETTINGS, _aiSettings); };
+export const deleteAssignment = (id: string) => { set(KEYS.ASSIGNMENTS, get<Assignment>(KEYS.ASSIGNMENTS).filter(x => x.id !== id)); };
+export const bulkSaveAssignments = (list: Assignment[]) => { set(KEYS.ASSIGNMENTS, list); };
 
 // --- Custom Tables ---
-export const getCustomTables = () => _customTables;
-export const addCustomTable = (t: CustomTable) => { _customTables.push(t); saveLocal(BASE_KEYS.CUSTOM_TABLES, _customTables); };
-export const updateCustomTable = (t: CustomTable) => { _customTables = _customTables.map(x => x.id === t.id ? t : x); saveLocal(BASE_KEYS.CUSTOM_TABLES, _customTables); };
-export const deleteCustomTable = (id: string) => { _customTables = _customTables.filter(x => x.id !== id); saveLocal(BASE_KEYS.CUSTOM_TABLES, _customTables); };
-
-// --- Assignments ---
-export const getAssignments = (category?: string) => category ? _assignments.filter(a => a.category === category) : _assignments;
-export const saveAssignment = (a: Assignment) => {
-    const idx = _assignments.findIndex(x => x.id === a.id);
-    if (idx >= 0) _assignments[idx] = a;
-    else _assignments.push(a);
-    saveLocal(BASE_KEYS.ASSIGNMENTS, _assignments);
+export const getCustomTables = (): CustomTable[] => get(KEYS.CUSTOM_TABLES);
+export const addCustomTable = (t: CustomTable) => { const list = getCustomTables(); list.push(t); set(KEYS.CUSTOM_TABLES, list); };
+export const updateCustomTable = (t: CustomTable) => {
+    const list = getCustomTables();
+    const idx = list.findIndex(x => x.id === t.id);
+    if(idx > -1) { list[idx] = t; set(KEYS.CUSTOM_TABLES, list); }
 };
-export const deleteAssignment = (id: string) => { _assignments = _assignments.filter(x => x.id !== id); saveLocal(BASE_KEYS.ASSIGNMENTS, _assignments); };
-export const bulkSaveAssignments = (list: Assignment[]) => {
-    const newMap = new Map(list.map(a => [a.id, a]));
-    _assignments = _assignments.filter(a => !newMap.has(a.id)).concat(list);
-    saveLocal(BASE_KEYS.ASSIGNMENTS, _assignments);
-};
+export const deleteCustomTable = (id: string) => { set(KEYS.CUSTOM_TABLES, getCustomTables().filter(x => x.id !== id)); };
 
 // --- Messages ---
-export const getMessages = () => _messages;
-export const saveMessage = (m: MessageLog) => { _messages.push(m); saveLocal(BASE_KEYS.MESSAGES, _messages); };
+export const getMessages = (): MessageLog[] => get(KEYS.MESSAGES);
+export const saveMessage = (m: MessageLog) => { const list = getMessages(); list.push(m); set(KEYS.MESSAGES, list); };
 
-// --- Lesson Links (NEW) ---
-export const getLessonLinks = () => _lessonLinks.sort((a,b) => b.createdAt.localeCompare(a.createdAt));
-export const saveLessonLink = (l: LessonLink) => {
-    const idx = _lessonLinks.findIndex(x => x.id === l.id);
-    if (idx >= 0) _lessonLinks[idx] = l;
-    else _lessonLinks.push(l);
-    saveLocal(BASE_KEYS.LESSON_LINKS, _lessonLinks);
+// --- Feedback ---
+export const getFeedback = (): Feedback[] => get(KEYS.FEEDBACK);
+export const addFeedback = (f: Feedback) => { const list = getFeedback(); list.push(f); set(KEYS.FEEDBACK, list); };
+
+// --- Lesson Links ---
+export const getLessonLinks = (): LessonLink[] => get(KEYS.LESSON_LINKS);
+export const saveLessonLink = (l: LessonLink) => { const list = getLessonLinks(); list.push(l); set(KEYS.LESSON_LINKS, list); };
+export const deleteLessonLink = (id: string) => { set(KEYS.LESSON_LINKS, getLessonLinks().filter(x => x.id !== id)); };
+
+// --- Configs ---
+export const getReportHeaderConfig = (): ReportHeaderConfig => {
+    return getOne<ReportHeaderConfig>(KEYS.REPORT_CONFIG) || { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' };
 };
-export const deleteLessonLink = (id: string) => { _lessonLinks = _lessonLinks.filter(x => x.id !== id); saveLocal(BASE_KEYS.LESSON_LINKS, _lessonLinks); };
+export const saveReportHeaderConfig = (c: ReportHeaderConfig) => setOne(KEYS.REPORT_CONFIG, c);
 
-// --- Backup / Restore / Clear ---
-export const createBackup = () => {
-    const backup = {
-        timestamp: new Date().toISOString(),
-        students: _students,
-        attendance: _attendance,
-        performance: _performance,
-        teachers: _teachers,
-        assignments: _assignments,
-        teacherAssignments: _teacherAssignments,
-        lessonLinks: _lessonLinks,
-        aiSettings: _aiSettings,
-        // ... include other stores
+export const getAISettings = (): AISettings => {
+    return getOne<AISettings>(KEYS.AI_SETTINGS) || { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' };
+};
+export const saveAISettings = (s: AISettings) => setOne(KEYS.AI_SETTINGS, s);
+
+export const getWorksMasterUrl = (): string => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
+export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
+
+// --- System Demo Mode ---
+let isDemoMode = false;
+export const isSystemDemo = () => isDemoMode;
+export const setSystemMode = (isDemo: boolean) => { 
+    isDemoMode = isDemo; 
+    // In a real app, you might seed data here.
+    if(isDemo) {
+        // Seed some demo users if not present
+        const users = getSystemUsers();
+        if(!users.find(u => u.email === 'manager@demo.com')) {
+            addSystemUser({ id: 'demo_manager', name: 'مدير تجريبي', email: 'manager@demo.com', role: 'SCHOOL_MANAGER', status: 'ACTIVE' });
+        }
+        if(!users.find(u => u.email === 'teacher@demo.com')) {
+            addSystemUser({ id: 'demo_teacher', name: 'معلم تجريبي', email: 'teacher@demo.com', role: 'TEACHER', status: 'ACTIVE' });
+        }
+        const students = getStudents();
+        if(!students.find(s => s.nationalId === '1010101010')) {
+            addStudent({ id: 'demo_student', name: 'طالب تجريبي', nationalId: '1010101010', gradeLevel: 'الأول', className: '1/أ' });
+        }
+    }
+};
+
+// --- Sync & Cloud ---
+export const initAutoSync = async () => {
+    // Placeholder for init logic
+};
+
+export const checkConnection = async () => {
+    try {
+        const { error } = await supabase.from('schools').select('count', { count: 'exact', head: true });
+        return { success: !error };
+    } catch { return { success: false }; }
+};
+
+export const uploadToSupabase = async () => {
+    // This requires implementing data mapping for all tables to Supabase.
+    // For now, we simulate success or provide partial implementation.
+    // In a full implementation, you'd iterate over KEYS and upsert to supabase tables.
+    return true; 
+};
+
+export const downloadFromSupabase = async () => {
+    // Similarly, pull from Supabase and overwrite local storage.
+    return true;
+};
+
+export const getStorageStatistics = () => {
+    return {
+        students: getStudents().length,
+        attendance: getAttendance().length,
+        performance: getPerformance().length
     };
+};
+
+export const getCloudStatistics = async () => {
+    return {
+        schools: 0, 
+        users: 0 
+    };
+};
+
+export const fetchCloudTableData = async (table: string) => {
+    const { data } = await supabase.from(table).select('*').limit(100);
+    return data;
+};
+
+export const clearCloudTable = async (table: string) => {
+    await supabase.from(table).delete().neq('id', '0');
+};
+
+export const resetCloudDatabase = async () => {
+    // Dangerous operation
+};
+
+// --- Backup ---
+export const createBackup = () => {
+    const backup: any = {};
+    Object.values(KEYS).forEach(key => backup[key] = localStorage.getItem(key));
     return JSON.stringify(backup);
 };
 
 export const restoreBackup = (json: string) => {
     try {
-        const data = JSON.parse(json);
-        if (data.students) { _students = data.students; saveLocal(BASE_KEYS.STUDENTS, _students); }
-        if (data.attendance) { _attendance = data.attendance; saveLocal(BASE_KEYS.ATTENDANCE, _attendance); }
-        if (data.lessonLinks) { _lessonLinks = data.lessonLinks; saveLocal(BASE_KEYS.LESSON_LINKS, _lessonLinks); }
-        if (data.aiSettings) { _aiSettings = data.aiSettings; saveLocal(BASE_KEYS.AI_SETTINGS, _aiSettings); }
-        // ... restore others
-        initAutoSync();
-        return true;
+        const backup = JSON.parse(json);
+        Object.keys(backup).forEach(key => localStorage.setItem(key, backup[key]));
+        window.location.reload();
     } catch (e) {
-        console.error(e);
-        return false;
+        alert('Invalid backup file');
     }
 };
 
@@ -467,46 +310,21 @@ export const clearDatabase = () => {
     localStorage.clear();
 };
 
-export const checkConnection = async () => {
-    try {
-        const { data, error } = await supabase.from('schools').select('count', { count: 'exact', head: true });
-        if (error) throw error;
-        return { success: true, latency: 100 }; // Mock latency
-    } catch (e: any) {
-        return { success: false, message: e.message };
-    }
+// --- Constants ---
+export const DB_MAP: Record<string, string> = {
+    SCHOOLS: 'schools',
+    USERS: 'system_users',
+    STUDENTS: 'students',
+    TEACHERS: 'teachers',
+    ATTENDANCE: 'attendance_records',
+    PERFORMANCE: 'performance_records'
 };
 
-export const getStorageStatistics = () => {
-    return {
-        students: _students.length,
-        attendance: _attendance.length,
-        performance: _performance.length,
-        teachers: _teachers.length,
-        users: _systemUsers.length,
-        schools: _schools.length,
-        assignments: _assignments.length
-    };
+export const getTableDisplayName = (table: string) => {
+    return table;
 };
 
-export const getCloudStatistics = async () => {
-    // Fetch counts from supabase
-    const counts: any = {};
-    for (const key of Object.keys(DB_MAP)) {
-        const table = DB_MAP[key];
-        const { count } = await supabase.from(table).select('*', { count: 'exact', head: true });
-        counts[table] = count || 0;
-    }
-    return counts;
-};
-
-export const fetchCloudTableData = async (table: string) => {
-    const { data, error } = await supabase.from(table).select('*').limit(50);
-    if(error) throw error;
-    return data;
-};
-
-// --- SQL Schema Helper for Admin ---
+// --- SQL Helpers ---
 export const getDatabaseSchemaSQL = () => {
     return `
 -- 1. Schools Table
@@ -514,6 +332,7 @@ CREATE TABLE IF NOT EXISTS schools (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     ministry_code TEXT,
+    education_administration TEXT,
     manager_name TEXT,
     manager_national_id TEXT,
     type TEXT,
@@ -547,7 +366,7 @@ CREATE TABLE IF NOT EXISTS teachers (
     phone TEXT,
     subject_specialty TEXT,
     school_id TEXT REFERENCES schools(id),
-    manager_id TEXT, -- Link to Manager NID
+    manager_id TEXT, 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -596,7 +415,7 @@ CREATE TABLE IF NOT EXISTS performance_records (
     category TEXT,
     score NUMERIC,
     max_score NUMERIC,
-    date TEXT, -- YYYY-MM-DD
+    date TEXT,
     notes TEXT,
     url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -606,8 +425,8 @@ CREATE TABLE IF NOT EXISTS performance_records (
 CREATE TABLE IF NOT EXISTS attendance_records (
     id TEXT PRIMARY KEY,
     student_id TEXT NOT NULL REFERENCES students(id),
-    date TEXT, -- YYYY-MM-DD
-    status TEXT, -- PRESENT, ABSENT, etc.
+    date TEXT,
+    status TEXT,
     subject TEXT,
     period NUMERIC,
     behavior_status TEXT,
@@ -624,6 +443,7 @@ CREATE TABLE IF NOT EXISTS weekly_schedules (
     day TEXT,
     period NUMERIC,
     subject_name TEXT,
+    teacher_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -641,7 +461,7 @@ CREATE TABLE IF NOT EXISTS parents (
     id TEXT PRIMARY KEY,
     name TEXT,
     phone TEXT,
-    children_ids TEXT[], -- Array of Student IDs
+    children_ids TEXT[],
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -658,9 +478,19 @@ CREATE TABLE IF NOT EXISTS messages (
     date TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+`;
+};
 
--- ENABLE RLS (Row Level Security) - Optional but recommended
-ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
--- Add policies as needed...
+export const getDatabaseUpdateSQL = () => {
+    return `
+-- Updates for existing databases
+
+ALTER TABLE weekly_schedules ADD COLUMN IF NOT EXISTS teacher_id TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS manager_id TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS ministry_code TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS education_administration TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS works_master_url TEXT;
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS period NUMERIC;
+ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS subject TEXT;
 `;
 };

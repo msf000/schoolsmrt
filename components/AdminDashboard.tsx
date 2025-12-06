@@ -1,428 +1,508 @@
 
-import React, { useState, useEffect } from 'react';
-import { School, SystemUser, SubscriptionPlan, AISettings } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     getSchools, addSchool, deleteSchool, updateSchool,
     getSystemUsers, addSystemUser, deleteSystemUser, updateSystemUser,
     createBackup, restoreBackup, clearDatabase,
     uploadToSupabase, downloadFromSupabase,
-    getStorageStatistics, checkConnection,
-    getCloudStatistics, fetchCloudTableData,
+    checkConnection, fetchCloudTableData,
     DB_MAP, getTableDisplayName,
-    getAISettings, saveAISettings,
-    getDatabaseSchemaSQL,
-    clearCloudTable, resetCloudDatabase
+    getDatabaseSchemaSQL, getDatabaseUpdateSQL,
+    clearCloudTable, resetCloudDatabase,
+    getAISettings, saveAISettings
 } from '../services/storageService';
 import { updateSupabaseConfig } from '../services/supabaseClient';
+import { School, SystemUser, AISettings } from '../types';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
-    Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, Terminal, Cloud, CloudRain, CloudLightning, Save, Link, Wifi, WifiOff, Activity, Server, Table, Eye, UserPlus, School as SchoolIcon, Lock, Edit, X, Wrench, BrainCircuit, Sliders, Sparkles, Building2, Code, Key
+    Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
+    CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
+    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server
 } from 'lucide-react';
 
-const AdminDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'SCHOOLS' | 'USERS' | 'SUBSCRIPTIONS' | 'DATABASE' | 'AI_SETTINGS'>('OVERVIEW');
-
-    return (
-        <div className="p-6 animate-fade-in space-y-6">
-            <div className="mb-6 flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <Server className="text-gray-800" />
-                        لوحة مدير النظام (System Admin)
-                    </h2>
-                    <p className="text-gray-500 mt-2">التحكم المركزي في المدارس، المستخدمين، قاعدة البيانات، والذكاء الاصطناعي.</p>
-                </div>
-            </div>
-
-            {/* Admin Tabs */}
-            <div className="flex overflow-x-auto bg-gray-900 text-white rounded-xl shadow-lg border border-gray-700 p-1 mb-6">
-                <TabButton active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} icon={<Activity size={18} />} label="نظرة عامة" />
-                <TabButton active={activeTab === 'SCHOOLS'} onClick={() => setActiveTab('SCHOOLS')} icon={<Building size={18} />} label="المدارس" />
-                <TabButton active={activeTab === 'USERS'} onClick={() => setActiveTab('USERS')} icon={<Users size={18} />} label="المستخدمين" />
-                <TabButton active={activeTab === 'SUBSCRIPTIONS'} onClick={() => setActiveTab('SUBSCRIPTIONS')} icon={<CreditCard size={18} />} label="الاشتراكات" />
-                <TabButton active={activeTab === 'DATABASE'} onClick={() => setActiveTab('DATABASE')} icon={<Database size={18} />} label="قواعد البيانات" />
-                <TabButton active={activeTab === 'AI_SETTINGS'} onClick={() => setActiveTab('AI_SETTINGS')} icon={<BrainCircuit size={18} />} label="الذكاء الاصطناعي" />
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[500px]">
-                {activeTab === 'OVERVIEW' && <AdminOverview />}
-                {activeTab === 'SCHOOLS' && <SchoolsManager />}
-                {activeTab === 'USERS' && <UsersManager />}
-                {activeTab === 'SUBSCRIPTIONS' && <SubscriptionsManager />}
-                {activeTab === 'DATABASE' && <DatabaseSettings />}
-                {activeTab === 'AI_SETTINGS' && <AISettingsManager />}
-            </div>
-        </div>
-    );
-};
-
-const TabButton = ({ active, onClick, icon, label }: any) => (
-    <button
-        onClick={onClick}
-        className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all whitespace-nowrap ${
-            active ? 'bg-white text-gray-900 shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-        }`}
-    >
-        {icon}
-        <span>{label}</span>
-    </button>
-);
-
-// --- Admin Overview ---
-const AdminOverview = () => {
-    const [stats, setStats] = useState({ schools: 0, users: 0, revenue: 0 });
-
-    useEffect(() => {
-        setStats({
-            schools: getSchools().length,
-            users: getSystemUsers().length,
-            revenue: getSchools().filter(s => s.subscriptionStatus === 'ACTIVE').length * 500 // Mock revenue
-        });
-    }, []);
-
-    return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-6 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 rounded-full text-blue-600"><Building size={24} /></div>
-                        <div>
-                            <p className="text-sm text-gray-500">إجمالي المدارس</p>
-                            <h3 className="text-3xl font-bold text-gray-800">{stats.schools}</h3>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-6 bg-purple-50 rounded-xl border border-purple-100">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-purple-100 rounded-full text-purple-600"><Users size={24} /></div>
-                        <div>
-                            <p className="text-sm text-gray-500">مستخدمي النظام</p>
-                            <h3 className="text-3xl font-bold text-gray-800">{stats.users}</h3>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-6 bg-green-50 rounded-xl border border-green-100">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-green-100 rounded-full text-green-600"><CreditCard size={24} /></div>
-                        <div>
-                            <p className="text-sm text-gray-500">إيرادات الشهر (تقديري)</p>
-                            <h3 className="text-3xl font-bold text-gray-800">{stats.revenue} ر.س</h3>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-xl p-6 text-white shadow-lg border border-gray-700">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                            <Shield className="text-yellow-400" size={20}/> حساب مدير النظام (Super Admin)
-                        </h3>
-                        <p className="text-gray-400 text-sm mb-4">
-                            بصفتك مدير النظام، لديك الصلاحية الكاملة لإدارة جميع المدارس والمستخدمين وقواعد البيانات.
-                        </p>
-                        <div className="space-y-2 text-sm bg-black/30 p-4 rounded-lg border border-gray-700 font-mono">
-                            <div className="flex items-center gap-3">
-                                <span className="text-gray-500 w-24">اسم المستخدم:</span>
-                                <span className="text-white font-bold select-all">admin@school.com</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="text-gray-500 w-24">الصلاحية:</span>
-                                <span className="text-red-400 font-bold">FULL ACCESS</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- Schools Manager ---
+// ==========================================
+// 1. SCHOOLS MANAGER COMPONENT
+// ==========================================
 const SchoolsManager = () => {
     const [schools, setSchools] = useState<School[]>([]);
-    const [form, setForm] = useState({ 
-        name: '', 
-        ministryCode: '', 
-        managerName: '', 
-        managerNationalId: '',
-        phone: '' 
-    });
-    
-    // UI States for Modals
-    const [viewingSchool, setViewingSchool] = useState<School | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSchool, setEditingSchool] = useState<School | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
-    useEffect(() => setSchools(getSchools()), []);
+    // Form State
+    const [formData, setFormData] = useState<Partial<School>>({});
 
-    const handleAdd = () => {
-        if (!form.name || !form.ministryCode) {
-            alert('اسم المدرسة والرمز الوزاري حقول إلزامية');
-            return;
+    useEffect(() => {
+        setSchools(getSchools());
+    }, []);
+
+    const filteredSchools = useMemo(() => 
+        schools.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.ministryCode?.includes(searchTerm)),
+    [schools, searchTerm]);
+
+    const handleOpenModal = (school?: School) => {
+        if (school) {
+            setEditingSchool(school);
+            setFormData(school);
+        } else {
+            setEditingSchool(null);
+            setFormData({ type: 'PUBLIC', subscriptionStatus: 'ACTIVE', studentCount: 0 });
         }
-        addSchool({
-            id: Date.now().toString(),
-            name: form.name,
-            ministryCode: form.ministryCode,
-            managerName: form.managerName,
-            managerNationalId: form.managerNationalId,
-            phone: form.phone,
-            type: 'PRIVATE', // Default
-            studentCount: 0,
-            subscriptionStatus: 'ACTIVE'
-        });
-        setSchools(getSchools());
-        setForm({ name: '', ministryCode: '', managerName: '', managerNationalId: '', phone: '' });
+        setIsModalOpen(true);
     };
 
-    const handleUpdate = () => {
-        if (!editingSchool) return;
-        updateSchool(editingSchool);
+    const handleSave = () => {
+        if (!formData.name || !formData.ministryCode) return alert('الاسم والرمز الوزاري مطلوبان');
+        
+        const schoolData: School = {
+            id: editingSchool ? editingSchool.id : Date.now().toString() + '_sch',
+            name: formData.name!,
+            ministryCode: formData.ministryCode!,
+            managerName: formData.managerName || '',
+            managerNationalId: formData.managerNationalId || '',
+            type: formData.type as any || 'PUBLIC',
+            phone: formData.phone || '',
+            studentCount: Number(formData.studentCount) || 0,
+            subscriptionStatus: formData.subscriptionStatus as any || 'TRIAL',
+            educationAdministration: formData.educationAdministration || ''
+        };
+
+        if (editingSchool) {
+            updateSchool(schoolData);
+        } else {
+            addSchool(schoolData);
+        }
         setSchools(getSchools());
-        setEditingSchool(null); // Close modal
+        setIsModalOpen(false);
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('هل أنت متأكد من حذف هذه المدرسة؟ سيتم فقدان البيانات المرتبطة.')) {
+            deleteSchool(id);
+            setSchools(getSchools());
+        }
     };
 
     return (
-        <div className="space-y-6">
-            <h3 className="font-bold text-gray-800 text-lg border-b pb-2">إدارة المدارس وقواعد البيانات</h3>
-            
-            {/* Add School Form */}
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <h4 className="text-sm font-bold text-gray-600 mb-3">إضافة مدرسة جديدة</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-                    <input className="p-2 border rounded text-sm" placeholder="اسم المدرسة *" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-                    <input className="p-2 border rounded text-sm" placeholder="الرمز الوزاري *" value={form.ministryCode} onChange={e => setForm({...form, ministryCode: e.target.value})} />
-                    <input className="p-2 border rounded text-sm" placeholder="رقم الهاتف" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
-                    <input className="p-2 border rounded text-sm" placeholder="اسم المدير" value={form.managerName} onChange={e => setForm({...form, managerName: e.target.value})} />
-                    <input className="p-2 border rounded text-sm" placeholder="رقم هوية المدير (للربط)" value={form.managerNationalId} onChange={e => setForm({...form, managerNationalId: e.target.value})} />
+        <div className="space-y-4 animate-fade-in">
+            <div className="flex justify-between items-center">
+                <div className="relative w-64">
+                    <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
+                    <input 
+                        className="w-full pr-10 pl-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        placeholder="بحث عن مدرسة..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
                 </div>
-                <div className="flex justify-end">
-                    <button onClick={handleAdd} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2">
-                        <PlusCircleIcon size={16}/> إضافة المدرسة
-                    </button>
-                </div>
+                <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-blue-700">
+                    <Plus size={18}/> إضافة مدرسة
+                </button>
             </div>
 
-            {/* List */}
-            <div className="grid gap-3">
-                {schools.map(s => (
-                    <div key={s.id} className="flex justify-between items-center p-4 bg-white rounded-lg border shadow-sm hover:shadow-md transition-all">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
-                                <Building2 size={20}/>
-                            </div>
-                            <div>
-                                <div className="font-bold text-gray-800 text-lg">{s.name}</div>
-                                <div className="text-xs text-gray-500 flex gap-3">
-                                    <span className="font-mono bg-gray-100 px-1 rounded">رمز: {s.ministryCode || 'غير محدد'}</span>
-                                    <span>المدير: {s.managerName || 'غير مسجل'}</span>
-                                    {s.managerNationalId && <span className="font-mono">({s.managerNationalId})</span>}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-xs font-bold px-2 py-1 rounded ${s.subscriptionStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {s.subscriptionStatus}
-                            </span>
-                            {/* Action Buttons */}
-                            <button onClick={() => setViewingSchool(s)} className="text-gray-500 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-lg" title="عرض التفاصيل">
-                                <Eye size={18}/>
-                            </button>
-                            <button onClick={() => setEditingSchool(s)} className="text-gray-500 hover:text-yellow-600 p-2 hover:bg-yellow-50 rounded-lg" title="تعديل">
-                                <Edit size={18}/>
-                            </button>
-                            <button onClick={() => { if(confirm('حذف المدرسة؟')) { deleteSchool(s.id); setSchools(getSchools()); }}} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg" title="حذف">
-                                <Trash2 size={18}/>
-                            </button>
-                        </div>
-                    </div>
-                ))}
-                {schools.length === 0 && (
-                    <div className="text-center py-10 text-gray-400 border-2 border-dashed rounded-xl">
-                        <Building2 size={48} className="mx-auto mb-2 opacity-20"/>
-                        لا توجد مدارس مسجلة في النظام.
-                    </div>
-                )}
-            </div>
-
-            {/* --- View Modal --- */}
-            {viewingSchool && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-in">
-                        <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Building2 size={20}/> تفاصيل المدرسة</h3>
-                            <button onClick={() => setViewingSchool(null)}><X size={20} className="text-gray-400 hover:text-red-500"/></button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div className="flex flex-col items-center mb-4">
-                                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-2"><SchoolIcon size={32}/></div>
-                                <h2 className="text-2xl font-bold text-gray-800">{viewingSchool.name}</h2>
-                                <span className={`text-xs px-2 py-1 rounded font-bold mt-1 ${viewingSchool.subscriptionStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{viewingSchool.subscriptionStatus}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div className="bg-gray-50 p-3 rounded border">
-                                    <span className="block text-gray-500 text-xs font-bold">الرمز الوزاري</span>
-                                    <span className="font-mono font-bold text-lg">{viewingSchool.ministryCode}</span>
-                                </div>
-                                <div className="bg-gray-50 p-3 rounded border">
-                                    <span className="block text-gray-500 text-xs font-bold">الهاتف</span>
-                                    <span className="font-mono font-bold dir-ltr">{viewingSchool.phone || '-'}</span>
-                                </div>
-                                <div className="col-span-2 bg-gray-50 p-3 rounded border">
-                                    <span className="block text-gray-500 text-xs font-bold">المدير</span>
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-bold">{viewingSchool.managerName}</span>
-                                        <span className="font-mono text-xs bg-white px-2 rounded border">{viewingSchool.managerNationalId}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-4 border-t bg-gray-50 text-center">
-                            <button onClick={() => setViewingSchool(null)} className="px-6 py-2 bg-white border rounded-lg font-bold text-gray-600 hover:bg-gray-100">إغلاق</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- Edit Modal --- */}
-            {editingSchool && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-in">
-                        <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Edit size={20}/> تعديل بيانات المدرسة</h3>
-                            <button onClick={() => setEditingSchool(null)}><X size={20} className="text-gray-400 hover:text-red-500"/></button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label>
-                                <input className="w-full p-2 border rounded" value={editingSchool.name} onChange={e => setEditingSchool({...editingSchool, name: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">الرمز الوزاري</label>
-                                <input className="w-full p-2 border rounded font-mono" value={editingSchool.ministryCode || ''} onChange={e => setEditingSchool({...editingSchool, ministryCode: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">رقم الهاتف</label>
-                                <input className="w-full p-2 border rounded" value={editingSchool.phone || ''} onChange={e => setEditingSchool({...editingSchool, phone: e.target.value})} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">اسم المدير</label>
-                                    <input className="w-full p-2 border rounded" value={editingSchool.managerName || ''} onChange={e => setEditingSchool({...editingSchool, managerName: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">هوية المدير (لربط الحساب)</label>
-                                    <input className="w-full p-2 border rounded font-mono" value={editingSchool.managerNationalId || ''} onChange={e => setEditingSchool({...editingSchool, managerNationalId: e.target.value})} />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">حالة الاشتراك</label>
-                                <select 
-                                    className="w-full p-2 border rounded bg-white"
-                                    value={editingSchool.subscriptionStatus}
-                                    onChange={e => setEditingSchool({...editingSchool, subscriptionStatus: e.target.value as any})}
-                                >
-                                    <option value="ACTIVE">نشط (Active)</option>
-                                    <option value="EXPIRED">منتهي (Expired)</option>
-                                    <option value="TRIAL">تجريبي (Trial)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
-                            <button onClick={() => setEditingSchool(null)} className="px-4 py-2 bg-white border rounded-lg font-bold text-gray-600 hover:bg-gray-100">إلغاء</button>
-                            <button onClick={handleUpdate} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2">
-                                <Save size={18}/> حفظ التعديلات
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const PlusCircleIcon = ({size}: {size:number}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-)
-
-// --- Users Manager ---
-const UsersManager = () => {
-    const [users, setUsers] = useState<SystemUser[]>([]);
-    const [newUser, setNewUser] = useState({ name: '', email: '', role: 'SCHOOL_MANAGER', password: '' });
-    
-    useEffect(() => setUsers(getSystemUsers()), []);
-
-    const handleAddUser = () => {
-        if(!newUser.email || !newUser.password) return;
-        addSystemUser({
-            id: Date.now().toString(),
-            name: newUser.name,
-            email: newUser.email,
-            role: newUser.role as any,
-            password: newUser.password,
-            status: 'ACTIVE'
-        });
-        setUsers(getSystemUsers());
-        setNewUser({ name: '', email: '', role: 'SCHOOL_MANAGER', password: '' });
-    };
-
-    return (
-        <div className="space-y-6">
-            <h3 className="font-bold text-gray-800 text-lg border-b pb-2">إدارة مدراء المدارس ومسؤولي النظام</h3>
-            
-            <div className="bg-gray-50 p-4 rounded-xl border flex flex-col md:flex-row gap-2">
-                <input className="p-2 border rounded text-sm flex-1" placeholder="الاسم" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} />
-                <input className="p-2 border rounded text-sm flex-1" placeholder="البريد / الهوية" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
-                <input className="p-2 border rounded text-sm flex-1" placeholder="كلمة المرور" type="password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
-                <select className="p-2 border rounded text-sm" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
-                    <option value="SCHOOL_MANAGER">مدير مدرسة</option>
-                    <option value="SUPER_ADMIN">مدير نظام</option>
-                </select>
-                <button onClick={handleAddUser} className="bg-gray-800 text-white px-4 py-2 rounded font-bold hover:bg-black">إضافة</button>
-            </div>
-
-            <div className="overflow-auto bg-white rounded-lg shadow-sm border">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <table className="w-full text-right text-sm">
-                    <thead className="bg-gray-100 text-gray-600">
+                    <thead className="bg-gray-50 text-gray-700 font-bold border-b">
                         <tr>
-                            <th className="p-3">الاسم</th>
-                            <th className="p-3">البريد/الهوية</th>
-                            <th className="p-3">الدور</th>
-                            <th className="p-3">كلمة المرور</th>
-                            <th className="p-3">إجراءات</th>
+                            <th className="p-4">اسم المدرسة</th>
+                            <th className="p-4">الرمز الوزاري</th>
+                            <th className="p-4">المدير</th>
+                            <th className="p-4">النوع</th>
+                            <th className="p-4">الاشتراك</th>
+                            <th className="p-4 text-center">إجراءات</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {users.map(u => (
-                            <tr key={u.id} className="border-b hover:bg-gray-50">
-                                <td className="p-3 font-bold">{u.name}</td>
-                                <td className="p-3">{u.email}</td>
-                                <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${u.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>{u.role}</span></td>
-                                <td className="p-3 font-mono text-gray-400">********</td>
-                                <td className="p-3">
-                                    <button onClick={() => { deleteSystemUser(u.id); setUsers(getSystemUsers()); }} className="text-red-500 hover:bg-red-50 p-1.5 rounded"><Trash2 size={16}/></button>
+                    <tbody className="divide-y">
+                        {filteredSchools.map(school => (
+                            <tr key={school.id} className="hover:bg-gray-50">
+                                <td className="p-4 font-bold text-gray-800">{school.name}</td>
+                                <td className="p-4 font-mono text-gray-600">{school.ministryCode}</td>
+                                <td className="p-4 text-gray-600">{school.managerName}</td>
+                                <td className="p-4">
+                                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                                        {school.type === 'PRIVATE' ? 'أهلي' : school.type === 'INTERNATIONAL' ? 'دولي' : 'حكومي'}
+                                    </span>
+                                </td>
+                                <td className="p-4">
+                                    {school.subscriptionStatus === 'ACTIVE' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">نشط</span>}
+                                    {school.subscriptionStatus === 'EXPIRED' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">منتهي</span>}
+                                    {school.subscriptionStatus === 'TRIAL' && <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">تجريبي</span>}
+                                </td>
+                                <td className="p-4 flex justify-center gap-2">
+                                    <button onClick={() => handleOpenModal(school)} className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Edit size={16}/></button>
+                                    <button onClick={() => handleDelete(school.id)} className="p-2 text-red-600 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+                {filteredSchools.length === 0 && <div className="p-8 text-center text-gray-400">لا توجد مدارس مطابقة</div>}
+            </div>
+
+            {/* Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-lg">{editingSchool ? 'تعديل بيانات المدرسة' : 'إضافة مدرسة جديدة'}</h3>
+                            <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-gray-400"/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold mb-1">اسم المدرسة</label>
+                                <input className="w-full p-2 border rounded" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">الرمز الوزاري</label>
+                                    <input className="w-full p-2 border rounded font-mono" value={formData.ministryCode || ''} onChange={e => setFormData({...formData, ministryCode: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">الإدارة التعليمية</label>
+                                    <input className="w-full p-2 border rounded" value={formData.educationAdministration || ''} onChange={e => setFormData({...formData, educationAdministration: e.target.value})} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">اسم المدير</label>
+                                    <input className="w-full p-2 border rounded" value={formData.managerName || ''} onChange={e => setFormData({...formData, managerName: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">هوية المدير (للربط)</label>
+                                    <input className="w-full p-2 border rounded font-mono" value={formData.managerNationalId || ''} onChange={e => setFormData({...formData, managerNationalId: e.target.value})} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">نوع المدرسة</label>
+                                    <select className="w-full p-2 border rounded bg-white" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}>
+                                        <option value="PUBLIC">حكومي</option>
+                                        <option value="PRIVATE">أهلي</option>
+                                        <option value="INTERNATIONAL">دولي</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">حالة الاشتراك</label>
+                                    <select className="w-full p-2 border rounded bg-white" value={formData.subscriptionStatus} onChange={e => setFormData({...formData, subscriptionStatus: e.target.value as any})}>
+                                        <option value="ACTIVE">نشط</option>
+                                        <option value="TRIAL">تجريبي</option>
+                                        <option value="EXPIRED">منتهي</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button onClick={handleSave} className="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 mt-2">حفظ البيانات</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==========================================
+// 2. USERS MANAGER COMPONENT
+// ==========================================
+const UsersManager = () => {
+    const [users, setUsers] = useState<SystemUser[]>([]);
+    const [schools, setSchools] = useState<School[]>([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [formData, setFormData] = useState<Partial<SystemUser>>({});
+
+    useEffect(() => {
+        setUsers(getSystemUsers());
+        setSchools(getSchools());
+    }, []);
+
+    const filteredUsers = useMemo(() => 
+        users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())),
+    [users, searchTerm]);
+
+    const handleOpenModal = (user?: SystemUser) => {
+        if (user) {
+            setEditingUser(user);
+            setFormData(user);
+        } else {
+            setEditingUser(null);
+            setFormData({ status: 'ACTIVE', role: 'SCHOOL_MANAGER' });
+        }
+        setIsModalOpen(true);
+    };
+
+    const handleSave = () => {
+        if (!formData.name || !formData.email || !formData.role) return alert('البيانات الأساسية مطلوبة');
+        
+        const userData: SystemUser = {
+            id: editingUser ? editingUser.id : Date.now().toString(),
+            name: formData.name!,
+            email: formData.email!,
+            nationalId: formData.nationalId,
+            password: formData.password || (editingUser ? editingUser.password : '123456'),
+            role: formData.role!,
+            schoolId: formData.schoolId,
+            status: formData.status!
+        };
+
+        if (editingUser) updateSystemUser(userData);
+        else addSystemUser(userData);
+        
+        setUsers(getSystemUsers());
+        setIsModalOpen(false);
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('حذف المستخدم؟')) {
+            deleteSystemUser(id);
+            setUsers(getSystemUsers());
+        }
+    };
+
+    return (
+        <div className="space-y-4 animate-fade-in">
+            <div className="flex justify-between items-center">
+                <div className="relative w-64">
+                    <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
+                    <input className="w-full pr-10 pl-4 py-2 border rounded-lg text-sm" placeholder="بحث عن مستخدم..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
+                <button onClick={() => handleOpenModal()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-purple-700">
+                    <Plus size={18}/> إضافة مستخدم
+                </button>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <table className="w-full text-right text-sm">
+                    <thead className="bg-gray-50 text-gray-700 font-bold border-b">
+                        <tr>
+                            <th className="p-4">الاسم</th>
+                            <th className="p-4">البريد / الهوية</th>
+                            <th className="p-4">الدور</th>
+                            <th className="p-4">المدرسة التابعة</th>
+                            <th className="p-4">الحالة</th>
+                            <th className="p-4 text-center">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {filteredUsers.map(user => {
+                            const userSchool = schools.find(s => s.id === user.schoolId);
+                            return (
+                                <tr key={user.id} className="hover:bg-gray-50">
+                                    <td className="p-4 font-bold text-gray-800">{user.name}</td>
+                                    <td className="p-4 font-mono text-gray-600">{user.email}</td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                            user.role === 'SUPER_ADMIN' ? 'bg-black text-white' : 
+                                            user.role === 'SCHOOL_MANAGER' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                                        }`}>
+                                            {user.role === 'SUPER_ADMIN' ? 'مدير نظام' : user.role === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : user.role === 'TEACHER' ? 'معلم' : 'طالب'}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-gray-600 text-xs">
+                                        {userSchool ? userSchool.name : (user.role === 'SUPER_ADMIN' ? 'الكل' : '-')}
+                                    </td>
+                                    <td className="p-4">
+                                        {user.status === 'ACTIVE' ? <CheckCircle size={16} className="text-green-500"/> : <XCircle size={16} className="text-red-500"/>}
+                                    </td>
+                                    <td className="p-4 flex justify-center gap-2">
+                                        <button onClick={() => handleOpenModal(user)} className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Edit size={16}/></button>
+                                        <button onClick={() => handleDelete(user.id)} className="p-2 text-red-600 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-lg">{editingUser ? 'تعديل المستخدم' : 'إضافة مستخدم جديد'}</h3>
+                            <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-gray-400"/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold mb-1">الاسم الكامل</label>
+                                <input className="w-full p-2 border rounded" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">البريد الإلكتروني</label>
+                                    <input className="w-full p-2 border rounded dir-ltr" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">كلمة المرور</label>
+                                    <input className="w-full p-2 border rounded dir-ltr" type="password" placeholder={editingUser ? 'ترك فارغاً للإبقاء' : ''} value={formData.password || ''} onChange={e => setFormData({...formData, password: e.target.value})} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold mb-1">الدور (الصلاحية)</label>
+                                <select className="w-full p-2 border rounded bg-white" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as any})}>
+                                    <option value="SCHOOL_MANAGER">مدير مدرسة</option>
+                                    <option value="TEACHER">معلم</option>
+                                    <option value="SUPER_ADMIN">مدير نظام (Super Admin)</option>
+                                </select>
+                            </div>
+                            {formData.role !== 'SUPER_ADMIN' && (
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">المدرسة التابعة</label>
+                                    <select className="w-full p-2 border rounded bg-white" value={formData.schoolId || ''} onChange={e => setFormData({...formData, schoolId: e.target.value})}>
+                                        <option value="">-- اختر المدرسة --</option>
+                                        {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                            <div>
+                                <label className="block text-sm font-bold mb-1">حالة الحساب</label>
+                                <select className="w-full p-2 border rounded bg-white" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
+                                    <option value="ACTIVE">نشط</option>
+                                    <option value="INACTIVE">متوقف</option>
+                                </select>
+                            </div>
+                            <button onClick={handleSave} className="w-full bg-purple-600 text-white py-2 rounded font-bold hover:bg-purple-700 mt-2">حفظ المستخدم</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==========================================
+// 3. SUBSCRIPTIONS MANAGER COMPONENT
+// ==========================================
+const SubscriptionsManager = () => {
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">مجاني</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">الباقة التجريبية</h3>
+                <p className="text-3xl font-black text-gray-900 mb-4">0 <span className="text-sm font-normal text-gray-500">ر.س / شهر</span></p>
+                <ul className="space-y-2 text-sm text-gray-600 mb-6">
+                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> عدد 1 مدرسة</li>
+                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> 50 طالب كحد أقصى</li>
+                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> أدوات المعلم الأساسية</li>
+                </ul>
+                <button className="w-full border border-gray-300 py-2 rounded-lg font-bold text-gray-600">تعديل</button>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border-2 border-blue-500 shadow-lg relative overflow-hidden transform scale-105">
+                <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">الأكثر شيوعاً</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">الباقة المتقدمة (Pro)</h3>
+                <p className="text-3xl font-black text-blue-600 mb-4">299 <span className="text-sm font-normal text-gray-500">ر.س / شهر</span></p>
+                <ul className="space-y-2 text-sm text-gray-600 mb-6">
+                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> مدارس متعددة</li>
+                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> طلاب غير محدود</li>
+                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> الذكاء الاصطناعي (Gemini)</li>
+                    <li className="flex items-center gap-2"><Check size={16} className="text-blue-500"/> المزامنة السحابية</li>
+                </ul>
+                <button className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700">تعديل الباقة</button>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                <h3 className="text-xl font-bold text-gray-800 mb-2">باقة المؤسسات</h3>
+                <p className="text-3xl font-black text-gray-900 mb-4">تواصل معنا</p>
+                <ul className="space-y-2 text-sm text-gray-600 mb-6">
+                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> تخصيص كامل للنظام</li>
+                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> خوادم خاصة</li>
+                    <li className="flex items-center gap-2"><Check size={16} className="text-green-500"/> دعم فني 24/7</li>
+                </ul>
+                <button className="w-full border border-gray-300 py-2 rounded-lg font-bold text-gray-600">تعديل</button>
             </div>
         </div>
     );
 };
 
-// --- Subscriptions Manager ---
-const SubscriptionsManager = () => {
+// ==========================================
+// 4. AI SETTINGS COMPONENT (Separated)
+// ==========================================
+const AISettingsView = () => {
+    const [aiConfig, setAiConfig] = useState<AISettings>({ modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' });
+
+    useEffect(() => {
+        setAiConfig(getAISettings());
+    }, []);
+
+    const handleSaveAI = () => {
+        saveAISettings(aiConfig);
+        alert('تم حفظ إعدادات الذكاء الاصطناعي.');
+    };
+
     return (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-400 border-2 border-dashed rounded-xl">
-            <CreditCard size={48} className="mb-4 opacity-20"/>
-            <p className="font-bold">نظام الاشتراكات قيد التطوير</p>
-            <p className="text-sm">سيمكنك هنا تفعيل وإيقاف اشتراكات المدارس.</p>
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm animate-fade-in max-w-4xl mx-auto">
+            <div className="flex items-center gap-3 border-b pb-4 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg text-purple-600"><BrainCircuit size={24}/></div>
+                <div>
+                    <h3 className="font-bold text-gray-800">إعدادات الذكاء الاصطناعي (Gemini)</h3>
+                    <p className="text-xs text-gray-500">التحكم في نماذج التوليد والمميزات الذكية</p>
+                </div>
+            </div>
+
+            <div className="space-y-5">
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">موديل التوليد (Model)</label>
+                    <select 
+                        className="w-full p-2 border rounded bg-gray-50" 
+                        value={aiConfig.modelId} 
+                        onChange={e => setAiConfig({...aiConfig, modelId: e.target.value})}
+                    >
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (سريع واقتصادي)</option>
+                        <option value="gemini-3-pro-preview">Gemini 3 Pro (ذكاء أعلى)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-1">
+                        <label className="block text-sm font-bold text-gray-700">درجة الإبداع (Temperature)</label>
+                        <span className="text-xs font-mono bg-gray-100 px-2 rounded">{aiConfig.temperature}</span>
+                    </div>
+                    <input 
+                        type="range" min="0" max="1" step="0.1" 
+                        className="w-full accent-purple-600"
+                        value={aiConfig.temperature}
+                        onChange={e => setAiConfig({...aiConfig, temperature: parseFloat(e.target.value)})}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">0.0 (دقيق ورسمي) - 1.0 (مبدع ومتنوع)</p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">تعليمات النظام (System Persona)</label>
+                    <textarea 
+                        className="w-full p-2 border rounded bg-gray-50 text-sm h-20" 
+                        placeholder="مثال: أنت خبير تربوي سعودي..."
+                        value={aiConfig.systemInstruction}
+                        onChange={e => setAiConfig({...aiConfig, systemInstruction: e.target.value})}
+                    />
+                </div>
+
+                <div className="space-y-2 pt-2 border-t">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={aiConfig.enableReports} onChange={e => setAiConfig({...aiConfig, enableReports: e.target.checked})} className="w-4 h-4 text-purple-600"/>
+                        <span className="text-sm">تفعيل التقارير التحليلية</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={aiConfig.enableQuiz} onChange={e => setAiConfig({...aiConfig, enableQuiz: e.target.checked})} className="w-4 h-4 text-purple-600"/>
+                        <span className="text-sm">تفعيل منشئ الاختبارات</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={aiConfig.enablePlanning} onChange={e => setAiConfig({...aiConfig, enablePlanning: e.target.checked})} className="w-4 h-4 text-purple-600"/>
+                        <span className="text-sm">تفعيل تحضير الدروس والخطط</span>
+                    </label>
+                </div>
+
+                <button onClick={handleSaveAI} className="w-full py-2 bg-purple-600 text-white rounded font-bold hover:bg-purple-700 flex justify-center items-center gap-2">
+                    <Save size={16}/> حفظ إعدادات AI
+                </button>
+            </div>
         </div>
     );
 };
 
-// --- Database Settings (Refactored) ---
+// ==========================================
+// 5. DATABASE SETTINGS (RESTORED FULL VERSION)
+// ==========================================
 const DatabaseSettings = () => {
     const [dbTab, setDbTab] = useState<'CONFIG' | 'CLOUD' | 'MAINTENANCE'>('CONFIG');
     const [connectionStatus, setConnectionStatus] = useState<'CHECKING' | 'CONNECTED' | 'ERROR' | 'IDLE'>('IDLE');
@@ -500,7 +580,13 @@ const DatabaseSettings = () => {
     const handleCopySQL = () => {
         const sql = getDatabaseSchemaSQL();
         navigator.clipboard.writeText(sql);
-        alert('تم نسخ كود SQL إلى الحافظة!');
+        alert('تم نسخ كود إنشاء الجداول (Schema) إلى الحافظة!');
+    };
+
+    const handleCopyUpdateSQL = () => {
+        const sql = getDatabaseUpdateSQL();
+        navigator.clipboard.writeText(sql);
+        alert('تم نسخ كود التحديثات (Updates) إلى الحافظة!');
     };
 
     const handleClearTable = async () => {
@@ -657,17 +743,35 @@ const DatabaseSettings = () => {
             {dbTab === 'MAINTENANCE' && (
                 <div className="space-y-6 animate-fade-in">
                     
+                    {/* SQL Update Section (NEW) */}
+                    <div className="bg-teal-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-teal-400"></div>
+                        <h4 className="font-bold text-lg mb-2 flex items-center gap-2"><GitMerge size={20} className="text-teal-400"/> تحديثات القاعدة (Updates)</h4>
+                        <p className="text-teal-100 text-sm mb-4">
+                            استخدم هذا الكود إذا كانت قاعدة البيانات لديك منشأة مسبقاً وتريد إضافة الأعمدة الجديدة فقط دون حذف البيانات.
+                        </p>
+                        
+                        <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-teal-300 overflow-x-auto h-32 mb-4 relative border border-teal-800">
+                            <pre>{getDatabaseUpdateSQL()}</pre>
+                        </div>
+                        <button onClick={handleCopyUpdateSQL} className="bg-white text-teal-900 px-4 py-2 rounded font-bold text-sm hover:bg-teal-50 flex items-center gap-2 transition-colors">
+                            <Copy size={16}/> نسخ كود التحديث
+                        </button>
+                    </div>
+
                     {/* SQL Generator */}
                     <div className="bg-gray-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
-                        <h4 className="font-bold text-lg mb-2 flex items-center gap-2"><Code size={20} className="text-yellow-400"/> إعداد قاعدة البيانات (SQL Setup)</h4>
-                        <p className="text-gray-400 text-sm mb-4">انسخ الكود التالي ونفذه في "SQL Editor" في لوحة تحكم Supabase لإنشاء الجداول المطلوبة.</p>
+                        <h4 className="font-bold text-lg mb-2 flex items-center gap-2"><Code size={20} className="text-yellow-400"/> إعداد قاعدة البيانات بالكامل (Full Schema)</h4>
+                        <p className="text-gray-400 text-sm mb-4">
+                            استخدم هذا الكود عند إعداد قاعدة بيانات <b>جديدة وفارغة</b> لأول مرة.
+                        </p>
                         
-                        <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-green-400 overflow-x-auto h-32 mb-4 relative">
+                        <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-green-400 overflow-x-auto h-32 mb-4 relative border border-gray-700">
                             <pre>{getDatabaseSchemaSQL()}</pre>
                         </div>
                         <button onClick={handleCopySQL} className="bg-white text-gray-900 px-4 py-2 rounded font-bold text-sm hover:bg-gray-200 flex items-center gap-2">
-                            <Copy size={16}/> نسخ الكود
+                            <Copy size={16}/> نسخ الكود الكامل
                         </button>
                     </div>
 
@@ -715,96 +819,49 @@ const DatabaseSettings = () => {
     );
 };
 
-// --- AI Settings Manager ---
-const AISettingsManager = () => {
-    const [settings, setSettings] = useState<AISettings>(getAISettings());
-    const [saved, setSaved] = useState(false);
+// ==========================================
+// MAIN ADMIN DASHBOARD WRAPPER
+// ==========================================
+const AdminDashboard: React.FC = () => {
+    const [activeTab, setActiveTab] = useState<'DATABASE' | 'USERS' | 'SCHOOLS' | 'SUBSCRIPTIONS' | 'AI_SETTINGS'>(() => {
+        return localStorage.getItem('admin_dashboard_active_tab') as any || 'DATABASE';
+    });
 
-    const handleSave = () => {
-        saveAISettings(settings);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-    };
+    useEffect(() => {
+        localStorage.setItem('admin_dashboard_active_tab', activeTab);
+    }, [activeTab]);
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <h3 className="font-bold text-gray-800 text-lg border-b pb-2 flex items-center gap-2">
-                <BrainCircuit className="text-purple-600"/> إعدادات الذكاء الاصطناعي (AI Configuration)
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Settings size={18}/> إعدادات النموذج (Model)</h4>
-                    
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-bold text-gray-600 mb-1">موديل التوليد (Model ID)</label>
-                            <select 
-                                className="w-full p-2 border rounded-lg bg-gray-50"
-                                value={settings.modelId}
-                                onChange={e => setSettings({...settings, modelId: e.target.value})}
-                            >
-                                <option value="gemini-2.5-flash">Gemini 2.5 Flash (سريع - اقتصادي)</option>
-                                <option value="gemini-3-pro-preview">Gemini 3 Pro Preview (ذكي جداً - للأمور المعقدة)</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-600 mb-1">درجة الإبداع (Temperature): {settings.temperature}</label>
-                            <input 
-                                type="range" 
-                                min="0" max="1" step="0.1" 
-                                className="w-full accent-purple-600"
-                                value={settings.temperature}
-                                onChange={e => setSettings({...settings, temperature: parseFloat(e.target.value)})}
-                            />
-                            <div className="flex justify-between text-xs text-gray-400">
-                                <span>دقيق (0.0)</span>
-                                <span>متوازن (0.5)</span>
-                                <span>مبدع (1.0)</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Sliders size={18}/> التحكم في الخصائص</h4>
-                    <div className="space-y-3">
-                        <label className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer">
-                            <span className="text-sm font-bold text-gray-700">تفعيل التقارير الذكية</span>
-                            <input type="checkbox" checked={settings.enableReports} onChange={e => setSettings({...settings, enableReports: e.target.checked})} className="w-5 h-5 accent-purple-600"/>
-                        </label>
-                        <label className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer">
-                            <span className="text-sm font-bold text-gray-700">تفعيل إنشاء الاختبارات</span>
-                            <input type="checkbox" checked={settings.enableQuiz} onChange={e => setSettings({...settings, enableQuiz: e.target.checked})} className="w-5 h-5 accent-purple-600"/>
-                        </label>
-                        <label className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer">
-                            <span className="text-sm font-bold text-gray-700">تفعيل تخطيط الدروس</span>
-                            <input type="checkbox" checked={settings.enablePlanning} onChange={e => setSettings({...settings, enablePlanning: e.target.checked})} className="w-5 h-5 accent-purple-600"/>
-                        </label>
-                    </div>
+        <div className="p-6 space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Shield size={24} className="text-gray-900"/> لوحة تحكم النظام (Super Admin)
+                </h2>
+                <div className="flex bg-white rounded-lg p-1 border shadow-sm overflow-x-auto custom-scrollbar">
+                    <button onClick={() => setActiveTab('DATABASE')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'DATABASE' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
+                        <Database size={16}/> قاعدة البيانات
+                    </button>
+                    <button onClick={() => setActiveTab('SCHOOLS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'SCHOOLS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
+                        <Building size={16}/> المدارس
+                    </button>
+                    <button onClick={() => setActiveTab('USERS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'USERS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
+                        <Users size={16}/> المستخدمين
+                    </button>
+                    <button onClick={() => setActiveTab('SUBSCRIPTIONS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'SUBSCRIPTIONS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
+                        <CreditCard size={16}/> الاشتراكات
+                    </button>
+                    <button onClick={() => setActiveTab('AI_SETTINGS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'AI_SETTINGS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
+                        <BrainCircuit size={16}/> إعدادات الذكاء الاصطناعي
+                    </button>
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Sparkles size={18}/> شخصية المساعد (System Instruction)</h4>
-                <p className="text-xs text-gray-500 mb-3">حدد كيف يتصرف الذكاء الاصطناعي، نبرة الصوت، والأسلوب التربوي.</p>
-                <textarea 
-                    className="w-full p-4 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none h-32 text-sm"
-                    value={settings.systemInstruction}
-                    onChange={e => setSettings({...settings, systemInstruction: e.target.value})}
-                    placeholder="مثال: أنت خبير تربوي سعودي، تستخدم اللهجة البيضاء والمصطلحات الرسمية لوزارة التعليم..."
-                />
-            </div>
-
-            <div className="flex justify-end">
-                <button 
-                    onClick={handleSave} 
-                    className={`px-8 py-3 rounded-xl font-bold text-white flex items-center gap-2 transition-all ${saved ? 'bg-green-600' : 'bg-purple-600 hover:bg-purple-700'}`}
-                >
-                    {saved ? <Check size={20}/> : <Save size={20}/>}
-                    {saved ? 'تم الحفظ' : 'حفظ الإعدادات'}
-                </button>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-h-[500px]">
+                {activeTab === 'DATABASE' && <DatabaseSettings />}
+                {activeTab === 'SCHOOLS' && <SchoolsManager />}
+                {activeTab === 'USERS' && <UsersManager />}
+                {activeTab === 'SUBSCRIPTIONS' && <SubscriptionsManager />}
+                {activeTab === 'AI_SETTINGS' && <AISettingsView />}
             </div>
         </div>
     );

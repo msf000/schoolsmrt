@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
@@ -25,10 +26,18 @@ const extractHeaderMetadata = (header: string): { label: string, maxScore: numbe
 };
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance }) => {
-    const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>('GRADING');
+    const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>(() => {
+        return localStorage.getItem('works_tracking_mode') as any || 'GRADING';
+    });
+    const [activeTab, setActiveTab] = useState<PerformanceCategory>(() => {
+        return localStorage.getItem('works_tracking_tab') as any || 'ACTIVITY';
+    });
+
+    useEffect(() => { localStorage.setItem('works_tracking_mode', activeMode); }, [activeMode]);
+    useEffect(() => { localStorage.setItem('works_tracking_tab', activeTab); }, [activeTab]);
+
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [selectedSubject, setSelectedSubject] = useState('');
-    const [activeTab, setActiveTab] = useState<PerformanceCategory>('ACTIVITY');
     
     // Data State
     const [assignments, setAssignments] = useState<Assignment[]>([]);

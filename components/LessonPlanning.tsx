@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+// ... existing imports ...
+import React, { useState, useEffect } from 'react';
 import { generateLessonPlan, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, suggestSyllabus, organizeCourseContent } from '../services/geminiService';
 import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table, Target, ListTree, BookOpenCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -18,7 +19,13 @@ const TEACHING_RESOURCES = [
 
 const LessonPlanning: React.FC = () => {
     // Tab State - Default is now CONTENT (Course Preparation)
-    const [activeTab, setActiveTab] = useState<'CONTENT' | 'SEMESTER' | 'LESSON' | 'OUTCOMES' | 'LEARNING'>('CONTENT');
+    const [activeTab, setActiveTab] = useState<'CONTENT' | 'SEMESTER' | 'LESSON' | 'OUTCOMES' | 'LEARNING'>(() => {
+        return localStorage.getItem('lesson_planning_tab') as any || 'CONTENT';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('lesson_planning_tab', activeTab);
+    }, [activeTab]);
 
     // --- LESSON PREPARATION STATE ---
     const [lessonStep, setLessonStep] = useState<1 | 2 | 3>(1);

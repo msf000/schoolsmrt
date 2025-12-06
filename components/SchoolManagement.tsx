@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import React, { useState, useEffect, useMemo } from 'react';
 import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig } from '../types';
 import { 
@@ -22,7 +23,13 @@ interface SchoolManagementProps {
 const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students }) => {
   // Determine Role: Super Admin or School Manager gets full access
   const isManager = currentUser?.role === 'SCHOOL_MANAGER' || currentUser?.role === 'SUPER_ADMIN';
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'PROFILE' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'PROFILE' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS'>(() => {
+      return localStorage.getItem('school_mgmt_active_tab') as any || 'DASHBOARD';
+  });
+
+  useEffect(() => {
+      localStorage.setItem('school_mgmt_active_tab', activeTab);
+  }, [activeTab]);
   
   // --- Data States ---
   const [mySchool, setMySchool] = useState<School | null>(null);
@@ -33,6 +40,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   const [reportConfig, setReportConfig] = useState<ReportHeaderConfig>({
       schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: ''
   });
+
+  // ... (rest of states and effects - no changes until handlers)
 
   // --- UI States ---
   const [feedbackList, setFeedbackList] = useState<Feedback[]>([]);
@@ -173,7 +182,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
           classId: selectedClassForSchedule,
           day: day as any,
           period,
-          subjectName
+          subjectName,
+          teacherId: assignment?.teacherId // Link Teacher directly in schedule
       };
       
       if (subjectName === '') {
@@ -207,8 +217,21 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
       };
       saveTeacherAssignment(assignment);
       setAssignments(getTeacherAssignments());
+
+      // NEW: Update existing schedule items for this class/subject with the new teacherId
+      // This ensures the weekly_schedule table always reflects the assigned teacher
+      const allSchedules = getSchedules();
+      let hasUpdates = false;
+      allSchedules.forEach(s => {
+          if (s.classId === classId && s.subjectName === subjectName) {
+              saveScheduleItem({ ...s, teacherId });
+              hasUpdates = true;
+          }
+      });
+      if (hasUpdates) setSchedules(getSchedules());
   };
 
+  // ... (rest of the component)
   // --- ACTIONS: REPORT SETTINGS ---
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];

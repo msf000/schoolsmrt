@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus } from '../types';
 import { getMessages, saveMessage } from '../services/storageService';
@@ -21,7 +22,14 @@ const TEMPLATES = [
 ];
 
 const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, performance }) => {
-    const [activeTab, setActiveTab] = useState<'SMART' | 'COMPOSE' | 'HISTORY'>('SMART');
+    const [activeTab, setActiveTab] = useState<'SMART' | 'COMPOSE' | 'HISTORY'>(() => {
+        return localStorage.getItem('message_center_tab') as any || 'SMART';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('message_center_tab', activeTab);
+    }, [activeTab]);
+
     const [history, setHistory] = useState<MessageLog[]>([]);
     
     // Compose State

@@ -78,6 +78,7 @@ export interface ScheduleItem {
   day: DayOfWeek;
   period: number; // 1 to 8 usually
   subjectName: string;
+  teacherId?: string; // Linked Teacher ID
 }
 
 export enum AttendanceStatus {

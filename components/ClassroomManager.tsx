@@ -40,7 +40,14 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     onDateChange,
     currentUser
 }) => {
-    const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING'>('TOOLS');
+    const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING'>(() => {
+        return localStorage.getItem('classroom_manager_tab') as any || 'TOOLS';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('classroom_manager_tab', activeTab);
+    }, [activeTab]);
+
     const [selectedClass, setSelectedClass] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -900,160 +907,93 @@ const SeatingChart: React.FC<{ students: Student[], performance: PerformanceReco
 
         if (type === 'ALPHA') {
             sorted.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-        } 
-        else if (type === 'RANDOM') {
-            sorted.sort(() => Math.random() - 0.5);
-        } 
-        else if (type === 'LEVEL_HIGH_FRONT') {
+        } else if (type === 'LEVEL') {
             sorted.sort((a, b) => getStudentAverage(b.id) - getStudentAverage(a.id));
-        } 
-        else if (type === 'LEVEL_HIGH_BACK') {
-            sorted.sort((a, b) => getStudentAverage(a.id) - getStudentAverage(b.id));
-        }
-        else if (type === 'MIXED') {
-            const byScore = [...localStudents].sort((a, b) => getStudentAverage(b.id) - getStudentAverage(a.id));
-            const mixed: Student[] = [];
-            let left = 0;
-            let right = byScore.length - 1;
-            while (left <= right) {
-                mixed.push(byScore[left]);
-                if (left !== right) mixed.push(byScore[right]);
-                left++;
-                right--;
-            }
-            sorted = mixed;
+        } else if (type === 'RANDOM') {
+            sorted.sort(() => Math.random() - 0.5);
         }
 
-        const remapped = sorted.map((s, idx) => ({ ...s, seatIndex: idx }));
-        setLocalStudents(remapped);
+        // Reassign seat indices
+        const arranged = sorted.map((s, idx) => ({ ...s, seatIndex: idx }));
+        setLocalStudents(arranged);
     };
 
-    const handleSaveChanges = () => {
-        if (!onSaveSeating) return;
+    const handleSave = () => {
         setSaveStatus('SAVING');
-        onSaveSeating(localStudents);
-        setTimeout(() => {
+        if (onSaveSeating) {
+            onSaveSeating(localStudents);
             setSaveStatus('SUCCESS');
-            setTimeout(() => setSaveStatus('IDLE'), 3000);
-        }, 800);
+            setTimeout(() => setSaveStatus('IDLE'), 2000);
+        }
     };
 
     return (
         <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                    <select 
-                        value={selectedClass} 
-                        onChange={e => setSelectedClass(e.target.value)}
-                        className="p-2 border rounded-lg font-bold text-gray-700 bg-white shadow-sm outline-none focus:ring-2 focus:ring-purple-500"
-                    >
-                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    
-                    <div className="flex items-center gap-2 text-sm text-gray-600 bg-white p-1.5 rounded-lg border">
-                        <Grid size={16}/>
-                        <span>الأعمدة:</span>
-                        <input 
-                            type="number" 
-                            min="2" max="10" 
-                            value={layoutCols} 
-                            onChange={e => setLayoutCols(Number(e.target.value))}
-                            className="w-12 p-1 border rounded text-center bg-gray-50"
-                        />
-                    </div>
+            {/* Toolbar */}
+            <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-600">ترتيب تلقائي:</span>
+                    <button onClick={() => handleSmartArrange('ALPHA')} className={`px-3 py-1.5 rounded text-xs font-bold border transition-colors ${arrangeMode === 'ALPHA' ? 'bg-purple-100 border-purple-300 text-purple-700' : 'bg-white hover:bg-gray-100'}`}>أبجدي</button>
+                    <button onClick={() => handleSmartArrange('LEVEL')} className={`px-3 py-1.5 rounded text-xs font-bold border transition-colors ${arrangeMode === 'LEVEL' ? 'bg-purple-100 border-purple-300 text-purple-700' : 'bg-white hover:bg-gray-100'}`}>حسب المستوى</button>
+                    <button onClick={() => handleSmartArrange('RANDOM')} className={`px-3 py-1.5 rounded text-xs font-bold border transition-colors ${arrangeMode === 'RANDOM' ? 'bg-purple-100 border-purple-300 text-purple-700' : 'bg-white hover:bg-gray-100'}`}>عشوائي</button>
+                </div>
 
+                <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <label className="text-xs font-bold text-gray-500">نمط الترتيب:</label>
-                        <select 
-                            value={arrangeMode}
-                            onChange={(e) => handleSmartArrange(e.target.value)}
-                            className="p-2 border rounded-lg text-sm font-bold bg-white text-gray-800 shadow-sm outline-none focus:ring-2 focus:ring-purple-500"
-                        >
-                            <option value="ALPHA">🔤 أبجدي</option>
-                            <option value="RANDOM">🎲 عشوائي</option>
-                            <option value="LEVEL_HIGH_FRONT">📈 المتفوقون في الأمام</option>
-                            <option value="LEVEL_HIGH_BACK">📉 المتفوقون في الخلف</option>
-                            <option value="MIXED">🤝 دمج المستويات (أقران)</option>
-                        </select>
+                        <span className="text-sm font-bold text-gray-600">الأعمدة:</span>
+                        <input type="number" min="2" max="10" value={layoutCols} onChange={(e) => setLayoutCols(Number(e.target.value))} className="w-12 p-1 border rounded text-center text-sm font-bold"/>
                     </div>
-                </div>
-
-                <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={() => window.print()} className="flex-1 md:flex-none px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold hover:bg-black flex items-center justify-center gap-2 shadow-sm">
-                        <Printer size={16}/> <span className="hidden sm:inline">طباعة</span>
-                    </button>
                     <button 
-                        onClick={handleSaveChanges} 
-                        disabled={saveStatus !== 'IDLE'}
-                        className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-md transition-all ${saveStatus === 'SUCCESS' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
+                        onClick={handleSave} 
+                        className={`px-6 py-2 rounded-lg font-bold text-white text-sm flex items-center gap-2 transition-all ${saveStatus === 'SUCCESS' ? 'bg-green-600' : 'bg-purple-600 hover:bg-purple-700'}`}
                     >
-                        {saveStatus === 'SAVING' ? <Loader2 size={16} className="animate-spin"/> : saveStatus === 'SUCCESS' ? <CheckCircle size={16}/> : <Save size={16}/>}
-                        {saveStatus === 'SAVING' ? 'جاري الحفظ...' : saveStatus === 'SUCCESS' ? 'تم الحفظ' : 'حفظ الترتيب'}
+                        {saveStatus === 'SAVING' ? <Loader2 className="animate-spin" size={16}/> : saveStatus === 'SUCCESS' ? <CheckCircle size={16}/> : <Save size={16}/>}
+                        {saveStatus === 'SUCCESS' ? 'تم الحفظ' : 'حفظ الترتيب'}
                     </button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-4 md:p-8 bg-slate-100 flex justify-center">
-                <div className="w-full max-w-5xl">
-                    <div className="w-2/3 mx-auto h-12 bg-gray-800 rounded-b-xl mb-10 shadow-lg flex items-center justify-center text-gray-400 text-xs tracking-widest border-t-4 border-gray-600">
-                        السبورة (المقدمة)
-                    </div>
-
-                    <div 
-                        className="grid gap-3 md:gap-4"
-                        style={{ gridTemplateColumns: `repeat(${layoutCols}, minmax(0, 1fr))` }}
-                    >
-                        {gridCells.map(seatIdx => {
-                            const student = getStudentAtSeat(seatIdx);
-                            const isSelected = student?.id === selectedForSwap;
-                            const avg = student ? getStudentAverage(student.id) : 0;
-                            
-                            let levelColor = 'bg-gray-100';
-                            if (arrangeMode.includes('LEVEL') || arrangeMode === 'MIXED') {
-                                if (avg >= 0.85) levelColor = 'bg-green-100 text-green-700';
-                                else if (avg >= 0.65) levelColor = 'bg-blue-50 text-blue-700';
-                                else if (avg > 0) levelColor = 'bg-orange-50 text-orange-700';
-                            }
-
-                            return (
-                                <div 
-                                    key={seatIdx}
-                                    onClick={() => handleSeatClick(seatIdx)}
-                                    className={`
-                                        aspect-[4/3] rounded-lg border-2 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all shadow-sm relative group
-                                        ${student 
-                                            ? (isSelected ? 'bg-purple-100 border-purple-500 ring-2 ring-purple-300' : 'bg-white border-gray-300 hover:border-purple-400') 
-                                            : 'bg-slate-200/50 border-dashed border-slate-300 hover:bg-slate-200'
-                                        }
-                                    `}
-                                >
-                                    {student ? (
-                                        <>
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${levelColor}`}>
-                                                {student.name.charAt(0)}
+            {/* Grid */}
+            <div className="flex-1 overflow-auto p-8 bg-slate-100 flex justify-center">
+                <div 
+                    className="grid gap-4 w-full max-w-5xl"
+                    style={{ gridTemplateColumns: `repeat(${layoutCols}, minmax(0, 1fr))` }}
+                >
+                    {gridCells.map(index => {
+                        const student = getStudentAtSeat(index);
+                        const isSelected = selectedForSwap === (student?.id || `empty-${index}`); 
+                        // Logic: selectedForSwap stores student ID.
+                        
+                        return (
+                            <div 
+                                key={index}
+                                onClick={() => handleSeatClick(index)}
+                                className={`
+                                    aspect-video rounded-xl border-2 flex flex-col items-center justify-center p-2 cursor-pointer transition-all shadow-sm relative
+                                    ${student ? 'bg-white border-gray-300 hover:border-purple-400' : 'bg-gray-50 border-dashed border-gray-300 hover:bg-white'}
+                                    ${selectedForSwap === student?.id && student ? 'ring-4 ring-purple-400 border-purple-500 scale-105 z-10' : ''}
+                                `}
+                            >
+                                <div className="absolute top-2 left-2 text-[10px] text-gray-400 font-mono">{index + 1}</div>
+                                {student ? (
+                                    <>
+                                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold mb-2">
+                                            {student.name.charAt(0)}
+                                        </div>
+                                        <div className="text-sm font-bold text-center leading-tight text-gray-800">{student.name}</div>
+                                        {performance.length > 0 && (
+                                            <div className="mt-1 text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-500">
+                                                {Math.round(getStudentAverage(student.id) * 100)}%
                                             </div>
-                                            <span className="text-xs md:text-sm font-bold text-gray-800 line-clamp-2 leading-tight">
-                                                {student.name}
-                                            </span>
-                                            {(arrangeMode.includes('LEVEL') || arrangeMode === 'MIXED') && (
-                                                <div className="absolute top-1 right-1 text-[8px] opacity-50 font-mono">
-                                                    {(avg * 100).toFixed(0)}%
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <span className="text-[10px] md:text-xs text-gray-400 font-medium">م {seatIdx + 1}</span>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <span className="text-gray-300 text-xs">فارغ</span>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
-            </div>
-            
-            <div className="p-2 bg-yellow-50 text-center text-xs text-yellow-800 border-t border-yellow-200 flex justify-center items-center gap-2">
-                <ArrowDownUp size={14}/>
-                اضغط على طالب ثم اضغط على مكان آخر لتبديل الأماكن يدوياً.
             </div>
         </div>
     );
