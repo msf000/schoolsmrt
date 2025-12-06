@@ -498,7 +498,6 @@ CREATE TABLE IF NOT EXISTS schools (
     type TEXT,
     phone TEXT,
     student_count NUMERIC,
-    subscription_status TEXT,
     works_master_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

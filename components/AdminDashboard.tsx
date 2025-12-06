@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 // ==========================================
-// 1. SCHOOLS MANAGER COMPONENT (Cleaned up)
+// 1. SCHOOLS MANAGER COMPONENT
 // ==========================================
 const SchoolsManager = () => {
     const [schools, setSchools] = useState<School[]>([]);
@@ -65,7 +65,6 @@ const SchoolsManager = () => {
             type: formData.type as any || 'PUBLIC',
             phone: formData.phone || '',
             studentCount: Number(formData.studentCount) || 0,
-            subscriptionStatus: 'ACTIVE', // Default to active, irrelevant now
             educationAdministration: formData.educationAdministration || ''
         };
 
@@ -188,7 +187,7 @@ const SchoolsManager = () => {
 };
 
 // ==========================================
-// 2. USERS MANAGER COMPONENT (Unchanged)
+// 2. USERS MANAGER COMPONENT
 // ==========================================
 const UsersManager = () => {
     const [users, setUsers] = useState<SystemUser[]>([]);
@@ -359,7 +358,7 @@ const UsersManager = () => {
 };
 
 // ==========================================
-// 3. SUBSCRIPTIONS MANAGER (UPDATED FOR TEACHERS)
+// 3. SUBSCRIPTIONS MANAGER
 // ==========================================
 const SubscriptionsManager = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -450,7 +449,7 @@ const SubscriptionsManager = () => {
 };
 
 // ==========================================
-// 4. AI SETTINGS COMPONENT (Separated)
+// 4. AI SETTINGS COMPONENT
 // ==========================================
 const AISettingsView = () => {
     const [aiConfig, setAiConfig] = useState<AISettings>({ modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' });
@@ -535,7 +534,7 @@ const AISettingsView = () => {
 };
 
 // ==========================================
-// 5. DATABASE SETTINGS (RESTORED FULL VERSION)
+// 5. DATABASE SETTINGS
 // ==========================================
 const DatabaseSettings = () => {
     const [dbTab, setDbTab] = useState<'CONFIG' | 'CLOUD' | 'MAINTENANCE'>('CONFIG');
@@ -815,7 +814,7 @@ const DatabaseSettings = () => {
             {dbTab === 'MAINTENANCE' && (
                 <div className="space-y-6 animate-fade-in">
                     
-                    {/* SQL Update Section (NEW) */}
+                    {/* SQL Update Section */}
                     <div className="bg-teal-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-teal-400"></div>
                         <h4 className="font-bold text-lg mb-2 flex items-center gap-2"><GitMerge size={20} className="text-teal-400"/> تحديثات القاعدة (Updates)</h4>
@@ -913,48 +912,32 @@ const DatabaseSettings = () => {
 };
 
 // ==========================================
-// MAIN ADMIN DASHBOARD WRAPPER
+// 6. MAIN ADMIN DASHBOARD WRAPPER
 // ==========================================
-const AdminDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'DATABASE' | 'USERS' | 'SCHOOLS' | 'SUBSCRIPTIONS' | 'AI_SETTINGS'>(() => {
-        return localStorage.getItem('admin_dashboard_active_tab') as any || 'DATABASE';
-    });
-
-    useEffect(() => {
-        localStorage.setItem('admin_dashboard_active_tab', activeTab);
-    }, [activeTab]);
+const AdminDashboard = () => {
+    const [activeTab, setActiveTab] = useState<'SCHOOLS' | 'USERS' | 'SUBSCRIPTIONS' | 'AI' | 'DATABASE'>('SCHOOLS');
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
+            <div className="mb-6 flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <Shield size={24} className="text-gray-900"/> لوحة تحكم النظام (Super Admin)
-                </h2>
-                <div className="flex bg-white rounded-lg p-1 border shadow-sm overflow-x-auto custom-scrollbar">
-                    <button onClick={() => setActiveTab('DATABASE')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'DATABASE' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
-                        <Database size={16}/> قاعدة البيانات
-                    </button>
-                    <button onClick={() => setActiveTab('SCHOOLS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'SCHOOLS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
-                        <Building size={16}/> المدارس
-                    </button>
-                    <button onClick={() => setActiveTab('USERS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'USERS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
-                        <Users size={16}/> المستخدمين
-                    </button>
-                    <button onClick={() => setActiveTab('SUBSCRIPTIONS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'SUBSCRIPTIONS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
-                        <CreditCard size={16}/> اشتراكات المعلمين
-                    </button>
-                    <button onClick={() => setActiveTab('AI_SETTINGS')} className={`px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'AI_SETTINGS' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}>
-                        <BrainCircuit size={16}/> إعدادات الذكاء الاصطناعي
-                    </button>
+                </h1>
+                <div className="flex bg-white p-1 rounded-lg border shadow-sm overflow-x-auto">
+                    <button onClick={() => setActiveTab('SCHOOLS')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'SCHOOLS' ? 'bg-blue-50 text-blue-700' : 'text-gray-500'}`}>المدارس</button>
+                    <button onClick={() => setActiveTab('USERS')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'USERS' ? 'bg-purple-50 text-purple-700' : 'text-gray-500'}`}>المستخدمين</button>
+                    <button onClick={() => setActiveTab('SUBSCRIPTIONS')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'SUBSCRIPTIONS' ? 'bg-green-50 text-green-700' : 'text-gray-500'}`}>الاشتراكات</button>
+                    <button onClick={() => setActiveTab('AI')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'AI' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500'}`}>AI</button>
+                    <button onClick={() => setActiveTab('DATABASE')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'DATABASE' ? 'bg-red-50 text-red-700' : 'text-gray-500'}`}>قاعدة البيانات</button>
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-h-[500px]">
-                {activeTab === 'DATABASE' && <DatabaseSettings />}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {activeTab === 'SCHOOLS' && <SchoolsManager />}
                 {activeTab === 'USERS' && <UsersManager />}
                 {activeTab === 'SUBSCRIPTIONS' && <SubscriptionsManager />}
-                {activeTab === 'AI_SETTINGS' && <AISettingsView />}
+                {activeTab === 'AI' && <AISettingsView />}
+                {activeTab === 'DATABASE' && <DatabaseSettings />}
             </div>
         </div>
     );

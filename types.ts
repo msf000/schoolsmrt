@@ -174,7 +174,7 @@ export interface School {
     managerNationalId?: string; // Link to Manager User
     phone: string;
     studentCount: number;
-    subscriptionStatus: 'ACTIVE' | 'EXPIRED' | 'TRIAL';
+    // subscriptionStatus removed
     worksMasterUrl?: string; // New: Global Cloud Link for Works Tracking
 }
 

@@ -113,8 +113,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         managerNationalId: formData.managerNationalId || undefined, // Optional (send undefined to skip column)
                         type: 'PUBLIC',
                         phone: '',
-                        studentCount: 0,
-                        subscriptionStatus: 'ACTIVE' // Default to active, no trial
+                        studentCount: 0
                     };
                     
                     // Attempt to save with retry logic

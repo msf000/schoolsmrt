@@ -1,5 +1,4 @@
 
-// ... existing imports ...
 import React, { useState, useEffect, useMemo } from 'react';
 import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig } from '../types';
 import { 
@@ -59,7 +58,6 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
 
   // Teacher Profile State (For Teacher View)
   const [teacherProfile, setTeacherProfile] = useState<Teacher | null>(null);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [linkMinistryCode, setLinkMinistryCode] = useState('');
   const [linkStatus, setLinkStatus] = useState<{success: boolean, msg: string} | null>(null);
   const [linkedManagerSchool, setLinkedManagerSchool] = useState<School | null>(null);
@@ -185,15 +183,12 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
           alert("الرجاء اختيار المادة من القائمة العلوية أولاً");
           return;
       }
-      // Teacher is optional, but preferred
       
       const existingItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
 
       // 1. TOGGLE OFF (Delete)
       // If clicking same subject (and teacher matches if set), delete it
       if (existingItem && existingItem.subjectName === activeSubject) {
-          // If activeTeacher is set, only delete if it matches, otherwise warn? 
-          // Simplification: Click same subject = remove, regardless of teacher for UX speed
           deleteScheduleItem(existingItem.id);
           setSchedules(getSchedules()); // Refresh
           return;
@@ -236,9 +231,6 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
       setSchedules(getSchedules());
   };
 
-  // ... (rest of imports and data loading logic remains same)
-
-  // ... (Report Settings and Feedback handlers remain same)
   // --- ACTIONS: REPORT SETTINGS ---
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -280,726 +272,454 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
               alert('رقم الهوية مطلوب.');
               return;
           }
-          const existing = getTeachers().find(t => t.id === teacherProfile.id);
-          if (existing) updateTeacher(teacherProfile);
-          else addTeacher(teacherProfile);
+          // Update basic info
+          updateTeacher(teacherProfile);
           
-          setIsEditingProfile(false);
-          alert('تم حفظ البيانات.');
+          // Handle Linking Logic if Code entered
+          if (linkMinistryCode) {
+             const schools = getSchools();
+             const targetSchool = schools.find(s => s.ministryCode === linkMinistryCode);
+             if (targetSchool) {
+                 const updated = { ...teacherProfile, schoolId: targetSchool.id, managerId: targetSchool.managerNationalId };
+                 updateTeacher(updated);
+                 setTeacherProfile(updated);
+                 setMySchool(targetSchool); // Update local context
+                 alert('تم ربط حسابك بالمدرسة بنجاح!');
+             } else {
+                 if (showNewSchoolForm && newSchoolData.name) {
+                     // Create School
+                     const newSchool: School = {
+                         id: Date.now().toString() + '_sch',
+                         name: newSchoolData.name,
+                         ministryCode: linkMinistryCode,
+                         managerName: newSchoolData.managerName || 'غير مسجل',
+                         managerNationalId: newSchoolData.managerId || undefined,
+                         type: 'PUBLIC',
+                         phone: '',
+                         studentCount: 0
+                     };
+                     addSchool(newSchool);
+                     const updated = { ...teacherProfile, schoolId: newSchool.id, managerId: newSchoolData.managerId };
+                     updateTeacher(updated);
+                     setTeacherProfile(updated);
+                     setMySchool(newSchool);
+                     alert('تم إنشاء المدرسة وربط الحساب!');
+                 } else {
+                     setLinkStatus({ success: false, msg: 'المدرسة غير موجودة. هل تريد إنشاءها؟' });
+                     setShowNewSchoolForm(true);
+                     return;
+                 }
+             }
+          } else {
+              alert('تم حفظ البيانات الشخصية.');
+          }
       }
   };
 
-  const handleLinkToSchool = () => {
-      setLinkStatus(null);
-      setShowNewSchoolForm(false);
+  // Render Helpers
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+  const dayNamesAr = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+  const periods = [1, 2, 3, 4, 5, 6, 7, 8];
 
-      if (!linkMinistryCode) {
-          setLinkStatus({ success: false, msg: 'الرجاء إدخال الرمز الوزاري.' });
-          return;
-      }
-
-      const allSchools = getSchools();
-      const targetSchool = allSchools.find(s => s.ministryCode === linkMinistryCode);
-      
-      if (!targetSchool) {
-          setLinkStatus({ success: false, msg: 'لم يتم العثور على مدرسة بهذا الرمز.' });
-          setShowNewSchoolForm(true); // Show form to create
-          return;
-      }
-      
-      performLinking(targetSchool);
-  };
-
-  const handleCreateAndLinkSchool = () => {
-      if (!newSchoolData.name || !newSchoolData.managerName || !newSchoolData.managerId) {
-          alert('جميع بيانات المدرسة والمدير مطلوبة.');
-          return;
-      }
-
-      const newSchool: School = {
-          id: Date.now().toString() + '_sch',
-          name: newSchoolData.name,
-          ministryCode: linkMinistryCode,
-          managerName: newSchoolData.managerName,
-          managerNationalId: newSchoolData.managerId,
-          type: 'PUBLIC',
-          phone: '',
-          studentCount: 0,
-          subscriptionStatus: 'ACTIVE' // No longer trial, just active by default
-      };
-
-      addSchool(newSchool);
-      performLinking(newSchool);
-  };
-
-  const performLinking = (targetSchool: School) => {
-      if (teacherProfile) {
-          const updated = { 
-              ...teacherProfile, 
-              schoolId: targetSchool.id, 
-              managerId: targetSchool.managerNationalId 
-          };
-          setTeacherProfile(updated);
-          updateTeacher(updated);
-          setLinkedManagerSchool(targetSchool);
-          setLinkStatus({ success: true, msg: `تم الربط بنجاح مع مدرسة: ${targetSchool.name}` });
-          setShowNewSchoolForm(false);
-          setNewSchoolData({ name: '', managerName: '', managerId: '' });
-      }
-  };
-
-  const handleUnlinkSchool = () => {
-      if (!teacherProfile) return;
-      if (confirm('هل أنت متأكد من فك الارتباط مع مدير المدرسة؟')) {
-          const updated = {
-              ...teacherProfile,
-              schoolId: undefined,
-              managerId: undefined
-          };
-          setTeacherProfile(updated);
-          updateTeacher(updated);
-          setLinkedManagerSchool(null);
-          setLinkStatus(null);
-          setShowNewSchoolForm(false);
-      }
-  };
-
-  const renderSubjectsTab = () => (
-      <div className="max-w-2xl mx-auto">
-          <div className="flex gap-2 mb-6">
-              <input className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="اسم المادة الجديدة (مثال: رياضيات)" value={newSubject} onChange={e => setNewSubject(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddSubject()} />
-              <button onClick={handleAddSubject} className="bg-green-600 text-white px-6 rounded-lg font-bold hover:bg-green-700 shadow-sm">إضافة</button>
-          </div>
-          <div className="grid gap-3">
-              {subjects.map(sub => (
-                  <div key={sub.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all">
-                      <span className="font-bold text-gray-700 flex items-center gap-2"><BookOpen size={18} className="text-indigo-500"/> {sub.name}</span>
-                      <button onClick={() => handleDeleteSubject(sub.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded transition-colors"><Trash2 size={18}/></button>
-                  </div>
-              ))}
-              {subjects.length === 0 && <p className="text-center text-gray-400 py-8 border-2 border-dashed rounded-lg">لا توجد مواد مضافة.</p>}
-          </div>
-      </div>
-  );
-
-  const renderScheduleTab = () => (
-      <div className="space-y-6">
-          <div className="flex items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
-                <div className="flex gap-4">
-                    <button 
-                        onClick={() => setScheduleViewMode('CLASS')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${scheduleViewMode === 'CLASS' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-                    >
-                        <Grid size={16}/> جدول الحصص (إعداد)
+  return (
+    <div className="p-6 h-full flex flex-col bg-gray-50">
+        <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <Settings size={28} className="text-gray-600"/>
+                {isManager ? 'إدارة المدرسة والمعلمين' : 'إعدادات المعلم'}
+            </h1>
+            
+            {/* TABS */}
+            <div className="flex bg-white p-1 rounded-lg border shadow-sm">
+                <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 ${activeTab === 'DASHBOARD' ? 'bg-gray-100 text-gray-800' : 'text-gray-500'}`}>
+                    <User size={16}/> {isManager ? 'لوحة المعلومات' : 'الملف الشخصي'}
+                </button>
+                {isManager && (
+                    <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 ${activeTab === 'TEACHERS' ? 'bg-purple-50 text-purple-700' : 'text-gray-500'}`}>
+                        <Users size={16}/> المعلمين
                     </button>
-                    {/* Show Full Schedule View button for EVERYONE (Teachers need to see their full schedule too) */}
-                    <button 
-                        onClick={() => setScheduleViewMode('TEACHER')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${scheduleViewMode === 'TEACHER' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-                    >
-                        <User size={16}/> جدول المعلم الشامل
-                    </button>
+                )}
+                <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 ${activeTab === 'SUBJECTS' ? 'bg-blue-50 text-blue-700' : 'text-gray-500'}`}>
+                    <BookOpen size={16}/> المواد
+                </button>
+                <button onClick={() => setActiveTab('SCHEDULE')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 ${activeTab === 'SCHEDULE' ? 'bg-green-50 text-green-700' : 'text-gray-500'}`}>
+                    <Clock size={16}/> الجدول المدرسي
+                </button>
+                <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 ${activeTab === 'SETTINGS' ? 'bg-orange-50 text-orange-700' : 'text-gray-500'}`}>
+                    <FileText size={16}/> إعدادات التقارير
+                </button>
+            </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+            {/* --- TAB: DASHBOARD / PROFILE --- */}
+            {activeTab === 'DASHBOARD' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+                    {/* Teacher Profile View */}
+                    {!isManager && teacherProfile && (
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><User size={20}/> بياناتي</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">الاسم</label>
+                                    <input className="w-full p-2 border rounded" value={teacherProfile.name} onChange={e => setTeacherProfile({...teacherProfile, name: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">البريد الإلكتروني</label>
+                                    <input className="w-full p-2 border rounded" value={teacherProfile.email || ''} onChange={e => setTeacherProfile({...teacherProfile, email: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">رقم الجوال</label>
+                                    <input className="w-full p-2 border rounded" value={teacherProfile.phone || ''} onChange={e => setTeacherProfile({...teacherProfile, phone: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">التخصص</label>
+                                    <input className="w-full p-2 border rounded" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})}/>
+                                </div>
+                            </div>
+
+                            {/* School Linking Section */}
+                            <div className="mt-6 pt-6 border-t">
+                                <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Building2 size={18}/> المدرسة التابعة</h4>
+                                {mySchool ? (
+                                    <div className="bg-green-50 p-4 rounded-lg border border-green-200 flex justify-between items-center">
+                                        <div>
+                                            <p className="font-bold text-green-800">{mySchool.name}</p>
+                                            <p className="text-xs text-green-600">المدير: {mySchool.managerName}</p>
+                                        </div>
+                                        <CheckCircle className="text-green-600"/>
+                                    </div>
+                                ) : (
+                                    <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                                        <p className="text-sm text-orange-800 mb-2 font-bold">لست مرتبطاً بأي مدرسة حالياً.</p>
+                                        <div className="flex gap-2 mb-2">
+                                            <input 
+                                                className="flex-1 p-2 border rounded text-sm" 
+                                                placeholder="أدخل الرمز الوزاري للمدرسة..."
+                                                value={linkMinistryCode}
+                                                onChange={e => setLinkMinistryCode(e.target.value)}
+                                            />
+                                        </div>
+                                        
+                                        {/* New School Form (Conditional) */}
+                                        {showNewSchoolForm && (
+                                            <div className="mt-2 space-y-2 animate-fade-in p-3 bg-white rounded border border-orange-100">
+                                                <p className="text-xs text-red-500 font-bold mb-1">{linkStatus?.msg}</p>
+                                                <input className="w-full p-2 border rounded text-sm" placeholder="اسم المدرسة الجديد *" value={newSchoolData.name} onChange={e => setNewSchoolData({...newSchoolData, name: e.target.value})} />
+                                                <input className="w-full p-2 border rounded text-sm" placeholder="اسم المدير (اختياري)" value={newSchoolData.managerName} onChange={e => setNewSchoolData({...newSchoolData, managerName: e.target.value})} />
+                                                <input className="w-full p-2 border rounded text-sm" placeholder="هوية المدير (اختياري)" value={newSchoolData.managerId} onChange={e => setNewSchoolData({...newSchoolData, managerId: e.target.value})} />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <button onClick={handleTeacherSaveProfile} className="mt-6 w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 flex justify-center items-center gap-2">
+                                <Save size={18}/> حفظ التغييرات
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Feedback Inbox (For Teachers) */}
+                    {!isManager && feedbackList.length > 0 && (
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Mail size={20}/> رسائل الإدارة</h3>
+                            <div className="space-y-3">
+                                {feedbackList.map(f => (
+                                    <div key={f.id} className="p-3 bg-gray-50 rounded border border-gray-100 text-sm">
+                                        <p className="text-gray-800 mb-1">{f.content}</p>
+                                        <span className="text-xs text-gray-400">{new Date(f.date).toLocaleDateString('ar-SA')}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Manager Dashboard */}
+                    {isManager && mySchool && (
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Building2 size={20}/> معلومات المدرسة</h3>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div className="p-3 bg-gray-50 rounded border">
+                                    <span className="block text-gray-500 text-xs">اسم المدرسة</span>
+                                    <span className="font-bold">{mySchool.name}</span>
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded border">
+                                    <span className="block text-gray-500 text-xs">الرمز الوزاري</span>
+                                    <span className="font-bold">{mySchool.ministryCode}</span>
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded border">
+                                    <span className="block text-gray-500 text-xs">المدير</span>
+                                    <span className="font-bold">{mySchool.managerName}</span>
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded border">
+                                    <span className="block text-gray-500 text-xs">عدد المعلمين</span>
+                                    <span className="font-bold">{teachers.filter(t => t.schoolId === mySchool.id).length}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
-          </div>
+            )}
 
-          {/* VIEW 1: CLASS SCHEDULE BUILDER */}
-          {scheduleViewMode === 'CLASS' && (
-              <>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200 mb-2">
-                    {/* 1. Select Class */}
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1"><Grid size={14}/> اختر الفصل (المستهدف)</label>
-                        <select className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold" value={selectedClassForSchedule} onChange={e => setSelectedClassForSchedule(e.target.value)}>
-                            <option value="">-- اختر الفصل --</option>
-                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+            {/* --- TAB: TEACHERS (Manager Only) --- */}
+            {activeTab === 'TEACHERS' && isManager && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
+                    {/* List */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col md:col-span-1">
+                        <div className="p-4 border-b bg-gray-50 font-bold text-gray-700">قائمة المعلمين</div>
+                        <div className="flex-1 overflow-y-auto">
+                            {myTeachers.length > 0 ? myTeachers.map(t => (
+                                <div 
+                                    key={t.id} 
+                                    onClick={() => setViewingTeacher(t)}
+                                    className={`p-4 border-b cursor-pointer hover:bg-purple-50 transition-colors ${viewingTeacher?.id === t.id ? 'bg-purple-50 border-l-4 border-l-purple-600' : ''}`}
+                                >
+                                    <div className="font-bold text-gray-800">{t.name}</div>
+                                    <div className="text-xs text-gray-500">{t.subjectSpecialty || 'غير محدد'}</div>
+                                </div>
+                            )) : <div className="p-8 text-center text-gray-400">لا يوجد معلمين مرتبطين</div>}
+                        </div>
                     </div>
 
-                    {/* 2. Select Subject (Tool) */}
-                    <div>
-                        <label className="block text-xs font-bold text-indigo-600 mb-1 flex items-center gap-1"><BookOpen size={14}/> المادة (أداة الرسم)</label>
-                        <select className="w-full p-2 border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold text-indigo-700" value={activeSubject} onChange={e => setActiveSubject(e.target.value)}>
-                            <option value="">-- اختر المادة للتعيين --</option>
-                            {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                        </select>
-                    </div>
+                    {/* Details & Feedback */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 md:col-span-2 p-6">
+                        {viewingTeacher ? (
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-800">{viewingTeacher.name}</h3>
+                                        <p className="text-gray-500">{viewingTeacher.email}</p>
+                                    </div>
+                                    <div className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-bold">
+                                        {viewingTeacher.subjectSpecialty}
+                                    </div>
+                                </div>
 
-                    {/* 3. Select Teacher (Tool) */}
-                    <div>
-                        <label className="block text-xs font-bold text-indigo-600 mb-1 flex items-center gap-1"><User size={14}/> المعلم</label>
-                        {isManager ? (
-                            // Managers can select ANY teacher
-                            <select className="w-full p-2 border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-bold text-indigo-700" value={activeTeacher} onChange={e => setActiveTeacher(e.target.value)}>
-                                <option value="">-- بدون معلم محدد --</option>
-                                {myTeachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.subjectSpecialty})</option>)}
-                            </select>
+                                <div className="border-t pt-6">
+                                    <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><Send size={18}/> إرسال توجيه / ملاحظة</h4>
+                                    <textarea 
+                                        className="w-full p-3 border rounded-lg h-32 resize-none focus:ring-2 focus:ring-purple-500 outline-none"
+                                        placeholder="اكتب ملاحظاتك للمعلم هنا..."
+                                        value={feedbackMsg}
+                                        onChange={e => setFeedbackMsg(e.target.value)}
+                                    />
+                                    <div className="flex justify-end mt-2">
+                                        <button onClick={handleSendFeedback} disabled={!feedbackMsg.trim()} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50">
+                                            إرسال
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         ) : (
-                            // Teachers see THEMSELVES automatically
-                            <div className="w-full p-2 border border-green-200 bg-green-50 rounded-lg text-green-800 text-sm font-bold flex items-center gap-2">
-                                <CheckCircle size={16} />
-                                <span>سيتم ربط الجدول بك ({teacherProfile?.name || currentUser?.name})</span>
+                            <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                                <User size={48} className="mb-4 opacity-20"/>
+                                <p>اختر معلماً لعرض التفاصيل</p>
                             </div>
                         )}
                     </div>
                 </div>
+            )}
 
-                <div className="flex items-center gap-2 mb-4 text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-100">
-                    <CheckSquare size={14} className="text-blue-600"/>
-                    <span>طريقة الاستخدام: اختر <b>المادة</b> {isManager ? 'والمعلم ' : ''}من القائمة أعلاه، ثم اضغط على الخانات في الجدول لإضافتها. اضغط مرة أخرى للحذف.</span>
-                </div>
-
-                {selectedClassForSchedule ? (
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm animate-fade-in">
-                        <table className="w-full text-center border-collapse">
-                            <thead>
-                                <tr className="bg-indigo-900 text-white">
-                                    <th className="p-3 border border-indigo-700 w-32">اليوم / الحصة</th>
-                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(p => <th key={p} className="p-3 border border-indigo-700">الحصة {p}</th>)}
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white">
-                                {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'].map(day => (
-                                    <tr key={day} className="hover:bg-gray-50">
-                                        <td className="p-3 border bg-gray-100 font-bold text-gray-700">
-                                            {{'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس'}[day]}
-                                        </td>
-                                        {[1, 2, 3, 4, 5, 6, 7, 8].map(period => {
-                                            const schedItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
-                                            // Find teacher name based on ID stored in schedule
-                                            const teacherObj = schedItem?.teacherId ? teachers.find(t => t.id === schedItem.teacherId) : null;
-                                            const teacherName = teacherObj ? teacherObj.name : null;
-                                            const subjectColors = generateEntityColor(schedItem?.subjectName || '');
-
-                                            // CHECK BUSY STATUS FOR ACTIVE TEACHER
-                                            let isBusy = false;
-                                            let busyClass = '';
-                                            if (activeTeacher && !schedItem) {
-                                                const conflict = checkTeacherConflict(activeTeacher, day, period, selectedClassForSchedule);
-                                                if (conflict.conflict) {
-                                                    isBusy = true;
-                                                    busyClass = conflict.className || '';
-                                                }
-                                            }
-
-                                            return (
-                                                <td 
-                                                    key={period} 
-                                                    onClick={() => handleScheduleCellClick(day, period)}
-                                                    className={`p-1 border h-24 align-top cursor-pointer transition-all hover:shadow-inner 
-                                                        ${schedItem ? `${subjectColors.bg} group` : isBusy ? 'bg-gray-200 cursor-not-allowed opacity-75' : 'hover:bg-green-50'}`
-                                                    }
-                                                >
-                                                    {schedItem ? (
-                                                        <div className="flex flex-col justify-between h-full p-1 relative">
-                                                            <span className={`font-bold block text-sm ${subjectColors.text}`}>{schedItem.subjectName}</span>
-                                                            {teacherName && (
-                                                                <span className="text-[10px] bg-white/50 border border-white/20 rounded px-1 text-gray-700 mt-1 block truncate">
-                                                                    {teacherName}
-                                                                </span>
-                                                            )}
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-red-100/90 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold rounded backdrop-blur-sm">
-                                                                <Eraser size={20}/> حذف
-                                                            </div>
-                                                        </div>
-                                                    ) : isBusy ? (
-                                                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGQ9Ik0wIDhMOCAwTTggOEwwIDAiIHN0cm9rZT0iI2NjYyIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+')]">
-                                                            <span className="text-xs font-bold text-red-500 bg-white/80 px-1 rounded">مشغول</span>
-                                                            <span className="text-[10px] bg-white/80 px-1 rounded mt-1">{busyClass}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-gray-200 hover:text-green-400">
-                                                            <PlusCircle size={20}/>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {/* --- TAB: SUBJECTS --- */}
+            {activeTab === 'SUBJECTS' && (
+                <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="font-bold text-lg mb-6 flex items-center gap-2"><BookOpen size={20}/> إدارة المواد الدراسية</h3>
+                    
+                    <div className="flex gap-2 mb-6">
+                        <input 
+                            className="flex-1 p-2 border rounded-lg"
+                            placeholder="اسم المادة الجديدة..."
+                            value={newSubject}
+                            onChange={e => setNewSubject(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleAddSubject()}
+                        />
+                        <button onClick={handleAddSubject} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700">
+                            <PlusCircle size={20}/>
+                        </button>
                     </div>
-                ) : (
-                    <div className="text-center py-12 text-gray-400 bg-white border-2 border-dashed rounded-xl">
-                        <Grid size={48} className="mx-auto mb-2 opacity-20"/>
-                        <p>الرجاء اختيار فصل لعرض وبناء الجدول</p>
+
+                    <div className="space-y-2">
+                        {subjects.map(s => (
+                            <div key={s.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 group">
+                                <span className="font-bold text-gray-700">{s.name}</span>
+                                <button onClick={() => handleDeleteSubject(s.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Trash2 size={18}/>
+                                </button>
+                            </div>
+                        ))}
+                        {subjects.length === 0 && <p className="text-center text-gray-400 py-4">لا توجد مواد مضافة</p>}
                     </div>
-                )}
-              </>
-          )}
-
-          {/* VIEW 2: TEACHER COMPREHENSIVE SCHEDULE (NOW FOR ALL) */}
-          {scheduleViewMode === 'TEACHER' && (
-              <>
-                <div className="flex items-center gap-4 bg-purple-50 p-4 rounded-lg border border-purple-200">
-                    <label className="font-bold text-purple-800 flex items-center gap-2"><User size={18}/> اختر المعلم:</label>
-                    <select 
-                        className="p-2 border rounded-lg min-w-[200px] outline-none focus:ring-2 focus:ring-purple-500" 
-                        value={selectedTeacherForSchedule} 
-                        onChange={e => setSelectedTeacherForSchedule(e.target.value)}
-                    >
-                        <option value="">-- كل الجدول (مشاهدة عامة) --</option>
-                        {isManager 
-                            ? myTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                            : teachers.filter(t => t.id === currentUser?.id || t.nationalId === currentUser?.nationalId).map(t => <option key={t.id} value={t.id}>{t.name} (أنا)</option>)
-                        }
-                    </select>
                 </div>
+            )}
 
-                <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm animate-fade-in">
-                    <table className="w-full text-center border-collapse">
-                        <thead>
-                            <tr className="bg-purple-800 text-white">
-                                <th className="p-3 border border-purple-600 w-32">اليوم / الحصة</th>
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map(p => <th key={p} className="p-3 border border-purple-600">الحصة {p}</th>)}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white">
-                            {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'].map(day => (
-                                <tr key={day} className="hover:bg-purple-50">
-                                    <td className="p-3 border bg-gray-100 font-bold text-gray-700">
-                                        {{'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس'}[day]}
-                                    </td>
-                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(period => {
-                                        // Get all schedules for this slot
-                                        const slotSchedules = schedules.filter(s => s.day === day && s.period === period);
-                                        
-                                        // Find relevant classes for the selected teacher (or all if none selected)
-                                        let myClasses: {class: string, subject: string}[] = [];
-                                        
-                                        slotSchedules.forEach(s => {
-                                            // Check direct teacher assignment in ScheduleItem (Priority)
-                                            if (selectedTeacherForSchedule) {
-                                                if (s.teacherId === selectedTeacherForSchedule) {
-                                                    myClasses.push({ class: s.classId, subject: s.subjectName });
-                                                }
-                                                // Check legacy assignment mapping if ID missing
-                                                else if (!s.teacherId) {
-                                                    const assignment = assignments.find(a => a.classId === s.classId && a.subjectName === s.subjectName);
-                                                    if (assignment?.teacherId === selectedTeacherForSchedule) {
-                                                        myClasses.push({ class: s.classId, subject: s.subjectName });
-                                                    }
-                                                }
-                                            } else {
-                                                // If "All Schedule" - Show general info? Or maybe disable this view for ALL if messy
-                                                // For now, let's just show if teacher matches ANYONE in the list to indicate occupied slots
-                                                // Simplified: Show count or first match
-                                            }
-                                        });
+            {/* --- TAB: SCHEDULE --- */}
+            {activeTab === 'SCHEDULE' && (
+                <div className="h-full flex flex-col space-y-4">
+                    {/* Controls */}
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-wrap gap-4 items-center justify-between">
+                        <div className="flex gap-4">
+                            <div className="flex flex-col">
+                                <label className="text-xs font-bold text-gray-500 mb-1">المادة (للتوزيع)</label>
+                                <select className="p-2 border rounded bg-gray-50 min-w-[150px]" value={activeSubject} onChange={e => setActiveSubject(e.target.value)}>
+                                    <option value="">-- اختر --</option>
+                                    {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                </select>
+                            </div>
+                            
+                            {/* Only show Teacher Selector if Admin/Manager OR if Teacher wants to verify self */}
+                            <div className="flex flex-col">
+                                <label className="text-xs font-bold text-gray-500 mb-1">المعلم (للتوزيع)</label>
+                                <select 
+                                    className="p-2 border rounded bg-gray-50 min-w-[150px]" 
+                                    value={activeTeacher} 
+                                    onChange={e => setActiveTeacher(e.target.value)}
+                                    disabled={!isManager} // Lock for teachers to themselves
+                                >
+                                    {isManager && <option value="">-- بدون معلم --</option>}
+                                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
 
-                                        return (
-                                            <td key={period} className={`p-2 border h-20 align-middle ${myClasses.length > 0 ? 'bg-purple-50' : ''}`}>
-                                                {myClasses.map((cls, idx) => {
-                                                    const classColors = generateEntityColor(cls.class);
-                                                    return (
-                                                        <div key={idx} className={`rounded border p-1 mb-1 shadow-sm text-xs ${classColors.bg} ${classColors.border}`}>
-                                                            <span className={`font-bold block ${classColors.text}`}>{cls.class}</span>
-                                                            <span className="text-gray-500">{cls.subject}</span>
-                                                        </div>
-                                                    )
-                                                })}
-                                                {myClasses.length === 0 && <span className="text-gray-300">-</span>}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-              </>
-          )}
-      </div>
-  );
+                        <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+                            <button onClick={() => setScheduleViewMode('CLASS')} className={`px-3 py-1 rounded text-sm font-bold ${scheduleViewMode === 'CLASS' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>عرض الفصول</button>
+                            {isManager && <button onClick={() => setScheduleViewMode('TEACHER')} className={`px-3 py-1 rounded text-sm font-bold ${scheduleViewMode === 'TEACHER' ? 'bg-white shadow text-purple-600' : 'text-gray-500'}`}>عرض المعلمين</button>}
+                        </div>
+                    </div>
 
-  const renderSettingsTab = () => (
-      <div className="max-w-3xl mx-auto space-y-6 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h4 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2"><FileText size={20}/> ترويسة التقارير الرسمية</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                  <label className="block text-sm font-bold text-gray-600 mb-1">اسم المدرسة</label>
-                  <input className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})} />
-              </div>
-              <div>
-                  <label className="block text-sm font-bold text-gray-600 mb-1">الإدارة التعليمية (مثال: تعليم الرياض)</label>
-                  <input className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none" value={reportConfig.educationAdmin} onChange={e => setReportConfig({...reportConfig, educationAdmin: e.target.value})} />
-              </div>
-              <div>
-                  <label className="block text-sm font-bold text-gray-600 mb-1">اسم مدير المدرسة (للتوقيع)</label>
-                  <input className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none" value={reportConfig.schoolManager} onChange={e => setReportConfig({...reportConfig, schoolManager: e.target.value})} />
-              </div>
-              <div>
-                  <label className="block text-sm font-bold text-gray-600 mb-1">العام الدراسي</label>
-                  <input className="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none" value={reportConfig.academicYear} onChange={e => setReportConfig({...reportConfig, academicYear: e.target.value})} />
-              </div>
-          </div>
-          
-          <div className="border-t pt-4">
-              <label className="block text-sm font-bold text-gray-600 mb-2">شعار المدرسة</label>
-              <div className="flex items-center gap-4">
-                  {reportConfig.logoBase64 && <img src={reportConfig.logoBase64} alt="Logo" className="h-20 w-20 object-contain border rounded bg-gray-50"/>}
-                  <label className="cursor-pointer bg-gray-100 px-4 py-2 rounded border hover:bg-gray-200 flex items-center gap-2 text-sm font-bold text-gray-600 transition-colors">
-                      <Upload size={16}/> رفع صورة
-                      <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                  </label>
-              </div>
-          </div>
+                    <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                        <div className="p-3 bg-blue-50 border-b text-xs text-blue-800 text-center font-bold">
+                            اضغط على الخلية في الجدول لتعيين المادة "{activeSubject || '...'}" {activeTeacher ? `للمعلم المحدد` : ''}. اضغط مرة أخرى للحذف.
+                        </div>
+                        
+                        <div className="flex-1 overflow-auto p-4">
+                            {scheduleViewMode === 'CLASS' ? (
+                                <div className="space-y-8">
+                                    {/* Selector for Class View to avoid massive scroll */}
+                                    <div className="mb-4">
+                                        <label className="font-bold ml-2">اختر الفصل للعرض:</label>
+                                        <select className="p-2 border rounded" value={selectedClassForSchedule} onChange={e => setSelectedClassForSchedule(e.target.value)}>
+                                            <option value="">-- اختر --</option>
+                                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
 
-          <div className="flex justify-end pt-4">
-              <button onClick={handleSaveSettings} className="bg-indigo-600 text-white px-8 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2 shadow-lg transition-transform active:scale-95">
-                  <Save size={18}/> حفظ الإعدادات
-              </button>
-          </div>
-      </div>
-  );
-
-  // ================= RENDER: MANAGER VIEW =================
-  if (isManager) {
-      if (!mySchool) return (
-          <div className="p-12 text-center text-gray-500 bg-white rounded-xl border-2 border-dashed m-6">
-              <AlertCircle size={48} className="mx-auto mb-4 text-red-400"/>
-              <h3 className="text-xl font-bold mb-2">لا توجد مدرسة مرتبطة بحسابك</h3>
-              <p>بصفتك مديراً، يجب إنشاء ملف للمدرسة أولاً من لوحة التحكم أو التواصل مع الدعم.</p>
-          </div>
-      );
-
-      return (
-          <div className="p-6 animate-fade-in space-y-6">
-              {/* Header */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
-                  <div>
-                      <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                          <Building2 className="text-indigo-600"/> إدارة المدرسة: {mySchool.name}
-                      </h2>
-                      <p className="text-gray-500 text-sm mt-1">مدير المدرسة: {mySchool.managerName}</p>
-                  </div>
-                  <div className="bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-lg flex items-center gap-3">
-                      <div>
-                          <p className="text-xs text-indigo-600 font-bold uppercase">الرمز الوزاري (للربط)</p>
-                          <p className="text-xl font-mono font-black text-indigo-900 tracking-widest">{mySchool.ministryCode}</p>
-                      </div>
-                      <button onClick={() => navigator.clipboard.writeText(mySchool.ministryCode || '')} className="p-2 hover:bg-white rounded-full text-indigo-500">
-                          <Copy size={18}/>
-                      </button>
-                  </div>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
-                  <TabButton active={activeTab === 'DASHBOARD'} onClick={() => setActiveTab('DASHBOARD')} icon={<Grid size={18}/>} label="نظرة عامة" />
-                  <TabButton active={activeTab === 'TEACHERS'} onClick={() => setActiveTab('TEACHERS')} icon={<Users size={18}/>} label="المعلمين" />
-                  <TabButton active={activeTab === 'SUBJECTS'} onClick={() => setActiveTab('SUBJECTS')} icon={<BookOpen size={18}/>} label="المواد الدراسية" />
-                  <TabButton active={activeTab === 'SCHEDULE'} onClick={() => setActiveTab('SCHEDULE')} icon={<Clock size={18}/>} label="الجدول والمعلمين" />
-                  <TabButton active={activeTab === 'SETTINGS'} onClick={() => setActiveTab('SETTINGS')} icon={<Settings size={18}/>} label="إعدادات التقارير" />
-              </div>
-
-              {/* Content */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 min-h-[500px] p-6">
-                  
-                  {activeTab === 'DASHBOARD' && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 flex items-center gap-4">
-                              <div className="bg-blue-100 p-3 rounded-full text-blue-600"><Users size={24}/></div>
-                              <div>
-                                  <p className="text-sm text-gray-500 font-bold">عدد المعلمين</p>
-                                  <h3 className="text-2xl font-bold text-gray-800">{myTeachers.length}</h3>
-                              </div>
-                          </div>
-                          <div className="bg-green-50 p-6 rounded-xl border border-green-100 flex items-center gap-4">
-                              <div className="bg-green-100 p-3 rounded-full text-green-600"><Users size={24}/></div>
-                              <div>
-                                  <p className="text-sm text-gray-500 font-bold">عدد الطلاب</p>
-                                  <h3 className="text-2xl font-bold text-gray-800">{students.length}</h3>
-                              </div>
-                          </div>
-                          <div className="bg-purple-50 p-6 rounded-xl border border-purple-100 flex items-center gap-4">
-                              <div className="bg-purple-100 p-3 rounded-full text-purple-600"><Building2 size={24}/></div>
-                              <div>
-                                  <p className="text-sm text-gray-500 font-bold">الفصول الدراسية</p>
-                                  <h3 className="text-2xl font-bold text-gray-800">{uniqueClasses.length}</h3>
-                              </div>
-                          </div>
-                      </div>
-                  )}
-
-                  {activeTab === 'TEACHERS' && (
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                          <div className="lg:col-span-1 border-l pl-4">
-                              <h4 className="font-bold text-gray-700 mb-4">قائمة المعلمين المرتبطين</h4>
-                              <div className="space-y-2">
-                                  {myTeachers.map(t => (
-                                      <div key={t.id} onClick={() => setViewingTeacher(t)} className={`p-3 rounded-lg border cursor-pointer flex items-center gap-3 hover:bg-gray-50 ${viewingTeacher?.id === t.id ? 'bg-indigo-50 border-indigo-200' : ''}`}>
-                                          <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">{t.name.charAt(0)}</div>
-                                          <div className="flex-1">
-                                              <div className="font-bold text-sm">{t.name}</div>
-                                              <div className="text-xs text-gray-500">{t.subjectSpecialty || 'عام'}</div>
-                                          </div>
-                                      </div>
-                                  ))}
-                                  {myTeachers.length === 0 && <p className="text-sm text-gray-400 text-center">لا يوجد معلمين. شارك الرمز الوزاري معهم.</p>}
-                              </div>
-                          </div>
-                          <div className="lg:col-span-2">
-                              {viewingTeacher ? (
-                                  <div>
-                                      <div className="flex justify-between items-start mb-6 border-b pb-4">
-                                          <div>
-                                              <h3 className="text-xl font-bold text-gray-800">{viewingTeacher.name}</h3>
-                                              <div className="flex gap-4 text-sm text-gray-500 mt-1">
-                                                  <span className="flex items-center gap-1"><Mail size={14}/> {viewingTeacher.email}</span>
-                                                  <span className="flex items-center gap-1"><ShieldCheck size={14}/> الهوية: {viewingTeacher.nationalId}</span>
-                                              </div>
-                                          </div>
-                                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">نشط</span>
-                                      </div>
-                                      <div className="mb-6">
-                                          <h4 className="font-bold text-gray-700 mb-2">إرسال توجيه / ملاحظة</h4>
-                                          <textarea className="w-full p-3 border rounded-lg bg-gray-50 focus:bg-white h-24 text-sm" placeholder="اكتب ملاحظتك هنا..." value={feedbackMsg} onChange={e => setFeedbackMsg(e.target.value)} />
-                                          <button onClick={handleSendFeedback} className="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700"><Send size={16}/> إرسال</button>
-                                      </div>
-                                      <div>
-                                          <h4 className="font-bold text-gray-700 mb-2">سجل الملاحظات</h4>
-                                          <div className="bg-gray-50 p-4 rounded-lg border h-40 overflow-y-auto space-y-2">
-                                              {feedbackList.filter(f => f.teacherId === viewingTeacher.id).map(f => (
-                                                  <div key={f.id} className="bg-white p-2 rounded border border-gray-200 text-sm">
-                                                      <p>{f.content}</p>
-                                                      <span className="text-[10px] text-gray-400">{new Date(f.date).toLocaleDateString('ar-SA')}</span>
-                                                  </div>
-                                              ))}
-                                          </div>
-                                      </div>
-                                  </div>
-                              ) : (
-                                  <div className="h-full flex items-center justify-center text-gray-400">اختر معلماً لعرض التفاصيل</div>
-                              )}
-                          </div>
-                      </div>
-                  )}
-
-                  {activeTab === 'SUBJECTS' && renderSubjectsTab()}
-                  {activeTab === 'SCHEDULE' && renderScheduleTab()}
-                  {activeTab === 'SETTINGS' && renderSettingsTab()}
-              </div>
-          </div>
-      );
-  }
-
-  // ================= RENDER: TEACHER VIEW =================
-  return (
-      <div className="p-6 animate-fade-in space-y-6">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <User className="text-teal-600"/> ملفي الشخصي وإعدادات العمل
-            </h2>
-            <p className="text-gray-500 text-sm mt-1">إدارة بياناتك، الربط بالمدرسة، والتحكم في الإعدادات الدراسية.</p>
-          </div>
-
-          {/* Teacher Tabs - Reordered */}
-          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto mb-6">
-              <TabButton active={activeTab === 'DASHBOARD'} onClick={() => setActiveTab('DASHBOARD')} icon={<Grid size={18}/>} label="نظرة عامة" />
-              <TabButton active={activeTab === 'SUBJECTS'} onClick={() => setActiveTab('SUBJECTS')} icon={<BookOpen size={18}/>} label="المواد الدراسية" />
-              <TabButton active={activeTab === 'SCHEDULE'} onClick={() => setActiveTab('SCHEDULE')} icon={<Clock size={18}/>} label="الجدول الدراسي" />
-              <TabButton active={activeTab === 'SETTINGS'} onClick={() => setActiveTab('SETTINGS')} icon={<Settings size={18}/>} label="إعدادات التقارير" />
-              <TabButton active={activeTab === 'PROFILE'} onClick={() => setActiveTab('PROFILE')} icon={<User size={18}/>} label="الملف الشخصي والربط" />
-          </div>
-
-          {/* TAB CONTENT FOR TEACHER */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 min-h-[500px] p-6">
-              
-              {activeTab === 'PROFILE' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-                      {/* Profile Settings */}
-                      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                          <div className="flex justify-between items-center mb-4 border-b pb-2">
-                              <h3 className="font-bold text-gray-800 flex items-center gap-2"><FileText size={18}/> بياناتي الأساسية</h3>
-                              <button 
-                                onClick={() => setIsEditingProfile(!isEditingProfile)}
-                                className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all ${isEditingProfile ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                              >
-                                  {isEditingProfile ? 'إلغاء' : <><Edit size={14}/> تعديل البيانات</>}
-                              </button>
-                          </div>
-                          
-                          <div className="space-y-4">
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-600 mb-1">الاسم الرباعي</label>
-                                  <input 
-                                    className={`w-full p-2 rounded transition-all ${isEditingProfile ? 'border focus:ring-2 focus:ring-teal-500' : 'bg-transparent border-none text-gray-800 font-bold px-0'}`} 
-                                    value={teacherProfile?.name || ''} 
-                                    onChange={e => setTeacherProfile({...teacherProfile!, name: e.target.value})} 
-                                    disabled={!isEditingProfile}
-                                  />
-                              </div>
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-600 mb-1">رقم الهوية (هام للربط)</label>
-                                  <input 
-                                    className={`w-full p-2 rounded font-mono transition-all ${isEditingProfile ? 'border focus:ring-2 focus:ring-teal-500' : 'bg-transparent border-none text-gray-800 font-bold px-0'}`} 
-                                    value={teacherProfile?.nationalId || ''} 
-                                    onChange={e => setTeacherProfile({...teacherProfile!, nationalId: e.target.value})} 
-                                    disabled={!isEditingProfile}
-                                  />
-                              </div>
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-600 mb-1">التخصص</label>
-                                  <input 
-                                    className={`w-full p-2 rounded transition-all ${isEditingProfile ? 'border focus:ring-2 focus:ring-teal-500' : 'bg-transparent border-none text-gray-800 font-bold px-0'}`} 
-                                    value={teacherProfile?.subjectSpecialty || ''} 
-                                    onChange={e => setTeacherProfile({...teacherProfile!, subjectSpecialty: e.target.value})} 
-                                    disabled={!isEditingProfile}
-                                  />
-                              </div>
-                              
-                              {isEditingProfile && (
-                                <div className="animate-fade-in pt-2">
-                                    <label className="block text-sm font-bold text-gray-600 mb-1 flex items-center gap-2"><Lock size={14}/> الرقم السري (للدخول)</label>
-                                    <input 
-                                        className="w-full p-2 border rounded font-mono" 
-                                        type="password" 
-                                        value={teacherProfile?.password || ''} 
-                                        onChange={e => setTeacherProfile({...teacherProfile!, password: e.target.value})} 
-                                    />
-                                    <button onClick={handleTeacherSaveProfile} className="w-full bg-teal-600 text-white py-2 rounded font-bold hover:bg-teal-700 mt-4">
-                                        حفظ التغييرات
-                                    </button>
+                                    {selectedClassForSchedule && (
+                                        <div className="border rounded-xl overflow-hidden">
+                                            <div className="bg-gray-100 p-3 font-bold text-center border-b">{selectedClassForSchedule}</div>
+                                            <table className="w-full text-center border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gray-50 text-xs text-gray-500">
+                                                        <th className="p-2 border">اليوم / الحصة</th>
+                                                        {periods.map(p => <th key={p} className="p-2 border">{p}</th>)}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {days.map(day => (
+                                                        <tr key={day}>
+                                                            <td className="p-2 border font-bold text-sm bg-gray-50 w-24">{dayNamesAr[day as keyof typeof dayNamesAr]}</td>
+                                                            {periods.map(period => {
+                                                                const session = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
+                                                                const teacher = teachers.find(t => t.id === session?.teacherId);
+                                                                const isMySubject = session?.subjectName === activeSubject;
+                                                                
+                                                                return (
+                                                                    <td 
+                                                                        key={period} 
+                                                                        onClick={() => handleScheduleCellClick(day, period)}
+                                                                        className={`p-2 border cursor-pointer hover:opacity-80 transition-all h-16 w-24 relative ${session ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                                                                    >
+                                                                        {session ? (
+                                                                            <div className="flex flex-col items-center justify-center h-full">
+                                                                                <span className="font-bold text-blue-800 text-sm">{session.subjectName}</span>
+                                                                                {teacher && <span className="text-[10px] text-gray-500">{teacher.name}</span>}
+                                                                                {/* Warning if conflict */}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-gray-200 text-xs">+</span>
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                 </div>
-                              )}
-                          </div>
-                      </div>
+                            ) : (
+                                // TEACHER VIEW (Admin Only)
+                                <div className="text-center text-gray-500 py-10">
+                                    عرض الجدول حسب المعلم (قريباً)
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                      {/* School Linking */}
-                      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-fit">
-                          <h3 className="font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2"><LinkIcon size={18}/> الربط بالمدرسة</h3>
-                          
-                          {teacherProfile?.schoolId ? (
-                              <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-4">
-                                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600 mb-2">
-                                      <CheckCircle size={32}/>
-                                  </div>
-                                  <div>
-                                      <h4 className="font-bold text-green-800 text-lg">حسابك مرتبط بنجاح</h4>
-                                      <p className="text-sm text-green-700 mt-1">بالمدرسة: <b>{linkedManagerSchool?.name || 'غير معروف'}</b></p>
-                                  </div>
-                                  
-                                  {linkedManagerSchool && (
-                                      <div className="bg-white p-3 rounded border border-green-200 text-right text-sm">
-                                          <p className="font-bold text-gray-700 mb-2 border-b pb-1">بيانات المدير:</p>
-                                          <div className="grid grid-cols-2 gap-2">
-                                              <span className="text-gray-500">الاسم:</span>
-                                              <span className="font-bold">{linkedManagerSchool.managerName}</span>
-                                              <span className="text-gray-500">الهاتف:</span>
-                                              <span className="font-bold dir-ltr flex items-center justify-end gap-1"><Phone size={12}/> {linkedManagerSchool.phone || '-'}</span>
-                                          </div>
-                                      </div>
-                                  )}
+            {/* --- TAB: SETTINGS (Reports) --- */}
+            {activeTab === 'SETTINGS' && (
+                <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="font-bold text-lg mb-6 flex items-center gap-2"><FileText size={20}/> ترويسة التقارير الرسمية</h3>
+                    
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">إدارة التعليم</label>
+                                <input className="w-full p-2 border rounded" value={reportConfig.educationAdmin} onChange={e => setReportConfig({...reportConfig, educationAdmin: e.target.value})} placeholder="الرياض"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label>
+                                <input className="w-full p-2 border rounded" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})}/>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">اسم المعلم (الافتراضي)</label>
+                                <input className="w-full p-2 border rounded" value={reportConfig.teacherName} onChange={e => setReportConfig({...reportConfig, teacherName: e.target.value})}/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">مدير المدرسة</label>
+                                <input className="w-full p-2 border rounded" value={reportConfig.schoolManager} onChange={e => setReportConfig({...reportConfig, schoolManager: e.target.value})}/>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">العام الدراسي</label>
+                                <input className="w-full p-2 border rounded" value={reportConfig.academicYear} onChange={e => setReportConfig({...reportConfig, academicYear: e.target.value})} placeholder="1447هـ"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">الفصل الدراسي</label>
+                                <input className="w-full p-2 border rounded" value={reportConfig.term} onChange={e => setReportConfig({...reportConfig, term: e.target.value})} placeholder="الأول"/>
+                            </div>
+                        </div>
 
-                                  <button onClick={handleUnlinkSchool} className="w-full bg-white border border-red-200 text-red-600 py-2 rounded font-bold hover:bg-red-50 flex items-center justify-center gap-2 text-sm mt-4">
-                                      <Unlink size={16}/> فك الربط مع المدرسة
-                                  </button>
-                              </div>
-                          ) : (
-                              <div className="space-y-4">
-                                  <p className="text-sm text-gray-500 mb-4 bg-yellow-50 p-3 rounded border border-yellow-100 flex gap-2">
-                                      <AlertCircle size={20} className="text-yellow-600 shrink-0"/>
-                                      لربط حسابك، احصل على "الرمز الوزاري" من مدير المدرسة وأدخله هنا. يسمح الربط للمدير بمتابعة تقاريرك.
-                                  </p>
-                                  <div>
-                                      <label className="block text-sm font-bold text-gray-600 mb-1">الرمز الوزاري للمدرسة</label>
-                                      <input className="w-full p-3 border rounded text-center font-mono tracking-widest text-lg focus:ring-2 focus:ring-indigo-500 outline-none uppercase" placeholder="XXXXXX" value={linkMinistryCode} onChange={e => setLinkMinistryCode(e.target.value)} />
-                                  </div>
-                                  
-                                  {linkStatus && (
-                                      <div className={`p-3 rounded text-sm font-bold text-center ${linkStatus.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                          {linkStatus.msg}
-                                      </div>
-                                  )}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">شعار المدرسة</label>
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 relative">
+                                <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                                {reportConfig.logoBase64 ? (
+                                    <img src={reportConfig.logoBase64} alt="Logo" className="h-20 mx-auto object-contain"/>
+                                ) : (
+                                    <div className="text-gray-400 flex flex-col items-center">
+                                        <Upload size={24} className="mb-2"/>
+                                        <span className="text-xs">اضغط لرفع الشعار</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
-                                  {!showNewSchoolForm && (
-                                      <button onClick={handleLinkToSchool} className="w-full bg-indigo-600 text-white py-2 rounded font-bold hover:bg-indigo-700 flex justify-center items-center gap-2 shadow-md">
-                                          <Search size={18}/> بحث وربط
-                                      </button>
-                                  )}
-
-                                  {/* NEW SCHOOL FORM */}
-                                  {showNewSchoolForm && (
-                                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3 animate-fade-in mt-4">
-                                          <h4 className="font-bold text-sm text-gray-800 flex items-center gap-1"><PlusCircle size={14}/> بيانات المدرسة الجديدة</h4>
-                                          <input 
-                                              className="w-full p-2 border rounded text-sm" 
-                                              placeholder="اسم المدرسة" 
-                                              value={newSchoolData.name} 
-                                              onChange={e => setNewSchoolData({...newSchoolData, name: e.target.value})}
-                                          />
-                                          <input 
-                                              className="w-full p-2 border rounded text-sm" 
-                                              placeholder="اسم مدير المدرسة" 
-                                              value={newSchoolData.managerName} 
-                                              onChange={e => setNewSchoolData({...newSchoolData, managerName: e.target.value})}
-                                          />
-                                          <input 
-                                              className="w-full p-2 border rounded text-sm font-mono" 
-                                              placeholder="رقم هوية المدير" 
-                                              value={newSchoolData.managerId} 
-                                              onChange={e => setNewSchoolData({...newSchoolData, managerId: e.target.value})}
-                                          />
-                                          <button 
-                                              onClick={handleCreateAndLinkSchool}
-                                              className="w-full bg-green-600 text-white py-2 rounded font-bold text-sm hover:bg-green-700"
-                                          >
-                                              إنشاء وربط
-                                          </button>
-                                      </div>
-                                  )}
-                              </div>
-                          )}
-                      </div>
-                  </div>
-              )}
-
-              {activeTab === 'DASHBOARD' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                      <div className="bg-green-50 p-6 rounded-xl border border-green-100 flex items-center gap-4">
-                          <div className="bg-green-100 p-4 rounded-full text-green-600"><Users size={32}/></div>
-                          <div>
-                              <p className="text-sm text-gray-500 font-bold">الطلاب المسجلين (الكلي)</p>
-                              <h3 className="text-3xl font-bold text-gray-800">{students.length}</h3>
-                          </div>
-                      </div>
-                      <div className="bg-purple-50 p-6 rounded-xl border border-purple-100 flex items-center gap-4">
-                          <div className="bg-purple-100 p-4 rounded-full text-purple-600"><Building2 size={32}/></div>
-                          <div>
-                              <p className="text-sm text-gray-500 font-bold">الفصول الدراسية</p>
-                              <h3 className="text-3xl font-bold text-gray-800">{uniqueClasses.length}</h3>
-                          </div>
-                      </div>
-                      <div className="col-span-1 md:col-span-2 bg-blue-50 p-6 rounded-xl border border-blue-100 flex items-center gap-4">
-                          <div className="bg-blue-100 p-4 rounded-full text-blue-600"><BookOpen size={32}/></div>
-                          <div>
-                              <p className="text-sm text-gray-500 font-bold">المواد الدراسية</p>
-                              <h3 className="text-3xl font-bold text-gray-800">{subjects.length}</h3>
-                              <p className="text-xs text-gray-400">انتقل لتبويب "المواد" للتعديل</p>
-                          </div>
-                      </div>
-                  </div>
-              )}
-
-              {activeTab === 'SUBJECTS' && renderSubjectsTab()}
-              {activeTab === 'SCHEDULE' && renderScheduleTab()}
-              {activeTab === 'SETTINGS' && renderSettingsTab()}
-          </div>
-      </div>
-  );
+                        <button onClick={handleSaveSettings} className="w-full bg-orange-600 text-white py-2 rounded font-bold hover:bg-orange-700 mt-4">
+                            حفظ الإعدادات
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
-
-const TabButton = ({ active, onClick, icon, label }: any) => (
-    <button
-        onClick={onClick}
-        className={`flex-1 py-3 px-4 rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all whitespace-nowrap min-w-[140px] ${
-            active ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-        }`}
-    >
-        {icon}
-        <span>{label}</span>
-    </button>
-);
 
 export default SchoolManagement;
