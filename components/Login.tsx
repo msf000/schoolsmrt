@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { authenticateUser, getSystemUsers, getStudents, setSystemMode } from '../services/storageService';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning } from 'lucide-react';
+import { authenticateUser, getSystemUsers, getStudents, setSystemMode, clearDatabase } from '../services/storageService';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning, Trash2 } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -86,6 +86,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           }
           setLoading(false);
       }, 500);
+  };
+
+  const handleReset = () => {
+      if (confirm('تحذير: سيتم حذف جميع الحسابات والبيانات المخزنة محلياً.\nهل أنت متأكد من مسح كل شيء؟')) {
+          clearDatabase();
+          alert('تم مسح البيانات بنجاح.');
+      }
   };
 
   // --- RENDER REGISTRATION VIEW ---
@@ -218,8 +225,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </button>
             </div>
             
-            <div className="text-[10px] text-gray-400 text-center mt-4 flex items-center justify-center gap-1">
-                <CloudLightning size={12}/> النظام يدعم المزامنة السحابية
+            <div className="text-[10px] text-gray-400 text-center mt-4 flex items-center justify-center gap-3">
+                <span className="flex items-center gap-1"><CloudLightning size={12}/> المزامنة السحابية</span>
+                <button onClick={handleReset} className="text-red-300 hover:text-red-500 flex items-center gap-1 transition-colors" title="مسح كافة البيانات المحلية">
+                    <Trash2 size={12}/> إعادة ضبط
+                </button>
             </div>
         </div>
       </div>
