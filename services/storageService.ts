@@ -6,6 +6,7 @@ import {
     PerformanceCategory 
 } from '../types';
 import { supabase } from './supabaseClient';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 // --- INITIAL DATA & CACHE ---
 const INITIAL_DATA = {
@@ -49,6 +50,7 @@ const TABLE_MAPPING: Record<string, string> = {
 
 let CACHE: typeof INITIAL_DATA = { ...INITIAL_DATA };
 let IS_DEMO_MODE = false;
+let realtimeChannel: RealtimeChannel | null = null;
 
 // --- SYNC STATUS MANAGEMENT ---
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
@@ -176,7 +178,6 @@ export const deleteStudent = async (id: string) => {
 export const deleteAllStudents = async () => {
     saveToLocal('students', []);
     notifyDataChange();
-    // Not deleting from cloud automatically for safety
 };
 export const bulkAddStudents = async (items: Student[]) => {
     saveToLocal('students', [...CACHE.students, ...items]);
@@ -422,7 +423,7 @@ export const addFeedback = async (item: Feedback) => {
     pushToCloud('feedbacks', item);
 };
 
-// 15. SETTINGS & CONFIG (Local Only for now, could be cloud)
+// 15. SETTINGS & CONFIG
 export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig => {
     return CACHE.report_header_config || {
         schoolName: '',
@@ -512,7 +513,49 @@ export const authenticateUser = async (identifier: string, password: string): Pr
     return null;
 }
 
-// --- UTILS ---
+// --- REALTIME & SYNC UTILS ---
+
+const setupRealtimeSubscription = () => {
+    if (realtimeChannel) return; // Already set up
+
+    realtimeChannel = supabase.channel('db-changes')
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public' },
+            (payload) => {
+                console.log('Realtime Change:', payload);
+                handleRealtimeEvent(payload);
+            }
+        )
+        .subscribe();
+};
+
+const handleRealtimeEvent = (payload: any) => {
+    const { table, eventType, new: newRecord, old: oldRecord } = payload;
+    
+    // Find local key for this table
+    const localKey = Object.keys(TABLE_MAPPING).find(key => TABLE_MAPPING[key] === table);
+    if (!localKey) return;
+
+    const currentList = CACHE[localKey as keyof typeof INITIAL_DATA] as any[];
+    if (!Array.isArray(currentList)) return;
+
+    let updatedList = [...currentList];
+
+    if (eventType === 'INSERT') {
+        if (!updatedList.find(item => item.id === newRecord.id)) {
+            updatedList.push(newRecord);
+        }
+    } else if (eventType === 'UPDATE') {
+        updatedList = updatedList.map(item => item.id === newRecord.id ? newRecord : item);
+    } else if (eventType === 'DELETE') {
+        updatedList = updatedList.filter(item => item.id !== oldRecord.id);
+    }
+
+    saveToLocal(localKey as any, updatedList);
+    notifyDataChange();
+};
+
 export const createBackup = () => JSON.stringify(CACHE);
 export const restoreBackup = (json: string) => {
     try {
@@ -541,6 +584,7 @@ export const initAutoSync = async () => {
         console.log("Starting Auto-Sync...");
         // Pull latest data from cloud
         await downloadFromSupabase();
+        setupRealtimeSubscription(); // Activate Realtime
         setSyncStatus('ONLINE');
         notifyDataChange(); // Refresh UI
     } catch (e) {
@@ -549,7 +593,7 @@ export const initAutoSync = async () => {
     }
 };
 
-// --- SUPABASE / CLOUD FUNCTIONS (REAL IMPLEMENTATION) ---
+// --- SUPABASE / CLOUD FUNCTIONS ---
 
 export const checkConnection = async () => {
     try {
