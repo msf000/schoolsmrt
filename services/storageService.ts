@@ -951,7 +951,14 @@ alter table if exists teachers add column if not exists "subscriptionEndDate" te
 alter table if exists schools add column if not exists "educationAdministration" text;
 alter table if exists schools add column if not exists "ministryCode" text;
 alter table if exists schools add column if not exists "managerNationalId" text;
+alter table if exists schools add column if not exists "type" text;
 alter table if exists system_users add column if not exists "nationalId" text;
+
+-- Fix 400 Errors for Teacher Isolation
+alter table if exists assignments add column if not exists "teacherId" text;
+alter table if exists custom_tables add column if not exists "teacherId" text;
+alter table if exists lesson_links add column if not exists "teacherId" text;
+alter table if exists subjects add column if not exists "teacherId" text;
     `;
 };
 
