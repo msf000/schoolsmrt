@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Exam, Question, SystemUser, ExamResult, Subject } from '../types';
-import { getExams, saveExam, deleteExam, getExamResults, getSubjects } from '../services/storageService';
+import { getExams, saveExam, deleteExam, getExamResults, getSubjects, getStudents } from '../services/storageService';
 import { generateStructuredQuiz } from '../services/geminiService';
 import { FileQuestion, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Clock, BookOpen, ListChecks, PlayCircle, StopCircle, ArrowLeft, BarChart2, Sparkles, Filter, Loader2, Check } from 'lucide-react';
 
@@ -14,6 +14,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     const [editingExam, setEditingExam] = useState<Partial<Exam>>({});
     const [viewingResults, setViewingResults] = useState<{ exam: Exam, results: ExamResult[] } | null>(null);
     const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [availableGrades, setAvailableGrades] = useState<string[]>([]);
 
     // Filters
     const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('');
@@ -38,6 +39,12 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
         const all = getExams(currentUser.id);
         setExams(all.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setSubjects(getSubjects(currentUser.id));
+        
+        const allStudents = getStudents();
+        // Filter students by teacher if necessary, but getStudents() already handles basic context
+        // Getting unique grades from students
+        const grades = Array.from(new Set(allStudents.map(s => s.gradeLevel).filter(Boolean))).sort();
+        setAvailableGrades(grades);
     };
 
     const uniqueGrades = useMemo(() => Array.from(new Set(exams.map(e => e.gradeLevel))).sort(), [exams]);
@@ -57,7 +64,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             id: Date.now().toString(),
             title: '',
             subject: selectedSubjectFilter || (subjects.length > 0 ? subjects[0].name : ''),
-            gradeLevel: selectedGradeFilter || '',
+            gradeLevel: selectedGradeFilter || (availableGrades.length > 0 ? availableGrades[0] : ''),
             durationMinutes: 30,
             questions: [],
             isActive: false,
@@ -285,7 +292,18 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-600 mb-1">الصف</label>
-                                <input className="w-full p-2 border rounded" placeholder="مثال: أول متوسط" value={editingExam.gradeLevel} onChange={e => setEditingExam({...editingExam, gradeLevel: e.target.value})} />
+                                <div className="relative">
+                                    <input 
+                                        list="gradeOptions"
+                                        className="w-full p-2 border rounded" 
+                                        placeholder="مثال: أول متوسط" 
+                                        value={editingExam.gradeLevel} 
+                                        onChange={e => setEditingExam({...editingExam, gradeLevel: e.target.value})} 
+                                    />
+                                    <datalist id="gradeOptions">
+                                        {availableGrades.map(g => <option key={g} value={g} />)}
+                                    </datalist>
+                                </div>
                             </div>
                         </div>
                     </div>

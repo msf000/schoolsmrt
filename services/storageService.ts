@@ -425,7 +425,7 @@ export const saveTeacherAssignment = (a: TeacherAssignment) => {
     saveToLocal('teacher_assignments', [...CACHE.teacher_assignments, a]);
     pushToCloud('teacher_assignments', a);
 };
-// Renamed to avoid conflict with 'deleteAssignment' above
+// Renamed to avoid conflict with 'deleteAssignment'
 export const deleteTeacherAssignment = (id: string) => {
     saveToLocal('teacher_assignments', CACHE.teacher_assignments.filter(x => x.id !== id));
     pushToCloud('teacher_assignments', { id }, 'DELETE');
