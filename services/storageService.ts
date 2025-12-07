@@ -53,6 +53,59 @@ let CACHE: typeof INITIAL_DATA = { ...INITIAL_DATA };
 let IS_DEMO_MODE = false;
 let realtimeChannel: RealtimeChannel | null = null;
 
+// --- DATA NORMALIZATION HELPER ---
+// Fixes issue where Supabase/Postgres returns lowercase keys (e.g. nationalid) 
+// but App expects camelCase (e.g. nationalId)
+const normalizeRecord = (record: any) => {
+    if (!record || typeof record !== 'object') return record;
+    const normalized: any = { ...record };
+
+    const mappings: Record<string, string> = {
+        'nationalid': 'nationalId',
+        'ministrycode': 'ministryCode',
+        'managername': 'managerName',
+        'managernationalid': 'managerNationalId',
+        'educationadministration': 'educationAdministration',
+        'studentcount': 'studentCount',
+        'worksmasterurl': 'worksMasterUrl',
+        'schoolid': 'schoolId',
+        'createdbyid': 'createdById',
+        'gradelevel': 'gradeLevel',
+        'classname': 'className',
+        'parentname': 'parentName',
+        'parentphone': 'parentPhone',
+        'parentemail': 'parentEmail',
+        'seatindex': 'seatIndex',
+        'subjectspecialty': 'subjectSpecialty',
+        'managerid': 'managerId',
+        'subscriptionstatus': 'subscriptionStatus',
+        'subscriptionenddate': 'subscriptionEndDate',
+        'behaviorstatus': 'behaviorStatus',
+        'behaviornote': 'behaviorNote',
+        'excusenote': 'excuseNote',
+        'excusefile': 'excuseFile',
+        'maxscore': 'maxScore',
+        'sourcemetadata': 'sourceMetadata',
+        'teacherid': 'teacherId',
+        'subjectname': 'subjectName',
+        'sourceurl': 'sourceUrl',
+        'lastupdated': 'lastUpdated',
+        'parentid': 'parentId'
+    };
+
+    Object.keys(record).forEach(key => {
+        const lowerKey = key.toLowerCase();
+        if (mappings[lowerKey]) {
+            // If the camelCase key doesn't exist but the lowercase one does, map it
+            if (normalized[mappings[lowerKey]] === undefined && record[key] !== undefined) {
+                normalized[mappings[lowerKey]] = record[key];
+            }
+        }
+    });
+
+    return normalized;
+};
+
 // --- SYNC STATUS MANAGEMENT ---
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
 let currentSyncStatus: SyncStatus = 'IDLE';
@@ -560,7 +613,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
     try {
         const { data: cloudUsers } = await supabase.from('system_users').select('*').or(`email.eq.${identifier},nationalId.eq.${identifier}`).limit(1);
         if (cloudUsers && cloudUsers.length > 0) {
-            const u = cloudUsers[0];
+            const u = normalizeRecord(cloudUsers[0]);
             if (u.password === password) {
                 saveToLocal('system_users', [...(CACHE.system_users || []).filter(x => x.id !== u.id), u]); 
                 setSyncStatus('ONLINE');
@@ -570,7 +623,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
 
         const { data: cloudTeachers } = await supabase.from('teachers').select('*').or(`email.eq.${identifier},nationalId.eq.${identifier}`).limit(1);
         if (cloudTeachers && cloudTeachers.length > 0) {
-            const t = cloudTeachers[0];
+            const t = normalizeRecord(cloudTeachers[0]);
             if (t.password === password) {
                 const list = (CACHE.teachers || []).filter(x => x.id !== t.id);
                 list.push(t);
@@ -585,7 +638,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
         // --- NEW: Student Cloud Auth ---
         const { data: cloudStudents } = await supabase.from('students').select('*').eq('nationalId', identifier).limit(1);
         if (cloudStudents && cloudStudents.length > 0) {
-            const s = cloudStudents[0];
+            const s = normalizeRecord(cloudStudents[0]);
             // Check password (simple check or default to last 4 digits of ID)
             if (s.password === password || s.nationalId.slice(-4) === password) {
                  const studentUser = { ...s, role: 'STUDENT', email: s.nationalId || '' };
@@ -619,11 +672,13 @@ const handleRealtimeEvent = (payload: any) => {
     const currentList = CACHE[localKey as keyof typeof INITIAL_DATA] as any[];
     if (!Array.isArray(currentList)) return;
 
+    const normalizedNew = normalizeRecord(newRecord);
+
     let updatedList = [...currentList];
     if (eventType === 'INSERT') {
-        if (!updatedList.find(item => item.id === newRecord.id)) updatedList.push(newRecord);
+        if (!updatedList.find(item => item.id === normalizedNew.id)) updatedList.push(normalizedNew);
     } else if (eventType === 'UPDATE') {
-        updatedList = updatedList.map(item => item.id === newRecord.id ? newRecord : item);
+        updatedList = updatedList.map(item => item.id === normalizedNew.id ? normalizedNew : item);
     } else if (eventType === 'DELETE') {
         updatedList = updatedList.filter(item => item.id !== oldRecord.id);
     }
@@ -663,8 +718,8 @@ export const downloadFromSupabase = async () => {
         if (query) builder = query(builder);
         const { data, error } = await builder;
         if (!error && data) {
-             // We overwrite local data with cloud data for these tables
-             saveToLocal(localKey as any, data);
+             const normalizedData = data.map(normalizeRecord); // APPLY NORMALIZATION HERE
+             saveToLocal(localKey as any, normalizedData);
         }
     };
 
@@ -785,7 +840,8 @@ export const uploadToSupabase = async () => {
 export const fetchCloudTableData = async (table: string) => {
     const { data, error } = await supabase.from(table).select('*').limit(100);
     if (error) throw error;
-    return data;
+    // Apply normalization to view correct keys in Admin Dashboard
+    return data.map(normalizeRecord); 
 };
 
 export const DB_MAP: Record<string, string> = TABLE_MAPPING;

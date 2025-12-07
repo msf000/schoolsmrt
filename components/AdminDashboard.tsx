@@ -30,6 +30,7 @@ const SchoolsManager = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSchool, setEditingSchool] = useState<School | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState<Partial<School>>({});
@@ -51,6 +52,13 @@ const SchoolsManager = () => {
             setFormData({ type: 'PUBLIC', studentCount: 0 });
         }
         setIsModalOpen(true);
+    };
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await downloadFromSupabase();
+        setSchools(getSchools());
+        setIsRefreshing(false);
     };
 
     const handleSave = () => {
@@ -96,9 +104,14 @@ const SchoolsManager = () => {
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-blue-700">
-                    <Plus size={18}/> إضافة مدرسة
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={handleRefresh} className="bg-white border text-gray-600 px-3 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 flex items-center gap-2">
+                        <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''}/>
+                    </button>
+                    <button onClick={() => handleOpenModal()} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-blue-700">
+                        <Plus size={18}/> إضافة مدرسة
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -196,6 +209,7 @@ const UsersManager = () => {
     const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState<Partial<SystemUser>>({});
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     useEffect(() => {
         setUsers(getSystemUsers());
@@ -215,6 +229,13 @@ const UsersManager = () => {
             setFormData({ status: 'ACTIVE', role: 'SCHOOL_MANAGER' });
         }
         setIsModalOpen(true);
+    };
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await downloadFromSupabase();
+        setUsers(getSystemUsers());
+        setIsRefreshing(false);
     };
 
     const handleSave = () => {
@@ -252,9 +273,14 @@ const UsersManager = () => {
                     <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
                     <input className="w-full pr-10 pl-4 py-2 border rounded-lg text-sm" placeholder="بحث عن مستخدم..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>
-                <button onClick={() => handleOpenModal()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-purple-700">
-                    <Plus size={18}/> إضافة مستخدم
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={handleRefresh} className="bg-white border text-gray-600 px-3 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 flex items-center gap-2">
+                        <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''}/>
+                    </button>
+                    <button onClick={() => handleOpenModal()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-purple-700">
+                        <Plus size={18}/> إضافة مستخدم
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -262,7 +288,8 @@ const UsersManager = () => {
                     <thead className="bg-gray-50 text-gray-700 font-bold border-b">
                         <tr>
                             <th className="p-4">الاسم</th>
-                            <th className="p-4">البريد / الهوية</th>
+                            <th className="p-4">البريد الإلكتروني</th>
+                            <th className="p-4">رقم الهوية</th>
                             <th className="p-4">الدور</th>
                             <th className="p-4">المدرسة التابعة</th>
                             <th className="p-4">الحالة</th>
@@ -276,8 +303,10 @@ const UsersManager = () => {
                                 <tr key={user.id} className="hover:bg-gray-50">
                                     <td className="p-4 font-bold text-gray-800">{user.name}</td>
                                     <td className="p-4 font-mono text-gray-600 text-xs">
-                                        <div>{user.email}</div>
-                                        {user.nationalId && <div className="text-gray-400 text-[10px]">{user.nationalId}</div>}
+                                        {user.email}
+                                    </td>
+                                    <td className="p-4 font-mono text-gray-600 text-xs">
+                                        {user.nationalId || '-'}
                                     </td>
                                     <td className="p-4">
                                         <span className={`px-2 py-1 rounded text-xs font-bold ${
