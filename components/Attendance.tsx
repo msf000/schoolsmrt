@@ -368,12 +368,9 @@ const Attendance: React.FC<AttendanceProps> = ({
                 <span className="hidden md:inline">صندوق الأعذار</span>
                 {pendingExcuses.length > 0 && <span className="bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full absolute -top-1 -right-1">{pendingExcuses.length}</span>}
              </button>
-             {activeTab === 'REGISTER' && (
-                 <>
-                    <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg flex items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
-                    <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-bold"><Sparkles size={18} /><span className="hidden md:inline">AI Import</span></button>
-                 </>
-             )}
+             {/* Show Import buttons even in Log tab, but context might differ */}
+             <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg flex items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
+             <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-bold"><Sparkles size={18} /><span className="hidden md:inline">AI Import</span></button>
           </div>
       </div>
 
@@ -575,8 +572,6 @@ const Attendance: React.FC<AttendanceProps> = ({
               </div>
               <div className="p-3 bg-gray-50 border-t text-xs text-gray-500 flex justify-between">
                   <span>عدد السجلات: {filteredHistory.length}</span>
-                  {/* Reuse Import for History if needed */}
-                  <button onClick={() => setIsImportModalOpen(true)} className="text-blue-600 hover:underline flex items-center gap-1"><Download size={12}/> استيراد سجلات سابقة</button>
               </div>
           </div>
       )}
