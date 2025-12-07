@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School } from '../types';
 import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin, Mail, Server, Database, ShieldCheck, Building2, CreditCard } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin, Mail, Server, Database, ShieldCheck, Building2, CreditCard, Loader2 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -21,6 +21,11 @@ interface DashboardProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
+  // Safety Check
+  if (!students || !attendance || !performance) {
+      return <div className="flex items-center justify-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
+  }
+
   const effectiveDate = selectedDate || new Date().toISOString().split('T')[0];
   
   if (currentUser?.role === 'SUPER_ADMIN') {

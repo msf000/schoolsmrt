@@ -26,6 +26,11 @@ const extractHeaderMetadata = (header: string): { label: string, maxScore: numbe
 };
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
+    // Safety check
+    if (!students || !performance || !attendance) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin text-gray-400" /></div>;
+    }
+
     const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>(() => {
         return localStorage.getItem('works_tracking_mode') as any || 'GRADING';
     });

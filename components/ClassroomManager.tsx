@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User } from 'lucide-react';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, X } from 'lucide-react';
 import Attendance from './Attendance';
 import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink, updateStudent } from '../services/storageService';
 
@@ -12,7 +12,7 @@ const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: Attenda
         if (!attendance || !students) return { present: 0, absent: 0, late: 0 };
         const absentCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.ABSENT).length;
         const lateCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.LATE).length;
-        const presentCount = students.length - absentCount - lateCount;
+        const presentCount = Math.max(0, students.length - absentCount - lateCount);
         return { present: presentCount, absent: absentCount, late: lateCount };
     }, [students, attendance, date]);
 
@@ -65,7 +65,7 @@ const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ cu
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                    {filteredLinks.map(link => (
+                    {filteredLinks.length > 0 ? filteredLinks.map(link => (
                         <div key={link.id} className="flex items-center justify-between p-2 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 group transition-colors">
                             <div className="flex items-center gap-2 overflow-hidden">
                                 <div className="bg-indigo-100 p-1.5 rounded text-indigo-600 flex-shrink-0"><Monitor size={14}/></div>
@@ -73,8 +73,9 @@ const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ cu
                             </div>
                             <button onClick={(e) => handleDelete(link.id, e)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                         </div>
-                    ))}
-                    {filteredLinks.length === 0 && <div className="text-center py-10 text-gray-400 text-xs">لا توجد دروس محفوظة.</div>}
+                    )) : (
+                        <div className="text-center py-10 text-gray-400 text-xs">لا توجد دروس محفوظة.</div>
+                    )}
                 </div>
             )}
         </div>
@@ -122,7 +123,7 @@ const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ 
     }, []);
 
     const issuePass = () => {
-        if (!selectedStudent) return;
+        if (!selectedStudent || !students) return;
         const student = students.find(s => s.id === selectedStudent);
         if (student) {
             setPasses(prev => [...prev, {
@@ -384,7 +385,7 @@ const SeatingChart: React.FC<{ students: Student[], onSaveSeating?: (s: Student[
                 <div className="w-full md:w-64 bg-gray-50 border-l border-gray-200 flex flex-col">
                     <div className="p-3 border-b font-bold text-sm text-gray-600">طلاب غير معينين ({unassignedStudents.length})</div>
                     <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                        {unassignedStudents.map(s => (
+                        {unassignedStudents.length > 0 ? unassignedStudents.map(s => (
                             <div 
                                 key={s.id}
                                 onClick={() => setSelectedStudentId(s.id === selectedStudentId ? null : s.id)}
@@ -392,8 +393,7 @@ const SeatingChart: React.FC<{ students: Student[], onSaveSeating?: (s: Student[
                             >
                                 <User size={14}/> {s.name}
                             </div>
-                        ))}
-                        {unassignedStudents.length === 0 && <div className="text-center text-gray-400 text-xs py-4">جميع الطلاب في مقاعدهم</div>}
+                        )) : <div className="text-center text-gray-400 text-xs py-4">جميع الطلاب في مقاعدهم</div>}
                     </div>
                 </div>
             </div>

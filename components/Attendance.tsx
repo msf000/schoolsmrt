@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2 } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -40,11 +40,20 @@ const Attendance: React.FC<AttendanceProps> = ({
     onImportAttendance, 
     preSelectedClass, 
     preSelectedSubject, 
-    selectedDate: propDate,
+    selectedDate: propDate, 
     onDateChange,
     currentUser
 }) => {
-  // ... (Keep existing state and effects same as before, until handleSave) ...
+  // --- SAFETY CHECK ---
+  if (!students) {
+      return (
+          <div className="flex flex-col items-center justify-center h-full p-12 text-center">
+              <Loader2 className="animate-spin text-primary mb-4" size={48}/>
+              <p className="text-gray-500 font-bold">جاري تحميل بيانات الطلاب...</p>
+          </div>
+      );
+  }
+
   const [activeTab, setActiveTab] = useState<'REGISTER' | 'LOG'>('REGISTER');
 
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
@@ -112,6 +121,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   }, [students]);
 
   const filteredHistory = useMemo(() => {
+      if (!attendanceHistory) return [];
       return attendanceHistory.filter(rec => {
           const student = students.find(s => s.id === rec.studentId);
           if (!student) return false;
@@ -225,6 +235,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   }, [filteredStudents, records]);
 
   const pendingExcuses = useMemo(() => {
+      if (!attendanceHistory) return [];
       return attendanceHistory.filter(r => 
           (r.status === AttendanceStatus.ABSENT || r.status === AttendanceStatus.LATE) &&
           (r.excuseNote || r.excuseFile)
@@ -339,8 +350,8 @@ const Attendance: React.FC<AttendanceProps> = ({
   };
 
   const getStudentMetrics = (studentId: string) => {
-      const myPerf = performance.filter(p => p.studentId === studentId);
-      const myAtt = attendanceHistory.filter(a => a.studentId === studentId);
+      const myPerf = performance ? performance.filter(p => p.studentId === studentId) : [];
+      const myAtt = attendanceHistory ? attendanceHistory.filter(a => a.studentId === studentId) : [];
       const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
       let avgGrade = 0;
       if (myPerf.length > 0) {
@@ -357,7 +368,6 @@ const Attendance: React.FC<AttendanceProps> = ({
     { value: AttendanceStatus.EXCUSED, label: 'عذر', color: 'bg-blue-100 text-blue-700 border-blue-200' },
   ];
 
-  // ... (The rest of JSX remains identical, no changes needed in UI) ...
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4 print:hidden">
@@ -511,13 +521,10 @@ const Attendance: React.FC<AttendanceProps> = ({
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
               <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">
-                  {/* ... filters ... */}
-                  {/* (Same as before) */}
                   <div className="flex items-center gap-2">
                       <History className="text-purple-600"/>
                       <h3 className="font-bold text-gray-800">سجل المتابعة الشامل</h3>
                   </div>
-                  {/* ... export buttons ... */}
                   <div className="flex flex-wrap gap-2 text-sm items-center">
                       <button onClick={handlePrintLog} className="bg-gray-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-black transition-colors shadow-sm"><Printer size={14}/> طباعة</button>
                   </div>
@@ -537,7 +544,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                           </tr>
                       </thead>
                       <tbody className="divide-y">
-                          {filteredHistory.map((rec) => {
+                          {filteredHistory.length > 0 ? filteredHistory.map((rec) => {
                               const student = students.find(s => s.id === rec.studentId);
                               return (
                                   <tr key={rec.id} className="hover:bg-gray-50">
@@ -558,8 +565,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                       <td className="p-3 text-xs text-gray-600 max-w-xs truncate" title={rec.behaviorNote}>{rec.behaviorNote}</td>
                                   </tr>
                               );
-                          })}
-                          {filteredHistory.length === 0 && (
+                          }) : (
                               <tr><td colSpan={7} className="p-10 text-center text-gray-400">لا توجد سجلات مطابقة للفلتر</td></tr>
                           )}
                       </tbody>
@@ -568,7 +574,6 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {/* Modals reuse existing logic, just passing currentUser where needed inside Attendance logic */}
       {isImportModalOpen && (
           <div className="fixed inset-0 z-[100] bg-white">
               <DataImport 
@@ -605,10 +610,8 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {/* Excuse Modal (Same as before) */}
       {isExcuseModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
-              {/* ... Excuse Modal Content ... */}
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
                   <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                       <h3 className="font-bold text-gray-800 flex items-center gap-2">
@@ -623,7 +626,6 @@ const Attendance: React.FC<AttendanceProps> = ({
                                   const student = students.find(s => s.id === record.studentId);
                                   return (
                                       <div key={record.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                          {/* ... Record display ... */}
                                           <div className="flex justify-between items-start mb-3">
                                               <div className="flex items-center gap-3">
                                                   <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-600">

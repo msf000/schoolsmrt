@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
@@ -238,21 +239,21 @@ const pushToCloud = async (table: string, data: any, action: 'UPSERT' | 'DELETE'
 };
 
 // 1. STUDENTS
-export const getStudents = (): Student[] => CACHE.students;
+export const getStudents = (): Student[] => CACHE.students || [];
 export const addStudent = async (item: Student) => {
-    const list = [...CACHE.students, item];
+    const list = [...(CACHE.students || []), item];
     saveToLocal('students', list);
     notifyDataChange();
     pushToCloud('students', item);
 };
 export const updateStudent = async (item: Student) => {
-    const list = CACHE.students.map((s: Student) => s.id === item.id ? item : s);
+    const list = (CACHE.students || []).map((s: Student) => s.id === item.id ? item : s);
     saveToLocal('students', list);
     notifyDataChange();
     pushToCloud('students', item);
 };
 export const deleteStudent = async (id: string) => {
-    const list = CACHE.students.filter((s: Student) => s.id !== id);
+    const list = (CACHE.students || []).filter((s: Student) => s.id !== id);
     saveToLocal('students', list);
     notifyDataChange();
     pushToCloud('students', id, 'DELETE');
@@ -262,12 +263,12 @@ export const deleteAllStudents = async () => {
     notifyDataChange();
 };
 export const bulkAddStudents = async (items: Student[]) => {
-    saveToLocal('students', [...CACHE.students, ...items]);
+    saveToLocal('students', [...(CACHE.students || []), ...items]);
     notifyDataChange();
     pushToCloud('students', items);
 };
 export const bulkUpsertStudents = async (items: Student[], key: keyof Student = 'nationalId') => {
-    let list = [...CACHE.students];
+    let list = [...(CACHE.students || [])];
     items.forEach(newItem => {
         const idx = list.findIndex((s: Student) => s[key] && s[key] === newItem[key]);
         if (idx >= 0) list[idx] = { ...list[idx], ...newItem };
@@ -279,9 +280,9 @@ export const bulkUpsertStudents = async (items: Student[], key: keyof Student = 
 };
 
 // 2. ATTENDANCE
-export const getAttendance = (): AttendanceRecord[] => CACHE.attendance_records;
+export const getAttendance = (): AttendanceRecord[] => CACHE.attendance_records || [];
 export const saveAttendance = async (items: AttendanceRecord[]) => {
-    let list = [...CACHE.attendance_records];
+    let list = [...(CACHE.attendance_records || [])];
     items.forEach(newItem => {
         const idx = list.findIndex((r: AttendanceRecord) => r.id === newItem.id);
         if (idx >= 0) list[idx] = newItem;
@@ -294,68 +295,68 @@ export const saveAttendance = async (items: AttendanceRecord[]) => {
 export const bulkAddAttendance = (items: AttendanceRecord[]) => saveAttendance(items);
 
 // 3. PERFORMANCE
-export const getPerformance = (): PerformanceRecord[] => CACHE.performance_records;
+export const getPerformance = (): PerformanceRecord[] => CACHE.performance_records || [];
 export const addPerformance = async (item: PerformanceRecord) => {
-    saveToLocal('performance_records', [...CACHE.performance_records, item]);
+    saveToLocal('performance_records', [...(CACHE.performance_records || []), item]);
     notifyDataChange();
     pushToCloud('performance_records', item);
 };
 export const deletePerformance = async (id: string) => {
-    const list = CACHE.performance_records.filter((p: PerformanceRecord) => p.id !== id);
+    const list = (CACHE.performance_records || []).filter((p: PerformanceRecord) => p.id !== id);
     saveToLocal('performance_records', list);
     notifyDataChange();
     pushToCloud('performance_records', id, 'DELETE');
 };
 export const bulkAddPerformance = async (items: PerformanceRecord[]) => {
-    saveToLocal('performance_records', [...CACHE.performance_records, ...items]);
+    saveToLocal('performance_records', [...(CACHE.performance_records || []), ...items]);
     notifyDataChange();
     pushToCloud('performance_records', items);
 };
 
 // 4. SCHOOLS
-export const getSchools = (): School[] => CACHE.schools;
+export const getSchools = (): School[] => CACHE.schools || [];
 export const addSchool = async (item: School) => {
-    saveToLocal('schools', [...CACHE.schools, item]);
+    saveToLocal('schools', [...(CACHE.schools || []), item]);
     notifyDataChange();
     pushToCloud('schools', item);
 };
 export const updateSchool = async (item: School) => {
-    const list = CACHE.schools.map((s: School) => s.id === item.id ? item : s);
+    const list = (CACHE.schools || []).map((s: School) => s.id === item.id ? item : s);
     saveToLocal('schools', list);
     notifyDataChange();
     pushToCloud('schools', item);
 };
 export const deleteSchool = async (id: string) => {
-    const list = CACHE.schools.filter((s: School) => s.id !== id);
+    const list = (CACHE.schools || []).filter((s: School) => s.id !== id);
     saveToLocal('schools', list);
     notifyDataChange();
     pushToCloud('schools', id, 'DELETE');
 };
 
 // 5. SYSTEM USERS
-export const getSystemUsers = (): SystemUser[] => CACHE.system_users;
+export const getSystemUsers = (): SystemUser[] => CACHE.system_users || [];
 export const addSystemUser = async (item: SystemUser) => {
-    saveToLocal('system_users', [...CACHE.system_users, item]);
+    saveToLocal('system_users', [...(CACHE.system_users || []), item]);
     notifyDataChange();
     pushToCloud('system_users', item);
 };
 export const updateSystemUser = async (item: SystemUser) => {
-    const list = CACHE.system_users.map((u: SystemUser) => u.id === item.id ? item : u);
+    const list = (CACHE.system_users || []).map((u: SystemUser) => u.id === item.id ? item : u);
     saveToLocal('system_users', list);
     notifyDataChange();
     pushToCloud('system_users', item);
 };
 export const deleteSystemUser = async (id: string) => {
-    const list = CACHE.system_users.filter((u: SystemUser) => u.id !== id);
+    const list = (CACHE.system_users || []).filter((u: SystemUser) => u.id !== id);
     saveToLocal('system_users', list);
     notifyDataChange();
     pushToCloud('system_users', id, 'DELETE');
 };
 
 // 6. TEACHERS
-export const getTeachers = (): Teacher[] => CACHE.teachers;
+export const getTeachers = (): Teacher[] => CACHE.teachers || [];
 export const addTeacher = async (item: Teacher) => {
-    const updatedTeachers = [...CACHE.teachers, item];
+    const updatedTeachers = [...(CACHE.teachers || []), item];
     saveToLocal('teachers', updatedTeachers);
     
     // Auto-create system user locally
@@ -376,7 +377,7 @@ export const addTeacher = async (item: Teacher) => {
     pushToCloud('teachers', item);
 };
 export const updateTeacher = async (item: Teacher) => {
-    const list = CACHE.teachers.map((t: Teacher) => t.id === item.id ? item : t);
+    const list = (CACHE.teachers || []).map((t: Teacher) => t.id === item.id ? item : t);
     saveToLocal('teachers', list);
     notifyDataChange();
     pushToCloud('teachers', item);
@@ -384,13 +385,13 @@ export const updateTeacher = async (item: Teacher) => {
 
 // 7. ASSIGNMENTS
 export const getAssignments = (category?: PerformanceCategory, teacherId?: string): Assignment[] => {
-    let list = CACHE.assignments;
+    let list = CACHE.assignments || [];
     if (category) list = list.filter((a: Assignment) => a.category === category);
     if (teacherId) list = list.filter((a: Assignment) => a.teacherId === teacherId);
     return list;
 };
 export const saveAssignment = async (item: Assignment) => {
-    let list = [...CACHE.assignments];
+    let list = [...(CACHE.assignments || [])];
     const idx = list.findIndex((a: Assignment) => a.id === item.id);
     if (idx >= 0) list[idx] = item;
     else list.push(item);
@@ -399,16 +400,16 @@ export const saveAssignment = async (item: Assignment) => {
     pushToCloud('assignments', item);
 };
 export const deleteAssignment = async (id: string) => {
-    const list = CACHE.assignments.filter((a: Assignment) => a.id !== id);
+    const list = (CACHE.assignments || []).filter((a: Assignment) => a.id !== id);
     saveToLocal('assignments', list);
     notifyDataChange();
     pushToCloud('assignments', id, 'DELETE');
 };
 
 // 8. SCHEDULES
-export const getSchedules = (): ScheduleItem[] => CACHE.schedules;
+export const getSchedules = (): ScheduleItem[] => CACHE.schedules || [];
 export const saveScheduleItem = async (item: ScheduleItem) => {
-    let list = [...CACHE.schedules];
+    let list = [...(CACHE.schedules || [])];
     const idx = list.findIndex((s: ScheduleItem) => s.id === item.id);
     if (idx >= 0) list[idx] = item;
     else list.push(item);
@@ -417,16 +418,16 @@ export const saveScheduleItem = async (item: ScheduleItem) => {
     pushToCloud('schedules', item);
 };
 export const deleteScheduleItem = async (id: string) => {
-    const list = CACHE.schedules.filter((s: ScheduleItem) => s.id !== id);
+    const list = (CACHE.schedules || []).filter((s: ScheduleItem) => s.id !== id);
     saveToLocal('schedules', list);
     notifyDataChange();
     pushToCloud('schedules', id, 'DELETE');
 };
 
 // 9. TEACHER ASSIGNMENTS
-export const getTeacherAssignments = (): TeacherAssignment[] => CACHE.teacher_assignments;
+export const getTeacherAssignments = (): TeacherAssignment[] => CACHE.teacher_assignments || [];
 export const saveTeacherAssignment = async (item: TeacherAssignment) => {
-    let list = [...CACHE.teacher_assignments];
+    let list = [...(CACHE.teacher_assignments || [])];
     const idx = list.findIndex((a: TeacherAssignment) => a.id === item.id);
     if (idx >= 0) list[idx] = item;
     else list.push(item);
@@ -437,16 +438,17 @@ export const saveTeacherAssignment = async (item: TeacherAssignment) => {
 
 // 10. SUBJECTS
 export const getSubjects = (teacherId?: string): Subject[] => {
-    if (teacherId) return CACHE.subjects.filter((s: Subject) => s.teacherId === teacherId);
-    return CACHE.subjects;
+    const allSubjects = CACHE.subjects || [];
+    if (teacherId) return allSubjects.filter((s: Subject) => s.teacherId === teacherId);
+    return allSubjects;
 };
 export const addSubject = async (item: Subject) => {
-    saveToLocal('subjects', [...CACHE.subjects, item]);
+    saveToLocal('subjects', [...(CACHE.subjects || []), item]);
     notifyDataChange();
     pushToCloud('subjects', item);
 };
 export const deleteSubject = async (id: string) => {
-    const list = CACHE.subjects.filter((s: Subject) => s.id !== id);
+    const list = (CACHE.subjects || []).filter((s: Subject) => s.id !== id);
     saveToLocal('subjects', list);
     notifyDataChange();
     pushToCloud('subjects', id, 'DELETE');
@@ -454,53 +456,54 @@ export const deleteSubject = async (id: string) => {
 
 // 11. CUSTOM TABLES
 export const getCustomTables = (teacherId?: string): CustomTable[] => {
-    if (teacherId) return CACHE.custom_tables.filter((t: CustomTable) => t.teacherId === teacherId);
-    return CACHE.custom_tables;
+    const allTables = CACHE.custom_tables || [];
+    if (teacherId) return allTables.filter((t: CustomTable) => t.teacherId === teacherId);
+    return allTables;
 };
 export const addCustomTable = async (item: CustomTable) => {
-    saveToLocal('custom_tables', [...CACHE.custom_tables, item]);
+    saveToLocal('custom_tables', [...(CACHE.custom_tables || []), item]);
     notifyDataChange();
     pushToCloud('custom_tables', item);
 };
 export const updateCustomTable = async (item: CustomTable) => {
-    const list = CACHE.custom_tables.map((t: CustomTable) => t.id === item.id ? item : t);
+    const list = (CACHE.custom_tables || []).map((t: CustomTable) => t.id === item.id ? item : t);
     saveToLocal('custom_tables', list);
     notifyDataChange();
     pushToCloud('custom_tables', item);
 };
 export const deleteCustomTable = async (id: string) => {
-    const list = CACHE.custom_tables.filter((t: CustomTable) => t.id !== id);
+    const list = (CACHE.custom_tables || []).filter((t: CustomTable) => t.id !== id);
     saveToLocal('custom_tables', list);
     notifyDataChange();
     pushToCloud('custom_tables', id, 'DELETE');
 };
 
 // 12. LESSON LINKS
-export const getLessonLinks = (): LessonLink[] => CACHE.lesson_links;
+export const getLessonLinks = (): LessonLink[] => CACHE.lesson_links || [];
 export const saveLessonLink = async (item: LessonLink) => {
-    saveToLocal('lesson_links', [...CACHE.lesson_links, item]);
+    saveToLocal('lesson_links', [...(CACHE.lesson_links || []), item]);
     notifyDataChange();
     pushToCloud('lesson_links', item);
 };
 export const deleteLessonLink = async (id: string) => {
-    const list = CACHE.lesson_links.filter((l: LessonLink) => l.id !== id);
+    const list = (CACHE.lesson_links || []).filter((l: LessonLink) => l.id !== id);
     saveToLocal('lesson_links', list);
     notifyDataChange();
     pushToCloud('lesson_links', id, 'DELETE');
 };
 
 // 13. MESSAGES
-export const getMessages = (): MessageLog[] => CACHE.message_logs;
+export const getMessages = (): MessageLog[] => CACHE.message_logs || [];
 export const saveMessage = async (item: MessageLog) => {
-    saveToLocal('message_logs', [item, ...CACHE.message_logs]);
+    saveToLocal('message_logs', [item, ...(CACHE.message_logs || [])]);
     notifyDataChange();
     pushToCloud('message_logs', item);
 };
 
 // 14. FEEDBACK
-export const getFeedback = (): Feedback[] => CACHE.feedbacks;
+export const getFeedback = (): Feedback[] => CACHE.feedbacks || [];
 export const addFeedback = async (item: Feedback) => {
-    saveToLocal('feedbacks', [...CACHE.feedbacks, item]);
+    saveToLocal('feedbacks', [...(CACHE.feedbacks || []), item]);
     notifyDataChange();
     pushToCloud('feedbacks', item);
 };
@@ -538,13 +541,13 @@ export const saveWorksMasterUrl = (url: string) => saveToLocal('works_master_url
 
 // --- HYBRID AUTHENTICATION ---
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | null> => {
-    let user = CACHE.system_users.find(u => u.email === identifier || u.nationalId === identifier);
+    let user = (CACHE.system_users || []).find(u => u.email === identifier || u.nationalId === identifier);
     if (user && user.password === password) return user;
 
-    let teacher = CACHE.teachers.find(t => t.email === identifier || t.nationalId === identifier);
+    let teacher = (CACHE.teachers || []).find(t => t.email === identifier || t.nationalId === identifier);
     if (teacher && teacher.password === password) return { ...teacher, role: 'TEACHER', email: teacher.email || teacher.nationalId || '' } as SystemUser;
 
-    let student = CACHE.students.find(s => s.nationalId === identifier);
+    let student = (CACHE.students || []).find(s => s.nationalId === identifier);
     if (student && (student.password === password || student.nationalId?.slice(-4) === password)) {
          return { ...student, role: 'STUDENT', email: student.nationalId || '' } as unknown as SystemUser;
     }
@@ -555,7 +558,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
         if (cloudUsers && cloudUsers.length > 0) {
             const u = cloudUsers[0];
             if (u.password === password) {
-                saveToLocal('system_users', [...CACHE.system_users.filter(x => x.id !== u.id), u]); 
+                saveToLocal('system_users', [...(CACHE.system_users || []).filter(x => x.id !== u.id), u]); 
                 setSyncStatus('ONLINE');
                 return u;
             }
@@ -565,11 +568,11 @@ export const authenticateUser = async (identifier: string, password: string): Pr
         if (cloudTeachers && cloudTeachers.length > 0) {
             const t = cloudTeachers[0];
             if (t.password === password) {
-                const list = CACHE.teachers.filter(x => x.id !== t.id);
+                const list = (CACHE.teachers || []).filter(x => x.id !== t.id);
                 list.push(t);
                 saveToLocal('teachers', list);
                 const sysUser: SystemUser = { id: t.id, name: t.name, email: t.email || t.nationalId || '', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE', password: t.password };
-                saveToLocal('system_users', [...CACHE.system_users.filter(x => x.id !== t.id), sysUser]);
+                saveToLocal('system_users', [...(CACHE.system_users || []).filter(x => x.id !== t.id), sysUser]);
                 setSyncStatus('ONLINE');
                 return sysUser;
             }
@@ -583,7 +586,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
             if (s.password === password || s.nationalId.slice(-4) === password) {
                  const studentUser = { ...s, role: 'STUDENT', email: s.nationalId || '' };
                  // Cache student for future use
-                 saveToLocal('students', [...CACHE.students.filter(x => x.id !== s.id), s]);
+                 saveToLocal('students', [...(CACHE.students || []).filter(x => x.id !== s.id), s]);
                  setSyncStatus('ONLINE');
                  return studentUser as unknown as SystemUser;
             }
@@ -685,7 +688,7 @@ export const downloadFromSupabase = async () => {
         ]);
 
         // 2. Data Dependent on Students (Attendance, Performance)
-        const studentIds = CACHE.students.map(s => s.id);
+        const studentIds = (CACHE.students || []).map(s => s.id);
         
         if (studentIds.length > 0) {
             await Promise.all([
@@ -713,7 +716,7 @@ export const downloadFromSupabase = async () => {
             fetchAndSave('students', 'students', (q: any) => q.eq('createdById', user!.id)),
         ]);
         
-        const myStudents = CACHE.students.map(s => s.id);
+        const myStudents = (CACHE.students || []).map(s => s.id);
         if (myStudents.length > 0) {
              await Promise.all([
                 fetchAndSave('attendance_records', 'attendance_records', (q: any) => q.in('studentId', myStudents)),
@@ -753,7 +756,7 @@ export const initAutoSync = async () => {
     }
 };
 
-// --- SUPABASE / CLOUD FUNCTIONS ---
+// ... existing Supabase/Cloud functions ...
 export const checkConnection = async () => {
     try {
         const { error } = await supabase.from('system_users').select('count', { count: 'exact', head: true });
