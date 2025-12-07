@@ -3,9 +3,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
+import * as XLSX from 'xlsx';
 
 interface AttendanceProps {
   students: Student[];
@@ -132,6 +133,34 @@ const Attendance: React.FC<AttendanceProps> = ({
           return true;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [attendanceHistory, students, logFilterClass, logFilterDateStart, logFilterDateEnd, logSearch]);
+
+  // --- HANDLERS: EXPORT & PRINT ---
+  const handleExportLogExcel = () => {
+      if (filteredHistory.length === 0) return alert('لا توجد بيانات للتصدير');
+
+      const dataToExport = filteredHistory.map(rec => {
+          const student = students.find(s => s.id === rec.studentId);
+          return {
+              'التاريخ': rec.date,
+              'اسم الطالب': student?.name || 'غير معروف',
+              'الفصل': student?.className || '-',
+              'الحالة': rec.status === 'PRESENT' ? 'حاضر' : rec.status === 'ABSENT' ? 'غائب' : rec.status === 'LATE' ? 'متأخر' : 'عذر',
+              'المادة': rec.subject || '-',
+              'رقم الحصة': rec.period || '-',
+              'السلوك': rec.behaviorStatus === 'POSITIVE' ? 'إيجابي' : rec.behaviorStatus === 'NEGATIVE' ? 'سلبي' : 'عادي',
+              'ملاحظات': rec.behaviorNote || ''
+          };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "سجل الحضور");
+      XLSX.writeFile(wb, `Attendance_Log_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handlePrintLog = () => {
+      window.print();
+  };
 
   // --- REGISTER LOGIC ---
   const todaysSchedule = useMemo(() => {
@@ -346,7 +375,7 @@ const Attendance: React.FC<AttendanceProps> = ({
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
       
       {/* TABS HEADER */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 print:hidden">
           <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
               <button 
                   onClick={() => setActiveTab('REGISTER')}
@@ -500,12 +529,12 @@ const Attendance: React.FC<AttendanceProps> = ({
       {/* --- LOG VIEW (HISTORY) --- */}
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
-              <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between">
+              <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">
                   <div className="flex items-center gap-2">
                       <History className="text-purple-600"/>
                       <h3 className="font-bold text-gray-800">سجل المتابعة الشامل</h3>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-sm">
+                  <div className="flex flex-wrap gap-2 text-sm items-center">
                       <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
                           <Filter size={14} className="text-gray-400"/>
                           <select value={logFilterClass} onChange={e => setLogFilterClass(e.target.value)} className="bg-transparent outline-none font-bold text-gray-700">
@@ -525,6 +554,22 @@ const Attendance: React.FC<AttendanceProps> = ({
                           <Search size={14} className="absolute right-2 top-2 text-gray-400"/>
                           <input type="text" placeholder="بحث عن طالب..." value={logSearch} onChange={e => setLogSearch(e.target.value)} className="pl-2 pr-7 py-1 border rounded-lg outline-none text-sm w-40 focus:ring-1 focus:ring-purple-300"/>
                       </div>
+                      
+                      {/* ACTION BUTTONS */}
+                      <button 
+                          onClick={handleExportLogExcel}
+                          className="bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-green-700 transition-colors shadow-sm"
+                          title="تصدير Excel"
+                      >
+                          <Download size={14}/> إكسل
+                      </button>
+                      <button 
+                          onClick={handlePrintLog}
+                          className="bg-gray-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-black transition-colors shadow-sm"
+                          title="طباعة"
+                      >
+                          <Printer size={14}/> طباعة
+                      </button>
                   </div>
               </div>
 
@@ -570,7 +615,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                       </tbody>
                   </table>
               </div>
-              <div className="p-3 bg-gray-50 border-t text-xs text-gray-500 flex justify-between">
+              <div className="p-3 bg-gray-50 border-t text-xs text-gray-500 flex justify-between print:hidden">
                   <span>عدد السجلات: {filteredHistory.length}</span>
               </div>
           </div>
