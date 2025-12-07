@@ -518,6 +518,7 @@ const App: React.FC = () => {
                     selectedDate={globalDate} // Use Global Date
                     onDateChange={setGlobalDate} // Update Global Date
                     performance={performance} // Pass Performance for Smart Alerts
+                    currentUser={currentUser} // NEW: Pass current user for AIDataImport sub-component inside Attendance
                 />
             )}
             {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}
@@ -545,7 +546,7 @@ const App: React.FC = () => {
             )}
             {currentView === 'CUSTOM_TABLES' && <CustomTablesView currentUser={currentUser} />}
             {currentView === 'DATA_IMPORT' && <DataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} existingStudents={students}/>}
-            {currentView === 'AI_DATA_IMPORT' && <AIDataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} />}
+            {currentView === 'AI_DATA_IMPORT' && <AIDataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} currentUser={currentUser}/>}
         </div>
       </main>
     </div>

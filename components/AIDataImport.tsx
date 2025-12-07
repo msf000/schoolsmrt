@@ -1,19 +1,21 @@
 
 import React, { useState } from 'react';
 import { parseRawDataWithAI } from '../services/geminiService';
-import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download, Image as ImageIcon, Upload, X } from 'lucide-react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
+import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download, Image as ImageIcon, Upload, X, CalendarClock } from 'lucide-react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, ScheduleItem } from '../types';
+import { getSchedules, getTeacherAssignments } from '../services/storageService';
 import * as XLSX from 'xlsx';
 
 interface AIDataImportProps {
     onImportStudents: (students: Student[]) => void;
     onImportPerformance: (records: PerformanceRecord[]) => void;
     onImportAttendance: (records: AttendanceRecord[]) => void;
-    onClose?: () => void; // Added for Modal Support
-    forcedType?: 'STUDENTS' | 'GRADES' | 'ATTENDANCE'; // Optional default type
+    onClose?: () => void;
+    forcedType?: 'STUDENTS' | 'GRADES' | 'ATTENDANCE';
+    currentUser?: SystemUser | null; // Added to access schedule
 }
 
-const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, onClose, forcedType }) => {
+const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, onClose, forcedType, currentUser }) => {
     const [rawText, setRawText] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -41,6 +43,58 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
         setPreviewUrl(null);
     };
 
+    // --- SMART SCHEDULE MATCHING LOGIC ---
+    const enrichDataWithSchedule = (data: any[]): any[] => {
+        if (importType !== 'ATTENDANCE' || !currentUser) return data;
+
+        const allSchedules = getSchedules();
+        // Helper to get day name from date string (YYYY-MM-DD)
+        const getDayName = (dateStr: string) => {
+            const date = new Date(dateStr);
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            return days[date.getDay()];
+        };
+
+        return data.map(row => {
+            // If date is missing, default to today
+            const rowDate = row.date || new Date().toISOString().split('T')[0];
+            const dayName = getDayName(rowDate);
+
+            // Filter schedule for THIS teacher on THIS day
+            const teacherDailySchedule = allSchedules.filter(s => 
+                s.day === dayName && 
+                s.teacherId === currentUser.id
+            );
+
+            let enrichedRow = { ...row, date: rowDate }; // Ensure date is set
+
+            // Scenario 1: Missing Subject AND Period -> If teacher has only 1 class that day, use it.
+            if (!enrichedRow.subject && !enrichedRow.period && teacherDailySchedule.length === 1) {
+                enrichedRow.subject = teacherDailySchedule[0].subjectName;
+                enrichedRow.period = teacherDailySchedule[0].period;
+                enrichedRow._autoMatched = true; // Flag for UI
+            }
+            // Scenario 2: Has Period, Missing Subject -> Lookup Subject
+            else if (enrichedRow.period && !enrichedRow.subject) {
+                const match = teacherDailySchedule.find(s => s.period === Number(enrichedRow.period));
+                if (match) {
+                    enrichedRow.subject = match.subjectName;
+                    enrichedRow._autoMatched = true;
+                }
+            }
+            // Scenario 3: Has Subject, Missing Period -> Lookup Period
+            else if (enrichedRow.subject && !enrichedRow.period) {
+                const match = teacherDailySchedule.find(s => s.subjectName === enrichedRow.subject);
+                if (match) {
+                    enrichedRow.period = match.period;
+                    enrichedRow._autoMatched = true;
+                }
+            }
+
+            return enrichedRow;
+        });
+    };
+
     const handleAnalyze = async () => {
         if (!rawText.trim() && !selectedFile) return;
         
@@ -50,13 +104,17 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
         try {
             let imageBase64 = undefined;
             if (previewUrl) {
-                // Ensure base64 string is clean (service handles cleaning too, but good to check)
                 imageBase64 = previewUrl;
             }
 
-            const data = await parseRawDataWithAI(rawText, importType, imageBase64);
+            let data = await parseRawDataWithAI(rawText, importType, imageBase64);
             
             if (Array.isArray(data) && data.length > 0) {
+                // Apply Smart Schedule Matching
+                if (importType === 'ATTENDANCE') {
+                    data = enrichDataWithSchedule(data);
+                }
+
                 setParsedData(data);
                 setStep('PREVIEW');
             } else {
@@ -101,8 +159,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
             } else if (importType === 'GRADES') {
                 const records: PerformanceRecord[] = parsedData.map(d => ({
                     id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                    studentId: 'PENDING_MATCH', // Needs matching logic or name matching in backend
-                    studentName: d.studentName, // Temporary field for matching
+                    studentId: 'PENDING_MATCH', 
+                    studentName: d.studentName,
                     subject: d.subject || 'عام',
                     title: d.title || 'تقييم',
                     score: Number(d.score),
@@ -117,7 +175,9 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     studentId: 'PENDING_MATCH',
                     studentName: d.studentName,
                     date: d.date || new Date().toISOString().split('T')[0],
-                    status: d.status === 'ABSENT' ? AttendanceStatus.ABSENT : d.status === 'LATE' ? AttendanceStatus.LATE : AttendanceStatus.PRESENT
+                    status: d.status === 'ABSENT' ? AttendanceStatus.ABSENT : d.status === 'LATE' ? AttendanceStatus.LATE : AttendanceStatus.PRESENT,
+                    subject: d.subject, // Now populated
+                    period: d.period // Now populated
                 } as any));
                 onImportAttendance(records);
             }
@@ -246,9 +306,16 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     ) : (
                         <div className="flex-1 flex flex-col">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                                    <Database className="text-purple-600"/> البيانات المستخرجة ({parsedData.length})
-                                </h3>
+                                <div>
+                                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                                        <Database className="text-purple-600"/> البيانات المستخرجة ({parsedData.length})
+                                    </h3>
+                                    {importType === 'ATTENDANCE' && (
+                                        <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                                            <CalendarClock size={12}/> تم تفعيل المطابقة التلقائية مع جدول المعلم
+                                        </p>
+                                    )}
+                                </div>
                                 <button onClick={() => setStep('INPUT')} className="text-sm text-gray-500 hover:text-gray-800 underline">
                                     عودة للتعديل
                                 </button>
@@ -259,17 +326,20 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                                     <thead className="bg-gray-100 text-gray-600 font-bold sticky top-0 shadow-sm">
                                         <tr>
                                             <th className="p-3 w-10">#</th>
-                                            {parsedData.length > 0 && Object.keys(parsedData[0]).map(k => (
+                                            {parsedData.length > 0 && Object.keys(parsedData[0]).filter(k => !k.startsWith('_')).map(k => (
                                                 <th key={k} className="p-3 capitalize">{k}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
                                         {parsedData.map((row, i) => (
-                                            <tr key={i} className="hover:bg-white transition-colors">
+                                            <tr key={i} className={`hover:bg-white transition-colors ${row._autoMatched ? 'bg-green-50/50' : ''}`}>
                                                 <td className="p-3 text-center text-gray-400">{i + 1}</td>
-                                                {Object.values(row).map((val: any, j) => (
-                                                    <td key={j} className="p-3 text-gray-700">{String(val)}</td>
+                                                {Object.entries(row).filter(([k]) => !k.startsWith('_')).map(([k, val]: any, j) => (
+                                                    <td key={j} className="p-3 text-gray-700">
+                                                        {val}
+                                                        {row._autoMatched && (k === 'subject' || k === 'period') && <span className="mr-1 text-[10px] text-green-600 font-bold">(آلي)</span>}
+                                                    </td>
                                                 ))}
                                             </tr>
                                         ))}

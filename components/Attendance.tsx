@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
 import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles } from 'lucide-react';
@@ -17,6 +17,7 @@ interface AttendanceProps {
   preSelectedSubject?: string;
   selectedDate?: string;
   onDateChange?: (date: string) => void;
+  currentUser?: SystemUser | null; // NEW: To pass to AIDataImport for schedule lookup
 }
 
 // Default Predefined Notes (Used if no local storage found)
@@ -39,7 +40,8 @@ const Attendance: React.FC<AttendanceProps> = ({
     preSelectedClass, 
     preSelectedSubject, 
     selectedDate: propDate,
-    onDateChange
+    onDateChange,
+    currentUser
 }) => {
   // Use prop date if available, else local state
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
@@ -779,6 +781,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                       onImportPerformance={() => {}}
                       forcedType="ATTENDANCE"
                       onClose={() => setIsAIImportModalOpen(false)}
+                      currentUser={currentUser} // Pass currentUser here
                   />
               </div>
           </div>
