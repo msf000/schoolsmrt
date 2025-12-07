@@ -29,6 +29,24 @@ const INITIAL_DATA = {
     works_master_url: ''
 };
 
+// Mapping for Supabase tables
+const TABLE_MAPPING: Record<string, string> = {
+    students: 'students',
+    teachers: 'teachers',
+    schools: 'schools',
+    system_users: 'system_users',
+    attendance_records: 'attendance_records',
+    performance_records: 'performance_records',
+    assignments: 'assignments',
+    schedules: 'schedules',
+    teacher_assignments: 'teacher_assignments',
+    subjects: 'subjects',
+    custom_tables: 'custom_tables',
+    lesson_links: 'lesson_links',
+    message_logs: 'message_logs',
+    feedbacks: 'feedbacks'
+};
+
 let CACHE: typeof INITIAL_DATA = { ...INITIAL_DATA };
 let IS_DEMO_MODE = false;
 
@@ -180,9 +198,12 @@ export const deleteSystemUser = (id: string) => {
 
 // 6. TEACHERS
 export const getTeachers = (): Teacher[] => CACHE.teachers;
-export const addTeacher = (item: Teacher) => {
-    saveToLocal('teachers', [...CACHE.teachers, item]);
-    // Also add to system users for login if not exists
+export const addTeacher = async (item: Teacher) => {
+    // Save locally
+    const updatedTeachers = [...CACHE.teachers, item];
+    saveToLocal('teachers', updatedTeachers);
+    
+    // Also add to system users locally for immediate login capability
     const users = getSystemUsers();
     if (!users.find(u => u.email === item.email)) {
         addSystemUser({
@@ -194,6 +215,25 @@ export const addTeacher = (item: Teacher) => {
             status: 'ACTIVE',
             password: item.password
         });
+    }
+
+    // Try to sync to cloud immediately if connected
+    try {
+        const { error } = await supabase.from('teachers').insert(item);
+        if(!error) {
+             // Also insert system user to cloud
+             await supabase.from('system_users').insert({
+                id: item.id,
+                name: item.name,
+                email: item.email || item.nationalId || '',
+                role: 'TEACHER',
+                schoolId: item.schoolId,
+                status: 'ACTIVE',
+                password: item.password
+             });
+        }
+    } catch (e) {
+        console.warn('Could not sync new teacher to cloud immediately', e);
     }
 };
 export const updateTeacher = (item: Teacher) => {
@@ -344,20 +384,317 @@ export const clearDatabase = () => {
 };
 
 export const initAutoSync = () => {
-    // Placeholder for auto-sync logic
+    // Check cloud on load and pull if configured?
+    // For now we keep it manual to avoid overwriting conflicts without user consent
     console.log("Auto sync initialized");
 };
 
-// --- MOCK SUPABASE / CLOUD FUNCTIONS ---
-export const checkConnection = async () => ({ success: true });
-export const uploadToSupabase = async () => { console.log('Upload simulated'); };
-export const downloadFromSupabase = async () => { console.log('Download simulated'); };
-export const fetchCloudTableData = async (table: string) => [];
-export const DB_MAP: Record<string, string> = { schools: 'schools', users: 'system_users' };
-export const getTableDisplayName = (name: string) => name;
-export const getDatabaseSchemaSQL = () => "-- SQL Schema";
-export const getDatabaseUpdateSQL = () => "-- SQL Update";
-export const clearCloudTable = async (table: string) => {};
-export const resetCloudDatabase = async () => {};
-export const backupCloudDatabase = async () => JSON.stringify(CACHE);
-export const restoreCloudDatabase = async (json: string) => restoreBackup(json);
+// --- SUPABASE / CLOUD FUNCTIONS (REAL IMPLEMENTATION) ---
+
+export const checkConnection = async () => {
+    try {
+        // Try to fetch one row from a public table to check connection
+        const { error } = await supabase.from('system_users').select('count', { count: 'exact', head: true });
+        if (error && error.code !== 'PGRST116') {
+             // PGRST116 means no rows returned which is fine for connection check.
+             // If error code is different (e.g. 404 table not found, or 401 unauth), return error
+             return { success: false, message: error.message };
+        }
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+};
+
+export const uploadToSupabase = async () => {
+    const promises = Object.entries(TABLE_MAPPING).map(async ([localKey, tableName]) => {
+        const data = CACHE[localKey as keyof typeof INITIAL_DATA];
+        if (Array.isArray(data) && data.length > 0) {
+            // Using upsert to update existing records by ID
+            const { error } = await supabase.from(tableName).upsert(data, { onConflict: 'id' });
+            if (error) {
+                console.error(`Error uploading table ${tableName}:`, error);
+                throw new Error(`فشل رفع جدول ${tableName}: ${error.message}`);
+            }
+        }
+    });
+    await Promise.all(promises);
+};
+
+export const downloadFromSupabase = async () => {
+    const promises = Object.entries(TABLE_MAPPING).map(async ([localKey, tableName]) => {
+        const { data, error } = await supabase.from(tableName).select('*');
+        if (error) {
+            // If table doesn't exist, ignore (might be fresh cloud db)
+            if(error.code === '42P01') return; 
+            throw new Error(`فشل تحميل جدول ${tableName}: ${error.message}`);
+        }
+        if (data) {
+            saveToLocal(localKey as any, data);
+        }
+    });
+    await Promise.all(promises);
+    // Reload to apply changes
+    // Not reloading automatically to allow caller to handle UI feedback first
+};
+
+export const fetchCloudTableData = async (table: string) => {
+    const { data, error } = await supabase.from(table).select('*').limit(100);
+    if (error) throw error;
+    return data;
+};
+
+export const DB_MAP: Record<string, string> = TABLE_MAPPING;
+
+export const getTableDisplayName = (name: string) => {
+    const display: Record<string, string> = {
+        students: 'الطلاب',
+        teachers: 'المعلمين',
+        schools: 'المدارس',
+        system_users: 'المستخدمين',
+        attendance_records: 'سجل الحضور',
+        performance_records: 'سجل الدرجات',
+        assignments: 'التعيينات',
+        schedules: 'الجداول',
+        teacher_assignments: 'توزيع المعلمين',
+        subjects: 'المواد',
+        custom_tables: 'جداول خاصة',
+        lesson_links: 'مكتبة الدروس',
+        message_logs: 'سجل الرسائل',
+        feedbacks: 'التغذية الراجعة'
+    };
+    return display[name] || name;
+};
+
+// Generates SQL to create tables matching our Typescript interfaces exactly (using quoted identifiers for camelCase)
+export const getDatabaseSchemaSQL = () => {
+    return `
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- 1. Schools
+create table if not exists schools (
+  "id" text primary key,
+  "name" text,
+  "ministryCode" text,
+  "educationAdministration" text,
+  "type" text,
+  "managerName" text,
+  "managerNationalId" text,
+  "phone" text,
+  "studentCount" numeric,
+  "worksMasterUrl" text
+);
+
+-- 2. System Users
+create table if not exists system_users (
+  "id" text primary key,
+  "name" text,
+  "email" text,
+  "nationalId" text,
+  "password" text,
+  "role" text,
+  "schoolId" text,
+  "status" text
+);
+
+-- 3. Teachers
+create table if not exists teachers (
+  "id" text primary key,
+  "name" text,
+  "nationalId" text,
+  "password" text,
+  "email" text,
+  "phone" text,
+  "subjectSpecialty" text,
+  "schoolId" text,
+  "managerId" text,
+  "subscriptionStatus" text,
+  "subscriptionEndDate" text
+);
+
+-- 4. Students
+create table if not exists students (
+  "id" text primary key,
+  "name" text,
+  "nationalId" text,
+  "password" text,
+  "classId" text,
+  "schoolId" text,
+  "createdById" text,
+  "gradeLevel" text,
+  "className" text,
+  "email" text,
+  "phone" text,
+  "parentId" text,
+  "parentName" text,
+  "parentPhone" text,
+  "parentEmail" text,
+  "seatIndex" numeric
+);
+
+-- 5. Attendance
+create table if not exists attendance_records (
+  "id" text primary key,
+  "studentId" text,
+  "date" text,
+  "status" text,
+  "subject" text,
+  "period" numeric,
+  "behaviorStatus" text,
+  "behaviorNote" text,
+  "excuseNote" text,
+  "excuseFile" text,
+  "createdById" text
+);
+
+-- 6. Performance
+create table if not exists performance_records (
+  "id" text primary key,
+  "studentId" text,
+  "subject" text,
+  "title" text,
+  "category" text,
+  "score" numeric,
+  "maxScore" numeric,
+  "date" text,
+  "notes" text,
+  "url" text,
+  "createdById" text
+);
+
+-- 7. Assignments
+create table if not exists assignments (
+  "id" text primary key,
+  "title" text,
+  "category" text,
+  "maxScore" numeric,
+  "url" text,
+  "isVisible" boolean,
+  "orderIndex" numeric,
+  "sourceMetadata" text,
+  "teacherId" text
+);
+
+-- 8. Schedules
+create table if not exists schedules (
+  "id" text primary key,
+  "classId" text,
+  "day" text,
+  "period" numeric,
+  "subjectName" text,
+  "teacherId" text
+);
+
+-- 9. Teacher Assignments
+create table if not exists teacher_assignments (
+  "id" text primary key,
+  "classId" text,
+  "subjectName" text,
+  "teacherId" text
+);
+
+-- 10. Subjects
+create table if not exists subjects (
+  "id" text primary key,
+  "name" text,
+  "teacherId" text
+);
+
+-- 11. Custom Tables
+create table if not exists custom_tables (
+  "id" text primary key,
+  "name" text,
+  "createdAt" text,
+  "columns" jsonb,
+  "rows" jsonb,
+  "sourceUrl" text,
+  "lastUpdated" text,
+  "teacherId" text
+);
+
+-- 12. Lesson Links
+create table if not exists lesson_links (
+  "id" text primary key,
+  "title" text,
+  "url" text,
+  "teacherId" text,
+  "createdAt" text
+);
+
+-- 13. Message Logs
+create table if not exists message_logs (
+  "id" text primary key,
+  "studentId" text,
+  "studentName" text,
+  "parentPhone" text,
+  "type" text,
+  "content" text,
+  "status" text,
+  "date" text,
+  "sentBy" text
+);
+
+-- 14. Feedbacks
+create table if not exists feedbacks (
+  "id" text primary key,
+  "teacherId" text,
+  "managerId" text,
+  "content" text,
+  "date" text,
+  "isRead" boolean
+);
+
+-- Enable Row Level Security (RLS) policies later if needed
+-- For now, allow public read/write or secure via API keys
+alter table schools enable row level security;
+alter table system_users enable row level security;
+alter table teachers enable row level security;
+alter table students enable row level security;
+alter table attendance_records enable row level security;
+alter table performance_records enable row level security;
+`;
+};
+
+export const getDatabaseUpdateSQL = () => {
+    return `
+-- Add missing columns safely
+alter table if exists students add column if not exists "createdById" text;
+alter table if exists teachers add column if not exists "subscriptionStatus" text;
+alter table if exists teachers add column if not exists "subscriptionEndDate" text;
+alter table if exists schools add column if not exists "educationAdministration" text;
+-- Add more updates as needed...
+    `;
+};
+
+export const clearCloudTable = async (table: string) => {
+    // Delete all records (where id is not null)
+    const { error } = await supabase.from(table).delete().neq('id', '000000');
+    if (error) throw error;
+};
+
+export const resetCloudDatabase = async () => {
+    const promises = Object.values(TABLE_MAPPING).map(table => clearCloudTable(table));
+    await Promise.all(promises);
+};
+
+export const backupCloudDatabase = async () => {
+    const backup: any = {};
+    for (const [key, table] of Object.entries(TABLE_MAPPING)) {
+        const { data } = await supabase.from(table).select('*');
+        if (data) backup[key] = data;
+    }
+    return JSON.stringify(backup);
+};
+
+export const restoreCloudDatabase = async (json: string) => {
+    const data = JSON.parse(json);
+    for (const [key, records] of Object.entries(data)) {
+        const table = TABLE_MAPPING[key];
+        if (table && Array.isArray(records) && records.length > 0) {
+            await supabase.from(table).upsert(records);
+        }
+    }
+    // Also update local cache
+    restoreBackup(json);
+};
