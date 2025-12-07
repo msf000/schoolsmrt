@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord } from '../types';
 import { getSchedules } from '../services/storageService';
@@ -36,7 +35,7 @@ const Attendance: React.FC<AttendanceProps> = ({
     onSaveAttendance, 
     onImportAttendance, 
     preSelectedClass, 
-    preSelectedSubject,
+    preSelectedSubject, 
     selectedDate: propDate,
     onDateChange
 }) => {
@@ -716,7 +715,12 @@ const Attendance: React.FC<AttendanceProps> = ({
                         </div>
                     </div>
                 </div>
-            )})}
+            )}) : (
+                <div className="p-12 text-center text-gray-400 flex flex-col items-center">
+                    <Users size={48} className="mb-2 opacity-20"/>
+                    <p>لا يوجد طلاب في هذا الفصل.</p>
+                </div>
+            )}
             </div>
 
             {/* Sticky Footer for Save */}
