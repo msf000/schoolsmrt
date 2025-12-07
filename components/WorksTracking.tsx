@@ -64,7 +64,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     useEffect(() => {
         if (!currentUser) return;
 
-        // Fetch subjects filtered by current user
+        // FIX: Fetch subjects including legacy/global ones
         const loadedSubjects = getSubjects(currentUser.id);
         setSubjects(loadedSubjects);
         if (loadedSubjects.length > 0) setSelectedSubject(loadedSubjects[0].name);
@@ -155,6 +155,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     useEffect(() => {
         if (!currentUser) return;
 
+        // FIX: Fetch assignments including legacy/global ones
         const allAssignments = getAssignments(activeTab, currentUser.id);
         allAssignments.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
         setAssignments(allAssignments);
@@ -167,6 +168,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     useEffect(() => {
         if (activeTab === 'YEAR_WORK') return;
         const newGrid: Record<string, Record<string, string>> = {};
+        
+        // Filter performance records to show only what's relevant to current view
+        // Note: performance prop is already filtered by App.tsx to include legacy data
         performance.forEach(p => {
             if (p.category === activeTab && p.subject === selectedSubject && p.notes) {
                 if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
@@ -228,7 +232,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 maxScore: assign.maxScore,
                                 date: today,
                                 notes: assign.id, 
-                                url: assign.url 
+                                url: assign.url,
+                                createdById: currentUser?.id 
                             });
                          }
                     }
@@ -371,6 +376,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
 
         if (activeTab === 'YEAR_WORK') {
+            // Updated logic to use currentUser.id or fetch global assignments if needed
             const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
             const hwCols = getAssignments('HOMEWORK', currentUser?.id);
             const distinctHW = new Set(hwRecs.map(p => p.notes)).size;

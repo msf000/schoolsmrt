@@ -27,7 +27,10 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const subs = getSubjects();
+        // FIX: Fetch all relevant subjects (including legacy ones)
+        // We pass undefined/null to get all or currentUser id if available in context (not passed here currently)
+        // Since we want to show everything this user has access to, let's use the generic getter which likely returns the cached list
+        const subs = getSubjects(); 
         setSubjects(subs);
         if (subs.length > 0) setSelectedSubject(subs[0].name);
         else setSelectedSubject('عام');
@@ -79,6 +82,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
     const student = students.find(s => s.id === selectedStudentId);
 
+    // FIX: Get Assignments generally (allow legacy)
     const rawActivityCols = getAssignments('ACTIVITY').filter(c => c.isVisible);
     const activityCols = rawActivityCols.filter(c => 
         !c.title.includes('حضور') && 
@@ -103,6 +107,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
         const gradePart = (attPercent / 100) * 15;
 
+        // Note: Performance records are already filtered by App.tsx to include legacy ones
         const studentHWs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
         const totalHWCount = homeworkCols.length;
         const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;

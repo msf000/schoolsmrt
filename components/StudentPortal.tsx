@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject } from '../types';
 import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase } from '../services/storageService';
 import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
@@ -28,6 +28,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
     const handleRefresh = async () => {
         setIsSyncing(true);
+        // Student Download Logic is handled in downloadFromSupabase
         await downloadFromSupabase();
         setIsSyncing(false);
         // Page reload to reflect changes in Props passed from App
@@ -486,11 +487,15 @@ const StudentAttendanceView = ({ student, attendance }: { student: Student, atte
 
 const StudentEvaluationView = ({ student, performance, attendance }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[] }) => {
     const [selectedSubject, setSelectedSubject] = useState('');
-    const subjects = getSubjects();
+    const [subjects, setSubjects] = useState<Subject[]>([]);
     const [activityTarget, setActivityTarget] = useState<number>(13); // Default to 13
 
     useEffect(() => {
-        if(subjects.length > 0) setSelectedSubject(subjects[0].name);
+        // FIX: Fetch all subjects to ensure we see global ones
+        const subs = getSubjects();
+        setSubjects(subs);
+        
+        if(subs.length > 0) setSelectedSubject(subs[0].name);
         else setSelectedSubject('عام');
 
         // Load Activity Target (Same as teacher's view)
@@ -500,7 +505,7 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
 
     // Calculate Summary Stats (Mirroring StudentFollowUp logic)
     const stats = useMemo(() => {
-        // Configs for columns - NEW: Use Assignments
+        // FIX: Use generic getAssignments to include legacy columns
         const homeworkCols = getAssignments('HOMEWORK').filter(c => c.isVisible);
         const rawActivityCols = getAssignments('ACTIVITY').filter(c => c.isVisible);
         const examCols = getAssignments('PLATFORM_EXAM').filter(c => c.isVisible);
@@ -508,7 +513,7 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
         // Exclude attendance from activity sum if needed
         const activityCols = rawActivityCols.filter(c => !c.title.includes('حضور') && !c.title.toLowerCase().includes('attendance'));
 
-        // Filter for this student & subject
+        // Filter for this student & subject (Performance already filtered by App to include legacy)
         const myPerf = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject);
         const myAtt = attendance.filter(a => a.studentId === student.id);
 
