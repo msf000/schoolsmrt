@@ -178,6 +178,7 @@ export const deleteStudent = async (id: string) => {
 export const deleteAllStudents = async () => {
     saveToLocal('students', []);
     notifyDataChange();
+    // Bulk delete not implemented for safety
 };
 export const bulkAddStudents = async (items: Student[]) => {
     saveToLocal('students', [...CACHE.students, ...items]);
@@ -527,7 +528,11 @@ const setupRealtimeSubscription = () => {
                 handleRealtimeEvent(payload);
             }
         )
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log('Realtime subscribed');
+            }
+        });
 };
 
 const handleRealtimeEvent = (payload: any) => {
@@ -625,7 +630,7 @@ export const downloadFromSupabase = async () => {
     const promises = Object.entries(TABLE_MAPPING).map(async ([localKey, tableName]) => {
         const { data, error } = await supabase.from(tableName).select('*');
         if (error) {
-            if(error.code === '42P01') return; 
+            if(error.code === '42P01') return; // Ignore missing table
             console.warn(`Could not fetch table ${tableName}`, error);
             return;
         }
