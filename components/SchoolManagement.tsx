@@ -330,19 +330,51 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 <div className="max-w-4xl mx-auto space-y-6">
                     {!isManager && teacherProfile && (
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><User size={20}/> بياناتي</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div><label className="block text-sm font-bold mb-1">الاسم</label><input className="w-full p-2 border rounded" value={teacherProfile.name} onChange={e => setTeacherProfile({...teacherProfile, name: e.target.value})}/></div>
-                                <div><label className="block text-sm font-bold mb-1">البريد الإلكتروني</label><input className="w-full p-2 border rounded" value={teacherProfile.email || ''} onChange={e => setTeacherProfile({...teacherProfile, email: e.target.value})}/></div>
-                                <div><label className="block text-sm font-bold mb-1">رقم الجوال</label><input className="w-full p-2 border rounded" value={teacherProfile.phone || ''} onChange={e => setTeacherProfile({...teacherProfile, phone: e.target.value})}/></div>
-                                <div><label className="block text-sm font-bold mb-1">التخصص</label><input className="w-full p-2 border rounded" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})}/></div>
+                            <div className="flex justify-between items-start mb-6">
+                                <h3 className="font-bold text-lg flex items-center gap-2"><User size={20}/> الملف الشخصي</h3>
+                                <div className="flex items-center gap-2">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${teacherProfile.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                                        {teacherProfile.subscriptionStatus === 'PRO' ? 'باقة المحترفين' : teacherProfile.subscriptionStatus === 'ENTERPRISE' ? 'باقة المؤسسات' : 'الباقة المجانية'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">الاسم الرباعي</label>
+                                    <input className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.name} onChange={e => setTeacherProfile({...teacherProfile, name: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">رقم الهوية / السجل المدني</label>
+                                    <input className="w-full p-2 border rounded font-mono bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.nationalId || ''} onChange={e => setTeacherProfile({...teacherProfile, nationalId: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
+                                    <input className="w-full p-2 border rounded dir-ltr text-right focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.email || ''} onChange={e => setTeacherProfile({...teacherProfile, email: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">رقم الجوال</label>
+                                    <input className="w-full p-2 border rounded font-mono dir-ltr text-right focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.phone || ''} onChange={e => setTeacherProfile({...teacherProfile, phone: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">التخصص</label>
+                                    <input className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})}/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">كلمة المرور</label>
+                                    <input type="password" className="w-full p-2 border rounded font-mono focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.password || ''} onChange={e => setTeacherProfile({...teacherProfile, password: e.target.value})}/>
+                                </div>
                             </div>
 
                             <div className="mt-6 pt-6 border-t">
                                 <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Building2 size={18}/> المدرسة التابعة</h4>
                                 {mySchool ? (
                                     <div className="bg-green-50 p-4 rounded-lg border border-green-200 flex justify-between items-center">
-                                        <div><p className="font-bold text-green-800">{mySchool.name}</p><p className="text-xs text-green-600">المدير: {mySchool.managerName}</p></div>
+                                        <div>
+                                            <p className="font-bold text-green-800">{mySchool.name}</p>
+                                            <p className="text-xs text-green-600 mt-1">المدير: {mySchool.managerName}</p>
+                                            {mySchool.ministryCode && <p className="text-xs text-green-600 font-mono">الرمز: {mySchool.ministryCode}</p>}
+                                        </div>
                                         <CheckCircle className="text-green-600"/>
                                     </div>
                                 ) : (
@@ -362,7 +394,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     </div>
                                 )}
                             </div>
-                            <button onClick={handleTeacherSaveProfile} className="mt-6 w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 flex justify-center items-center gap-2"><Save size={18}/> حفظ التغييرات</button>
+                            <button onClick={handleTeacherSaveProfile} className="mt-6 w-full bg-blue-600 text-white py-2 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2 shadow-lg transition-all"><Save size={18}/> حفظ التغييرات</button>
                         </div>
                     )}
                 </div>
