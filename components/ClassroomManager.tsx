@@ -1,9 +1,9 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Loader2, Clock, LogOut, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle } from 'lucide-react';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Loader2, Clock, LogOut, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Check, X } from 'lucide-react';
 import Attendance from './Attendance';
-import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink } from '../services/storageService';
+import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink, updateStudent } from '../services/storageService';
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -101,6 +101,11 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         }
         return classSched.sort((a,b) => a.period - b.period);
     }, [schedules, teacherAssignments, selectedClass, effectiveDate, currentUser]);
+
+    // Handle Seating Save (Update student seatIndex)
+    const handleUpdateSeating = (updatedStudents: Student[]) => {
+        updatedStudents.forEach(s => updateStudent(s)); // Save to DB
+    };
 
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50">
@@ -238,14 +243,19 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                     />
                 )}
 
-                {activeTab === 'SEATING' && <SeatingChart students={students} performance={performance} onSaveSeating={onSaveSeating} preSelectedClass={selectedClass} />}
+                {activeTab === 'SEATING' && (
+                    <SeatingChart 
+                        students={classStudents} 
+                        onSaveSeating={handleUpdateSeating} 
+                        preSelectedClass={selectedClass} 
+                    />
+                )}
             </div>
         </div>
     );
 };
 
-// ... (Sub-components: AttendanceStatsWidget, LessonLibraryWidget, etc. remain the same but cleaner) ...
-// Including a minimized version of widgets for brevity, relying on the pattern estabilished
+// --- WIDGET IMPLEMENTATIONS ---
 
 const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], date: string }> = ({ students, attendance, date }) => {
     const stats = useMemo(() => {
@@ -319,9 +329,6 @@ const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ cu
     );
 };
 
-// ... (MiniTimer, SoundBoard, HallPass, TrafficLight, QuickPoll, LessonNote, SeatingChart remain the same standard implementations as before) ...
-// Re-implementing essential parts for compilation validity
-
 const MiniTimerWidget = () => {
     const [timeLeft, setTimeLeft] = useState(0);
     const [isActive, setIsActive] = useState(false);
@@ -352,47 +359,306 @@ const SoundBoardWidget = () => (
     </div>
 );
 
+// --- UPDATED: Functional Hall Pass Widget ---
 const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ students }) => {
-    const [passes, setPasses] = useState<any[]>([]); // simplified
-    const handleCheckout = () => { /* ... */ };
+    const [passes, setPasses] = useState<{id: string, studentId: string, name: string, startTime: number}[]>([]);
+    const [selectedStudent, setSelectedStudent] = useState('');
+
+    // Timer updater
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        const timer = setInterval(() => setTick(t => t + 1), 60000); // Update every minute
+        return () => clearInterval(timer);
+    }, []);
+
+    const issuePass = () => {
+        if (!selectedStudent) return;
+        const student = students.find(s => s.id === selectedStudent);
+        if (student) {
+            setPasses(prev => [...prev, {
+                id: Date.now().toString(),
+                studentId: student.id,
+                name: student.name,
+                startTime: Date.now()
+            }]);
+            setSelectedStudent('');
+        }
+    };
+
+    const returnPass = (id: string) => {
+        setPasses(prev => prev.filter(p => p.id !== id));
+    };
+
+    const formatDuration = (start: number) => {
+        const mins = Math.floor((Date.now() - start) / 60000);
+        return mins + 'د';
+    };
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
             <div className="p-3 border-b bg-orange-50"><h3 className="font-bold text-orange-800 flex items-center gap-2 text-sm"><DoorOpen size={16}/> تصريح الخروج</h3></div>
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-xs">قائمة التصاريح</div>
+            
+            <div className="p-3 border-b flex gap-2">
+                <select 
+                    className="flex-1 text-xs border rounded p-1.5"
+                    value={selectedStudent}
+                    onChange={e => setSelectedStudent(e.target.value)}
+                >
+                    <option value="">اختر الطالب...</option>
+                    {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <button onClick={issuePass} disabled={!selectedStudent} className="bg-orange-500 text-white px-3 rounded text-xs font-bold disabled:opacity-50">خروج</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {passes.length > 0 ? passes.map(pass => (
+                    <div key={pass.id} className="bg-orange-50 border border-orange-200 rounded p-2 flex justify-between items-center animate-fade-in">
+                        <div>
+                            <span className="font-bold text-xs block text-orange-900">{pass.name}</span>
+                            <span className="text-[10px] text-orange-700 flex items-center gap-1"><Clock size={10}/> منذ {formatDuration(pass.startTime)}</span>
+                        </div>
+                        <button onClick={() => returnPass(pass.id)} className="bg-white text-orange-600 border border-orange-200 text-[10px] px-2 py-1 rounded hover:bg-orange-100">عودة</button>
+                    </div>
+                )) : (
+                    <div className="text-center text-gray-400 text-xs py-8 opacity-50">لا يوجد طلاب خارج الفصل</div>
+                )}
+            </div>
         </div>
     );
 };
 
-const TrafficLightWidget = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
-        <div className="p-3 border-b bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><AlertCircle size={16}/> إشارة الانضباط</h3></div>
-        <div className="flex-1 flex items-center justify-center gap-3 bg-slate-100">
-            <div className="w-10 h-10 rounded-full bg-red-500 border-4 border-slate-700"></div>
-            <div className="w-10 h-10 rounded-full bg-yellow-400 border-4 border-slate-700 opacity-50"></div>
-            <div className="w-10 h-10 rounded-full bg-green-500 border-4 border-slate-700 opacity-50"></div>
+// --- UPDATED: Interactive Traffic Light ---
+const TrafficLightWidget = () => {
+    const [light, setLight] = useState<'RED'|'YELLOW'|'GREEN'>('GREEN');
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><AlertCircle size={16}/> إشارة الانضباط</h3></div>
+            <div className="flex-1 flex items-center justify-center gap-4 bg-slate-100">
+                <div 
+                    onClick={() => setLight('RED')}
+                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'RED' ? 'bg-red-600 scale-110 shadow-red-500/50' : 'bg-red-900 opacity-30'}`}
+                ></div>
+                <div 
+                    onClick={() => setLight('YELLOW')}
+                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'YELLOW' ? 'bg-yellow-400 scale-110 shadow-yellow-500/50' : 'bg-yellow-900 opacity-30'}`}
+                ></div>
+                <div 
+                    onClick={() => setLight('GREEN')}
+                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'GREEN' ? 'bg-green-500 scale-110 shadow-green-500/50' : 'bg-green-900 opacity-30'}`}
+                ></div>
+            </div>
+            <div className="bg-white p-2 text-center text-xs font-bold border-t text-gray-500">
+                الحالة: <span className={light === 'RED' ? 'text-red-600' : light === 'YELLOW' ? 'text-yellow-600' : 'text-green-600'}>
+                    {light === 'RED' ? 'توقف / صمت' : light === 'YELLOW' ? 'انتباه' : 'مسموح'}
+                </span>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
-const QuickPollWidget = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
-        <div className="p-3 border-b bg-blue-50"><h3 className="font-bold text-blue-800 flex items-center gap-2 text-sm"><BarChart2 size={16}/> تصويت</h3></div>
-        <div className="flex-1 flex items-center justify-center text-gray-400 text-xs">نظام التصويت</div>
-    </div>
-);
+// --- UPDATED: Quick Poll Widget ---
+const QuickPollWidget = () => {
+    const [votes, setVotes] = useState({ A: 0, B: 0, C: 0 });
+    
+    const vote = (opt: 'A'|'B'|'C') => setVotes(prev => ({ ...prev, [opt]: prev[opt] + 1 }));
+    const reset = () => setVotes({ A: 0, B: 0, C: 0 });
+    const total = votes.A + votes.B + votes.C;
 
-const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ className, subject }) => (
-    <div className="bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden flex flex-col h-80 relative">
-        <div className="p-3 border-b border-yellow-100"><h3 className="font-bold text-yellow-800 flex items-center gap-2 text-sm"><StickyNote size={16}/> ملاحظات</h3></div>
-        <textarea className="flex-1 bg-transparent p-4 outline-none text-sm" placeholder="أكتب ملاحظات الدرس..."/>
-    </div>
-);
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-blue-50 flex justify-between items-center">
+                <h3 className="font-bold text-blue-800 flex items-center gap-2 text-sm"><BarChart2 size={16}/> تصويت سريع</h3>
+                <button onClick={reset} className="text-blue-600 hover:bg-blue-100 p-1 rounded"><RotateCcw size={14}/></button>
+            </div>
+            <div className="flex-1 flex flex-col p-4 gap-3">
+                <div className="flex gap-2 h-full items-end">
+                    {['A', 'B', 'C'].map((opt) => {
+                        const count = votes[opt as keyof typeof votes];
+                        const pct = total > 0 ? (count / total) * 100 : 0;
+                        return (
+                            <div key={opt} className="flex-1 flex flex-col justify-end h-full gap-1">
+                                <div className="text-center text-xs font-bold text-gray-500">{count}</div>
+                                <div 
+                                    className={`w-full rounded-t-lg transition-all duration-500 ${opt === 'A' ? 'bg-blue-500' : opt === 'B' ? 'bg-green-500' : 'bg-red-500'}`}
+                                    style={{ height: `${Math.max(10, pct)}%` }}
+                                ></div>
+                                <button 
+                                    onClick={() => vote(opt as any)}
+                                    className="w-full py-1 border rounded text-xs font-bold hover:bg-gray-50"
+                                >
+                                    {opt}
+                                </button>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+};
 
-const SeatingChart: React.FC<{ students: Student[], performance: any[], onSaveSeating?: any, preSelectedClass?: string }> = ({ students }) => (
-    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-4 border-b bg-gray-50"><h3 className="font-bold text-gray-700">مخطط الجلوس</h3></div>
-        <div className="flex-1 p-8 bg-slate-100 flex justify-center"><div className="text-gray-400">شبكة المقاعد</div></div>
-    </div>
-);
+const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ className, subject }) => {
+    const [note, setNote] = useState(() => localStorage.getItem(`note_${className}`) || '');
+    
+    const handleChange = (val: string) => {
+        setNote(val);
+        localStorage.setItem(`note_${className}`, val);
+    };
+
+    return (
+        <div className="bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden flex flex-col h-80 relative">
+            <div className="p-3 border-b border-yellow-100"><h3 className="font-bold text-yellow-800 flex items-center gap-2 text-sm"><StickyNote size={16}/> ملاحظات</h3></div>
+            <textarea 
+                className="flex-1 bg-transparent p-4 outline-none text-sm resize-none" 
+                placeholder="أكتب ملاحظات الدرس..."
+                value={note}
+                onChange={e => handleChange(e.target.value)}
+            />
+        </div>
+    );
+};
+
+// --- UPDATED: Functional Seating Chart ---
+const SeatingChart: React.FC<{ students: Student[], onSaveSeating?: (s: Student[]) => void, preSelectedClass?: string }> = ({ students, onSaveSeating, preSelectedClass }) => {
+    // 5x5 Grid by default
+    const [rows] = useState(5);
+    const [cols] = useState(5);
+    const [assignedSeats, setAssignedSeats] = useState<Record<string, string>>({}); // "row-col": studentId
+    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+    // Initialize seats from students data
+    useEffect(() => {
+        const initialSeats: Record<string, string> = {};
+        students.forEach(s => {
+            if (s.seatIndex !== undefined && s.seatIndex >= 0) {
+                // Convert linear index to row-col (0 -> 0-0, 1 -> 0-1)
+                const r = Math.floor(s.seatIndex / cols);
+                const c = s.seatIndex % cols;
+                initialSeats[`${r}-${c}`] = s.id;
+            }
+        });
+        setAssignedSeats(initialSeats);
+    }, [students, cols]);
+
+    const handleSeatClick = (r: number, c: number) => {
+        const key = `${r}-${c}`;
+        
+        if (selectedStudentId) {
+            // Assign selected student to this seat
+            // 1. Remove student from previous seat if any
+            const newSeats = { ...assignedSeats };
+            Object.keys(newSeats).forEach(k => {
+                if (newSeats[k] === selectedStudentId) delete newSeats[k];
+            });
+            // 2. Assign to new seat
+            newSeats[key] = selectedStudentId;
+            setAssignedSeats(newSeats);
+            setSelectedStudentId(null);
+        } else if (assignedSeats[key]) {
+            // If clicking an occupied seat without selection -> Select that student to move
+            setSelectedStudentId(assignedSeats[key]);
+        }
+    };
+
+    const handleSave = () => {
+        if (!onSaveSeating) return;
+        const updatedStudents = students.map(s => {
+            // Find seat for this student
+            const seatKey = Object.keys(assignedSeats).find(k => assignedSeats[k] === s.id);
+            if (seatKey) {
+                const [r, c] = seatKey.split('-').map(Number);
+                return { ...s, seatIndex: r * cols + c };
+            } else {
+                return { ...s, seatIndex: -1 }; // Unassigned
+            }
+        });
+        onSaveSeating(updatedStudents);
+        alert('تم حفظ ترتيب المقاعد!');
+    };
+
+    const handleAutoArrange = () => {
+        const shuffled = [...students].sort(() => 0.5 - Math.random());
+        const newSeats: Record<string, string> = {};
+        shuffled.forEach((s, idx) => {
+            if (idx < rows * cols) {
+                const r = Math.floor(idx / cols);
+                const c = idx % cols;
+                newSeats[`${r}-${c}`] = s.id;
+            }
+        });
+        setAssignedSeats(newSeats);
+    };
+
+    const unassignedStudents = students.filter(s => !Object.values(assignedSeats).includes(s.id));
+
+    return (
+        <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 className="font-bold text-gray-700 flex items-center gap-2"><Grid size={18}/> مخطط الجلوس - {preSelectedClass}</h3>
+                <div className="flex gap-2">
+                    <button onClick={handleAutoArrange} className="px-3 py-1.5 bg-white border rounded hover:bg-gray-50 text-sm font-bold flex items-center gap-1"><Shuffle size={14}/> ترتيب عشوائي</button>
+                    <button onClick={handleSave} className="px-4 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm font-bold flex items-center gap-1"><Save size={14}/> حفظ الترتيب</button>
+                </div>
+            </div>
+            
+            <div className="flex-1 p-6 flex flex-col md:flex-row gap-6 overflow-hidden">
+                {/* Grid */}
+                <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 p-8 flex items-center justify-center overflow-auto relative">
+                    <div className="absolute top-2 bg-slate-300 text-slate-600 px-4 py-1 rounded-full text-xs font-bold shadow-sm">السبورة / الشاشة</div>
+                    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                        {Array.from({ length: rows }).map((_, r) => (
+                            Array.from({ length: cols }).map((_, c) => {
+                                const key = `${r}-${c}`;
+                                const studentId = assignedSeats[key];
+                                const student = students.find(s => s.id === studentId);
+                                const isSelected = studentId === selectedStudentId;
+
+                                return (
+                                    <div 
+                                        key={key}
+                                        onClick={() => handleSeatClick(r, c)}
+                                        className={`
+                                            w-16 h-16 md:w-24 md:h-24 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all shadow-sm
+                                            ${student ? (isSelected ? 'bg-purple-100 border-purple-500 scale-105' : 'bg-white border-purple-200 hover:border-purple-300') : 'bg-slate-50 border-dashed border-slate-300 hover:bg-white'}
+                                        `}
+                                    >
+                                        {student ? (
+                                            <>
+                                                <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold mb-1">
+                                                    {student.name.charAt(0)}
+                                                </div>
+                                                <span className="text-[10px] md:text-xs text-center font-bold text-gray-700 line-clamp-1 w-full px-1">{student.name}</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-slate-300 text-xs">{r+1}-{c+1}</span>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ))}
+                    </div>
+                </div>
+
+                {/* Sidebar List */}
+                <div className="w-full md:w-64 bg-gray-50 border-l border-gray-200 flex flex-col">
+                    <div className="p-3 border-b font-bold text-sm text-gray-600">طلاب غير معينين ({unassignedStudents.length})</div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                        {unassignedStudents.map(s => (
+                            <div 
+                                key={s.id}
+                                onClick={() => setSelectedStudentId(s.id === selectedStudentId ? null : s.id)}
+                                className={`p-2 rounded border cursor-pointer text-sm flex items-center gap-2 ${selectedStudentId === s.id ? 'bg-purple-100 border-purple-300 text-purple-800' : 'bg-white border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                <User size={14}/> {s.name}
+                            </div>
+                        ))}
+                        {unassignedStudents.length === 0 && <div className="text-center text-gray-400 text-xs py-4">جميع الطلاب في مقاعدهم</div>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default ClassroomManager;
