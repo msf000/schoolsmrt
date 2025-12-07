@@ -10,7 +10,7 @@ import {
     getFeedback, addFeedback, addSchool, updateSchool,
     getUserTheme, saveUserTheme
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -351,7 +351,8 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                             <div className="flex justify-between items-start mb-6">
                                 <h3 className="font-bold text-lg flex items-center gap-2"><User size={20}/> الملف الشخصي</h3>
                                 <div className="flex items-center gap-2">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${teacherProfile.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${teacherProfile.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                                        <CreditCard size={12}/>
                                         {teacherProfile.subscriptionStatus === 'PRO' ? 'باقة المحترفين' : teacherProfile.subscriptionStatus === 'ENTERPRISE' ? 'باقة المؤسسات' : 'الباقة المجانية'}
                                     </span>
                                 </div>
@@ -379,8 +380,8 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     <input className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})}/>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">كلمة المرور</label>
-                                    <input type="password" className="w-full p-2 border rounded font-mono focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.password || ''} onChange={e => setTeacherProfile({...teacherProfile, password: e.target.value})}/>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1"><Lock size={12}/> كلمة المرور</label>
+                                    <input type="text" className="w-full p-2 border rounded font-mono focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.password || ''} onChange={e => setTeacherProfile({...teacherProfile, password: e.target.value})}/>
                                 </div>
                             </div>
 

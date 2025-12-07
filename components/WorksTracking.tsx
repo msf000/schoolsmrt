@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
@@ -63,7 +62,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [showQuickFill, setShowQuickFill] = useState<string | null>(null);
 
     // Debounce Ref
-    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         // FIX: Fetch subjects including legacy/global ones by passing ID
