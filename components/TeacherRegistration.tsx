@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Teacher, School } from '../types';
 import { addTeacher, getTeachers, getSchools, addSchool } from '../services/storageService';
-import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info } from 'lucide-react';
+import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info, MapPin, Building } from 'lucide-react';
 
 interface TeacherRegistrationProps {
     onBack: () => void;
@@ -21,7 +21,9 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
         schoolCode: '',       // Ministry Code
         schoolName: '',       // New School Name
         managerName: '',      // New Manager Name
-        managerNationalId: '' // New Manager ID
+        managerNationalId: '', // New Manager ID
+        educationAdmin: '',   // New: Education Administration
+        schoolType: 'PUBLIC'  // New: School Type
     });
     
     const [foundSchool, setFoundSchool] = useState<School | null>(null);
@@ -39,7 +41,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
         }
     }, [formData.schoolCode]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
         setError('');
     };
@@ -109,7 +111,8 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         ministryCode: formData.schoolCode,
                         managerName: formData.managerName || 'غير مسجل', // Optional
                         managerNationalId: formData.managerNationalId || undefined, // Optional (send undefined to skip column)
-                        type: 'PUBLIC',
+                        educationAdministration: formData.educationAdmin || '',
+                        type: formData.schoolType as any || 'PUBLIC',
                         phone: '',
                         studentCount: 0
                     };
@@ -254,7 +257,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                 <SchoolIcon size={14}/> المدرسة (اختياري)
                             </label>
                             <p className="text-[10px] text-gray-500 mb-2">
-                                أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، يمكنك إضافتها الآن أو تخطي هذه الخطوة.
+                                أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، سيطلب منك إدخال بياناتها لإنشائها.
                             </p>
                             
                             <div className="mb-3">
@@ -284,39 +287,53 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                     </div>
                                 </div>
                             ) : formData.schoolCode.length >= 3 ? (
-                                <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2">
-                                    <div className="flex items-center gap-2 text-amber-600 text-xs font-bold">
-                                        <Info size={14}/> مدرسة جديدة؟ أدخل الاسم:
+                                <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2 bg-white p-3 rounded-lg border border-teal-100 shadow-sm">
+                                    <div className="flex items-center gap-2 text-teal-700 text-xs font-bold mb-2">
+                                        <Info size={14}/> إعداد مدرسة جديدة بالكامل:
                                     </div>
+                                    
                                     <input 
                                         name="schoolName" 
                                         value={formData.schoolName} 
                                         onChange={handleChange} 
-                                        className="w-full p-2 border rounded-lg text-sm bg-white" 
+                                        className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
                                         placeholder="اسم المدرسة *"
                                     />
-                                    
-                                    <div className="text-[10px] text-gray-400 mt-1 cursor-pointer flex items-center gap-1" onClick={() => {
-                                        const el = document.getElementById('manager-fields');
-                                        if(el) el.style.display = el.style.display === 'none' ? 'grid' : 'none';
-                                    }}>
-                                        <span>+ إضافة بيانات المدير (اختياري)</span>
-                                    </div>
 
-                                    <div id="manager-fields" className="grid grid-cols-2 gap-2" style={{display: 'none'}}>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input 
+                                            name="educationAdmin" 
+                                            value={formData.educationAdmin} 
+                                            onChange={handleChange} 
+                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
+                                            placeholder="الإدارة التعليمية (مثال: جدة)"
+                                        />
+                                        <select 
+                                            name="schoolType"
+                                            value={formData.schoolType}
+                                            onChange={handleChange}
+                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white"
+                                        >
+                                            <option value="PUBLIC">حكومي</option>
+                                            <option value="PRIVATE">أهلي</option>
+                                            <option value="INTERNATIONAL">دولي</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
                                         <input 
                                             name="managerName" 
                                             value={formData.managerName} 
                                             onChange={handleChange} 
-                                            className="w-full p-2 border rounded-lg text-sm bg-white" 
+                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
                                             placeholder="اسم المدير"
                                         />
                                         <input 
                                             name="managerNationalId" 
                                             value={formData.managerNationalId} 
                                             onChange={handleChange} 
-                                            className="w-full p-2 border rounded-lg text-sm bg-white font-mono" 
-                                            placeholder="هوية المدير"
+                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white font-mono" 
+                                            placeholder="هوية المدير (للربط)"
                                         />
                                     </div>
                                 </div>

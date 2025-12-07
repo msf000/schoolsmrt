@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme } from '../types';
 import { 
@@ -7,10 +6,10 @@ import {
     getSchedules, saveScheduleItem, deleteScheduleItem,
     getTeacherAssignments, saveTeacherAssignment, deleteAssignment,
     getReportHeaderConfig, saveReportHeaderConfig,
-    getFeedback, addFeedback, addSchool,
+    getFeedback, addFeedback, addSchool, updateSchool,
     getUserTheme, saveUserTheme
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -21,7 +20,7 @@ interface SchoolManagementProps {
     onUpdateTheme?: (theme: UserTheme) => void;
 }
 
-const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onUpdateTheme }) => {
+export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onUpdateTheme }) => {
   const isManager = currentUser?.role === 'SCHOOL_MANAGER' || currentUser?.role === 'SUPER_ADMIN';
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS'>(() => {
       return localStorage.getItem('school_mgmt_active_tab') as any || 'DASHBOARD';
@@ -241,6 +240,13 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
           saveUserTheme(userTheme);
           if(onUpdateTheme) onUpdateTheme(userTheme);
           alert('تم حفظ الإعدادات بنجاح');
+      }
+  };
+
+  const handleSaveSchoolData = () => {
+      if (mySchool) {
+          updateSchool(mySchool);
+          alert('تم تحديث بيانات المدرسة بنجاح!');
       }
   };
 
@@ -480,12 +486,55 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
 
             {activeTab === 'SETTINGS' && (
                 <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
+                    
+                    {/* School Data Section (New) */}
+                    {mySchool && (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-teal-700">
+                                <Building2 size={20}/> بيانات المدرسة (السجل الرسمي)
+                            </h3>
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label>
+                                        <input className="w-full p-2 border rounded" value={mySchool.name} onChange={e => setMySchool({...mySchool, name: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">الرمز الوزاري</label>
+                                        <input className="w-full p-2 border rounded font-mono" value={mySchool.ministryCode || ''} onChange={e => setMySchool({...mySchool, ministryCode: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">الإدارة التعليمية</label>
+                                        <input className="w-full p-2 border rounded" value={mySchool.educationAdministration || ''} onChange={e => setMySchool({...mySchool, educationAdministration: e.target.value})} placeholder="مثال: جدة"/>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">نوع المدرسة</label>
+                                        <select className="w-full p-2 border rounded bg-white" value={mySchool.type} onChange={e => setMySchool({...mySchool, type: e.target.value as any})}>
+                                            <option value="PUBLIC">حكومي</option>
+                                            <option value="PRIVATE">أهلي</option>
+                                            <option value="INTERNATIONAL">دولي</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">مدير المدرسة</label>
+                                        <input className="w-full p-2 border rounded" value={mySchool.managerName} onChange={e => setMySchool({...mySchool, managerName: e.target.value})} />
+                                    </div>
+                                </div>
+                                <button onClick={handleSaveSchoolData} className="bg-teal-600 text-white px-4 py-2 rounded font-bold hover:bg-teal-700 mt-2 text-sm flex items-center gap-2">
+                                    <Save size={16}/> حفظ بيانات المدرسة
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-gray-800"><FileText size={20}/> ترويسة التقارير الرسمية</h3>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">إدارة التعليم</label><input className="w-full p-2 border rounded" value={reportConfig.educationAdmin} onChange={e => setReportConfig({...reportConfig, educationAdmin: e.target.value})}/></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label><input className="w-full p-2 border rounded" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})}/></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">إدارة التعليم (للطباعة)</label><input className="w-full p-2 border rounded" value={reportConfig.educationAdmin} onChange={e => setReportConfig({...reportConfig, educationAdmin: e.target.value})}/></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة (للطباعة)</label><input className="w-full p-2 border rounded" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})}/></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-sm font-bold text-gray-700 mb-1">اسم المعلم</label><input className="w-full p-2 border rounded" value={reportConfig.teacherName} onChange={e => setReportConfig({...reportConfig, teacherName: e.target.value})}/></div>
@@ -513,12 +562,9 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
                         </div>
                     </div>
 
-                    <button onClick={handleSaveSettings} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black shadow-lg mt-4 flex justify-center items-center gap-2"><Save size={20}/> حفظ وتطبيق</button>
+                    <button onClick={handleSaveSettings} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black shadow-lg mt-4 flex justify-center items-center gap-2"><Save size={20}/> حفظ الإعدادات</button>
                 </div>
             )}
         </div>
-    </div>
-  );
+    );
 };
-
-export default SchoolManagement;

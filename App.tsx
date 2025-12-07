@@ -24,7 +24,6 @@ import AIReports from './components/AIReports';
 import ClassroomScreen from './components/ClassroomScreen';
 import ClassroomManager from './components/ClassroomManager';
 import DataImport from './components/DataImport';
-import SchoolManagement from './components/SchoolManagement';
 import AdminDashboard from './components/AdminDashboard';
 import CustomTablesView from './components/CustomTablesView';
 import MessageCenter from './components/MessageCenter';
@@ -35,6 +34,9 @@ import LessonPlanning from './components/LessonPlanning';
 import MonthlyReport from './components/MonthlyReport';
 
 import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2 } from 'lucide-react';
+
+// FIX: Import SchoolManagement as named export since we changed it
+import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
 const App: React.FC = () => {
     // Auth State
@@ -356,7 +358,7 @@ const App: React.FC = () => {
                             currentUser={currentUser}
                         />
                     )}
-                    {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagement students={students} onImportStudents={handleImportStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleImportAttendance} currentUser={currentUser} onUpdateTheme={setTheme}/>}
+                    {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagementComponent students={students} onImportStudents={handleImportStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleImportAttendance} currentUser={currentUser} onUpdateTheme={setTheme}/>}
                     {currentView === 'CUSTOM_TABLES' && <CustomTablesView currentUser={currentUser}/>}
                     {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance} />}
                     {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
