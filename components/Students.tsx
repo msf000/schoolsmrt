@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
 import { deleteAllStudents } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target } from 'lucide-react';
 import DataImport from './DataImport';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
 interface StudentsProps {
   students: Student[];
@@ -67,7 +67,25 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             max: p.maxScore
         }));
 
-      return { attRate, absent, late, posBehavior, negBehavior, avgScore, recentGrades };
+      // Radar Data: Performance by Category
+      const categories = ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'];
+      const radarData = categories.map(cat => {
+          const catPerfs = sPerf.filter(p => p.category === cat);
+          if (catPerfs.length === 0) return { subject: cat, A: 0, fullMark: 100 };
+          const obtained = catPerfs.reduce((acc, curr) => acc + curr.score, 0);
+          const max = catPerfs.reduce((acc, curr) => acc + (curr.maxScore || 10), 0);
+          const pct = max > 0 ? Math.round((obtained / max) * 100) : 0;
+          return {
+              subject: cat === 'HOMEWORK' ? 'الواجبات' : cat === 'ACTIVITY' ? 'الأنشطة' : 'الاختبارات',
+              A: pct,
+              fullMark: 100
+          };
+      });
+      // Add Attendance to Radar
+      radarData.push({ subject: 'الحضور', A: attRate, fullMark: 100 });
+      radarData.push({ subject: 'السلوك', A: Math.max(0, 100 - (negBehavior * 10)), fullMark: 100 });
+
+      return { attRate, absent, late, posBehavior, negBehavior, avgScore, recentGrades, radarData };
   }, [viewStudent, attendance, performance]);
 
   const initialFormState = {
@@ -434,7 +452,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
 
       {isViewModalOpen && viewStudent && studentStats && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl w-full max-w-3xl shadow-xl relative overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="bg-white rounded-xl w-full max-w-4xl shadow-xl relative overflow-hidden flex flex-col max-h-[90vh]">
                   <div className="absolute top-0 right-0 left-0 h-24 bg-gradient-to-r from-blue-600 to-purple-600"></div>
                   
                   <div className="relative pt-12 px-6 pb-6 overflow-y-auto custom-scrollbar">
@@ -498,24 +516,40 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                           </div>
                       </div>
                       
-                      {/* Performance Chart */}
-                      {studentStats.recentGrades.length > 0 && (
-                          <div className="bg-white p-4 rounded-xl border border-gray-200 mb-6 h-64">
-                              <h4 className="font-bold text-gray-700 text-sm mb-4 flex items-center gap-2"><Activity size={16}/> تطور المستوى الأكاديمي</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                          {/* Performance Line Chart */}
+                          {studentStats.recentGrades.length > 0 && (
+                              <div className="bg-white p-4 rounded-xl border border-gray-200 h-72">
+                                  <h4 className="font-bold text-gray-700 text-sm mb-4 flex items-center gap-2"><Activity size={16}/> تطور المستوى الأكاديمي</h4>
+                                  <ResponsiveContainer width="100%" height="100%">
+                                      <LineChart data={studentStats.recentGrades}>
+                                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                          <XAxis dataKey="name" tick={{fontSize: 10}} height={20} tickFormatter={(val) => val.length > 10 ? val.substr(0,10)+'..' : val}/>
+                                          <YAxis domain={[0, 'dataMax']} tick={{fontSize: 10}} width={30}/>
+                                          <Tooltip 
+                                              contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                              labelStyle={{fontWeight: 'bold', color: '#374151'}}
+                                          />
+                                          <Line type="monotone" dataKey="score" stroke="#8884d8" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
+                                      </LineChart>
+                                  </ResponsiveContainer>
+                              </div>
+                          )}
+
+                          {/* Performance Radar Chart */}
+                          <div className="bg-white p-4 rounded-xl border border-gray-200 h-72">
+                              <h4 className="font-bold text-gray-700 text-sm mb-2 flex items-center gap-2"><Target size={16}/> تحليل المهارات</h4>
                               <ResponsiveContainer width="100%" height="100%">
-                                  <LineChart data={studentStats.recentGrades}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                      <XAxis dataKey="name" tick={{fontSize: 10}} height={20} tickFormatter={(val) => val.length > 10 ? val.substr(0,10)+'..' : val}/>
-                                      <YAxis domain={[0, 'dataMax']} tick={{fontSize: 10}} width={30}/>
-                                      <Tooltip 
-                                          contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                                          labelStyle={{fontWeight: 'bold', color: '#374151'}}
-                                      />
-                                      <Line type="monotone" dataKey="score" stroke="#8884d8" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
-                                  </LineChart>
+                                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={studentStats.radarData}>
+                                      <PolarGrid />
+                                      <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'bold' }} />
+                                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{fontSize: 8}}/>
+                                      <Radar name="Performance" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+                                      <Tooltip />
+                                  </RadarChart>
                               </ResponsiveContainer>
                           </div>
-                      )}
+                      </div>
 
                       <div className="space-y-4">
                           <h4 className="font-bold text-gray-800 text-sm border-b pb-2">بيانات التواصل</h4>

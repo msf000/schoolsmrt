@@ -1,18 +1,20 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, LessonLink } from '../types';
-import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles } from 'lucide-react';
+import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser } from '../types';
+import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star } from 'lucide-react';
 import { getLessonLinks } from '../services/storageService';
 import { generateSlideQuestions } from '../services/geminiService';
 
 interface ClassroomScreenProps {
     students: Student[];
     attendance: AttendanceRecord[];
+    onSaveAttendance?: (records: AttendanceRecord[]) => void;
+    currentUser?: SystemUser | null;
 }
 
-const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance }) => {
+const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance, onSaveAttendance, currentUser }) => {
     const [selectedClass, setSelectedClass] = useState('');
-    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION'>('PRESENTATION');
+    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS'>('PRESENTATION');
     const [isFullscreen, setIsFullscreen] = useState(false);
     
     // --- Unique Classes ---
@@ -90,8 +92,14 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
                             <Monitor size={18}/> السبورة
                         </button>
                         <button 
+                            onClick={() => setActiveTool('REWARDS')}
+                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'REWARDS' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        >
+                            <Star size={18}/> التحفيز
+                        </button>
+                        <button 
                             onClick={() => setActiveTool('PICKER')}
-                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PICKER' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'PICKER' ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
                         >
                             <Shuffle size={18}/> القرعة
                         </button>
@@ -124,6 +132,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance 
                 {activeTool === 'PICKER' && <RandomPicker students={presentStudents} total={filteredStudents.length} />}
                 {activeTool === 'TIMER' && <ClassroomTimer />}
                 {activeTool === 'GROUPS' && <GroupGenerator students={presentStudents} />}
+                {activeTool === 'REWARDS' && <RewardsView students={presentStudents} attendance={attendance} onSaveAttendance={onSaveAttendance} currentUser={currentUser} />}
                 {activeTool === 'PRESENTATION' && <PresentationBoard students={presentStudents} total={filteredStudents.length} currentClass={selectedClass} />}
             </div>
         </div>
@@ -211,6 +220,93 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
     } catch (e) {
         console.error("Audio playback error", e);
     }
+};
+
+// --- REWARDS VIEW ---
+const RewardsView: React.FC<{ students: Student[], attendance: AttendanceRecord[], onSaveAttendance?: (records: AttendanceRecord[]) => void, currentUser?: SystemUser | null }> = ({ students, attendance, onSaveAttendance, currentUser }) => {
+    const [points, setPoints] = useState<Record<string, number>>({});
+    const [animatingStudent, setAnimatingStudent] = useState<string | null>(null);
+
+    // Initial load of points for today
+    useEffect(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const newPoints: Record<string, number> = {};
+        
+        students.forEach(s => {
+            const studentRecords = attendance.filter(a => a.studentId === s.id && a.date === today && a.behaviorStatus === BehaviorStatus.POSITIVE);
+            newPoints[s.id] = studentRecords.length;
+        });
+        setPoints(newPoints);
+    }, [students, attendance]);
+
+    const handleGivePoint = (studentId: string) => {
+        setAnimatingStudent(studentId);
+        playSoundEffect('CORRECT');
+        setTimeout(() => setAnimatingStudent(null), 1000);
+
+        setPoints(prev => ({ ...prev, [studentId]: (prev[studentId] || 0) + 1 }));
+
+        if (onSaveAttendance) {
+            const record: AttendanceRecord = {
+                id: `${studentId}-reward-${Date.now()}`,
+                studentId: studentId,
+                date: new Date().toISOString().split('T')[0],
+                status: AttendanceStatus.PRESENT,
+                behaviorStatus: BehaviorStatus.POSITIVE,
+                behaviorNote: 'نقطة تميز',
+                createdById: currentUser?.id
+            };
+            onSaveAttendance([record]);
+        }
+    };
+
+    return (
+        <div className="w-full h-full flex flex-col">
+            <div className="text-center mb-6">
+                <h3 className="text-2xl font-black text-yellow-400 drop-shadow-md">لوحة التميز والتحفيز</h3>
+                <p className="text-white/60">اضغط على الطالب لمنحه نجمة</p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4">
+                    {students.map(s => {
+                        const count = points[s.id] || 0;
+                        const isAnimating = animatingStudent === s.id;
+                        
+                        return (
+                            <div 
+                                key={s.id}
+                                onClick={() => handleGivePoint(s.id)}
+                                className={`
+                                    relative bg-white/10 border-2 border-white/10 rounded-2xl p-4 flex flex-col items-center justify-between h-40 cursor-pointer transition-all duration-200 hover:bg-white/20 hover:scale-105 active:scale-95 select-none
+                                    ${isAnimating ? 'border-yellow-400 bg-yellow-500/20' : ''}
+                                `}
+                            >
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mb-2 transition-transform ${isAnimating ? 'scale-125 bg-yellow-400 text-black' : 'bg-white/20 text-white'}`}>
+                                    {s.name.charAt(0)}
+                                </div>
+                                
+                                <div className="text-center">
+                                    <h4 className="font-bold text-sm md:text-base line-clamp-1">{s.name}</h4>
+                                    <div className="flex items-center justify-center gap-1 mt-2">
+                                        <Star size={16} className={count > 0 ? "text-yellow-400 fill-yellow-400" : "text-white/20"}/>
+                                        <span className="font-black text-xl text-yellow-400">{count}</span>
+                                    </div>
+                                </div>
+
+                                {isAnimating && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-20"></div>
+                                        <Star size={64} className="text-yellow-400 fill-yellow-400 animate-bounce drop-shadow-lg"/>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // --- Sub-Component: Presentation Board with Handwriting & Multi-Screen ---
@@ -798,7 +894,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
     );
 };
 
-// Helper Component for Toolbar Buttons
+// ... existing code for ToolBtn ...
 const ToolBtn = ({ icon, active, onClick, color, label }: any) => (
     <button 
         onClick={onClick}
@@ -809,7 +905,7 @@ const ToolBtn = ({ icon, active, onClick, color, label }: any) => (
     </button>
 );
 
-// --- Sub-Component: Random Picker ---
+// ... existing code for RandomPicker ...
 const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ students, total }) => {
     const [currentName, setCurrentName] = useState('???');
     const [isRolling, setIsRolling] = useState(false);
@@ -878,7 +974,7 @@ const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ studen
     );
 };
 
-// --- Sub-Component: Timer ---
+// ... existing code for Timer ...
 const ClassroomTimer = () => {
     const [timeLeft, setTimeLeft] = useState(300); // 5 minutes default
     const [isActive, setIsActive] = useState(false);
@@ -953,7 +1049,7 @@ const ClassroomTimer = () => {
     );
 };
 
-// --- Sub-Component: Group Generator ---
+// ... existing code for GroupGenerator ...
 const GroupGenerator: React.FC<{ students: Student[] }> = ({ students }) => {
     const [groupCount, setGroupCount] = useState(4);
     const [groups, setGroups] = useState<Student[][]>([]);

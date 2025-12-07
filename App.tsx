@@ -203,7 +203,12 @@ const App: React.FC = () => {
                 >
                     <X size={24}/>
                 </button>
-                <ClassroomScreen students={students} attendance={attendance} />
+                <ClassroomScreen 
+                    students={students} 
+                    attendance={attendance} 
+                    onSaveAttendance={handleSaveAttendance} 
+                    currentUser={currentUser}
+                />
             </div>
         );
     }
