@@ -34,7 +34,7 @@ import TeacherSubscription from './components/TeacherSubscription';
 import LessonPlanning from './components/LessonPlanning';
 import MonthlyReport from './components/MonthlyReport';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
     // Auth State
@@ -53,18 +53,23 @@ const App: React.FC = () => {
     const [currentView, setCurrentView] = useState('DASHBOARD');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showClassroomScreen, setShowClassroomScreen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     
     // Sync State
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
 
     useEffect(() => {
         if (currentUser) {
-            loadData();
-            initAutoSync(); // Trigger auto sync on load
+            const startUp = async () => {
+                setIsLoading(true);
+                // Trigger sync immediately on mount/login
+                await initAutoSync();
+                loadData();
+                setIsLoading(false);
+            };
+            startUp();
             
-            // Listen for sync status changes
             const unsubSync = subscribeToSyncStatus((status) => setSyncStatus(status));
-            // Listen for data changes (from other tabs or cloud sync)
             const unsubData = subscribeToDataChanges(() => loadData());
 
             return () => {
@@ -80,12 +85,17 @@ const App: React.FC = () => {
         let allPerformance = getPerformance();
         
         // --- DATA ISOLATION (Security) ---
-        // If user is part of a school (and not Super Admin), filter data to show ONLY that school's records.
-        if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.schoolId) {
-             // 1. Filter Students by School ID
-             allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
+        // Filter visible data based on current user context
+        if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+             if (currentUser.schoolId) {
+                 // School Context
+                 allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
+             } else if (currentUser.role === 'TEACHER') {
+                 // Independent Teacher Context
+                 allStudents = allStudents.filter(s => s.createdById === currentUser.id);
+             }
              
-             // 2. Filter records based on visible students (to ensure consistency)
+             // Filter related records based on visible students
              const visibleStudentIds = new Set(allStudents.map(s => s.id));
              allAttendance = allAttendance.filter(a => visibleStudentIds.has(a.studentId));
              allPerformance = allPerformance.filter(p => visibleStudentIds.has(p.studentId));
@@ -100,13 +110,13 @@ const App: React.FC = () => {
     const handleLoginSuccess = (user: any, remember: boolean) => {
         setCurrentUser(user);
         if (remember) localStorage.setItem('current_user', JSON.stringify(user));
-        loadData();
+        // loadData called in useEffect
     };
 
     const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
-        setSystemMode(false); // Reset demo mode if active
+        setSystemMode(false); // Reset demo mode
         setShowClassroomScreen(false);
         setCurrentView('DASHBOARD');
     };
@@ -127,7 +137,6 @@ const App: React.FC = () => {
     const handleDeletePerformance = (id: string) => { deletePerformance(id); loadData(); };
     
     const handleImportStudents = (data: Student[], key?: keyof Student, strategy?: any, fields?: any[]) => {
-        // Enforce school ID on imported students
         const enrichedData = data.map(s => ({
             ...s,
             schoolId: currentUser?.schoolId || s.schoolId,
@@ -198,6 +207,16 @@ const App: React.FC = () => {
 
     return (
         <div className={`flex h-screen overflow-hidden text-right font-sans ${theme.mode === 'DARK' ? 'dark' : ''}`} dir="rtl">
+            
+            {/* Global Loading Overlay (Initial Sync) */}
+            {isLoading && (
+                <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center animate-fade-in">
+                    <Loader2 size={48} className="text-indigo-600 animate-spin mb-4"/>
+                    <h3 className="text-xl font-bold text-gray-800">جاري تحميل البيانات...</h3>
+                    <p className="text-gray-500">يرجى الانتظار قليلاً للمزامنة</p>
+                </div>
+            )}
+
             {/* Sidebar */}
             <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-6 border-b flex justify-between items-center bg-gray-50">
