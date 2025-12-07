@@ -32,8 +32,9 @@ import AITools from './components/AITools';
 import StudentPortal from './components/StudentPortal';
 import TeacherSubscription from './components/TeacherSubscription';
 import LessonPlanning from './components/LessonPlanning';
+import MonthlyReport from './components/MonthlyReport';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer } from 'lucide-react';
 
 const App: React.FC = () => {
     // Auth State
@@ -171,6 +172,7 @@ const App: React.FC = () => {
                             <NavItem view="PERFORMANCE" label="رصد الدرجات" icon={BarChart} />
                             <NavItem view="WORKS_TRACKING" label="سجل المتابعة" icon={FileSpreadsheet} />
                             <NavItem view="STUDENT_FOLLOWUP" label="تقارير الطلاب" icon={BookOpen} />
+                            <NavItem view="MONTHLY_REPORT" label="التقرير الشامل" icon={Printer} />
                             <NavItem view="MESSAGE_CENTER" label="مركز الرسائل" icon={Mail} />
                             <NavItem view="AI_TOOLS" label="أدوات المعلم AI" icon={BrainCircuit} />
                             <NavItem view="LESSON_PLANNING" label="التخطيط والإعداد" icon={PenTool} />
@@ -212,13 +214,14 @@ const App: React.FC = () => {
                 </header>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
-                    {currentView === 'DASHBOARD' && <Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
+                    {currentView === 'DASHBOARD' && <Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={setCurrentView} />}
                     {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
                     {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleImportStudents}/>}
                     {currentView === 'ATTENDANCE' && <AttendanceComponent students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={handleImportAttendance} currentUser={currentUser} />}
                     {currentView === 'PERFORMANCE' && <PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance} onDeletePerformance={handleDeletePerformance}/>}
                     {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance} currentUser={currentUser}/>}
                     {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance}/>}
+                    {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}
                     {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance}/>}
                     {currentView === 'CLASSROOM_MANAGEMENT' && (
                         <ClassroomManager 

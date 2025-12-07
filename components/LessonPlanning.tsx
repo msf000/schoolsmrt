@@ -1,5 +1,4 @@
 
-// ... existing imports ...
 import React, { useState, useEffect } from 'react';
 import { generateLessonPlan, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, suggestSyllabus, organizeCourseContent } from '../services/geminiService';
 import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table, Target, ListTree, BookOpenCheck } from 'lucide-react';
@@ -18,7 +17,6 @@ const TEACHING_RESOURCES = [
 ];
 
 const LessonPlanning: React.FC = () => {
-    // Tab State - Default is now CONTENT (Course Preparation)
     const [activeTab, setActiveTab] = useState<'CONTENT' | 'SEMESTER' | 'LESSON' | 'OUTCOMES' | 'LEARNING'>(() => {
         return localStorage.getItem('lesson_planning_tab') as any || 'CONTENT';
     });
@@ -27,7 +25,6 @@ const LessonPlanning: React.FC = () => {
         localStorage.setItem('lesson_planning_tab', activeTab);
     }, [activeTab]);
 
-    // --- LESSON PREPARATION STATE ---
     const [lessonStep, setLessonStep] = useState<1 | 2 | 3>(1);
     const [subject, setSubject] = useState('');
     const [topic, setTopic] = useState('');
@@ -38,40 +35,33 @@ const LessonPlanning: React.FC = () => {
     const [customObjectives, setCustomObjectives] = useState('');
     const [lessonPlanResult, setLessonPlanResult] = useState('');
     
-    // --- SEMESTER PLAN STATE ---
     const [semSubject, setSemSubject] = useState('');
     const [semGrade, setSemGrade] = useState('');
     const [semTerm, setSemTerm] = useState('الفصل الدراسي الأول');
-    const [semWeeks, setSemWeeks] = useState(13); // Default 13 weeks
-    const [semClassesPerWeek, setSemClassesPerWeek] = useState(4); // Default 4 classes
+    const [semWeeks, setSemWeeks] = useState(13); 
+    const [semClassesPerWeek, setSemClassesPerWeek] = useState(4);
     const [semContent, setSemContent] = useState('');
     const [semResult, setSemResult] = useState('');
     const [suggestLoading, setSuggestLoading] = useState(false);
 
-    // --- COURSE CONTENT (PREPARATION) STATE ---
     const [contentSubject, setContentSubject] = useState('');
     const [contentGrade, setContentGrade] = useState('');
-    const [manualContent, setManualContent] = useState(''); // New State for manual text box
+    const [manualContent, setManualContent] = useState('');
     const [contentResult, setContentResult] = useState('');
 
-    // --- LEARNING PLAN STATE ---
     const [learnSubject, setLearnSubject] = useState('');
     const [learnGrade, setLearnGrade] = useState('');
     const [learnGoal, setLearnGoal] = useState('');
     const [learnDuration, setLearnDuration] = useState('2');
     const [learnResult, setLearnResult] = useState('');
 
-    // --- LEARNING OUTCOMES MAP STATE ---
     const [outcomesSubject, setOutcomesSubject] = useState('');
     const [outcomesGrade, setOutcomesGrade] = useState('');
     const [outcomesContent, setOutcomesContent] = useState('');
     const [outcomesResult, setOutcomesResult] = useState('');
 
-    // Shared State
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
-
-    // --- Handlers ---
 
     const toggleSelection = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, item: string) => {
         if (list.includes(item)) {
@@ -116,7 +106,6 @@ const LessonPlanning: React.FC = () => {
         setLoading(true);
         setContentResult('');
         try {
-            // If manual content is provided, use AI to format/organize it
             if (manualContent.trim()) {
                  const result = await organizeCourseContent(manualContent, contentSubject, contentGrade);
                  setContentResult(result); 
@@ -185,7 +174,6 @@ const LessonPlanning: React.FC = () => {
         window.print();
     };
 
-    // Custom Markdown Components for Beautiful Rendering
     const markdownComponents = {
         h1: ({node, ...props}: any) => <h1 className="text-2xl font-black text-indigo-800 mb-4 border-b-2 border-indigo-100 pb-2" {...props} />,
         h2: ({node, ...props}: any) => <h2 className="text-xl font-bold text-gray-800 mt-6 mb-3 flex items-center gap-2 before:content-[''] before:w-1 before:h-6 before:bg-indigo-500 before:rounded-full before:ml-2" {...props} />,
@@ -250,7 +238,6 @@ const LessonPlanning: React.FC = () => {
 
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
-            {/* Header */}
             <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -259,7 +246,6 @@ const LessonPlanning: React.FC = () => {
                     <p className="text-gray-500 mt-1 text-sm">أدوات متكاملة للمعلم: تحضير الدروس، وتوزيع المنهج (إصدار 1447هـ).</p>
                 </div>
                 
-                {/* Tabs - Reordered */}
                 <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
                     <button 
                         onClick={() => setActiveTab('CONTENT')}
@@ -294,10 +280,8 @@ const LessonPlanning: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- TAB: COURSE PREPARATION (Formerly Content) --- */}
             {activeTab === 'CONTENT' && (
                 <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
-                    {/* Inputs */}
                     <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
                         <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
                             <BookOpenCheck size={20} className="text-indigo-500"/> إعداد المادة الدراسية
@@ -313,8 +297,6 @@ const LessonPlanning: React.FC = () => {
                                 <label className="block text-sm font-bold text-gray-700 mb-2">الصف</label>
                                 <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={contentGrade} onChange={e => setContentGrade(e.target.value)} placeholder="مثال: ثالث ثانوي"/>
                             </div>
-                            
-                            {/* Manual Content Text Area */}
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2">محتويات المادة (الفهرس / الوحدات)</label>
                                 <textarea 
@@ -331,17 +313,14 @@ const LessonPlanning: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    {/* Output */}
                     <div className="flex-1 h-full min-h-[500px]">
                         {renderOutput(contentResult)}
                     </div>
                 </div>
             )}
 
-            {/* --- TAB 1: LESSON PREPARATION (WIZARD) --- */}
             {activeTab === 'LESSON' && (
                 <>
-                    {/* Wizard Steps Indicator */}
                     <div className="mb-8 print:hidden">
                         <div className="flex items-center justify-center max-w-3xl mx-auto">
                             <div className={`flex flex-col items-center relative z-10 ${lessonStep >= 1 ? 'text-indigo-600' : 'text-gray-400'}`}>
@@ -364,7 +343,6 @@ const LessonPlanning: React.FC = () => {
                     </div>
 
                     <div className="flex-1 overflow-hidden flex flex-col items-center w-full max-w-5xl mx-auto">
-                        {/* STEP 1 */}
                         {lessonStep === 1 && (
                             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 w-full max-w-2xl animate-slide-up">
                                 <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
@@ -398,7 +376,6 @@ const LessonPlanning: React.FC = () => {
                             </div>
                         )}
 
-                        {/* STEP 2 */}
                         {lessonStep === 2 && (
                             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 w-full max-w-4xl animate-slide-up flex flex-col h-full md:h-auto overflow-hidden">
                                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
@@ -433,7 +410,6 @@ const LessonPlanning: React.FC = () => {
                             </div>
                         )}
 
-                        {/* STEP 3 */}
                         {lessonStep === 3 && (
                             <div className="w-full h-full flex flex-col relative animate-fade-in">
                                 <div className="absolute top-4 right-4 z-10 print:hidden">
@@ -446,10 +422,8 @@ const LessonPlanning: React.FC = () => {
                 </>
             )}
 
-            {/* --- TAB 2: SEMESTER PLAN --- */}
             {activeTab === 'SEMESTER' && (
                 <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
-                    {/* Inputs */}
                     <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
                         <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
                             <Table size={20} className="text-indigo-500"/> إعدادات الخطة الفصلية (1447هـ)
@@ -484,7 +458,6 @@ const LessonPlanning: React.FC = () => {
                                     />
                                 </div>
                             </div>
-                            {/* New Input for Classes Per Week */}
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2">عدد الحصص الأسبوعية</label>
                                 <input 
@@ -520,17 +493,14 @@ const LessonPlanning: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    {/* Output */}
                     <div className="flex-1 h-full min-h-[500px]">
                         {renderOutput(semResult)}
                     </div>
                 </div>
             )}
 
-            {/* --- TAB 3: LEARNING OUTCOMES MAP --- */}
             {activeTab === 'OUTCOMES' && (
                 <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
-                    {/* Inputs */}
                     <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
                         <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
                             <Target size={20} className="text-indigo-500"/> خريطة نواتج التعلم
@@ -559,17 +529,14 @@ const LessonPlanning: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    {/* Output */}
                     <div className="flex-1 h-full min-h-[500px]">
                         {renderOutput(outcomesResult)}
                     </div>
                 </div>
             )}
 
-            {/* --- TAB 4: LEARNING PLAN --- */}
             {activeTab === 'LEARNING' && (
                 <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
-                    {/* Inputs */}
                     <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
                         <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
                             <Map size={20} className="text-indigo-500"/> إعداد خطة التعلم الفردية
@@ -597,7 +564,6 @@ const LessonPlanning: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    {/* Output */}
                     <div className="flex-1 h-full min-h-[500px]">
                         {renderOutput(learnResult)}
                     </div>

@@ -1,6 +1,4 @@
 
-
-// ... existing imports ...
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
@@ -56,7 +54,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // Quick Fill State
     const [quickFillValue, setQuickFillValue] = useState('');
-    const [showQuickFill, setShowQuickFill] = useState<string | null>(null); // Assign ID to show popup
+    const [showQuickFill, setShowQuickFill] = useState<string | null>(null);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -181,9 +179,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    // ... (Sync Logic Remains Same) ...
-    // To save space, using existing logic reference for getKeywordsForCategory, handleAutoSyncForTab, syncDataFromSheet
-
     const handleScoreChange = (studentId: string, assignId: string, val: string) => {
         setGridData(prev => ({
             ...prev,
@@ -198,7 +193,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const next = { ...prev };
             students.forEach(s => {
                 if (!next[s.id]) next[s.id] = {};
-                // Only fill if empty? No, usually override
                 next[s.id][assignId] = newVal;
             });
             return next;
@@ -241,13 +235,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setTimeout(() => setSavedSuccess(false), 3000);
     };
 
-    // ... (Existing handlers: handleSaveMasterUrl, handleAddColumn, handleUpdateColumn, handleDeleteColumn, handleSaveConfig) ...
-    
-    // Manual re-declaration for context
     const handleSaveMasterUrl = () => {
         saveWorksMasterUrl(masterUrl);
         setIsEditingUrl(false);
-        // if (masterUrl) handleAutoSyncForTab(activeTab); // Optional auto-sync on save
     };
 
     const handleAddColumn = () => {
@@ -290,12 +280,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [students]);
 
-    // RENDER HELPER FOR STUDENT ROW
     const renderStudentRow = (student: Student, i: number) => {
-        // Attendance Check
         const myAtt = attendance.filter(a => a.studentId === student.id);
         const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-        const lowAttendance = absentCount > 3; // Example threshold
+        const lowAttendance = absentCount > 3;
 
         const nameCell = (
             <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50 flex items-center justify-between">
@@ -308,7 +296,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             </td>
         );
 
-        // --- ACTIVITY TAB LOGIC ---
         if (activeTab === 'ACTIVITY') {
             let actSum = 0;
             assignments.filter(c => c.isVisible).forEach(col => {
@@ -333,7 +320,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
         }
 
-        // --- HOMEWORK TAB LOGIC ---
         if (activeTab === 'HOMEWORK') {
             const total = assignments.filter(c => c.isVisible).length;
             const completed = assignments.filter(c => c.isVisible && gridData[student.id]?.[c.id]).length;
@@ -355,7 +341,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
         }
 
-        // --- PLATFORM EXAM TAB LOGIC ---
         if (activeTab === 'PLATFORM_EXAM') {
             const scores = assignments.filter(c => c.isVisible).map(c => ({
                 val: parseFloat(gridData[student.id]?.[c.id] || '0'),
@@ -380,9 +365,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
         }
 
-        // --- YEAR WORK TAB LOGIC ---
         if (activeTab === 'YEAR_WORK') {
-            // Calculation Logic reused...
             const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
             const hwCols = getAssignments('HOMEWORK', currentUser?.id);
             const distinctHW = new Set(hwRecs.map(p => p.notes)).size;
@@ -423,7 +406,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col animate-fade-in relative bg-gray-50">
-             {/* MAIN TOP TABS */}
              <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-6 flex gap-2">
                  <button onClick={() => setActiveMode('GRADING')} className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'GRADING' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                      <Table size={18}/> <span className="hidden md:inline">رصد الدرجات</span><span className="md:hidden">الرصد</span>
@@ -433,7 +415,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                  </button>
              </div>
 
-             {/* Header */}
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -453,7 +434,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             </div>
 
-            {/* Cloud Link Box */}
             {activeMode === 'GRADING' && (
                 <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg flex flex-col md:flex-row items-center gap-3 mb-6">
                     <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm"><LinkIcon size={16}/></div>
@@ -477,7 +457,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             
             {statusMsg && <div className="mb-4 text-sm font-bold text-center bg-green-100 text-green-800 p-2 rounded-lg animate-pulse">{statusMsg}</div>}
 
-            {/* Sub Tabs */}
             <div className="flex overflow-x-auto gap-2 border-b border-gray-200 mb-4 pb-1">
                 {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => {
                     if (activeMode === 'MANAGEMENT' && cat === 'YEAR_WORK') return null; 
@@ -495,7 +474,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 })}
             </div>
 
-            {/* Activity Target */}
             {activeTab === 'ACTIVITY' && (
                 <div className="flex justify-end mb-2">
                     <div className="flex items-center gap-2 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
@@ -507,7 +485,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             )}
 
             <div className="flex-1 bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px] flex flex-col overflow-hidden">
-                {/* --- MANAGEMENT VIEW --- */}
                 {activeMode === 'MANAGEMENT' && (
                     <div className="p-6 flex-1 overflow-auto">
                         <div className="flex justify-between items-center mb-4">
@@ -555,7 +532,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
                 )}
 
-                {/* --- GRADING VIEW --- */}
                 {activeMode === 'GRADING' && (
                     <div className="flex-1 overflow-auto">
                         <table className="w-full text-right text-sm border-collapse whitespace-nowrap">
@@ -569,7 +545,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 <div className="text-xs mb-1">{col.title}</div>
                                                 <div className="text-[10px] text-gray-400">({col.maxScore})</div>
                                             </div>
-                                            {/* Quick Fill Trigger */}
                                             <button 
                                                 onClick={() => setShowQuickFill(col.id)} 
                                                 className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 text-purple-600 hover:bg-purple-100 rounded"
@@ -578,7 +553,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 <Zap size={10}/>
                                             </button>
                                             
-                                            {/* Quick Fill Popup */}
                                             {showQuickFill === col.id && (
                                                 <div className="absolute top-full left-0 right-0 bg-white border shadow-lg rounded p-2 z-30 flex flex-col gap-2 animate-fade-in">
                                                     <input 

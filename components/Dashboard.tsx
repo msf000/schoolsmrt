@@ -15,11 +15,12 @@ interface DashboardProps {
   performance: PerformanceRecord[];
   selectedDate?: string;
   currentUser?: SystemUser | null;
+  onNavigate: (view: string) => void;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   const effectiveDate = selectedDate || new Date().toISOString().split('T')[0];
   
   if (currentUser?.role === 'SUPER_ADMIN') {
@@ -30,7 +31,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       return <SchoolManagerDashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} />;
   }
 
-  return <TeacherDashboard students={students} attendance={attendance} performance={performance} selectedDate={effectiveDate} currentUser={currentUser} />;
+  return <TeacherDashboard students={students} attendance={attendance} performance={performance} selectedDate={effectiveDate} currentUser={currentUser} onNavigate={onNavigate} />;
 };
 
 const SystemAdminDashboard = () => {
@@ -125,7 +126,7 @@ const SchoolManagerDashboard: React.FC<{students: Student[], attendance: Attenda
     );
 }
 
-const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser }) => {
+const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
   const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
@@ -269,7 +270,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
     <div className="space-y-6 animate-fade-in p-6">
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => (window as any).location.reload()}> 
+          <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('MESSAGE_CENTER')}> 
               <div>
                   <h3 className="font-bold text-lg mb-1">مركز الرسائل</h3>
                   <p className="text-teal-100 text-xs">تواصل مع أولياء الأمور بذكاء</p>
@@ -278,7 +279,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   <MessageSquare size={24}/>
               </div>
           </div>
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1">
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('AI_TOOLS')}>
               <div>
                   <h3 className="font-bold text-lg mb-1">أدوات المعلم AI</h3>
                   <p className="text-purple-100 text-xs">أنشئ اختبارات وتحضير دروس</p>
@@ -287,7 +288,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   <BrainCircuit size={24}/>
               </div>
           </div>
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('AI_REPORTS')}>
               <div>
                   <h3 className="font-bold text-lg mb-1">تقارير ذكية</h3>
                   <p className="text-blue-100 text-xs">تحليل أداء الطلاب</p>

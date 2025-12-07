@@ -15,9 +15,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [selectedSubject, setSelectedSubject] = useState<string>('');
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [activityTarget, setActivityTarget] = useState<number>(13); // Default to 13
+    const [activityTarget, setActivityTarget] = useState<number>(13); 
 
-    // Smart Search State
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -28,11 +27,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         if (subs.length > 0) setSelectedSubject(subs[0].name);
         else setSelectedSubject('عام');
 
-        // Load persisted target
         const savedTarget = localStorage.getItem('works_activity_target');
         if (savedTarget) setActivityTarget(parseInt(savedTarget));
 
-        // Click outside to close dropdown
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsDropdownOpen(false);
@@ -50,12 +47,10 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         }
     };
 
-    // 1. Sort Students Alphabetically
     const sortedStudents = useMemo(() => {
         return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [students]);
 
-    // 2. Filter Students based on Search Term
     const filteredStudents = useMemo(() => {
         if (!searchTerm) return sortedStudents;
         return sortedStudents.filter(s => 
@@ -77,11 +72,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         setIsDropdownOpen(true);
     };
 
-    // Filter Logic
     const student = students.find(s => s.id === selectedStudentId);
 
-    // Filter Columns (Exclude Attendance from Activity Columns)
-    // Updated to use Assignments table
     const rawActivityCols = getAssignments('ACTIVITY').filter(c => c.isVisible);
     const activityCols = rawActivityCols.filter(c => 
         !c.title.includes('حضور') && 
@@ -92,13 +84,10 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const homeworkCols = getAssignments('HOMEWORK').filter(c => c.isVisible);
     const examCols = getAssignments('PLATFORM_EXAM').filter(c => c.isVisible);
 
-    // Calculation Logic
     const calculateStats = () => {
         if (!student) return null;
 
-        // 1. Attendance (Updated Logic)
         const studentAtt = attendance.filter(a => a.studentId === student.id);
-        // Count Present, Late, and Excused as "Attended/Valid" for grade purposes
         const creditCount = studentAtt.filter(a => 
             a.status === AttendanceStatus.PRESENT || 
             a.status === AttendanceStatus.LATE || 
@@ -109,14 +98,12 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
         const gradePart = (attPercent / 100) * 15;
 
-        // 2. Homework
         const studentHWs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
         const totalHWCount = homeworkCols.length;
-        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size; // notes stores assignmentId
+        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
         const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 0;
         const gradeHW = (hwPercent / 100) * 10;
 
-        // 3. Activity
         const studentActs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
         let actSum = 0;
         const validColKeys = new Set(activityCols.map(c => c.id));
@@ -130,7 +117,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const gradeAct = Math.min(activityRatio * 15, 15);
         const actPercent = Math.min(activityRatio * 100, 100);
 
-        // 4. Platform Exams
         const studentExams = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject);
         let examScoreSum = 0;
         let examMaxSum = 0;
@@ -141,11 +127,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const examWeightedRaw = examMaxSum > 0 ? (examScoreSum / examMaxSum) * 20 : 0;
         const examWeighted = Math.min(examWeightedRaw, 20);
 
-        // 5. Totals
         const totalTasks = gradeHW + gradeAct + gradePart;
         const totalPeriod = totalTasks + examWeighted;
 
-        // 6. Behavior Logs (Only those with status or notes)
         const behaviorLogs = studentAtt
             .filter(a => (a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL) || a.behaviorNote)
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -169,7 +153,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
     return (
         <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50 overflow-auto">
-            {/* Control Bar (Hidden in Print) */}
             <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden bg-white p-4 rounded-xl shadow-sm border border-gray-200 z-20 relative">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -179,7 +162,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                 </div>
                 
                 <div className="flex flex-wrap gap-3 items-center">
-                     {/* Activity Target Input */}
                     <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
                         <Target size={16} className="text-amber-600"/>
                         <span className="text-xs font-bold text-amber-800">هدف الأنشطة:</span>
@@ -193,7 +175,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         />
                     </div>
 
-                    {/* SMART SEARCH DROPDOWN */}
                     <div className="relative w-64" ref={dropdownRef}>
                         <div className="relative">
                             <input
@@ -203,7 +184,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                 onChange={(e) => {
                                     setSearchTerm(e.target.value);
                                     setIsDropdownOpen(true);
-                                    if(selectedStudentId) setSelectedStudentId(''); // Clear selection if user types
+                                    if(selectedStudentId) setSelectedStudentId(''); 
                                 }}
                                 onFocus={() => setIsDropdownOpen(true)}
                                 className={`w-full p-2 pl-8 pr-3 border rounded-lg shadow-sm outline-none focus:ring-2 focus:ring-teal-500 text-sm ${selectedStudentId ? 'bg-teal-50 border-teal-200 font-bold text-teal-800' : 'bg-white'}`}
@@ -254,16 +235,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                 </div>
             </div>
 
-            {/* Report Content */}
             {student && stats ? (
                 <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto z-0">
                     
-                    {/* Header Title */}
                     <div className="text-center mb-8">
                         <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject} الفصل الأول 1447هـ</h1>
                     </div>
 
-                    {/* Main Summary Table */}
                     <div className="overflow-x-auto mb-8">
                         <table className="w-full text-center border-collapse text-sm">
                             <thead>
@@ -297,7 +275,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         </table>
                     </div>
 
-                    {/* Behavior Logs (NEW SECTION) */}
                     {stats.behaviorLogs.length > 0 && (
                         <div className="mb-8">
                             <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2 flex items-center justify-center gap-2">
@@ -335,7 +312,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         </div>
                     )}
 
-                    {/* Activities Breakdown */}
                     <div className="mb-8">
                         <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2">متابعة الأنشطة</div>
                         {activityCols.length > 0 ? (
@@ -369,9 +345,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         )}
                     </div>
 
-                    {/* Homeworks & Exams Section */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Homeworks */}
                         <div>
                             <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2">واجبات مدرستي</div>
                             <table className="w-full text-center border-collapse text-sm">
@@ -405,7 +379,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                             </table>
                         </div>
 
-                        {/* Platform Exams */}
                         <div>
                              <div className="bg-gray-200 p-2 text-center font-bold text-lg mb-2">اختبارات مدرستي</div>
                              <table className="w-full text-center border-collapse text-sm">
