@@ -58,6 +58,81 @@ let currentSyncStatus: SyncStatus = 'IDLE';
 const syncListeners: ((status: SyncStatus) => void)[] = [];
 const dataChangeListeners: (() => void)[] = [];
 
+// --- OFFLINE SYNC QUEUE ---
+interface SyncTask {
+    id: string;
+    table: string;
+    data: any;
+    action: 'UPSERT' | 'DELETE';
+    timestamp: number;
+}
+let SYNC_QUEUE: SyncTask[] = [];
+
+const loadQueue = () => {
+    if (typeof window === 'undefined') return;
+    const q = localStorage.getItem('sync_queue');
+    if (q) {
+        try {
+            SYNC_QUEUE = JSON.parse(q);
+        } catch(e) { SYNC_QUEUE = []; }
+    }
+}
+
+const saveQueue = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('sync_queue', JSON.stringify(SYNC_QUEUE));
+}
+
+const addToQueue = (table: string, data: any, action: 'UPSERT' | 'DELETE') => {
+    SYNC_QUEUE.push({
+        id: Date.now().toString() + Math.random(),
+        table,
+        data,
+        action,
+        timestamp: Date.now()
+    });
+    saveQueue();
+};
+
+const processSyncQueue = async () => {
+    if (SYNC_QUEUE.length === 0) return;
+    if (!navigator.onLine) {
+        setSyncStatus('OFFLINE');
+        return;
+    }
+
+    setSyncStatus('SYNCING');
+    console.log(`Processing ${SYNC_QUEUE.length} queued items...`);
+    
+    // Process copy of queue
+    const queueSnapshot = [...SYNC_QUEUE];
+    let processedCount = 0;
+    
+    for (const task of queueSnapshot) {
+        try {
+            if (task.action === 'UPSERT') {
+                await supabase.from(task.table).upsert(task.data, { onConflict: 'id' });
+            } else {
+                await supabase.from(task.table).delete().eq('id', task.data);
+            }
+            processedCount++;
+        } catch (e) {
+            console.error("Queue processing failed at task", task, e);
+            // If error is network related, stop. If data related (constraint), maybe skip or log?
+            // For now, simple stop to prevent data loss.
+            break; 
+        }
+    }
+
+    if (processedCount > 0) {
+        SYNC_QUEUE.splice(0, processedCount);
+        saveQueue();
+    }
+
+    if (SYNC_QUEUE.length === 0) setSyncStatus('ONLINE');
+    else setSyncStatus('ERROR');
+};
+
 const setSyncStatus = (status: SyncStatus) => {
     currentSyncStatus = status;
     syncListeners.forEach(l => l(status));
@@ -96,6 +171,7 @@ const loadFromLocal = () => {
             } catch (e) { console.error(`Error loading ${key}`, e); }
         }
     });
+    loadQueue();
 };
 
 const saveToLocal = (key: keyof typeof INITIAL_DATA, data: any) => {
@@ -138,9 +214,16 @@ export const getStorageStatistics = () => {
 };
 
 // --- CRUD OPERATIONS WITH CLOUD SYNC ---
-// Helper to push to cloud quietly
 const pushToCloud = async (table: string, data: any, action: 'UPSERT' | 'DELETE' = 'UPSERT') => {
     if (IS_DEMO_MODE) return;
+    
+    // 1. If offline, Queue immediately
+    if (!navigator.onLine) {
+        addToQueue(table, data, action);
+        setSyncStatus('OFFLINE');
+        return;
+    }
+
     setSyncStatus('SYNCING');
     try {
         if (action === 'UPSERT') {
@@ -150,7 +233,8 @@ const pushToCloud = async (table: string, data: any, action: 'UPSERT' | 'DELETE'
         }
         setSyncStatus('ONLINE');
     } catch (e) {
-        console.warn('Cloud sync failed', e);
+        console.warn('Cloud sync failed, queueing...', e);
+        addToQueue(table, data, action);
         setSyncStatus('ERROR');
     }
 };
@@ -178,7 +262,7 @@ export const deleteStudent = async (id: string) => {
 export const deleteAllStudents = async () => {
     saveToLocal('students', []);
     notifyDataChange();
-    // Bulk delete not implemented for safety
+    // Bulk delete via queue might be heavy, skipping for now or handle individually if needed
 };
 export const bulkAddStudents = async (items: Student[]) => {
     saveToLocal('students', [...CACHE.students, ...items]);
@@ -579,6 +663,13 @@ export const clearDatabase = () => {
 export const initAutoSync = async () => {
     if (typeof window === 'undefined') return;
     
+    // Setup online/offline listeners
+    window.addEventListener('online', () => {
+        setSyncStatus('SYNCING');
+        processSyncQueue().then(() => downloadFromSupabase()); 
+    });
+    window.addEventListener('offline', () => setSyncStatus('OFFLINE'));
+
     if (!navigator.onLine) {
         setSyncStatus('OFFLINE');
         return;
@@ -587,9 +678,15 @@ export const initAutoSync = async () => {
     setSyncStatus('SYNCING');
     try {
         console.log("Starting Auto-Sync...");
-        // Pull latest data from cloud
+        // 1. Process any pending local changes
+        await processSyncQueue();
+        
+        // 2. Pull latest data from cloud
         await downloadFromSupabase();
-        setupRealtimeSubscription(); // Activate Realtime
+        
+        // 3. Activate Realtime
+        setupRealtimeSubscription(); 
+        
         setSyncStatus('ONLINE');
         notifyDataChange(); // Refresh UI
     } catch (e) {

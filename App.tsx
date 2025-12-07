@@ -34,7 +34,7 @@ import TeacherSubscription from './components/TeacherSubscription';
 import LessonPlanning from './components/LessonPlanning';
 import MonthlyReport from './components/MonthlyReport';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud } from 'lucide-react';
 
 const App: React.FC = () => {
     // Auth State
@@ -93,6 +93,12 @@ const App: React.FC = () => {
         setSystemMode(false); // Reset demo mode if active
         setShowClassroomScreen(false);
         setCurrentView('DASHBOARD');
+    };
+
+    const handleManualSync = () => {
+        if (syncStatus === 'OFFLINE' || syncStatus === 'ERROR') {
+            initAutoSync();
+        }
     };
 
     // --- CRUD WRAPPERS ---
@@ -202,14 +208,25 @@ const App: React.FC = () => {
                 </nav>
 
                 <div className="p-4 border-t bg-gray-50">
-                    {/* Sync Indicator */}
-                    <div className="mb-3 flex items-center justify-between text-xs px-2 py-1.5 rounded bg-white border">
+                    {/* Sync Indicator Button */}
+                    <button 
+                        onClick={handleManualSync}
+                        disabled={syncStatus === 'SYNCING' || syncStatus === 'ONLINE'}
+                        className={`mb-3 w-full flex items-center justify-between text-xs px-3 py-2 rounded border transition-colors ${
+                            syncStatus === 'ERROR' || syncStatus === 'OFFLINE' ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'
+                        } ${
+                            syncStatus === 'SYNCING' ? 'bg-blue-50 border-blue-200' :
+                            syncStatus === 'ONLINE' ? 'bg-green-50 border-green-200' :
+                            syncStatus === 'ERROR' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
+                        }`}
+                        title={syncStatus === 'ERROR' || syncStatus === 'OFFLINE' ? 'اضغط لإعادة المحاولة' : ''}
+                    >
                         <span className="text-gray-500 font-bold">حالة المزامنة:</span>
                         <div className="flex items-center gap-1">
-                            {syncStatus === 'SYNCING' && <RefreshCw size={12} className="text-blue-500 animate-spin"/>}
-                            {syncStatus === 'ONLINE' && <Cloud size={12} className="text-green-500"/>}
-                            {syncStatus === 'OFFLINE' && <CloudOff size={12} className="text-gray-400"/>}
-                            {syncStatus === 'ERROR' && <AlertCircle size={12} className="text-red-500"/>}
+                            {syncStatus === 'SYNCING' && <RefreshCw size={14} className="text-blue-500 animate-spin"/>}
+                            {syncStatus === 'ONLINE' && <Cloud size={14} className="text-green-500"/>}
+                            {syncStatus === 'OFFLINE' && <CloudOff size={14} className="text-gray-400"/>}
+                            {syncStatus === 'ERROR' && <AlertCircle size={14} className="text-red-500"/>}
                             
                             <span className={`font-bold ${
                                 syncStatus === 'SYNCING' ? 'text-blue-600' :
@@ -218,10 +235,10 @@ const App: React.FC = () => {
                             }`}>
                                 {syncStatus === 'SYNCING' ? 'جاري التحديث...' :
                                  syncStatus === 'ONLINE' ? 'متصل' :
-                                 syncStatus === 'ERROR' ? 'خطأ' : 'غير متصل'}
+                                 syncStatus === 'ERROR' ? 'خطأ (اضغط)' : 'غير متصل'}
                             </span>
                         </div>
-                    </div>
+                    </button>
 
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
