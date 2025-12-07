@@ -574,6 +574,21 @@ export const authenticateUser = async (identifier: string, password: string): Pr
                 return sysUser;
             }
         }
+
+        // --- NEW: Student Cloud Auth ---
+        const { data: cloudStudents } = await supabase.from('students').select('*').eq('nationalId', identifier).limit(1);
+        if (cloudStudents && cloudStudents.length > 0) {
+            const s = cloudStudents[0];
+            // Check password (simple check or default to last 4 digits of ID)
+            if (s.password === password || s.nationalId.slice(-4) === password) {
+                 const studentUser = { ...s, role: 'STUDENT', email: s.nationalId || '' };
+                 // Cache student for future use
+                 saveToLocal('students', [...CACHE.students.filter(x => x.id !== s.id), s]);
+                 setSyncStatus('ONLINE');
+                 return studentUser as unknown as SystemUser;
+            }
+        }
+
         setSyncStatus('ONLINE');
     } catch (e) {
         setSyncStatus('OFFLINE');
@@ -632,32 +647,46 @@ export const downloadFromSupabase = async () => {
         if (stored) user = JSON.parse(stored);
     } catch (e) {}
 
+    // If no user, generally we don't sync personalized data, but maybe basic config.
+    if (!user) return; 
+
     // Helper to fetch and save
     const fetchAndSave = async (table: string, localKey: string, query?: any) => {
         let builder = supabase.from(table).select('*');
         if (query) builder = query(builder);
         const { data, error } = await builder;
-        if (!error && data) saveToLocal(localKey as any, data);
+        if (!error && data) {
+             // We overwrite local data with cloud data for these tables
+             saveToLocal(localKey as any, data);
+        }
     };
 
-    if (user && user.role === 'SUPER_ADMIN') {
+    if (user.role === 'SUPER_ADMIN') {
         // Full Sync for Super Admin
         await Promise.all(Object.entries(TABLE_MAPPING).map(([k, t]) => fetchAndSave(t, k)));
-    } else if (user && user.schoolId) {
-        // Scoped Sync for Manager/Teacher
-        // 1. Core Data
+    } else if (user.role === 'STUDENT') {
+        // --- NEW: Student Specific Sync ---
+        await Promise.all([
+            fetchAndSave('students', 'students', (q: any) => q.eq('id', user!.id)),
+            fetchAndSave('attendance_records', 'attendance_records', (q: any) => q.eq('studentId', user!.id)),
+            fetchAndSave('performance_records', 'performance_records', (q: any) => q.eq('studentId', user!.id)),
+            // Optional: Fetch school info if linked
+            user!.schoolId ? fetchAndSave('schools', 'schools', (q: any) => q.eq('id', user!.schoolId)) : Promise.resolve(),
+            fetchAndSave('message_logs', 'message_logs', (q: any) => q.eq('studentId', user!.id)),
+        ]);
+    } else if (user.schoolId) {
+        // Scoped Sync for Manager/Teacher belonging to a school
+        // 1. Core Data (School, Students, Teachers, Subjects)
         await Promise.all([
             fetchAndSave('schools', 'schools', (q: any) => q.eq('id', user!.schoolId)),
             fetchAndSave('students', 'students', (q: any) => q.eq('schoolId', user!.schoolId)),
             fetchAndSave('teachers', 'teachers', (q: any) => q.eq('schoolId', user!.schoolId)),
-            fetchAndSave('subjects', 'subjects', (q: any) => q.or(`teacherId.eq.${user!.id},teacherId.is.null`)),
+            fetchAndSave('subjects', 'subjects', (q: any) => q.or(`teacherId.eq.${user!.id},teacherId.is.null`)), // Subjects can be global or teacher specific
         ]);
 
         // 2. Data Dependent on Students (Attendance, Performance)
-        const currentStudents = getStudents(); // Loaded from step 1
-        const studentIds = currentStudents.map(s => s.id);
+        const studentIds = CACHE.students.map(s => s.id);
         
-        // Chunking ID list to avoid URL length issues if necessary, but 100s is fine
         if (studentIds.length > 0) {
             await Promise.all([
                 fetchAndSave('attendance_records', 'attendance_records', (q: any) => q.in('studentId', studentIds)),
@@ -675,7 +704,7 @@ export const downloadFromSupabase = async () => {
             fetchAndSave('lesson_links', 'lesson_links', (q: any) => q.eq('teacherId', user!.id)),
         ]);
         
-    } else if (user) {
+    } else {
         // Independent Teacher (No School ID) - Sync only own data
         await Promise.all([
             fetchAndSave('assignments', 'assignments', (q: any) => q.eq('teacherId', user!.id)),
@@ -684,7 +713,7 @@ export const downloadFromSupabase = async () => {
             fetchAndSave('students', 'students', (q: any) => q.eq('createdById', user!.id)),
         ]);
         
-        const myStudents = getStudents().map(s => s.id);
+        const myStudents = CACHE.students.map(s => s.id);
         if (myStudents.length > 0) {
              await Promise.all([
                 fetchAndSave('attendance_records', 'attendance_records', (q: any) => q.in('studentId', myStudents)),
@@ -711,7 +740,9 @@ export const initAutoSync = async () => {
     setSyncStatus('SYNCING');
     try {
         console.log("Starting Scoped Auto-Sync...");
+        // Ensure queue is processed first
         await processSyncQueue();
+        // Then download fresh data based on scope
         await downloadFromSupabase();
         setupRealtimeSubscription(); 
         setSyncStatus('ONLINE');

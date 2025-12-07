@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin } from 'lucide-react';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
@@ -20,10 +20,19 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     });
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
         sessionStorage.setItem('student_last_view', view);
     }, [view]);
+
+    const handleRefresh = async () => {
+        setIsSyncing(true);
+        await downloadFromSupabase();
+        setIsSyncing(false);
+        // Page reload to reflect changes in Props passed from App
+        window.location.reload();
+    };
 
     const navItems = [
         { id: 'EVALUATION', label: 'تقييمي (المتابعة الفردية)', icon: Award },
@@ -59,7 +68,15 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         </button>
                     ))}
                 </nav>
-                <div className="p-4 border-t">
+                <div className="p-4 border-t space-y-2">
+                    <button 
+                        onClick={handleRefresh} 
+                        disabled={isSyncing}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all font-medium"
+                    >
+                        <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} /> 
+                        <span>{isSyncing ? 'جاري التحديث...' : 'تحديث البيانات'}</span>
+                    </button>
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-all font-medium">
                         <LogOut size={20} /> <span>تسجيل الخروج</span>
                     </button>
@@ -96,6 +113,10 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                                     <span>{item.label}</span>
                                 </button>
                             ))}
+                            <button onClick={handleRefresh} className="w-full flex items-center gap-3 px-4 py-3 text-blue-600 bg-blue-50 mt-4 rounded-xl font-bold">
+                                <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} /> 
+                                <span>تحديث البيانات</span>
+                            </button>
                             <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 border-t mt-2 hover:bg-red-50 rounded-xl transition-colors">
                                 <LogOut size={20} /> <span>تسجيل الخروج</span>
                             </button>

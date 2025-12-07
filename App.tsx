@@ -87,7 +87,12 @@ const App: React.FC = () => {
         // --- DATA ISOLATION (Security) ---
         // Filter visible data based on current user context
         if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
-             if (currentUser.schoolId) {
+             if (currentUser.role === 'STUDENT') {
+                 // Student Context - Strict Isolation
+                 allStudents = allStudents.filter(s => s.id === currentUser.id);
+                 allAttendance = allAttendance.filter(a => a.studentId === currentUser.id);
+                 allPerformance = allPerformance.filter(p => p.studentId === currentUser.id);
+             } else if (currentUser.schoolId) {
                  // School Context
                  allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
              } else if (currentUser.role === 'TEACHER') {
@@ -95,7 +100,7 @@ const App: React.FC = () => {
                  allStudents = allStudents.filter(s => s.createdById === currentUser.id);
              }
              
-             // Filter related records based on visible students
+             // Filter related records based on visible students (General Rule)
              const visibleStudentIds = new Set(allStudents.map(s => s.id));
              allAttendance = allAttendance.filter(a => visibleStudentIds.has(a.studentId));
              allPerformance = allPerformance.filter(p => visibleStudentIds.has(p.studentId));
