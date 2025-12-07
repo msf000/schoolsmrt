@@ -62,10 +62,15 @@ const App: React.FC = () => {
         if (currentUser) {
             const startUp = async () => {
                 setIsLoading(true);
-                // Trigger sync immediately on mount/login
-                await initAutoSync();
-                loadData();
-                setIsLoading(false);
+                try {
+                    // Trigger sync immediately on mount/login
+                    await initAutoSync();
+                } catch (e) {
+                    console.error("Initialization Sync Failed:", e);
+                } finally {
+                    loadData();
+                    setIsLoading(false);
+                }
             };
             startUp();
             

@@ -1,9 +1,407 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Loader2, Clock, LogOut, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Check, X } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord } from '../types';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User } from 'lucide-react';
 import Attendance from './Attendance';
 import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink, updateStudent } from '../services/storageService';
+
+// --- WIDGET IMPLEMENTATIONS ---
+
+const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], date: string }> = ({ students, attendance, date }) => {
+    const stats = useMemo(() => {
+        if (!attendance || !students) return { present: 0, absent: 0, late: 0 };
+        const absentCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.ABSENT).length;
+        const lateCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.LATE).length;
+        const presentCount = students.length - absentCount - lateCount;
+        return { present: presentCount, absent: absentCount, late: lateCount };
+    }, [students, attendance, date]);
+
+    return (
+        <div className="flex bg-white rounded-lg border shadow-sm divide-x divide-x-reverse overflow-hidden text-xs">
+            <div className="px-3 py-1 bg-green-50 text-green-700 flex flex-col items-center"><span className="font-bold">{stats.present}</span><span className="text-[10px]">حضور</span></div>
+            <div className="px-3 py-1 bg-red-50 text-red-700 flex flex-col items-center"><span className="font-bold">{stats.absent}</span><span className="text-[10px]">غياب</span></div>
+            <div className="px-3 py-1 bg-yellow-50 text-yellow-700 flex flex-col items-center"><span className="font-bold">{stats.late}</span><span className="text-[10px]">تأخر</span></div>
+        </div>
+    );
+};
+
+const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ currentUser }) => {
+    const [links, setLinks] = useState<any[]>([]); 
+    const [newTitle, setNewTitle] = useState('');
+    const [newUrl, setNewUrl] = useState('');
+    const [showForm, setShowForm] = useState(false);
+
+    useEffect(() => setLinks(getLessonLinks()), []);
+
+    const filteredLinks = useMemo(() => {
+        if (!links) return [];
+        if (!currentUser || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'SCHOOL_MANAGER') return links;
+        return links.filter(l => l.teacherId === currentUser.id);
+    }, [links, currentUser]);
+
+    const handleSave = () => {
+        if (!newTitle || !newUrl) return;
+        saveLessonLink({ id: Date.now().toString(), title: newTitle, url: newUrl, teacherId: currentUser?.id, createdAt: new Date().toISOString() });
+        setLinks(getLessonLinks());
+        setNewTitle(''); setNewUrl(''); setShowForm(false);
+    };
+
+    const handleDelete = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if(confirm('حذف هذا الدرس؟')) { deleteLessonLink(id); setLinks(getLessonLinks()); }
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
+            <div className="p-3 border-b bg-indigo-50 flex justify-between items-center">
+                <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-sm"><Monitor size={16}/> مكتبة الدروس</h3>
+                <button onClick={() => setShowForm(!showForm)} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 flex items-center gap-1">{showForm ? <XCircle size={12}/> : <Plus size={12}/>} {showForm ? 'إلغاء' : 'إضافة'}</button>
+            </div>
+            {showForm ? (
+                <div className="p-4 bg-slate-50 flex flex-col gap-2 border-b">
+                    <input className="w-full p-2 border rounded text-xs" placeholder="عنوان الدرس" value={newTitle} onChange={e => setNewTitle(e.target.value)} autoFocus/>
+                    <input className="w-full p-2 border rounded text-xs dir-ltr text-left" placeholder="رابط العرض..." value={newUrl} onChange={e => setNewUrl(e.target.value)}/>
+                    <button onClick={handleSave} disabled={!newTitle || !newUrl} className="bg-indigo-600 text-white w-full py-1.5 rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50">حفظ الدرس</button>
+                </div>
+            ) : (
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                    {filteredLinks.map(link => (
+                        <div key={link.id} className="flex items-center justify-between p-2 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 group transition-colors">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <div className="bg-indigo-100 p-1.5 rounded text-indigo-600 flex-shrink-0"><Monitor size={14}/></div>
+                                <div className="truncate"><div className="text-xs font-bold text-gray-800 truncate">{link.title}</div></div>
+                            </div>
+                            <button onClick={(e) => handleDelete(link.id, e)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
+                        </div>
+                    ))}
+                    {filteredLinks.length === 0 && <div className="text-center py-10 text-gray-400 text-xs">لا توجد دروس محفوظة.</div>}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MiniTimerWidget = () => {
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [isActive, setIsActive] = useState(false);
+    useEffect(() => {
+        let interval: any;
+        if (isActive && timeLeft > 0) interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
+        else if (timeLeft === 0) setIsActive(false);
+        return () => clearInterval(interval);
+    }, [isActive, timeLeft]);
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-indigo-50"><h3 className="font-bold text-indigo-800 flex items-center gap-2 text-sm"><Clock size={16}/> مؤقت النشاط</h3></div>
+            <div className="flex-1 flex flex-col items-center justify-center p-4 bg-slate-50">
+                <div className="text-5xl font-black text-gray-700 font-mono mb-4">{Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{ (timeLeft % 60).toString().padStart(2, '0')}</div>
+                <div className="flex gap-2 w-full"><button onClick={() => setIsActive(!isActive)} className="flex-1 py-2 rounded-lg text-white font-bold bg-green-600">{isActive ? <Pause size={18}/> : <Play size={18}/>}</button><button onClick={() => {setIsActive(false); setTimeLeft(300)}} className="px-4 py-2 rounded-lg bg-white border"><RotateCcw size={18}/></button></div>
+                <div className="flex gap-1 w-full mt-2"><button onClick={() => setTimeLeft(300)} className="flex-1 py-1 bg-white border rounded text-[10px]">5د</button><button onClick={() => setTimeLeft(600)} className="flex-1 py-1 bg-white border rounded text-[10px]">10د</button></div>
+            </div>
+        </div>
+    );
+};
+
+const SoundBoardWidget = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+        <div className="p-3 border-b bg-pink-50"><h3 className="font-bold text-pink-800 flex items-center gap-2 text-sm"><Volume2 size={16}/> المؤثرات</h3></div>
+        <div className="flex-1 p-4 grid grid-cols-2 gap-3 bg-pink-50/20">
+            {['👏 تصفيق', '✅ صحيح', '❌ خطأ', '🔔 جرس'].map(s => <button key={s} className="bg-white border rounded hover:bg-pink-50 text-xs font-bold py-2">{s}</button>)}
+        </div>
+    </div>
+);
+
+const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ students }) => {
+    const [passes, setPasses] = useState<{id: string, studentId: string, name: string, startTime: number}[]>([]);
+    const [selectedStudent, setSelectedStudent] = useState('');
+
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        const timer = setInterval(() => setTick(t => t + 1), 60000); 
+        return () => clearInterval(timer);
+    }, []);
+
+    const issuePass = () => {
+        if (!selectedStudent) return;
+        const student = students.find(s => s.id === selectedStudent);
+        if (student) {
+            setPasses(prev => [...prev, {
+                id: Date.now().toString(),
+                studentId: student.id,
+                name: student.name,
+                startTime: Date.now()
+            }]);
+            setSelectedStudent('');
+        }
+    };
+
+    const returnPass = (id: string) => {
+        setPasses(prev => prev.filter(p => p.id !== id));
+    };
+
+    const formatDuration = (start: number) => {
+        const mins = Math.floor((Date.now() - start) / 60000);
+        return mins + 'د';
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
+            <div className="p-3 border-b bg-orange-50"><h3 className="font-bold text-orange-800 flex items-center gap-2 text-sm"><DoorOpen size={16}/> تصريح الخروج</h3></div>
+            
+            <div className="p-3 border-b flex gap-2">
+                <select 
+                    className="flex-1 text-xs border rounded p-1.5"
+                    value={selectedStudent}
+                    onChange={e => setSelectedStudent(e.target.value)}
+                >
+                    <option value="">اختر الطالب...</option>
+                    {students && students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <button onClick={issuePass} disabled={!selectedStudent} className="bg-orange-500 text-white px-3 rounded text-xs font-bold disabled:opacity-50">خروج</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {passes.length > 0 ? passes.map(pass => (
+                    <div key={pass.id} className="bg-orange-50 border border-orange-200 rounded p-2 flex justify-between items-center animate-fade-in">
+                        <div>
+                            <span className="font-bold text-xs block text-orange-900">{pass.name}</span>
+                            <span className="text-[10px] text-orange-700 flex items-center gap-1"><Clock size={10}/> منذ {formatDuration(pass.startTime)}</span>
+                        </div>
+                        <button onClick={() => returnPass(pass.id)} className="bg-white text-orange-600 border border-orange-200 text-[10px] px-2 py-1 rounded hover:bg-orange-100">عودة</button>
+                    </div>
+                )) : (
+                    <div className="text-center text-gray-400 text-xs py-8 opacity-50">لا يوجد طلاب خارج الفصل</div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const TrafficLightWidget = () => {
+    const [light, setLight] = useState<'RED'|'YELLOW'|'GREEN'>('GREEN');
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><AlertCircle size={16}/> إشارة الانضباط</h3></div>
+            <div className="flex-1 flex items-center justify-center gap-4 bg-slate-100">
+                <div 
+                    onClick={() => setLight('RED')}
+                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'RED' ? 'bg-red-600 scale-110 shadow-red-500/50' : 'bg-red-900 opacity-30'}`}
+                ></div>
+                <div 
+                    onClick={() => setLight('YELLOW')}
+                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'YELLOW' ? 'bg-yellow-400 scale-110 shadow-yellow-500/50' : 'bg-yellow-900 opacity-30'}`}
+                ></div>
+                <div 
+                    onClick={() => setLight('GREEN')}
+                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'GREEN' ? 'bg-green-500 scale-110 shadow-green-500/50' : 'bg-green-900 opacity-30'}`}
+                ></div>
+            </div>
+            <div className="bg-white p-2 text-center text-xs font-bold border-t text-gray-500">
+                الحالة: <span className={light === 'RED' ? 'text-red-600' : light === 'YELLOW' ? 'text-yellow-600' : 'text-green-600'}>
+                    {light === 'RED' ? 'توقف / صمت' : light === 'YELLOW' ? 'انتباه' : 'مسموح'}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+const QuickPollWidget = () => {
+    const [votes, setVotes] = useState({ A: 0, B: 0, C: 0 });
+    
+    const vote = (opt: 'A'|'B'|'C') => setVotes(prev => ({ ...prev, [opt]: prev[opt] + 1 }));
+    const reset = () => setVotes({ A: 0, B: 0, C: 0 });
+    const total = votes.A + votes.B + votes.C;
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
+            <div className="p-3 border-b bg-blue-50 flex justify-between items-center">
+                <h3 className="font-bold text-blue-800 flex items-center gap-2 text-sm"><BarChart2 size={16}/> تصويت سريع</h3>
+                <button onClick={reset} className="text-blue-600 hover:bg-blue-100 p-1 rounded"><RotateCcw size={14}/></button>
+            </div>
+            <div className="flex-1 flex flex-col p-4 gap-3">
+                <div className="flex gap-2 h-full items-end">
+                    {['A', 'B', 'C'].map((opt) => {
+                        const count = votes[opt as keyof typeof votes];
+                        const pct = total > 0 ? (count / total) * 100 : 0;
+                        return (
+                            <div key={opt} className="flex-1 flex flex-col justify-end h-full gap-1">
+                                <div className="text-center text-xs font-bold text-gray-500">{count}</div>
+                                <div 
+                                    className={`w-full rounded-t-lg transition-all duration-500 ${opt === 'A' ? 'bg-blue-500' : opt === 'B' ? 'bg-green-500' : 'bg-red-500'}`}
+                                    style={{ height: `${Math.max(10, pct)}%` }}
+                                ></div>
+                                <button 
+                                    onClick={() => vote(opt as any)}
+                                    className="w-full py-1 border rounded text-xs font-bold hover:bg-gray-50"
+                                >
+                                    {opt}
+                                </button>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ className, subject }) => {
+    const [note, setNote] = useState(() => localStorage.getItem(`note_${className}`) || '');
+    
+    const handleChange = (val: string) => {
+        setNote(val);
+        localStorage.setItem(`note_${className}`, val);
+    };
+
+    return (
+        <div className="bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden flex flex-col h-80 relative">
+            <div className="p-3 border-b border-yellow-100"><h3 className="font-bold text-yellow-800 flex items-center gap-2 text-sm"><StickyNote size={16}/> ملاحظات</h3></div>
+            <textarea 
+                className="flex-1 bg-transparent p-4 outline-none text-sm resize-none" 
+                placeholder="أكتب ملاحظات الدرس..."
+                value={note}
+                onChange={e => handleChange(e.target.value)}
+            />
+        </div>
+    );
+};
+
+const SeatingChart: React.FC<{ students: Student[], onSaveSeating?: (s: Student[]) => void, preSelectedClass?: string }> = ({ students, onSaveSeating, preSelectedClass }) => {
+    const [rows] = useState(5);
+    const [cols] = useState(5);
+    const [assignedSeats, setAssignedSeats] = useState<Record<string, string>>({}); 
+    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const initialSeats: Record<string, string> = {};
+        if (students) {
+            students.forEach(s => {
+                if (s.seatIndex !== undefined && s.seatIndex >= 0) {
+                    const r = Math.floor(s.seatIndex / cols);
+                    const c = s.seatIndex % cols;
+                    initialSeats[`${r}-${c}`] = s.id;
+                }
+            });
+        }
+        setAssignedSeats(initialSeats);
+    }, [students, cols]);
+
+    const handleSeatClick = (r: number, c: number) => {
+        const key = `${r}-${c}`;
+        
+        if (selectedStudentId) {
+            const newSeats = { ...assignedSeats };
+            Object.keys(newSeats).forEach(k => {
+                if (newSeats[k] === selectedStudentId) delete newSeats[k];
+            });
+            newSeats[key] = selectedStudentId;
+            setAssignedSeats(newSeats);
+            setSelectedStudentId(null);
+        } else if (assignedSeats[key]) {
+            setSelectedStudentId(assignedSeats[key]);
+        }
+    };
+
+    const handleSave = () => {
+        if (!onSaveSeating || !students) return;
+        const updatedStudents = students.map(s => {
+            const seatKey = Object.keys(assignedSeats).find(k => assignedSeats[k] === s.id);
+            if (seatKey) {
+                const [r, c] = seatKey.split('-').map(Number);
+                return { ...s, seatIndex: r * cols + c };
+            } else {
+                return { ...s, seatIndex: -1 }; 
+            }
+        });
+        onSaveSeating(updatedStudents);
+        alert('تم حفظ ترتيب المقاعد!');
+    };
+
+    const handleAutoArrange = () => {
+        if (!students) return;
+        const shuffled = [...students].sort(() => 0.5 - Math.random());
+        const newSeats: Record<string, string> = {};
+        shuffled.forEach((s, idx) => {
+            if (idx < rows * cols) {
+                const r = Math.floor(idx / cols);
+                const c = idx % cols;
+                newSeats[`${r}-${c}`] = s.id;
+            }
+        });
+        setAssignedSeats(newSeats);
+    };
+
+    const unassignedStudents = students ? students.filter(s => !Object.values(assignedSeats).includes(s.id)) : [];
+
+    return (
+        <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 className="font-bold text-gray-700 flex items-center gap-2"><Grid size={18}/> مخطط الجلوس - {preSelectedClass}</h3>
+                <div className="flex gap-2">
+                    <button onClick={handleAutoArrange} className="px-3 py-1.5 bg-white border rounded hover:bg-gray-50 text-sm font-bold flex items-center gap-1"><Shuffle size={14}/> ترتيب عشوائي</button>
+                    <button onClick={handleSave} className="px-4 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm font-bold flex items-center gap-1"><Save size={14}/> حفظ الترتيب</button>
+                </div>
+            </div>
+            
+            <div className="flex-1 p-6 flex flex-col md:flex-row gap-6 overflow-hidden">
+                <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 p-8 flex items-center justify-center overflow-auto relative">
+                    <div className="absolute top-2 bg-slate-300 text-slate-600 px-4 py-1 rounded-full text-xs font-bold shadow-sm">السبورة / الشاشة</div>
+                    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                        {Array.from({ length: rows }).map((_, r) => (
+                            Array.from({ length: cols }).map((_, c) => {
+                                const key = `${r}-${c}`;
+                                const studentId = assignedSeats[key];
+                                const student = students && students.find(s => s.id === studentId);
+                                const isSelected = studentId === selectedStudentId;
+
+                                return (
+                                    <div 
+                                        key={key}
+                                        onClick={() => handleSeatClick(r, c)}
+                                        className={`
+                                            w-16 h-16 md:w-24 md:h-24 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all shadow-sm
+                                            ${student ? (isSelected ? 'bg-purple-100 border-purple-500 scale-105' : 'bg-white border-purple-200 hover:border-purple-300') : 'bg-slate-50 border-dashed border-slate-300 hover:bg-white'}
+                                        `}
+                                    >
+                                        {student ? (
+                                            <>
+                                                <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold mb-1">
+                                                    {student.name.charAt(0)}
+                                                </div>
+                                                <span className="text-[10px] md:text-xs text-center font-bold text-gray-700 line-clamp-1 w-full px-1">{student.name}</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-slate-300 text-xs">{r+1}-{c+1}</span>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ))}
+                    </div>
+                </div>
+
+                <div className="w-full md:w-64 bg-gray-50 border-l border-gray-200 flex flex-col">
+                    <div className="p-3 border-b font-bold text-sm text-gray-600">طلاب غير معينين ({unassignedStudents.length})</div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                        {unassignedStudents.map(s => (
+                            <div 
+                                key={s.id}
+                                onClick={() => setSelectedStudentId(s.id === selectedStudentId ? null : s.id)}
+                                className={`p-2 rounded border cursor-pointer text-sm flex items-center gap-2 ${selectedStudentId === s.id ? 'bg-purple-100 border-purple-300 text-purple-800' : 'bg-white border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                <User size={14}/> {s.name}
+                            </div>
+                        ))}
+                        {unassignedStudents.length === 0 && <div className="text-center text-gray-400 text-xs py-4">جميع الطلاب في مقاعدهم</div>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN COMPONENT ---
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -11,20 +409,18 @@ interface ClassroomManagerProps {
     attendance: AttendanceRecord[];
     onLaunchScreen: () => void;
     onNavigateToAttendance: () => void;
-    onSaveSeating?: (students: Student[]) => void;
     onSaveAttendance: (records: AttendanceRecord[]) => void;
     onImportAttendance: (records: AttendanceRecord[]) => void;
     selectedDate?: string;
     onDateChange?: (date: string) => void;
     currentUser?: SystemUser | null;
+    onSaveSeating?: (students: Student[]) => void;
 }
 
 const ClassroomManager: React.FC<ClassroomManagerProps> = ({ 
     students, 
-    performance = [], 
     attendance, 
     onLaunchScreen, 
-    onSaveSeating, 
     onSaveAttendance, 
     onImportAttendance,
     selectedDate,
@@ -43,23 +439,22 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     const [selectedSubject, setSelectedSubject] = useState('');
     const [subjects, setSubjects] = useState<Subject[]>([]);
     
-    // Internal state if no props provided
     const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
     const effectiveDate = selectedDate || internalDate;
     const handleDateChange = onDateChange || setInternalDate;
 
-    // Schedule & Teacher Context
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
     const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([]);
 
     const uniqueClasses = useMemo(() => {
+        if (!students) return [];
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
         return Array.from(classes).sort();
     }, [students]);
 
     useEffect(() => {
-        const loadedSubjects = getSubjects(currentUser?.id); // Isolate
+        const loadedSubjects = getSubjects(currentUser?.id);
         setSubjects(loadedSubjects);
         setSchedules(getSchedules());
         setTeacherAssignments(getTeacherAssignments());
@@ -69,6 +464,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     }, [uniqueClasses, currentUser]);
 
     const classStudents = useMemo(() => {
+        if (!students) return [];
         return students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
     }, [students, selectedClass]);
 
@@ -84,7 +480,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         return date.toLocaleDateString('ar-SA', { weekday: 'long' });
     };
 
-    // --- FILTERED SCHEDULE LOGIC ---
     const dailyClassSchedule = useMemo(() => {
         if (!selectedClass || !effectiveDate) return [];
         const dateObj = new Date(effectiveDate);
@@ -102,9 +497,8 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         return classSched.sort((a,b) => a.period - b.period);
     }, [schedules, teacherAssignments, selectedClass, effectiveDate, currentUser]);
 
-    // Handle Seating Save (Update student seatIndex)
     const handleUpdateSeating = (updatedStudents: Student[]) => {
-        updatedStudents.forEach(s => updateStudent(s)); // Save to DB
+        updatedStudents.forEach(s => updateStudent(s)); 
     };
 
     return (
@@ -240,6 +634,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         preSelectedSubject={selectedSubject}
                         selectedDate={effectiveDate}
                         onDateChange={handleDateChange}
+                        currentUser={currentUser}
                     />
                 )}
 
@@ -250,412 +645,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         preSelectedClass={selectedClass} 
                     />
                 )}
-            </div>
-        </div>
-    );
-};
-
-// --- WIDGET IMPLEMENTATIONS ---
-
-const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], date: string }> = ({ students, attendance, date }) => {
-    const stats = useMemo(() => {
-        const absentCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.ABSENT).length;
-        const lateCount = attendance.filter(a => students.some(s => s.id === a.studentId) && a.date === date && a.status === AttendanceStatus.LATE).length;
-        const presentCount = students.length - absentCount - lateCount;
-        return { present: presentCount, absent: absentCount, late: lateCount };
-    }, [students, attendance, date]);
-
-    return (
-        <div className="flex bg-white rounded-lg border shadow-sm divide-x divide-x-reverse overflow-hidden text-xs">
-            <div className="px-3 py-1 bg-green-50 text-green-700 flex flex-col items-center"><span className="font-bold">{stats.present}</span><span className="text-[10px]">حضور</span></div>
-            <div className="px-3 py-1 bg-red-50 text-red-700 flex flex-col items-center"><span className="font-bold">{stats.absent}</span><span className="text-[10px]">غياب</span></div>
-            <div className="px-3 py-1 bg-yellow-50 text-yellow-700 flex flex-col items-center"><span className="font-bold">{stats.late}</span><span className="text-[10px]">تأخر</span></div>
-        </div>
-    );
-};
-
-const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ currentUser }) => {
-    const [links, setLinks] = useState<any[]>([]); // Use LessonLink type
-    const [newTitle, setNewTitle] = useState('');
-    const [newUrl, setNewUrl] = useState('');
-    const [showForm, setShowForm] = useState(false);
-
-    useEffect(() => setLinks(getLessonLinks()), []);
-
-    const filteredLinks = useMemo(() => {
-        if (!currentUser || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'SCHOOL_MANAGER') return links;
-        return links.filter(l => l.teacherId === currentUser.id);
-    }, [links, currentUser]);
-
-    const handleSave = () => {
-        if (!newTitle || !newUrl) return;
-        saveLessonLink({ id: Date.now().toString(), title: newTitle, url: newUrl, teacherId: currentUser?.id, createdAt: new Date().toISOString() });
-        setLinks(getLessonLinks());
-        setNewTitle(''); setNewUrl(''); setShowForm(false);
-    };
-
-    const handleDelete = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if(confirm('حذف هذا الدرس؟')) { deleteLessonLink(id); setLinks(getLessonLinks()); }
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
-            <div className="p-3 border-b bg-indigo-50 flex justify-between items-center">
-                <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-sm"><Monitor size={16}/> مكتبة الدروس</h3>
-                <button onClick={() => setShowForm(!showForm)} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 flex items-center gap-1">{showForm ? <XCircle size={12}/> : <Plus size={12}/>} {showForm ? 'إلغاء' : 'إضافة'}</button>
-            </div>
-            {showForm ? (
-                <div className="p-4 bg-slate-50 flex flex-col gap-2 border-b">
-                    <input className="w-full p-2 border rounded text-xs" placeholder="عنوان الدرس" value={newTitle} onChange={e => setNewTitle(e.target.value)} autoFocus/>
-                    <input className="w-full p-2 border rounded text-xs dir-ltr text-left" placeholder="رابط العرض..." value={newUrl} onChange={e => setNewUrl(e.target.value)}/>
-                    <button onClick={handleSave} disabled={!newTitle || !newUrl} className="bg-indigo-600 text-white w-full py-1.5 rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50">حفظ الدرس</button>
-                </div>
-            ) : (
-                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                    {filteredLinks.map(link => (
-                        <div key={link.id} className="flex items-center justify-between p-2 hover:bg-indigo-50 rounded border border-transparent hover:border-indigo-100 group transition-colors">
-                            <div className="flex items-center gap-2 overflow-hidden">
-                                <div className="bg-indigo-100 p-1.5 rounded text-indigo-600 flex-shrink-0"><Monitor size={14}/></div>
-                                <div className="truncate"><div className="text-xs font-bold text-gray-800 truncate">{link.title}</div></div>
-                            </div>
-                            <button onClick={(e) => handleDelete(link.id, e)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
-                        </div>
-                    ))}
-                    {filteredLinks.length === 0 && <div className="text-center py-10 text-gray-400 text-xs">لا توجد دروس محفوظة.</div>}
-                </div>
-            )}
-        </div>
-    );
-};
-
-const MiniTimerWidget = () => {
-    const [timeLeft, setTimeLeft] = useState(0);
-    const [isActive, setIsActive] = useState(false);
-    useEffect(() => {
-        let interval: any;
-        if (isActive && timeLeft > 0) interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
-        else if (timeLeft === 0) setIsActive(false);
-        return () => clearInterval(interval);
-    }, [isActive, timeLeft]);
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
-            <div className="p-3 border-b bg-indigo-50"><h3 className="font-bold text-indigo-800 flex items-center gap-2 text-sm"><Clock size={16}/> مؤقت النشاط</h3></div>
-            <div className="flex-1 flex flex-col items-center justify-center p-4 bg-slate-50">
-                <div className="text-5xl font-black text-gray-700 font-mono mb-4">{Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{ (timeLeft % 60).toString().padStart(2, '0')}</div>
-                <div className="flex gap-2 w-full"><button onClick={() => setIsActive(!isActive)} className="flex-1 py-2 rounded-lg text-white font-bold bg-green-600">{isActive ? <Pause size={18}/> : <Play size={18}/>}</button><button onClick={() => {setIsActive(false); setTimeLeft(300)}} className="px-4 py-2 rounded-lg bg-white border"><RotateCcw size={18}/></button></div>
-                <div className="flex gap-1 w-full mt-2"><button onClick={() => setTimeLeft(300)} className="flex-1 py-1 bg-white border rounded text-[10px]">5د</button><button onClick={() => setTimeLeft(600)} className="flex-1 py-1 bg-white border rounded text-[10px]">10د</button></div>
-            </div>
-        </div>
-    );
-};
-
-const SoundBoardWidget = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
-        <div className="p-3 border-b bg-pink-50"><h3 className="font-bold text-pink-800 flex items-center gap-2 text-sm"><Volume2 size={16}/> المؤثرات</h3></div>
-        <div className="flex-1 p-4 grid grid-cols-2 gap-3 bg-pink-50/20">
-            {['👏 تصفيق', '✅ صحيح', '❌ خطأ', '🔔 جرس'].map(s => <button key={s} className="bg-white border rounded hover:bg-pink-50 text-xs font-bold py-2">{s}</button>)}
-        </div>
-    </div>
-);
-
-// --- UPDATED: Functional Hall Pass Widget ---
-const HallPassWidget: React.FC<{ students: Student[], className: string }> = ({ students }) => {
-    const [passes, setPasses] = useState<{id: string, studentId: string, name: string, startTime: number}[]>([]);
-    const [selectedStudent, setSelectedStudent] = useState('');
-
-    // Timer updater
-    const [, setTick] = useState(0);
-    useEffect(() => {
-        const timer = setInterval(() => setTick(t => t + 1), 60000); // Update every minute
-        return () => clearInterval(timer);
-    }, []);
-
-    const issuePass = () => {
-        if (!selectedStudent) return;
-        const student = students.find(s => s.id === selectedStudent);
-        if (student) {
-            setPasses(prev => [...prev, {
-                id: Date.now().toString(),
-                studentId: student.id,
-                name: student.name,
-                startTime: Date.now()
-            }]);
-            setSelectedStudent('');
-        }
-    };
-
-    const returnPass = (id: string) => {
-        setPasses(prev => prev.filter(p => p.id !== id));
-    };
-
-    const formatDuration = (start: number) => {
-        const mins = Math.floor((Date.now() - start) / 60000);
-        return mins + 'د';
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-80">
-            <div className="p-3 border-b bg-orange-50"><h3 className="font-bold text-orange-800 flex items-center gap-2 text-sm"><DoorOpen size={16}/> تصريح الخروج</h3></div>
-            
-            <div className="p-3 border-b flex gap-2">
-                <select 
-                    className="flex-1 text-xs border rounded p-1.5"
-                    value={selectedStudent}
-                    onChange={e => setSelectedStudent(e.target.value)}
-                >
-                    <option value="">اختر الطالب...</option>
-                    {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <button onClick={issuePass} disabled={!selectedStudent} className="bg-orange-500 text-white px-3 rounded text-xs font-bold disabled:opacity-50">خروج</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {passes.length > 0 ? passes.map(pass => (
-                    <div key={pass.id} className="bg-orange-50 border border-orange-200 rounded p-2 flex justify-between items-center animate-fade-in">
-                        <div>
-                            <span className="font-bold text-xs block text-orange-900">{pass.name}</span>
-                            <span className="text-[10px] text-orange-700 flex items-center gap-1"><Clock size={10}/> منذ {formatDuration(pass.startTime)}</span>
-                        </div>
-                        <button onClick={() => returnPass(pass.id)} className="bg-white text-orange-600 border border-orange-200 text-[10px] px-2 py-1 rounded hover:bg-orange-100">عودة</button>
-                    </div>
-                )) : (
-                    <div className="text-center text-gray-400 text-xs py-8 opacity-50">لا يوجد طلاب خارج الفصل</div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// --- UPDATED: Interactive Traffic Light ---
-const TrafficLightWidget = () => {
-    const [light, setLight] = useState<'RED'|'YELLOW'|'GREEN'>('GREEN');
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
-            <div className="p-3 border-b bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><AlertCircle size={16}/> إشارة الانضباط</h3></div>
-            <div className="flex-1 flex items-center justify-center gap-4 bg-slate-100">
-                <div 
-                    onClick={() => setLight('RED')}
-                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'RED' ? 'bg-red-600 scale-110 shadow-red-500/50' : 'bg-red-900 opacity-30'}`}
-                ></div>
-                <div 
-                    onClick={() => setLight('YELLOW')}
-                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'YELLOW' ? 'bg-yellow-400 scale-110 shadow-yellow-500/50' : 'bg-yellow-900 opacity-30'}`}
-                ></div>
-                <div 
-                    onClick={() => setLight('GREEN')}
-                    className={`w-12 h-12 rounded-full border-4 border-slate-700 cursor-pointer transition-all duration-300 shadow-xl ${light === 'GREEN' ? 'bg-green-500 scale-110 shadow-green-500/50' : 'bg-green-900 opacity-30'}`}
-                ></div>
-            </div>
-            <div className="bg-white p-2 text-center text-xs font-bold border-t text-gray-500">
-                الحالة: <span className={light === 'RED' ? 'text-red-600' : light === 'YELLOW' ? 'text-yellow-600' : 'text-green-600'}>
-                    {light === 'RED' ? 'توقف / صمت' : light === 'YELLOW' ? 'انتباه' : 'مسموح'}
-                </span>
-            </div>
-        </div>
-    );
-};
-
-// --- UPDATED: Quick Poll Widget ---
-const QuickPollWidget = () => {
-    const [votes, setVotes] = useState({ A: 0, B: 0, C: 0 });
-    
-    const vote = (opt: 'A'|'B'|'C') => setVotes(prev => ({ ...prev, [opt]: prev[opt] + 1 }));
-    const reset = () => setVotes({ A: 0, B: 0, C: 0 });
-    const total = votes.A + votes.B + votes.C;
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-64">
-            <div className="p-3 border-b bg-blue-50 flex justify-between items-center">
-                <h3 className="font-bold text-blue-800 flex items-center gap-2 text-sm"><BarChart2 size={16}/> تصويت سريع</h3>
-                <button onClick={reset} className="text-blue-600 hover:bg-blue-100 p-1 rounded"><RotateCcw size={14}/></button>
-            </div>
-            <div className="flex-1 flex flex-col p-4 gap-3">
-                <div className="flex gap-2 h-full items-end">
-                    {['A', 'B', 'C'].map((opt) => {
-                        const count = votes[opt as keyof typeof votes];
-                        const pct = total > 0 ? (count / total) * 100 : 0;
-                        return (
-                            <div key={opt} className="flex-1 flex flex-col justify-end h-full gap-1">
-                                <div className="text-center text-xs font-bold text-gray-500">{count}</div>
-                                <div 
-                                    className={`w-full rounded-t-lg transition-all duration-500 ${opt === 'A' ? 'bg-blue-500' : opt === 'B' ? 'bg-green-500' : 'bg-red-500'}`}
-                                    style={{ height: `${Math.max(10, pct)}%` }}
-                                ></div>
-                                <button 
-                                    onClick={() => vote(opt as any)}
-                                    className="w-full py-1 border rounded text-xs font-bold hover:bg-gray-50"
-                                >
-                                    {opt}
-                                </button>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const LessonNoteWidget: React.FC<{ className: string, subject?: string }> = ({ className, subject }) => {
-    const [note, setNote] = useState(() => localStorage.getItem(`note_${className}`) || '');
-    
-    const handleChange = (val: string) => {
-        setNote(val);
-        localStorage.setItem(`note_${className}`, val);
-    };
-
-    return (
-        <div className="bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden flex flex-col h-80 relative">
-            <div className="p-3 border-b border-yellow-100"><h3 className="font-bold text-yellow-800 flex items-center gap-2 text-sm"><StickyNote size={16}/> ملاحظات</h3></div>
-            <textarea 
-                className="flex-1 bg-transparent p-4 outline-none text-sm resize-none" 
-                placeholder="أكتب ملاحظات الدرس..."
-                value={note}
-                onChange={e => handleChange(e.target.value)}
-            />
-        </div>
-    );
-};
-
-// --- UPDATED: Functional Seating Chart ---
-const SeatingChart: React.FC<{ students: Student[], onSaveSeating?: (s: Student[]) => void, preSelectedClass?: string }> = ({ students, onSaveSeating, preSelectedClass }) => {
-    // 5x5 Grid by default
-    const [rows] = useState(5);
-    const [cols] = useState(5);
-    const [assignedSeats, setAssignedSeats] = useState<Record<string, string>>({}); // "row-col": studentId
-    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-
-    // Initialize seats from students data
-    useEffect(() => {
-        const initialSeats: Record<string, string> = {};
-        students.forEach(s => {
-            if (s.seatIndex !== undefined && s.seatIndex >= 0) {
-                // Convert linear index to row-col (0 -> 0-0, 1 -> 0-1)
-                const r = Math.floor(s.seatIndex / cols);
-                const c = s.seatIndex % cols;
-                initialSeats[`${r}-${c}`] = s.id;
-            }
-        });
-        setAssignedSeats(initialSeats);
-    }, [students, cols]);
-
-    const handleSeatClick = (r: number, c: number) => {
-        const key = `${r}-${c}`;
-        
-        if (selectedStudentId) {
-            // Assign selected student to this seat
-            // 1. Remove student from previous seat if any
-            const newSeats = { ...assignedSeats };
-            Object.keys(newSeats).forEach(k => {
-                if (newSeats[k] === selectedStudentId) delete newSeats[k];
-            });
-            // 2. Assign to new seat
-            newSeats[key] = selectedStudentId;
-            setAssignedSeats(newSeats);
-            setSelectedStudentId(null);
-        } else if (assignedSeats[key]) {
-            // If clicking an occupied seat without selection -> Select that student to move
-            setSelectedStudentId(assignedSeats[key]);
-        }
-    };
-
-    const handleSave = () => {
-        if (!onSaveSeating) return;
-        const updatedStudents = students.map(s => {
-            // Find seat for this student
-            const seatKey = Object.keys(assignedSeats).find(k => assignedSeats[k] === s.id);
-            if (seatKey) {
-                const [r, c] = seatKey.split('-').map(Number);
-                return { ...s, seatIndex: r * cols + c };
-            } else {
-                return { ...s, seatIndex: -1 }; // Unassigned
-            }
-        });
-        onSaveSeating(updatedStudents);
-        alert('تم حفظ ترتيب المقاعد!');
-    };
-
-    const handleAutoArrange = () => {
-        const shuffled = [...students].sort(() => 0.5 - Math.random());
-        const newSeats: Record<string, string> = {};
-        shuffled.forEach((s, idx) => {
-            if (idx < rows * cols) {
-                const r = Math.floor(idx / cols);
-                const c = idx % cols;
-                newSeats[`${r}-${c}`] = s.id;
-            }
-        });
-        setAssignedSeats(newSeats);
-    };
-
-    const unassignedStudents = students.filter(s => !Object.values(assignedSeats).includes(s.id));
-
-    return (
-        <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                <h3 className="font-bold text-gray-700 flex items-center gap-2"><Grid size={18}/> مخطط الجلوس - {preSelectedClass}</h3>
-                <div className="flex gap-2">
-                    <button onClick={handleAutoArrange} className="px-3 py-1.5 bg-white border rounded hover:bg-gray-50 text-sm font-bold flex items-center gap-1"><Shuffle size={14}/> ترتيب عشوائي</button>
-                    <button onClick={handleSave} className="px-4 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm font-bold flex items-center gap-1"><Save size={14}/> حفظ الترتيب</button>
-                </div>
-            </div>
-            
-            <div className="flex-1 p-6 flex flex-col md:flex-row gap-6 overflow-hidden">
-                {/* Grid */}
-                <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 p-8 flex items-center justify-center overflow-auto relative">
-                    <div className="absolute top-2 bg-slate-300 text-slate-600 px-4 py-1 rounded-full text-xs font-bold shadow-sm">السبورة / الشاشة</div>
-                    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-                        {Array.from({ length: rows }).map((_, r) => (
-                            Array.from({ length: cols }).map((_, c) => {
-                                const key = `${r}-${c}`;
-                                const studentId = assignedSeats[key];
-                                const student = students.find(s => s.id === studentId);
-                                const isSelected = studentId === selectedStudentId;
-
-                                return (
-                                    <div 
-                                        key={key}
-                                        onClick={() => handleSeatClick(r, c)}
-                                        className={`
-                                            w-16 h-16 md:w-24 md:h-24 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all shadow-sm
-                                            ${student ? (isSelected ? 'bg-purple-100 border-purple-500 scale-105' : 'bg-white border-purple-200 hover:border-purple-300') : 'bg-slate-50 border-dashed border-slate-300 hover:bg-white'}
-                                        `}
-                                    >
-                                        {student ? (
-                                            <>
-                                                <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold mb-1">
-                                                    {student.name.charAt(0)}
-                                                </div>
-                                                <span className="text-[10px] md:text-xs text-center font-bold text-gray-700 line-clamp-1 w-full px-1">{student.name}</span>
-                                            </>
-                                        ) : (
-                                            <span className="text-slate-300 text-xs">{r+1}-{c+1}</span>
-                                        )}
-                                    </div>
-                                );
-                            })
-                        ))}
-                    </div>
-                </div>
-
-                {/* Sidebar List */}
-                <div className="w-full md:w-64 bg-gray-50 border-l border-gray-200 flex flex-col">
-                    <div className="p-3 border-b font-bold text-sm text-gray-600">طلاب غير معينين ({unassignedStudents.length})</div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                        {unassignedStudents.map(s => (
-                            <div 
-                                key={s.id}
-                                onClick={() => setSelectedStudentId(s.id === selectedStudentId ? null : s.id)}
-                                className={`p-2 rounded border cursor-pointer text-sm flex items-center gap-2 ${selectedStudentId === s.id ? 'bg-purple-100 border-purple-300 text-purple-800' : 'bg-white border-gray-200 hover:bg-gray-100'}`}
-                            >
-                                <User size={14}/> {s.name}
-                            </div>
-                        ))}
-                        {unassignedStudents.length === 0 && <div className="text-center text-gray-400 text-xs py-4">جميع الطلاب في مقاعدهم</div>}
-                    </div>
-                </div>
             </div>
         </div>
     );
