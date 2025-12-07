@@ -62,10 +62,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [showQuickFill, setShowQuickFill] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!currentUser) return;
-
-        // FIX: Fetch subjects including legacy/global ones
-        const loadedSubjects = getSubjects(currentUser.id);
+        // FIX: Fetch subjects including legacy/global ones by passing ID
+        const loadedSubjects = getSubjects(currentUser?.id);
         setSubjects(loadedSubjects);
         if (loadedSubjects.length > 0) setSelectedSubject(loadedSubjects[0].name);
         else setSelectedSubject('عام');
@@ -153,10 +151,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     useEffect(() => {
-        if (!currentUser) return;
-
-        // FIX: Fetch assignments including legacy/global ones
-        const allAssignments = getAssignments(activeTab, currentUser.id);
+        // FIX: Fetch assignments including legacy/global ones by passing ID
+        const allAssignments = getAssignments(activeTab, currentUser?.id);
         allAssignments.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
         setAssignments(allAssignments);
         
@@ -376,7 +372,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
 
         if (activeTab === 'YEAR_WORK') {
-            // Updated logic to use currentUser.id or fetch global assignments if needed
             const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
             const hwCols = getAssignments('HOMEWORK', currentUser?.id);
             const distinctHW = new Set(hwRecs.map(p => p.notes)).size;

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser } from '../types';
 import { getSubjects, getAssignments } from '../services/storageService';
 import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
@@ -9,9 +9,10 @@ interface StudentFollowUpProps {
   students: Student[];
   performance: PerformanceRecord[];
   attendance: AttendanceRecord[];
+  currentUser?: SystemUser | null;
 }
 
-const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance }) => {
+const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance, currentUser }) => {
     // Safety check
     if (!students || !performance || !attendance) {
         return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
@@ -27,10 +28,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // FIX: Fetch all relevant subjects (including legacy ones)
-        // We pass undefined/null to get all or currentUser id if available in context (not passed here currently)
-        // Since we want to show everything this user has access to, let's use the generic getter which likely returns the cached list
-        const subs = getSubjects(); 
+        // FIX: Fetch all relevant subjects (including legacy ones) using currentUser
+        const subs = getSubjects(currentUser?.id); 
         setSubjects(subs);
         if (subs.length > 0) setSelectedSubject(subs[0].name);
         else setSelectedSubject('عام');
@@ -45,7 +44,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    }, [currentUser]);
 
     const handleTargetChange = (val: string) => {
         const num = parseInt(val);
@@ -82,16 +81,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
     const student = students.find(s => s.id === selectedStudentId);
 
-    // FIX: Get Assignments generally (allow legacy)
-    const rawActivityCols = getAssignments('ACTIVITY').filter(c => c.isVisible);
+    // FIX: Get Assignments generally (allow legacy) for the current user
+    const rawActivityCols = getAssignments('ACTIVITY', currentUser?.id).filter(c => c.isVisible);
     const activityCols = rawActivityCols.filter(c => 
         !c.title.includes('حضور') && 
         !c.title.toLowerCase().includes('attendance') &&
         !c.title.includes('غياب')
     );
 
-    const homeworkCols = getAssignments('HOMEWORK').filter(c => c.isVisible);
-    const examCols = getAssignments('PLATFORM_EXAM').filter(c => c.isVisible);
+    const homeworkCols = getAssignments('HOMEWORK', currentUser?.id).filter(c => c.isVisible);
+    const examCols = getAssignments('PLATFORM_EXAM', currentUser?.id).filter(c => c.isVisible);
 
     const calculateStats = () => {
         if (!student) return null;
