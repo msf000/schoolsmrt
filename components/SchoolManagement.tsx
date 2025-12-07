@@ -292,6 +292,24 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   };
 
+  const handleSendFeedback = () => {
+      if (!feedbackMsg || !viewingTeacher || !currentUser) return;
+      
+      const feedback: Feedback = {
+          id: Date.now().toString(),
+          teacherId: viewingTeacher.id,
+          managerId: currentUser.id,
+          content: feedbackMsg,
+          date: new Date().toISOString(),
+          isRead: false
+      };
+      
+      addFeedback(feedback);
+      setFeedbackList(getFeedback());
+      setFeedbackMsg('');
+      alert('تم إرسال التوجيه بنجاح');
+  };
+
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
   const dayNamesAr = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
   const periods = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -397,6 +415,91 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                             <button onClick={handleTeacherSaveProfile} className="mt-6 w-full bg-blue-600 text-white py-2 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2 shadow-lg transition-all"><Save size={18}/> حفظ التغييرات</button>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* TEACHERS TAB (For Manager) */}
+            {activeTab === 'TEACHERS' && isManager && (
+                <div className="max-w-6xl mx-auto flex gap-6 h-full min-h-[500px]">
+                    {/* Teacher List */}
+                    <div className="w-1/3 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+                        <div className="p-4 border-b bg-purple-50">
+                            <h3 className="font-bold text-purple-800">قائمة المعلمين ({myTeachers.length})</h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2">
+                            {myTeachers.map(teacher => (
+                                <div 
+                                    key={teacher.id} 
+                                    onClick={() => setViewingTeacher(teacher)}
+                                    className={`p-3 rounded-lg cursor-pointer transition-colors mb-2 border ${viewingTeacher?.id === teacher.id ? 'bg-purple-100 border-purple-300' : 'bg-white border-gray-100 hover:bg-gray-50'}`}
+                                >
+                                    <div className="font-bold text-gray-800">{teacher.name}</div>
+                                    <div className="text-xs text-gray-500">{teacher.subjectSpecialty}</div>
+                                </div>
+                            ))}
+                            {myTeachers.length === 0 && <p className="text-center text-gray-400 py-4">لا يوجد معلمين مرتبطين.</p>}
+                        </div>
+                    </div>
+
+                    {/* Teacher Details & Feedback */}
+                    <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+                        {viewingTeacher ? (
+                            <>
+                                <div className="flex justify-between items-start mb-6 border-b pb-4">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-800">{viewingTeacher.name}</h2>
+                                        <p className="text-gray-500">{viewingTeacher.email}</p>
+                                        <div className="mt-2 flex gap-2">
+                                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">{viewingTeacher.subjectSpecialty}</span>
+                                            <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">{viewingTeacher.phone}</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-2 rounded text-center">
+                                        <p className="text-xs text-gray-500">عدد الحصص</p>
+                                        <p className="font-bold text-xl">{schedules.filter(s => s.teacherId === viewingTeacher.id).length}</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 flex flex-col">
+                                    <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Send size={16}/> إرسال توجيه / ملاحظة</h4>
+                                    <textarea 
+                                        className="w-full p-3 border rounded-lg flex-1 resize-none focus:ring-2 focus:ring-purple-500 outline-none bg-gray-50"
+                                        placeholder="اكتب رسالة للمعلم..."
+                                        value={feedbackMsg}
+                                        onChange={e => setFeedbackMsg(e.target.value)}
+                                    />
+                                    <div className="mt-4 flex justify-end">
+                                        <button 
+                                            onClick={handleSendFeedback}
+                                            disabled={!feedbackMsg.trim()}
+                                            className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                            <Send size={16}/> إرسال
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 border-t pt-4">
+                                    <h4 className="font-bold text-gray-700 mb-2 text-sm">سجل التوجيهات السابق</h4>
+                                    <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                                        {feedbackList.filter(f => f.teacherId === viewingTeacher.id).map(f => (
+                                            <div key={f.id} className="bg-gray-50 p-3 rounded-lg text-sm border border-gray-100">
+                                                <p className="text-gray-800 mb-1">{f.content}</p>
+                                                <div className="flex justify-between text-xs text-gray-400">
+                                                    <span>{new Date(f.date).toLocaleDateString('ar-SA')}</span>
+                                                    <span>{f.isRead ? 'تمت القراءة' : 'غير مقروء'}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-gray-400">
+                                <p>اختر معلماً من القائمة لعرض التفاصيل</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
