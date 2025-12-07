@@ -203,7 +203,7 @@ const UsersManager = () => {
     }, []);
 
     const filteredUsers = useMemo(() => 
-        users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())),
+        users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase()) || u.nationalId?.includes(searchTerm)),
     [users, searchTerm]);
 
     const handleOpenModal = (user?: SystemUser) => {
@@ -275,7 +275,10 @@ const UsersManager = () => {
                             return (
                                 <tr key={user.id} className="hover:bg-gray-50">
                                     <td className="p-4 font-bold text-gray-800">{user.name}</td>
-                                    <td className="p-4 font-mono text-gray-600">{user.email}</td>
+                                    <td className="p-4 font-mono text-gray-600 text-xs">
+                                        <div>{user.email}</div>
+                                        {user.nationalId && <div className="text-gray-400 text-[10px]">{user.nationalId}</div>}
+                                    </td>
                                     <td className="p-4">
                                         <span className={`px-2 py-1 rounded text-xs font-bold ${
                                             user.role === 'SUPER_ADMIN' ? 'bg-black text-white' : 
@@ -313,6 +316,10 @@ const UsersManager = () => {
                             <div>
                                 <label className="block text-sm font-bold mb-1">الاسم الكامل</label>
                                 <input className="w-full p-2 border rounded" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold mb-1">رقم الهوية (مهم للربط)</label>
+                                <input className="w-full p-2 border rounded font-mono text-sm" value={formData.nationalId || ''} onChange={e => setFormData({...formData, nationalId: e.target.value})} placeholder="10xxxxxxxx" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>

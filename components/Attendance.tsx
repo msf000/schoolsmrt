@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2 } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -90,6 +90,10 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [selectedClass, setSelectedClass] = useState(preSelectedClass || '');
   const [selectedSubject, setSelectedSubject] = useState(preSelectedSubject || '');
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
+  
+  // Manual Selection State
+  const [manualClass, setManualClass] = useState('');
+  const [manualSubject, setManualSubject] = useState('');
   
   const [logFilterClass, setLogFilterClass] = useState('');
   const [logFilterDateStart, setLogFilterDateStart] = useState(() => {
@@ -204,8 +208,11 @@ const Attendance: React.FC<AttendanceProps> = ({
         setNoteRecords({});
         return;
     }
+    // FIX: Match period carefully (0 for manual)
     const existing = attendanceHistory.filter(a => {
-        return a.date === selectedDate && Number(a.period) === Number(selectedPeriod) && a.studentId;
+        const p = a.period !== undefined ? Number(a.period) : 0;
+        const sp = Number(selectedPeriod);
+        return a.date === selectedDate && p === sp && a.studentId;
     });
     const initialRecs: Record<string, AttendanceStatus> = {};
     const initialBeh: Record<string, BehaviorStatus> = {};
@@ -312,9 +319,9 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   const handleSave = () => {
     if (filteredStudents.length === 0 || selectedPeriod === null) return;
-    const periodSuffix = `-${selectedPeriod}`;
+    const periodSuffix = selectedPeriod ? `-${selectedPeriod}` : '-0';
     const recordsToSave: AttendanceRecord[] = filteredStudents.map(s => ({
-      id: `${s.id}-${selectedDate}-${selectedSubject}${periodSuffix}`,
+      id: `${s.id}-${selectedDate}-${selectedSubject || 'manual'}${periodSuffix}`,
       studentId: s.id,
       date: selectedDate,
       status: records[s.id] || AttendanceStatus.PRESENT,
@@ -420,6 +427,33 @@ const Attendance: React.FC<AttendanceProps> = ({
 
               {!selectedClass && (
                   <div className="animate-fade-in space-y-6">
+                      
+                      {/* Manual Selection Fallback */}
+                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-end">
+                           <div className="flex flex-col">
+                               <label className="block text-xs font-bold text-gray-500 mb-1">فصل (اختيار يدوي)</label>
+                               <select className="p-2 border rounded text-sm w-40 bg-gray-50" value={manualClass} onChange={e => setManualClass(e.target.value)}>
+                                   <option value="">-- اختر --</option>
+                                   {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                               </select>
+                           </div>
+                           <div className="flex flex-col">
+                               <label className="block text-xs font-bold text-gray-500 mb-1">مادة</label>
+                               <input className="p-2 border rounded text-sm w-40 bg-gray-50" value={manualSubject} onChange={e => setManualSubject(e.target.value)} placeholder="مثال: رياضيات"/>
+                           </div>
+                           <button 
+                              disabled={!manualClass}
+                              onClick={() => {
+                                  setSelectedClass(manualClass);
+                                  setSelectedSubject(manualSubject);
+                                  setSelectedPeriod(0); // 0 indicates manual/no-period
+                              }}
+                              className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-bold hover:bg-black disabled:opacity-50 transition-colors"
+                           >
+                               بدء التحضير
+                           </button>
+                      </div>
+
                       {sortedPeriods.length > 0 ? (
                           sortedPeriods.map(period => (
                              <div key={period} className="relative">
@@ -445,7 +479,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                           <div className="flex flex-col items-center justify-center p-12 bg-white border-2 border-dashed border-gray-200 rounded-xl text-center shadow-sm h-64">
                               <CalendarClock size={48} className="text-gray-300 mb-4"/>
                               <h3 className="text-xl font-bold text-gray-700">لا يوجد جدول مسجل لليوم</h3>
-                              <p className="text-sm text-gray-500">قم بإضافة الحصص في الجدول الدراسي.</p>
+                              <p className="text-sm text-gray-500">استخدم الاختيار اليدوي أعلاه أو قم بإضافة الحصص في الجدول الدراسي.</p>
                           </div>
                       )}
                   </div>
@@ -458,7 +492,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                             <button onClick={handleBackToSchedule} className="p-2 hover:bg-white/10 rounded-full transition-colors"><ArrowRight size={20}/></button>
                             <div>
                                 <div className="flex items-center gap-2 font-bold text-lg"><span>{selectedClass}</span><span className="opacity-50">|</span><span>{selectedSubject || 'عام'}</span></div>
-                                <span className="text-xs opacity-75">الحصة {selectedPeriod}</span>
+                                <span className="text-xs opacity-75">{selectedPeriod > 0 ? `الحصة ${selectedPeriod}` : 'تحضير يدوي'}</span>
                             </div>
                         </div>
                         <div className="flex gap-2">
@@ -518,7 +552,6 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {/* ... (Existing LOG tab and Modals rendering logic) ... */}
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
               <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">

@@ -36,7 +36,8 @@ const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ cu
     const filteredLinks = useMemo(() => {
         if (!links) return [];
         if (!currentUser || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'SCHOOL_MANAGER') return links;
-        return links.filter(l => l.teacherId === currentUser.id);
+        // FIX: Include links without teacherId (legacy)
+        return links.filter(l => l.teacherId === currentUser.id || !l.teacherId);
     }, [links, currentUser]);
 
     const handleSave = () => {
@@ -454,6 +455,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     }, [students]);
 
     useEffect(() => {
+        // FIX: Fetch subjects including legacy/global ones
         const loadedSubjects = getSubjects(currentUser?.id);
         setSubjects(loadedSubjects);
         setSchedules(getSchedules());

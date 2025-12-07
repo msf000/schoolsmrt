@@ -366,6 +366,7 @@ export const addTeacher = async (item: Teacher) => {
             id: item.id,
             name: item.name,
             email: item.email || item.nationalId || '',
+            nationalId: item.nationalId, // Explicitly save nationalId
             role: 'TEACHER',
             schoolId: item.schoolId,
             status: 'ACTIVE',
@@ -574,7 +575,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
                 const list = (CACHE.teachers || []).filter(x => x.id !== t.id);
                 list.push(t);
                 saveToLocal('teachers', list);
-                const sysUser: SystemUser = { id: t.id, name: t.name, email: t.email || t.nationalId || '', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE', password: t.password };
+                const sysUser: SystemUser = { id: t.id, name: t.name, email: t.email || t.nationalId || '', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE', password: t.password, nationalId: t.nationalId };
                 saveToLocal('system_users', [...(CACHE.system_users || []).filter(x => x.id !== t.id), sysUser]);
                 setSyncStatus('ONLINE');
                 return sysUser;
@@ -887,10 +888,14 @@ create table if not exists feedbacks (
 
 export const getDatabaseUpdateSQL = () => {
     return `
+-- Add missing columns if they don't exist
 alter table if exists students add column if not exists "createdById" text;
 alter table if exists teachers add column if not exists "subscriptionStatus" text;
 alter table if exists teachers add column if not exists "subscriptionEndDate" text;
 alter table if exists schools add column if not exists "educationAdministration" text;
+alter table if exists schools add column if not exists "ministryCode" text;
+alter table if exists schools add column if not exists "managerNationalId" text;
+alter table if exists system_users add column if not exists "nationalId" text;
     `;
 };
 
