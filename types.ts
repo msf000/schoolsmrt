@@ -272,4 +272,37 @@ export interface UserTheme {
     backgroundStyle: 'FLAT' | 'GRADIENT' | 'MESH';
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION';
+// --- EXAM SYSTEM TYPES (NEW) ---
+export interface Question {
+    id: string;
+    text: string;
+    type: 'MCQ' | 'TRUE_FALSE';
+    options: string[]; // For MCQ (e.g. 3-4 options), For TF (True, False)
+    correctAnswer: string;
+    points: number;
+}
+
+export interface Exam {
+    id: string;
+    title: string;
+    subject: string;
+    gradeLevel: string; // Target grade
+    durationMinutes: number;
+    questions: Question[];
+    isActive: boolean; // Published to students?
+    createdAt: string;
+    teacherId?: string; // Creator
+}
+
+export interface ExamResult {
+    id: string;
+    examId: string;
+    studentId: string;
+    studentName: string;
+    score: number;
+    totalScore: number;
+    date: string;
+    answers: Record<string, string>; // questionId -> selectedAnswer
+}
+
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER';

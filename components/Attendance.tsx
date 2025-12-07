@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -69,6 +69,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [behaviorRecords, setBehaviorRecords] = useState<Record<string, BehaviorStatus>>({});
   const [noteRecords, setNoteRecords] = useState<Record<string, string>>({});
   const [activeNoteStudent, setActiveNoteStudent] = useState<string | null>(null);
+  const [viewingStudentReport, setViewingStudentReport] = useState<Student | null>(null);
 
   const [positiveList, setPositiveList] = useState<string[]>(() => {
       const saved = localStorage.getItem('behavior_positive_tags');
@@ -376,7 +377,36 @@ const Attendance: React.FC<AttendanceProps> = ({
           avgGrade = Math.round((total / myPerf.length) * 100);
       }
       return { absentCount, avgGrade, hasPerf: myPerf.length > 0 };
-  }
+  };
+
+  // --- Calculate Individual Report Data ---
+  const studentReportData = useMemo(() => {
+      if (!viewingStudentReport) return null;
+      
+      const sAtt = attendanceHistory.filter(a => a.studentId === viewingStudentReport.id);
+      const sPerf = performance.filter(p => p.studentId === viewingStudentReport.id);
+
+      // Attendance
+      const totalDays = sAtt.length;
+      const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+      const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+      const late = sAtt.filter(a => a.status === AttendanceStatus.LATE).length;
+      const attRate = totalDays > 0 ? Math.round(((present + late) / totalDays) * 100) : 100;
+
+      // Behavior
+      const posBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
+      const negBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
+
+      // Academics
+      const totalScore = sPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
+      const avgScore = sPerf.length > 0 ? Math.round((totalScore / sPerf.length) * 100) : 0;
+
+      return {
+          attRate, absent, late, posBeh, negBeh, avgScore,
+          recentAtt: sAtt.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5),
+          recentPerf: sPerf.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5)
+      };
+  }, [viewingStudentReport, attendanceHistory, performance]);
 
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
@@ -512,7 +542,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                     return (
                                     <div key={student.id} className="grid grid-cols-12 p-3 items-center hover:bg-gray-50 transition-colors group gap-y-3">
                                         <div className="col-span-12 md:col-span-3 font-medium">
-                                            <span className="text-gray-800 font-bold block">{student.name}</span>
+                                            <span onClick={() => setViewingStudentReport(student)} className="text-gray-800 font-bold block cursor-pointer hover:text-primary hover:underline">{student.name}</span>
                                             <div className="flex flex-wrap items-center gap-2 mt-1">
                                                 <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
                                                 {metrics.absentCount > 3 && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 font-bold flex gap-1"><AlertCircle size={10}/> غ: {metrics.absentCount}</span>}
@@ -558,11 +588,16 @@ const Attendance: React.FC<AttendanceProps> = ({
                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'PRESENT' ? 'bg-gray-300' : status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-blue-500'}`}>
                                                     {student.name.charAt(0)}
                                                 </div>
-                                                {metrics.absentCount > 3 && (
-                                                    <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200">
-                                                        {metrics.absentCount} غ
-                                                    </span>
-                                                )}
+                                                <div className="flex gap-1">
+                                                    {metrics.absentCount > 3 && (
+                                                        <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200">
+                                                            {metrics.absentCount} غ
+                                                        </span>
+                                                    )}
+                                                    <button onClick={(e) => { e.stopPropagation(); setViewingStudentReport(student); }} className="p-1 rounded-full bg-white/50 hover:bg-blue-100 text-blue-600 border border-transparent hover:border-blue-200 transition-colors">
+                                                        <FileText size={12}/>
+                                                    </button>
+                                                </div>
                                             </div>
                                             
                                             <div className="mt-2 text-right">
@@ -651,7 +686,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                               return (
                                   <tr key={rec.id} className="hover:bg-gray-50">
                                       <td className="p-3 font-mono text-xs text-gray-500">{rec.date}</td>
-                                      <td className="p-3 font-bold text-gray-800">{student?.name}</td>
+                                      <td className="p-3 font-bold text-gray-800 cursor-pointer hover:text-primary hover:underline" onClick={() => student && setViewingStudentReport(student)}>{student?.name}</td>
                                       <td className="p-3 text-gray-600">{student?.className}</td>
                                       <td className="p-3 text-xs text-gray-500">{rec.subject} {rec.period ? `(ح${rec.period})` : ''}</td>
                                       <td className="p-3 text-center">
@@ -752,6 +787,103 @@ const Attendance: React.FC<AttendanceProps> = ({
                               })}
                           </div>
                       ) : <div className="text-center p-10 text-gray-400">لا توجد أعذار معلقة</div>}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* STUDENT INDIVIDUAL REPORT MODAL */}
+      {viewingStudentReport && studentReportData && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-slide-up">
+                  <div className="bg-gray-900 text-white p-4 flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center font-bold text-xl border-2 border-gray-600">
+                              {viewingStudentReport.name.charAt(0)}
+                          </div>
+                          <div>
+                              <h3 className="font-bold text-lg">{viewingStudentReport.name}</h3>
+                              <p className="text-xs text-gray-400">{viewingStudentReport.gradeLevel} - {viewingStudentReport.className}</p>
+                          </div>
+                      </div>
+                      <button onClick={() => setViewingStudentReport(null)} className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded-full"><X size={20}/></button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-4 bg-gray-50 custom-scrollbar">
+                      {/* STATS ROW */}
+                      <div className="grid grid-cols-3 gap-3 mb-4">
+                          <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-center">
+                              <div className="text-xs text-gray-500 font-bold mb-1">الحضور</div>
+                              <div className={`text-xl font-black ${studentReportData.attRate >= 90 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {studentReportData.attRate}%
+                              </div>
+                              <div className="text-[10px] text-gray-400 mt-1">{studentReportData.absent} غياب</div>
+                          </div>
+                          <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-center">
+                              <div className="text-xs text-gray-500 font-bold mb-1">المعدل</div>
+                              <div className="text-xl font-black text-blue-600">{studentReportData.avgScore}%</div>
+                              <div className="text-[10px] text-gray-400 mt-1">أكاديمي</div>
+                          </div>
+                          <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-center">
+                              <div className="text-xs text-gray-500 font-bold mb-1">السلوك</div>
+                              <div className="flex justify-center gap-2 items-end">
+                                  <span className="text-green-600 font-bold">{studentReportData.posBeh}</span>
+                                  <span className="text-gray-300">/</span>
+                                  <span className="text-red-600 font-bold">{studentReportData.negBeh}</span>
+                              </div>
+                              <div className="text-[10px] text-gray-400 mt-1">إيجابي / سلبي</div>
+                          </div>
+                      </div>
+
+                      {/* RECENT ACTIVITY */}
+                      <div className="mb-4">
+                          <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1"><History size={12}/> آخر الحضور والسلوك</h4>
+                          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                              {studentReportData.recentAtt.length > 0 ? (
+                                  <div className="divide-y divide-gray-100">
+                                      {studentReportData.recentAtt.map((rec) => (
+                                          <div key={rec.id} className="p-3 flex justify-between items-center text-sm">
+                                              <div className="flex items-center gap-2">
+                                                  <span className="text-gray-400 text-xs font-mono">{rec.date.slice(5)}</span>
+                                                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${rec.status === 'PRESENT' ? 'bg-green-50 text-green-700' : rec.status === 'ABSENT' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                                                      {rec.status === 'PRESENT' ? 'حاضر' : rec.status === 'ABSENT' ? 'غائب' : 'تأخر'}
+                                                  </span>
+                                              </div>
+                                              {(rec.behaviorStatus !== 'NEUTRAL' || rec.behaviorNote) && (
+                                                  <div className="flex items-center gap-1 text-xs">
+                                                      {rec.behaviorStatus === 'POSITIVE' && <Smile size={14} className="text-green-500"/>}
+                                                      {rec.behaviorStatus === 'NEGATIVE' && <Frown size={14} className="text-red-500"/>}
+                                                      <span className="text-gray-600 truncate max-w-[100px]">{rec.behaviorNote}</span>
+                                                  </div>
+                                              )}
+                                          </div>
+                                      ))}
+                                  </div>
+                              ) : <div className="p-4 text-center text-gray-400 text-xs">لا يوجد سجلات</div>}
+                          </div>
+                      </div>
+
+                      {/* RECENT PERFORMANCE */}
+                      <div>
+                          <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1"><Activity size={12}/> آخر الدرجات</h4>
+                          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                              {studentReportData.recentPerf.length > 0 ? (
+                                  <div className="divide-y divide-gray-100">
+                                      {studentReportData.recentPerf.map((p) => (
+                                          <div key={p.id} className="p-3 flex justify-between items-center text-sm">
+                                              <div>
+                                                  <div className="font-bold text-gray-800">{p.title}</div>
+                                                  <div className="text-xs text-gray-400">{p.subject}</div>
+                                              </div>
+                                              <div className="font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs border border-blue-100">
+                                                  {p.score} / {p.maxScore}
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              ) : <div className="p-4 text-center text-gray-400 text-xs">لا يوجد درجات مسجلة</div>}
+                          </div>
+                      </div>
                   </div>
               </div>
           </div>

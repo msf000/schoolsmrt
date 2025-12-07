@@ -1,18 +1,19 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig } from '../types';
-import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2 } from 'lucide-react';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord } from '../types';
+import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp } from 'lucide-react';
 import { getReportHeaderConfig, getSubjects } from '../services/storageService';
 import * as XLSX from 'xlsx';
 
 interface MonthlyReportProps {
   students: Student[];
   attendance: AttendanceRecord[];
+  performance: PerformanceRecord[];
 }
 
-const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) => {
+const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, performance }) => {
   // Safety check
-  if (!students || !attendance) {
+  if (!students || !attendance || !performance) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
   }
 
@@ -115,28 +116,51 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
       return { present, absent, late, excused, negativeBehaviors };
   };
 
+  // --- ACADEMIC STATS ---
+  const calculateAcademicStats = (studentId: string) => {
+      const studentPerf = performance.filter(p => 
+          p.studentId === studentId &&
+          p.date >= startDate &&
+          p.date <= endDate &&
+          (!selectedSubject || p.subject === selectedSubject)
+      );
+
+      if (studentPerf.length === 0) return { average: 0, count: 0 };
+
+      const totalScore = studentPerf.reduce((sum, p) => sum + (p.score / p.maxScore), 0);
+      const average = Math.round((totalScore / studentPerf.length) * 100);
+      
+      return { average, count: studentPerf.length };
+  };
+
   // --- RISK ANALYSIS LOGIC ---
   const getStudentRisk = (studentId: string) => {
       const stats = calculateStats(studentId);
+      const academic = calculateAcademicStats(studentId);
       const totalSessions = sessions.length;
-      if (totalSessions === 0) return { status: 'NORMAL', text: '-', color: 'text-gray-800' };
+      
+      // 1. Attendance Risks
+      if (totalSessions > 0) {
+          const absentPercentage = (stats.absent / totalSessions) * 100;
+          if (absentPercentage >= 25) {
+              return { status: 'CRITICAL', text: 'محروم (غياب)', color: 'text-red-700 bg-red-100 font-bold' };
+          }
+          if (absentPercentage >= 15) {
+              return { status: 'WARNING_HIGH', text: 'إنذار غياب', color: 'text-red-600 bg-red-50 font-bold' };
+          }
+      }
 
-      const absentPercentage = (stats.absent / totalSessions) * 100;
+      // 2. Academic Risks
+      if (academic.count > 0 && academic.average < 50) {
+          return { status: 'ACADEMIC_RISK', text: 'تعثر دراسي', color: 'text-orange-700 bg-orange-100 font-bold' };
+      }
 
-      if (absentPercentage >= 25) {
-          return { status: 'CRITICAL', text: 'محروم (تجاوز 25%)', color: 'text-red-700 bg-red-100 font-bold' };
-      }
-      if (absentPercentage >= 15) {
-          return { status: 'WARNING_HIGH', text: 'إنذار نهائي', color: 'text-red-600 bg-red-50 font-bold' };
-      }
-      if (absentPercentage >= 10) {
-          return { status: 'WARNING', text: 'إنذار أول', color: 'text-orange-600' };
-      }
+      // 3. Behavior Risks
       if (stats.negativeBehaviors >= 3) {
-          return { status: 'BEHAVIOR', text: 'متابعة سلوكية', color: 'text-purple-600 font-bold' };
+          return { status: 'BEHAVIOR', text: 'متابعة سلوكية', color: 'text-purple-600 bg-purple-50 font-bold' };
       }
 
-      return { status: 'NORMAL', text: 'منتظم', color: 'text-gray-800' };
+      return { status: 'NORMAL', text: 'منتظم', color: 'text-gray-500' };
   };
 
   const setRange = (type: 'WEEK' | 'MONTH' | 'SEMESTER') => {
@@ -156,13 +180,15 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
       
       const header = [
           'اسم الطالب',
-          'الحالة / الملاحظات', // New Column
+          'الحالة / التقييم',
+          'المعدل الأكاديمي',
           ...sessions.map(s => `${s.date} ${s.period ? `(ح${s.period})` : ''} - ${s.subject || ''}`),
           'حاضر', 'غائب', 'متأخر', 'عذر'
       ];
 
       const rows = filteredStudents.map(s => {
           const stats = calculateStats(s.id);
+          const academic = calculateAcademicStats(s.id);
           const risk = getStudentRisk(s.id);
           
           const sessionStatuses = sessions.map(session => {
@@ -177,7 +203,8 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
 
           return [
               s.name,
-              risk.text, // New Data
+              risk.text,
+              academic.count > 0 ? `${academic.average}%` : '-',
               ...sessionStatuses,
               stats.present,
               stats.absent,
@@ -201,7 +228,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <ListFilter className="text-primary"/> سجل متابعة الطلاب (شامل)
                 </h2>
-                <p className="text-sm text-gray-500">تقرير الحضور والإنذارات والملاحظات للفترات المحددة.</p>
+                <p className="text-sm text-gray-500">تقرير الحضور والأداء الأكاديمي للفترات المحددة.</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
@@ -276,7 +303,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
                                     شعار
                                 </div>
                             )}
-                            <h1 className="font-black text-xl text-gray-900 mt-2">كشف متابعة حضور وسلوك الطلاب</h1>
+                            <h1 className="font-black text-xl text-gray-900 mt-2">كشف متابعة الأداء والحضور</h1>
                         </div>
 
                         {/* Left: Metadata */}
@@ -306,7 +333,8 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
                         <thead className="bg-gray-100 text-gray-800 sticky top-0 z-10 shadow-sm border-b-2 border-gray-400">
                             <tr>
                                 <th className="p-2 border border-gray-400 min-w-[200px] sticky right-0 z-20 bg-gray-100">اسم الطالب</th>
-                                <th className="p-2 border border-gray-400 min-w-[120px]">ملاحظات / إنذارات</th>
+                                <th className="p-2 border border-gray-400 min-w-[120px]">التقييم العام</th>
+                                <th className="p-2 border border-gray-400 min-w-[100px]">المعدل الأكاديمي</th>
                                 {sessions.map((s, idx) => (
                                     <th key={idx} className="p-1 border border-gray-400 min-w-[30px] vertical-text">
                                         <div className="flex flex-col items-center justify-center py-2 h-24 w-6">
@@ -323,6 +351,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
                         <tbody>
                             {filteredStudents.map((student, idx) => {
                                 const stats = calculateStats(student.id);
+                                const academic = calculateAcademicStats(student.id);
                                 const risk = getStudentRisk(student.id);
                                 
                                 return (
@@ -338,6 +367,14 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) =
                                             <span className={`${risk.status !== 'NORMAL' ? 'bg-gray-100 px-2 py-1 rounded' : 'text-gray-300'}`}>
                                                 {risk.text}
                                             </span>
+                                        </td>
+
+                                        <td className="p-2 border border-gray-300 font-mono text-center">
+                                            {academic.count > 0 ? (
+                                                <span className={`font-bold ${academic.average >= 85 ? 'text-green-600' : academic.average >= 65 ? 'text-blue-600' : academic.average >= 50 ? 'text-orange-500' : 'text-red-600'}`}>
+                                                    {academic.average}%
+                                                </span>
+                                            ) : <span className="text-gray-300">-</span>}
                                         </td>
 
                                         {sessions.map((session, sIdx) => {

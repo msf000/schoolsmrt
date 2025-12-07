@@ -32,8 +32,9 @@ import StudentPortal from './components/StudentPortal';
 import TeacherSubscription from './components/TeacherSubscription';
 import LessonPlanning from './components/LessonPlanning';
 import MonthlyReport from './components/MonthlyReport';
+import ExamsManager from './components/ExamsManager'; // Imported
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2 } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion } from 'lucide-react';
 
 // FIX: Import SchoolManagement as named export since we changed it
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
@@ -275,6 +276,7 @@ const App: React.FC = () => {
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
                             <NavItem view="ATTENDANCE" label="الحضور والغياب" icon={CheckSquare} />
                             <NavItem view="CLASSROOM_MANAGEMENT" label="الإدارة الصفية" icon={MonitorPlay} />
+                            <NavItem view="EXAMS_MANAGER" label="الاختبارات الإلكترونية" icon={FileQuestion} />
                             <NavItem view="PERFORMANCE" label="رصد الدرجات" icon={BarChart} />
                             <NavItem view="WORKS_TRACKING" label="سجل المتابعة" icon={FileSpreadsheet} />
                             <NavItem view="STUDENT_FOLLOWUP" label="تقارير الطلاب" icon={BookOpen} />
@@ -349,7 +351,7 @@ const App: React.FC = () => {
                     {currentView === 'PERFORMANCE' && <PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance} onDeletePerformance={handleDeletePerformance} currentUser={currentUser} />}
                     {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance} currentUser={currentUser}/>}
                     {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser}/>}
-                    {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}
+                    {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance} performance={performance}/>}
                     {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance}/>}
                     {currentView === 'CLASSROOM_MANAGEMENT' && (
                         <ClassroomManager 
@@ -368,6 +370,7 @@ const App: React.FC = () => {
                     {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance} />}
                     {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
                     {currentView === 'LESSON_PLANNING' && <LessonPlanning />}
+                    {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser} />}
                     {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
                 </div>
             </main>

@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme } from '../types';
 import { 
     getTeachers, updateTeacher,
     getSchools, getSubjects, addSubject, deleteSubject,
     getSchedules, saveScheduleItem, deleteScheduleItem,
-    getTeacherAssignments, saveTeacherAssignment, deleteAssignment,
+    getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment,
     getReportHeaderConfig, saveReportHeaderConfig,
     getFeedback, addFeedback, addSchool, updateSchool,
     getUserTheme, saveUserTheme
@@ -175,7 +176,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       if (!currentUser) return;
       if (confirm(`هل تريد إزالة الفصل ${className} وجميع المواد المرتبطة به من قائمتك؟\n(لن يتم حذف بيانات الطلاب، فقط ارتباطك بالفصل)`)) {
           const toRemove = assignments.filter(a => (a.teacherId === currentUser.id || !a.teacherId) && a.classId === className);
-          toRemove.forEach(a => deleteAssignment(a.id));
+          toRemove.forEach(a => deleteTeacherAssignment(a.id));
           
           const scheduleToRemove = schedules.filter(s => (s.teacherId === currentUser.id || !s.teacherId) && s.classId === className);
           scheduleToRemove.forEach(s => deleteScheduleItem(s.id));

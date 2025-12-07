@@ -305,7 +305,7 @@ export const generateStudentAnalysis = async (
   }
 };
 
-// --- Quiz Generator ---
+// --- Quiz Generator (Legacy String) ---
 export const generateQuiz = async (
     subject: string,
     topic: string,
@@ -353,6 +353,56 @@ export const generateQuiz = async (
     } catch (error) {
         console.error("Gemini API Error:", error);
         return "عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- NEW: Generate Structured Quiz (JSON) for Exam Manager ---
+export const generateStructuredQuiz = async (
+    subject: string,
+    topic: string,
+    gradeLevel: string,
+    questionCount: number = 5,
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD'
+): Promise<any[]> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.quiz) throw new Error("خدمة إنشاء الاختبارات معطلة.");
+
+    const prompt = `
+    Generate a structured quiz for the Exam System.
+    Subject: ${subject}
+    Topic: ${topic}
+    Grade: ${gradeLevel}
+    Count: ${questionCount}
+    Difficulty: ${difficulty}
+    
+    Output Format: JSON Array ONLY.
+    Schema:
+    [
+        {
+            "text": "Question Text",
+            "type": "MCQ" | "TRUE_FALSE",
+            "options": ["Opt1", "Opt2", "Opt3", "Opt4"], // If TF, use ["صح", "خطأ"]
+            "correctAnswer": "Opt1",
+            "points": 1
+        }
+    ]
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                temperature: config.temperature,
+                systemInstruction: config.systemInstruction
+            }
+        });
+        const text = response.text || "[]";
+        return JSON.parse(cleanJsonString(text));
+    } catch (error) {
+        console.error("Structured Quiz Error:", error);
+        return [];
     }
 };
 
