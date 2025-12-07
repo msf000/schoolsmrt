@@ -10,7 +10,7 @@ import {
     getFeedback, addFeedback, addSchool, updateSchool,
     getUserTheme, saveUserTheme
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -63,6 +63,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [linkStatus, setLinkStatus] = useState<{success: boolean, msg: string} | null>(null);
   const [showNewSchoolForm, setShowNewSchoolForm] = useState(false);
   const [newSchoolData, setNewSchoolData] = useState({ name: '', managerName: '', managerId: '' });
+  const [showPassword, setShowPassword] = useState(false);
 
   // --- LOAD DATA ---
   useEffect(() => {
@@ -87,10 +88,19 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           setMySchool(school || null);
           setFeedbackList(getFeedback());
       } else {
-          const me = allTeachers.find(t => 
-              (currentUser?.nationalId && t.nationalId === currentUser.nationalId) || 
-              (currentUser?.email && t.email === currentUser.email)
-          );
+          // Robustly find the teacher profile
+          let me: Teacher | undefined;
+          if (currentUser?.id) {
+              me = allTeachers.find(t => t.id === currentUser.id);
+          }
+          // Fallback to loose matching if ID fails (legacy support)
+          if (!me) {
+              me = allTeachers.find(t => 
+                  (currentUser?.nationalId && t.nationalId === currentUser.nationalId) || 
+                  (currentUser?.email && t.email === currentUser.email)
+              );
+          }
+
           if (me) {
               setTeacherProfile(me);
               setActiveTeacher(me.id);
@@ -98,10 +108,12 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                   const schools = getSchools();
                   const school = schools.find(s => s.id === me.schoolId);
                   setMySchool(school || null);
+              } else {
+                  setMySchool(null);
               }
           }
       }
-  }, [currentUser, isManager]);
+  }, [currentUser, isManager, activeTab]); // Refresh when tab changes to ensure fresh data
 
   // --- HELPERS ---
   const myTeachers = useMemo(() => {
@@ -117,7 +129,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
   const myClassAssignments = useMemo(() => {
       if (!currentUser) return [];
-      // FIX: Include assignments without teacherId (legacy)
       const myAssigns = assignments.filter(a => a.teacherId === currentUser.id || !a.teacherId);
       const classes = Array.from(new Set(myAssigns.map(a => a.classId)));
       return classes.sort();
@@ -166,7 +177,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           const toRemove = assignments.filter(a => (a.teacherId === currentUser.id || !a.teacherId) && a.classId === className);
           toRemove.forEach(a => deleteAssignment(a.id));
           
-          // Also remove schedule items for this teacher & class
           const scheduleToRemove = schedules.filter(s => (s.teacherId === currentUser.id || !s.teacherId) && s.classId === className);
           scheduleToRemove.forEach(s => deleteScheduleItem(s.id));
 
@@ -207,7 +217,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       saveScheduleItem(newItem);
 
       if (activeTeacher) {
-          // Check if assignment exists, if not create it
           const exists = assignments.find(a => a.classId === selectedClassForSchedule && a.subjectName === activeSubject && a.teacherId === activeTeacher);
           if (!exists) {
               const assignment: TeacherAssignment = {
@@ -251,11 +260,25 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   };
 
+  const handleUnlinkSchool = () => {
+      if (!teacherProfile) return;
+      if (confirm('هل أنت متأكد من مغادرة المدرسة الحالية؟')) {
+          const updated = { ...teacherProfile, schoolId: undefined, managerId: undefined };
+          updateTeacher(updated);
+          setTeacherProfile(updated);
+          setMySchool(null);
+          alert('تم فك الارتباط بالمدرسة.');
+      }
+  };
+
   const handleTeacherSaveProfile = () => {
       if (teacherProfile) {
           if (!teacherProfile.nationalId) return alert('رقم الهوية مطلوب.');
+          
+          // 1. Update basic profile
           updateTeacher(teacherProfile);
           
+          // 2. Handle Linking
           if (linkMinistryCode) {
              const schools = getSchools();
              const targetSchool = schools.find(s => s.ministryCode === linkMinistryCode);
@@ -264,7 +287,8 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                  updateTeacher(updated);
                  setTeacherProfile(updated);
                  setMySchool(targetSchool);
-                 alert('تم ربط حسابك بالمدرسة بنجاح!');
+                 setLinkMinistryCode(''); // clear after link
+                 alert(`تم ربط حسابك بمدرسة: ${targetSchool.name}`);
              } else if (showNewSchoolForm && newSchoolData.name) {
                  const newSchool: School = {
                      id: Date.now().toString() + '_sch',
@@ -281,13 +305,15 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                  updateTeacher(updated);
                  setTeacherProfile(updated);
                  setMySchool(newSchool);
+                 setLinkMinistryCode('');
+                 setShowNewSchoolForm(false);
                  alert('تم إنشاء المدرسة وربط الحساب!');
              } else {
                  setLinkStatus({ success: false, msg: 'المدرسة غير موجودة. هل تريد إنشاءها؟' });
                  setShowNewSchoolForm(true);
              }
           } else {
-              alert('تم حفظ البيانات الشخصية.');
+              alert('تم حفظ البيانات الشخصية بنجاح.');
           }
       }
   };
@@ -313,6 +339,105 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
   const dayNamesAr = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
   const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  // --- RENDER TEACHER PROFILE FORM ---
+  const renderTeacherProfileForm = () => {
+      if (!teacherProfile) return null;
+      return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
+            <div className="flex justify-between items-start mb-6">
+                <h3 className="font-bold text-lg flex items-center gap-2 text-gray-800"><User size={20} className="text-blue-600"/> الملف الشخصي</h3>
+                <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${teacherProfile.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <CreditCard size={12}/>
+                        {teacherProfile.subscriptionStatus === 'PRO' ? 'باقة المحترفين' : teacherProfile.subscriptionStatus === 'ENTERPRISE' ? 'باقة المؤسسات' : 'الباقة المجانية'}
+                    </span>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">الاسم الرباعي</label>
+                    <input className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.name} onChange={e => setTeacherProfile({...teacherProfile, name: e.target.value})}/>
+                </div>
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">رقم الهوية / السجل المدني</label>
+                    <input className="w-full p-2 border rounded font-mono bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.nationalId || ''} onChange={e => setTeacherProfile({...teacherProfile, nationalId: e.target.value})}/>
+                </div>
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
+                    <input className="w-full p-2 border rounded dir-ltr text-right focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.email || ''} onChange={e => setTeacherProfile({...teacherProfile, email: e.target.value})}/>
+                </div>
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">رقم الجوال</label>
+                    <input className="w-full p-2 border rounded font-mono dir-ltr text-right focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.phone || ''} onChange={e => setTeacherProfile({...teacherProfile, phone: e.target.value})}/>
+                </div>
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">التخصص</label>
+                    <input className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})}/>
+                </div>
+                <div className="relative">
+                    <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1"><Lock size={12}/> كلمة المرور</label>
+                    <input 
+                        type={showPassword ? "text" : "password"} 
+                        className="w-full p-2 border rounded font-mono focus:ring-2 focus:ring-blue-500 outline-none pr-10" 
+                        value={teacherProfile.password || ''} 
+                        onChange={e => setTeacherProfile({...teacherProfile, password: e.target.value})}
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-8 text-gray-400 hover:text-gray-600">
+                        {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                    </button>
+                </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-100">
+                <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Building2 size={18} className="text-gray-500"/> المدرسة التابعة</h4>
+                {mySchool ? (
+                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-green-100 rounded-lg text-green-700"><CheckCircle size={24}/></div>
+                            <div>
+                                <p className="font-bold text-green-800">{mySchool.name}</p>
+                                <p className="text-xs text-green-600 mt-1">المدير: {mySchool.managerName}</p>
+                                {mySchool.ministryCode && <p className="text-xs text-green-600 font-mono">الرمز: {mySchool.ministryCode}</p>}
+                            </div>
+                        </div>
+                        <button onClick={handleUnlinkSchool} className="text-red-500 hover:bg-red-50 p-2 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors border border-transparent hover:border-red-100">
+                            <LogOut size={14}/> مغادرة
+                        </button>
+                    </div>
+                ) : (
+                    <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+                        <p className="text-sm text-orange-800 mb-3 font-bold flex items-center gap-2"><Info size={16}/> لست مرتبطاً بأي مدرسة حالياً.</p>
+                        <div className="flex gap-2 mb-2">
+                            <input className="flex-1 p-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-400" placeholder="أدخل الرمز الوزاري للمدرسة..." value={linkMinistryCode} onChange={e => setLinkMinistryCode(e.target.value)}/>
+                        </div>
+                        {showNewSchoolForm && (
+                            <div className="mt-3 space-y-3 animate-fade-in p-4 bg-white rounded-xl border border-orange-100 shadow-sm">
+                                <p className="text-xs text-red-500 font-bold mb-1">{linkStatus?.msg}</p>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">اسم المدرسة الجديد *</label>
+                                    <input className="w-full p-2 border rounded text-sm" value={newSchoolData.name} onChange={e => setNewSchoolData({...newSchoolData, name: e.target.value})} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">اسم المدير</label>
+                                        <input className="w-full p-2 border rounded text-sm" value={newSchoolData.managerName} onChange={e => setNewSchoolData({...newSchoolData, managerName: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">هوية المدير (للربط)</label>
+                                        <input className="w-full p-2 border rounded text-sm font-mono" value={newSchoolData.managerId} onChange={e => setNewSchoolData({...newSchoolData, managerId: e.target.value})} />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+            <button onClick={handleTeacherSaveProfile} className="mt-6 w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2 shadow-lg transition-all active:scale-95"><Save size={18}/> حفظ التغييرات</button>
+        </div>
+      );
+  };
 
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50/50">
@@ -346,76 +471,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
         <div className="flex-1 overflow-y-auto">
             {activeTab === 'DASHBOARD' && (
                 <div className="max-w-4xl mx-auto space-y-6">
-                    {!isManager && teacherProfile && (
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <div className="flex justify-between items-start mb-6">
-                                <h3 className="font-bold text-lg flex items-center gap-2"><User size={20}/> الملف الشخصي</h3>
-                                <div className="flex items-center gap-2">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${teacherProfile.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
-                                        <CreditCard size={12}/>
-                                        {teacherProfile.subscriptionStatus === 'PRO' ? 'باقة المحترفين' : teacherProfile.subscriptionStatus === 'ENTERPRISE' ? 'باقة المؤسسات' : 'الباقة المجانية'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">الاسم الرباعي</label>
-                                    <input className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.name} onChange={e => setTeacherProfile({...teacherProfile, name: e.target.value})}/>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">رقم الهوية / السجل المدني</label>
-                                    <input className="w-full p-2 border rounded font-mono bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.nationalId || ''} onChange={e => setTeacherProfile({...teacherProfile, nationalId: e.target.value})}/>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
-                                    <input className="w-full p-2 border rounded dir-ltr text-right focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.email || ''} onChange={e => setTeacherProfile({...teacherProfile, email: e.target.value})}/>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">رقم الجوال</label>
-                                    <input className="w-full p-2 border rounded font-mono dir-ltr text-right focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.phone || ''} onChange={e => setTeacherProfile({...teacherProfile, phone: e.target.value})}/>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">التخصص</label>
-                                    <input className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})}/>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1"><Lock size={12}/> كلمة المرور</label>
-                                    <input type="text" className="w-full p-2 border rounded font-mono focus:ring-2 focus:ring-blue-500 outline-none" value={teacherProfile.password || ''} onChange={e => setTeacherProfile({...teacherProfile, password: e.target.value})}/>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 pt-6 border-t">
-                                <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Building2 size={18}/> المدرسة التابعة</h4>
-                                {mySchool ? (
-                                    <div className="bg-green-50 p-4 rounded-lg border border-green-200 flex justify-between items-center">
-                                        <div>
-                                            <p className="font-bold text-green-800">{mySchool.name}</p>
-                                            <p className="text-xs text-green-600 mt-1">المدير: {mySchool.managerName}</p>
-                                            {mySchool.ministryCode && <p className="text-xs text-green-600 font-mono">الرمز: {mySchool.ministryCode}</p>}
-                                        </div>
-                                        <CheckCircle className="text-green-600"/>
-                                    </div>
-                                ) : (
-                                    <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                                        <p className="text-sm text-orange-800 mb-2 font-bold">لست مرتبطاً بأي مدرسة حالياً.</p>
-                                        <div className="flex gap-2 mb-2">
-                                            <input className="flex-1 p-2 border rounded text-sm" placeholder="أدخل الرمز الوزاري للمدرسة..." value={linkMinistryCode} onChange={e => setLinkMinistryCode(e.target.value)}/>
-                                        </div>
-                                        {showNewSchoolForm && (
-                                            <div className="mt-2 space-y-2 animate-fade-in p-3 bg-white rounded border border-orange-100">
-                                                <p className="text-xs text-red-500 font-bold mb-1">{linkStatus?.msg}</p>
-                                                <input className="w-full p-2 border rounded text-sm" placeholder="اسم المدرسة الجديد *" value={newSchoolData.name} onChange={e => setNewSchoolData({...newSchoolData, name: e.target.value})} />
-                                                <input className="w-full p-2 border rounded text-sm" placeholder="اسم المدير (اختياري)" value={newSchoolData.managerName} onChange={e => setNewSchoolData({...newSchoolData, managerName: e.target.value})} />
-                                                <input className="w-full p-2 border rounded text-sm" placeholder="هوية المدير (اختياري)" value={newSchoolData.managerId} onChange={e => setNewSchoolData({...newSchoolData, managerId: e.target.value})} />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <button onClick={handleTeacherSaveProfile} className="mt-6 w-full bg-blue-600 text-white py-2 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2 shadow-lg transition-all"><Save size={18}/> حفظ التغييرات</button>
-                        </div>
-                    )}
+                    {!isManager && renderTeacherProfileForm()}
                 </div>
             )}
 
