@@ -3,8 +3,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Sheet, ArrowRight, Table, CheckSquare, Square, RefreshCw, PlusCircle, AlertTriangle, Trash2, ArrowRightCircle, X, Database, Globe, MousePointerClick, Clipboard, Download, Sparkles, BrainCircuit } from 'lucide-react';
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData } from '../services/excelService';
 import { predictColumnMapping } from '../services/geminiService';
-import { Student, CustomTable } from '../types';
-import { addCustomTable, getCustomTables, deleteCustomTable } from '../services/storageService';
+import { Student, CustomTable, SystemUser } from '../types';
+import { addCustomTable, getCustomTables, deleteCustomTable, getSchedules } from '../services/storageService';
 import * as XLSX from 'xlsx';
 
 interface DataImportProps {
@@ -16,6 +16,7 @@ interface DataImportProps {
   onClose?: () => void;
   // New prop: If provided, the component acts as a data fetcher and returns raw data to parent instead of saving to DB
   onDataReady?: (data: any[]) => void; 
+  currentUser?: SystemUser | null; // Added for schedule enrichment
 }
 
 const FIELD_DEFINITIONS = {
@@ -49,7 +50,7 @@ const FIELD_DEFINITIONS = {
     ]
 };
 
-const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, existingStudents, forcedType, onClose, onDataReady }) => {
+const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, existingStudents, forcedType, onClose, onDataReady, currentUser }) => {
   // Mode State: SYSTEM (Std/Perf/Att) vs CUSTOM (Generic Excel)
   // If onDataReady is present, we force 'CUSTOM' mode behavior (selection wise) but with different outcome
   const initialMode = onDataReady ? 'CUSTOM' : (forcedType ? 'SYSTEM' : 'SYSTEM');
@@ -279,6 +280,88 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       }
   };
 
+  // --- Enrichment Logic (Smart Matching for Missing Data) ---
+  const enrichImportData = (data: any[]): any[] => {
+      // Always match students if possible (even without currentUser)
+      // But Schedule matching needs currentUser
+      
+      const allSchedules = currentUser ? getSchedules() : [];
+      
+      // Helper to get day name from date string (YYYY-MM-DD)
+      const getDayName = (dateStr: string) => {
+          const date = new Date(dateStr);
+          const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          return days[date.getDay()];
+      };
+
+      return data.map(row => {
+          let enrichedRow = { ...row };
+          let matchedStudent = null;
+
+          // 1. MATCH STUDENT ID (If missing)
+          // If nationalId is missing, try to find student by Name in existingStudents
+          if ((!enrichedRow.nationalId || enrichedRow.nationalId === 'undefined') && (enrichedRow.studentName || enrichedRow.name)) {
+              const nameToSearch = (enrichedRow.studentName || enrichedRow.name).trim();
+              if (nameToSearch) {
+                  // Try Exact
+                  matchedStudent = existingStudents.find(s => s.name.trim() === nameToSearch);
+                  // Try Fuzzy (contains) if not found
+                  if (!matchedStudent) matchedStudent = existingStudents.find(s => s.name.includes(nameToSearch) || nameToSearch.includes(s.name));
+                  
+                  if (matchedStudent && matchedStudent.nationalId) {
+                      enrichedRow.nationalId = matchedStudent.nationalId;
+                      enrichedRow._autoMatchedStudent = true; // Flag for UI
+                  }
+              }
+          } else if (enrichedRow.nationalId) {
+              // If we have nationalId, assume we matched the student (find object for context)
+              matchedStudent = existingStudents.find(s => s.nationalId === String(enrichedRow.nationalId));
+          }
+
+          // 2. MATCH SCHEDULE (Subject/Period) based on Date + Teacher + Student Class
+          if ((dataType === 'ATTENDANCE' || dataType === 'PERFORMANCE') && currentUser) {
+              const rowDate = enrichedRow.date || new Date().toISOString().split('T')[0];
+              const dayName = getDayName(rowDate);
+              
+              // Get teacher's schedule for this day
+              const teacherSchedule = allSchedules.filter(s => 
+                  s.day === dayName && s.teacherId === currentUser.id
+              );
+
+              // If we matched the student, we can check their specific class in schedule
+              if (matchedStudent && matchedStudent.className && teacherSchedule.length > 0) {
+                  const classSchedule = teacherSchedule.filter(s => s.classId === matchedStudent?.className);
+                  
+                  // Perfect Match: Teacher has exactly one session with this student's class today
+                  if (classSchedule.length === 1) {
+                      if (!enrichedRow.subject) enrichedRow.subject = classSchedule[0].subjectName;
+                      if (!enrichedRow.period) enrichedRow.period = classSchedule[0].period;
+                      enrichedRow._autoMatchedSchedule = true;
+                  }
+              } else if (teacherSchedule.length > 0) {
+                  // Fallback: If we don't know the student's class or they aren't in system yet
+                  
+                  // Scenario A: Only 1 class total for teacher that day -> assume it's that one
+                  if (teacherSchedule.length === 1 && (!enrichedRow.subject || !enrichedRow.period)) {
+                      if (!enrichedRow.subject) enrichedRow.subject = teacherSchedule[0].subjectName;
+                      if (!enrichedRow.period) enrichedRow.period = teacherSchedule[0].period;
+                      enrichedRow._autoMatchedSchedule = true;
+                  }
+                  // Scenario B: Subject exists, Period missing -> Find by Subject
+                  else if (enrichedRow.subject && !enrichedRow.period) {
+                      const matches = teacherSchedule.filter(s => s.subjectName === enrichedRow.subject);
+                      if (matches.length === 1) {
+                          enrichedRow.period = matches[0].period;
+                          enrichedRow._autoMatchedSchedule = true;
+                      }
+                  }
+              }
+          }
+
+          return enrichedRow;
+      });
+  };
+
   // --- System Mode Logic ---
   const handleMappingChange = (fieldKey: string, header: string) => {
       setColumnMapping(prev => ({ ...prev, [fieldKey]: header }));
@@ -292,6 +375,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           setStatus({ type: 'error', message: `يرجى تحديد الأعمدة للحقول الإجبارية: ${missing.map(f => f.label).join(', ')}` });
           return;
       }
+      
       if (dataType === 'PERFORMANCE' || dataType === 'ATTENDANCE') {
           if (!columnMapping['nationalId'] && !columnMapping['studentName']) {
               setStatus({ type: 'error', message: 'يرجى تحديد عمود "رقم الهوية" أو "اسم الطالب" على الأقل لربط البيانات.' });
@@ -301,7 +385,12 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
 
       setLoading(true);
       setTimeout(() => {
-          const processed = processMappedData(rawSheetData, columnMapping, dataType, existingStudents);
+          // 1. Basic Extraction
+          let processed = processMappedData(rawSheetData, columnMapping, dataType, existingStudents);
+          
+          // 2. Smart Enrichment (Look for missing IDs or Schedule info)
+          processed = enrichImportData(processed);
+
           setProcessedData(processed);
           setSelectedRowIndices(new Set(processed.map((_, i) => i)));
           setRemovedIndices(new Set());
@@ -361,6 +450,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           rows,
           sourceUrl: sourceMethod === 'URL' ? url : undefined,
           lastUpdated: new Date().toISOString(),
+          teacherId: currentUser?.id // STRICT ISOLATION
       };
 
       addCustomTable(newTable);
@@ -863,7 +953,13 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                                             {importMode === 'SYSTEM' && !onDataReady ? (
                                                 Object.entries(row).filter(([k]) => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(([k, val]: any) => (
                                                     <td key={k} className={`p-3 border-l border-gray-50 ${row._status === 'UPDATE' && k !== 'nationalId' ? 'bg-blue-50/10' : ''}`}>
-                                                        {dataType === 'STUDENTS' ? renderComparisonCell(k, row) : <span className="text-gray-700">{String(val)}</span>}
+                                                        {dataType === 'STUDENTS' ? renderComparisonCell(k, row) : (
+                                                            <span>
+                                                                {String(val)}
+                                                                {row._autoMatchedStudent && k === 'nationalId' && <span className="mr-1 text-[10px] text-blue-600 font-bold">(هوية تلقائية)</span>}
+                                                                {row._autoMatchedSchedule && (k === 'subject' || k === 'period') && <span className="mr-1 text-[10px] text-green-600 font-bold">(جدول تلقائي)</span>}
+                                                            </span>
+                                                        )}
                                                     </td>
                                                 ))
                                             ) : (

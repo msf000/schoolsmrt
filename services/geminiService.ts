@@ -737,9 +737,12 @@ export const parseRawDataWithAI = async (
         schemaDescription = `
         Target Schema:
         [{
-            "studentName": "Student Name",
+            "studentName": "Student Name (Arabic)",
+            "nationalId": "10-digit National ID if visible/found, else null",
             "status": "PRESENT" | "ABSENT" | "LATE",
-            "date": "YYYY-MM-DD" (use today if not specified)
+            "date": "YYYY-MM-DD" (use today if not specified),
+            "subject": "Subject Name if visible/context implies it, else null",
+            "period": "Period Number if visible (e.g. 1 for First Period), else null"
         }]
         `;
     }
@@ -763,6 +766,7 @@ export const parseRawDataWithAI = async (
     3. Return ONLY the JSON array. Do NOT return markdown formatting.
     4. If the list is too long, return the first 50 items.
     5. If an image is provided, extract data using OCR.
+    6. For Attendance, try to infer the Period or Subject if the text mentions it (e.g. "Third Period", "Math Class").
     `;
 
     try {

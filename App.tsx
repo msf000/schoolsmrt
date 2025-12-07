@@ -370,7 +370,7 @@ const App: React.FC = () => {
             </div>
             <div>
                 <h1 className="text-lg font-bold text-gray-800">نظام المدرس</h1>
-                <p className="text-[10px] text-gray-500">{currentUser?.name || 'مستخدم'}</p>
+                <p className="text-xs text-gray-500">{currentUser?.name || 'مستخدم'}</p>
                 <div className={`text-[10px] font-bold px-2 py-0.5 rounded inline-block mt-1 ${userRole === 'SUPER_ADMIN' ? 'bg-gray-200 text-gray-800' : 'bg-teal-100 text-teal-800'}`}>
                     {userRole === 'SUPER_ADMIN' ? 'مدير النظام' : userRole === 'SCHOOL_MANAGER' ? 'مدير المدرسة' : 'معلم'}
                 </div>
@@ -545,7 +545,15 @@ const App: React.FC = () => {
                 />
             )}
             {currentView === 'CUSTOM_TABLES' && <CustomTablesView currentUser={currentUser} />}
-            {currentView === 'DATA_IMPORT' && <DataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} existingStudents={students}/>}
+            {currentView === 'DATA_IMPORT' && (
+                <DataImport 
+                    onImportStudents={handleBulkAddStudents} 
+                    onImportPerformance={handleBulkAddPerformance} 
+                    onImportAttendance={handleBulkAddAttendance} 
+                    existingStudents={students}
+                    currentUser={currentUser} // Pass currentUser here!
+                />
+            )}
             {currentView === 'AI_DATA_IMPORT' && <AIDataImport onImportStudents={handleBulkAddStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleBulkAddAttendance} currentUser={currentUser}/>}
         </div>
       </main>

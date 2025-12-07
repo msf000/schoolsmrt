@@ -13,9 +13,10 @@ interface AIDataImportProps {
     onClose?: () => void;
     forcedType?: 'STUDENTS' | 'GRADES' | 'ATTENDANCE';
     currentUser?: SystemUser | null; // Added to access schedule
+    existingStudents?: Student[]; // Added to match national ID
 }
 
-const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, onClose, forcedType, currentUser }) => {
+const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, onClose, forcedType, currentUser, existingStudents = [] }) => {
     const [rawText, setRawText] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -43,9 +44,9 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
         setPreviewUrl(null);
     };
 
-    // --- SMART SCHEDULE MATCHING LOGIC ---
-    const enrichDataWithSchedule = (data: any[]): any[] => {
-        if (importType !== 'ATTENDANCE' || !currentUser) return data;
+    // --- SMART ENRICHMENT LOGIC ---
+    const enrichData = (data: any[]): any[] => {
+        if (!currentUser && importType !== 'ATTENDANCE') return data;
 
         const allSchedules = getSchedules();
         // Helper to get day name from date string (YYYY-MM-DD)
@@ -56,38 +57,78 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
         };
 
         return data.map(row => {
-            // If date is missing, default to today
-            const rowDate = row.date || new Date().toISOString().split('T')[0];
-            const dayName = getDayName(rowDate);
+            let enrichedRow = { ...row };
+            let matchedStudent = null;
 
-            // Filter schedule for THIS teacher on THIS day
-            const teacherDailySchedule = allSchedules.filter(s => 
-                s.day === dayName && 
-                s.teacherId === currentUser.id
-            );
-
-            let enrichedRow = { ...row, date: rowDate }; // Ensure date is set
-
-            // Scenario 1: Missing Subject AND Period -> If teacher has only 1 class that day, use it.
-            if (!enrichedRow.subject && !enrichedRow.period && teacherDailySchedule.length === 1) {
-                enrichedRow.subject = teacherDailySchedule[0].subjectName;
-                enrichedRow.period = teacherDailySchedule[0].period;
-                enrichedRow._autoMatched = true; // Flag for UI
-            }
-            // Scenario 2: Has Period, Missing Subject -> Lookup Subject
-            else if (enrichedRow.period && !enrichedRow.subject) {
-                const match = teacherDailySchedule.find(s => s.period === Number(enrichedRow.period));
-                if (match) {
-                    enrichedRow.subject = match.subjectName;
-                    enrichedRow._autoMatched = true;
+            // 1. MATCH STUDENT ID (If missing)
+            // If nationalId is missing, try to find student by Name in existingStudents
+            if ((!enrichedRow.nationalId || enrichedRow.nationalId === 'undefined') && (enrichedRow.studentName || enrichedRow.name)) {
+                const searchName = (enrichedRow.studentName || enrichedRow.name).trim();
+                if (searchName) {
+                    // Try Exact Match first
+                    matchedStudent = existingStudents.find(s => s.name.trim() === searchName);
+                    // Try Fuzzy if not found (contains)
+                    if (!matchedStudent) {
+                        matchedStudent = existingStudents.find(s => s.name.includes(searchName) || searchName.includes(s.name));
+                    }
+                    
+                    if (matchedStudent && matchedStudent.nationalId) {
+                        enrichedRow.nationalId = matchedStudent.nationalId;
+                        enrichedRow._autoMatchedStudent = true;
+                    }
                 }
+            } else if (enrichedRow.nationalId) {
+                // If we have nationalId, assume we matched the student (find object for context)
+                matchedStudent = existingStudents.find(s => s.nationalId === String(enrichedRow.nationalId));
             }
-            // Scenario 3: Has Subject, Missing Period -> Lookup Period
-            else if (enrichedRow.subject && !enrichedRow.period) {
-                const match = teacherDailySchedule.find(s => s.subjectName === enrichedRow.subject);
-                if (match) {
-                    enrichedRow.period = match.period;
-                    enrichedRow._autoMatched = true;
+
+            // 2. MATCH SCHEDULE (Attendance Only)
+            if (importType === 'ATTENDANCE' && currentUser) {
+                // If date is missing, default to today
+                const rowDate = enrichedRow.date || new Date().toISOString().split('T')[0];
+                const dayName = getDayName(rowDate);
+                enrichedRow.date = rowDate; // Ensure date is set
+
+                // Filter schedule for THIS teacher on THIS day
+                const teacherSchedule = allSchedules.filter(s => 
+                    s.day === dayName && 
+                    s.teacherId === currentUser.id
+                );
+
+                // If student matched, narrow down schedule by student's class
+                if (matchedStudent && matchedStudent.className && teacherSchedule.length > 0) {
+                    const classSchedule = teacherSchedule.filter(s => s.classId === matchedStudent?.className);
+                    
+                    if (classSchedule.length === 1 && (!enrichedRow.subject || !enrichedRow.period)) {
+                        if (!enrichedRow.subject) enrichedRow.subject = classSchedule[0].subjectName;
+                        if (!enrichedRow.period) enrichedRow.period = classSchedule[0].period;
+                        enrichedRow._autoMatchedSchedule = true; 
+                    }
+                } else if (teacherSchedule.length > 0) {
+                    // Fallback logic if student not matched or class not found in schedule
+                    // Scenario A: Only 1 class that day for teacher -> assume it's that one
+                    if (teacherSchedule.length === 1 && (!enrichedRow.subject || !enrichedRow.period)) {
+                        if (!enrichedRow.subject) enrichedRow.subject = teacherSchedule[0].subjectName;
+                        if (!enrichedRow.period) enrichedRow.period = teacherSchedule[0].period;
+                        enrichedRow._autoMatchedSchedule = true; 
+                    }
+                    // Scenario B: Has Period, Missing Subject -> Lookup Subject
+                    else if (enrichedRow.period && !enrichedRow.subject) {
+                        const match = teacherSchedule.find(s => s.period === Number(enrichedRow.period));
+                        if (match) {
+                            enrichedRow.subject = match.subjectName;
+                            enrichedRow._autoMatchedSchedule = true;
+                        }
+                    }
+                    // Scenario C: Has Subject, Missing Period -> Lookup Period
+                    else if (enrichedRow.subject && !enrichedRow.period) {
+                        // Find matches by subject name
+                        const matches = teacherSchedule.filter(s => s.subjectName === enrichedRow.subject);
+                        if (matches.length === 1) {
+                            enrichedRow.period = matches[0].period;
+                            enrichedRow._autoMatchedSchedule = true;
+                        }
+                    }
                 }
             }
 
@@ -110,10 +151,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
             let data = await parseRawDataWithAI(rawText, importType, imageBase64);
             
             if (Array.isArray(data) && data.length > 0) {
-                // Apply Smart Schedule Matching
-                if (importType === 'ATTENDANCE') {
-                    data = enrichDataWithSchedule(data);
-                }
+                // Apply Smart Enrichment (Schedule + Student ID)
+                data = enrichData(data);
 
                 setParsedData(data);
                 setStep('PREVIEW');
@@ -159,7 +198,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
             } else if (importType === 'GRADES') {
                 const records: PerformanceRecord[] = parsedData.map(d => ({
                     id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                    studentId: 'PENDING_MATCH', 
+                    studentId: d.nationalId ? 'MATCH_BY_ID' : 'PENDING_MATCH', 
+                    nationalId: d.nationalId, // Pass for matching
                     studentName: d.studentName,
                     subject: d.subject || 'عام',
                     title: d.title || 'تقييم',
@@ -172,12 +212,13 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
             } else if (importType === 'ATTENDANCE') {
                 const records: AttendanceRecord[] = parsedData.map(d => ({
                     id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                    studentId: 'PENDING_MATCH',
+                    studentId: d.nationalId ? 'MATCH_BY_ID' : 'PENDING_MATCH',
+                    nationalId: d.nationalId, // Pass for matching
                     studentName: d.studentName,
                     date: d.date || new Date().toISOString().split('T')[0],
                     status: d.status === 'ABSENT' ? AttendanceStatus.ABSENT : d.status === 'LATE' ? AttendanceStatus.LATE : AttendanceStatus.PRESENT,
-                    subject: d.subject, // Now populated
-                    period: d.period // Now populated
+                    subject: d.subject, 
+                    period: d.period 
                 } as any));
                 onImportAttendance(records);
             }
@@ -312,7 +353,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                                     </h3>
                                     {importType === 'ATTENDANCE' && (
                                         <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
-                                            <CalendarClock size={12}/> تم تفعيل المطابقة التلقائية مع جدول المعلم
+                                            <CalendarClock size={12}/> تم تفعيل المطابقة التلقائية مع جدول المعلم والهوية
                                         </p>
                                     )}
                                 </div>
@@ -333,12 +374,13 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                                     </thead>
                                     <tbody className="divide-y">
                                         {parsedData.map((row, i) => (
-                                            <tr key={i} className={`hover:bg-white transition-colors ${row._autoMatched ? 'bg-green-50/50' : ''}`}>
+                                            <tr key={i} className={`hover:bg-white transition-colors ${row._autoMatchedSchedule ? 'bg-green-50/50' : ''} ${row._autoMatchedStudent ? 'bg-blue-50/50' : ''}`}>
                                                 <td className="p-3 text-center text-gray-400">{i + 1}</td>
                                                 {Object.entries(row).filter(([k]) => !k.startsWith('_')).map(([k, val]: any, j) => (
                                                     <td key={j} className="p-3 text-gray-700">
                                                         {val}
-                                                        {row._autoMatched && (k === 'subject' || k === 'period') && <span className="mr-1 text-[10px] text-green-600 font-bold">(آلي)</span>}
+                                                        {row._autoMatchedSchedule && (k === 'subject' || k === 'period') && <span className="mr-1 text-[10px] text-green-600 font-bold">(جدول تلقائي)</span>}
+                                                        {row._autoMatchedStudent && k === 'nationalId' && <span className="mr-1 text-[10px] text-blue-600 font-bold">(هوية تلقائية)</span>}
                                                     </td>
                                                 ))}
                                             </tr>
