@@ -510,10 +510,16 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
         const activityRatio = activityTarget > 0 ? (actSum / activityTarget) : 0;
         const gradeAct = Math.min(activityRatio * 15, 15);
 
-        // 3. Participation (Max 15)
-        const presentCount = myAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        // 3. Participation (Max 15) - Updated Logic
+        // Count Present, Late, and Excused as credit
+        const effectivePresent = myAtt.filter(a => 
+            a.status === AttendanceStatus.PRESENT || 
+            a.status === AttendanceStatus.LATE ||
+            a.status === AttendanceStatus.EXCUSED
+        ).length;
+        
         const totalDays = myAtt.length;
-        const attPercent = totalDays > 0 ? (presentCount / totalDays) * 100 : 100;
+        const attPercent = totalDays > 0 ? (effectivePresent / totalDays) * 100 : 100;
         const gradePart = (attPercent / 100) * 15;
 
         // 4. Exams (Max 20)

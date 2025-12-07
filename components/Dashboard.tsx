@@ -120,8 +120,9 @@ const SchoolManagerDashboard: React.FC<{students: Student[], attendance: Attenda
     
     // Stats Calculations
     const totalStudents = students.length;
+    // Fix avgAttendance: Include LATE as Present
     const avgAttendance = attendance.length > 0 
-        ? Math.round((attendance.filter(a => a.status === 'PRESENT').length / attendance.length) * 100) 
+        ? Math.round((attendance.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length / attendance.length) * 100) 
         : 0;
     const avgPerformance = performance.length > 0
         ? Math.round(performance.reduce((acc, curr) => acc + (curr.score/curr.maxScore), 0) / performance.length * 100)
@@ -245,7 +246,8 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
     // Use selectedDate for stats
     const todaysAttendance = attendance.filter(a => a.date === selectedDate);
     
-    const present = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
+    // Count LATE as present for daily stats (physically in school)
+    const present = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
     const absent = todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
     
     const attendanceRate = totalStudents > 0 ? Math.round((present / totalStudents) * 100) : 0;
@@ -276,8 +278,15 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
         // Calculate Attendance %
         const studentAttendance = attendance.filter(a => a.studentId === student.id);
         const totalDays = studentAttendance.length;
-        const presentDays = studentAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
-        const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 100; // Default 100 if no data
+        
+        // Count Present, Late, and Excused as "Good/Credit" for grade/risk calculation
+        const creditDays = studentAttendance.filter(a => 
+            a.status === AttendanceStatus.PRESENT || 
+            a.status === AttendanceStatus.LATE ||
+            a.status === AttendanceStatus.EXCUSED
+        ).length;
+        
+        const attendanceRate = totalDays > 0 ? (creditDays / totalDays) * 100 : 100; // Default 100 if no data
 
         // Calculate Performance %
         const studentPerformance = performance.filter(p => p.studentId === student.id);

@@ -96,11 +96,17 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const calculateStats = () => {
         if (!student) return null;
 
-        // 1. Attendance
+        // 1. Attendance (Updated Logic)
         const studentAtt = attendance.filter(a => a.studentId === student.id);
-        const presentCount = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        // Count Present, Late, and Excused as "Attended/Valid" for grade purposes
+        const creditCount = studentAtt.filter(a => 
+            a.status === AttendanceStatus.PRESENT || 
+            a.status === AttendanceStatus.LATE || 
+            a.status === AttendanceStatus.EXCUSED
+        ).length;
+        
         const totalDays = studentAtt.length;
-        const attPercent = totalDays > 0 ? (presentCount / totalDays) * 100 : 100;
+        const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
         const gradePart = (attPercent / 100) * 15;
 
         // 2. Homework
