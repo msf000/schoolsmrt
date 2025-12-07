@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles } from 'lucide-react';
 import DataImport from './DataImport';
+import AIDataImport from './AIDataImport';
 
 interface AttendanceProps {
   students: Student[];
@@ -71,6 +73,7 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   const [saved, setSaved] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
   
   // --- Excuse Manager State ---
   const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
@@ -403,13 +406,22 @@ const Attendance: React.FC<AttendanceProps> = ({
                 />
             </div>
 
-             <button 
-                onClick={() => setIsImportModalOpen(true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm font-bold"
-            >
-                <FileSpreadsheet size={18} />
-                <span className="hidden sm:inline">استيراد</span>
-            </button>
+             <div className="flex items-center gap-2 bg-white border rounded-lg p-1">
+                 <button 
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="bg-white hover:bg-gray-50 text-gray-600 px-3 py-1.5 rounded flex items-center gap-2 transition-colors text-xs font-bold"
+                    title="استيراد من Excel"
+                >
+                    <FileSpreadsheet size={16} /> Excel
+                </button>
+                <button 
+                    onClick={() => setIsAIImportModalOpen(true)}
+                    className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1.5 rounded flex items-center gap-2 transition-colors text-xs font-bold"
+                    title="استيراد ذكي (نص/صورة)"
+                >
+                    <Sparkles size={16} /> AI
+                </button>
+             </div>
         </div>
       </div>
 
@@ -563,9 +575,6 @@ const Attendance: React.FC<AttendanceProps> = ({
                                     ) : null
                                 )}
                             </div>
-                        </div>
-                        <div className="flex md:hidden items-center gap-2">
-                            {/* Mobile specific view could go here */}
                         </div>
                     </div>
                     
@@ -754,6 +763,24 @@ const Attendance: React.FC<AttendanceProps> = ({
                   forcedType="ATTENDANCE"
                   onClose={() => setIsImportModalOpen(false)}
               />
+          </div>
+      )}
+
+      {/* --- AI IMPORT MODAL --- */}
+      {isAIImportModalOpen && (
+          <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+                  <AIDataImport 
+                      onImportStudents={() => {}} 
+                      onImportAttendance={(records) => {
+                          onImportAttendance(records);
+                          setIsAIImportModalOpen(false);
+                      }}
+                      onImportPerformance={() => {}}
+                      forcedType="ATTENDANCE"
+                      onClose={() => setIsAIImportModalOpen(false)}
+                  />
+              </div>
           </div>
       )}
 

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { parseRawDataWithAI } from '../services/geminiService';
-import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download, Image as ImageIcon, Upload } from 'lucide-react';
+import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
 import * as XLSX from 'xlsx';
 
@@ -9,14 +9,16 @@ interface AIDataImportProps {
     onImportStudents: (students: Student[]) => void;
     onImportPerformance: (records: PerformanceRecord[]) => void;
     onImportAttendance: (records: AttendanceRecord[]) => void;
+    onClose?: () => void; // Added for Modal Support
+    forcedType?: 'STUDENTS' | 'GRADES' | 'ATTENDANCE'; // Optional default type
 }
 
-const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance }) => {
+const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, onClose, forcedType }) => {
     const [rawText, setRawText] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     
-    const [importType, setImportType] = useState<'STUDENTS' | 'GRADES' | 'ATTENDANCE'>('STUDENTS');
+    const [importType, setImportType] = useState<'STUDENTS' | 'GRADES' | 'ATTENDANCE'>(forcedType || 'STUDENTS');
     const [parsedData, setParsedData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<'INPUT' | 'PREVIEW'>('INPUT');
@@ -127,7 +129,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                 setRawText('');
                 clearFile();
                 setStatus(null);
-            }, 2000);
+                if (onClose) onClose();
+            }, 1500);
         } catch (e) {
             setStatus({ type: 'error', message: 'فشل الحفظ. تأكد من صحة البيانات.' });
         }
@@ -144,15 +147,22 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
     };
 
     return (
-        <div className="p-6 max-w-5xl mx-auto h-full flex flex-col animate-fade-in bg-gray-50">
-            <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <Sparkles className="text-purple-600" />
-                    استيراد البيانات الذكي (AI)
-                </h2>
-                <p className="text-gray-500 mt-2 text-sm">
-                    قم برفع صورة (كشف درجات، قائمة طلاب) أو ألصق نصاً عشوائياً، وسيقوم الذكاء الاصطناعي باستخراج البيانات تلقائياً.
-                </p>
+        <div className={`p-6 max-w-5xl mx-auto h-full flex flex-col animate-fade-in bg-gray-50 ${onClose ? 'rounded-xl' : ''}`}>
+            <div className="mb-6 flex justify-between items-start">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        <Sparkles className="text-purple-600" />
+                        استيراد البيانات الذكي (AI)
+                    </h2>
+                    <p className="text-gray-500 mt-2 text-sm">
+                        قم برفع صورة (كشف درجات، قائمة طلاب) أو ألصق نصاً، وسيقوم الذكاء الاصطناعي باستخراج البيانات.
+                    </p>
+                </div>
+                {onClose && (
+                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                        <X size={24} />
+                    </button>
+                )}
             </div>
 
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
