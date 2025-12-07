@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, AlertTriangle } from 'lucide-react';
 
 interface WorksTrackingProps {
   students: Student[];
@@ -314,6 +314,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // RENDER HELPER FOR STUDENT ROW
     const renderStudentRow = (student: Student, i: number) => {
+        // Attendance Check
+        const myAtt = attendance.filter(a => a.studentId === student.id);
+        const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+        const lowAttendance = absentCount > 3; // Example threshold
+
+        const nameCell = (
+            <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50 flex items-center justify-between">
+                <span>{student.name}</span>
+                {lowAttendance && (
+                    <span className="text-red-500" title={`تنبيه: ${absentCount} غياب`}>
+                        <AlertTriangle size={14}/>
+                    </span>
+                )}
+            </td>
+        );
+
         // --- ACTIVITY TAB LOGIC ---
         if (activeTab === 'ACTIVITY') {
             let actSum = 0;
@@ -326,7 +342,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return (
                 <tr key={student.id} className="hover:bg-gray-50 border-b group">
                     <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
-                    <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50">{student.name}</td>
+                    {nameCell}
                     {assignments.filter(c => c.isVisible).map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
                             <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
@@ -348,7 +364,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return (
                 <tr key={student.id} className="hover:bg-gray-50 border-b group">
                     <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
-                    <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50">{student.name}</td>
+                    {nameCell}
                     {assignments.filter(c => c.isVisible).map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
                             <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
@@ -374,7 +390,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return (
                 <tr key={student.id} className="hover:bg-gray-50 border-b group">
                     <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
-                    <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50">{student.name}</td>
+                    {nameCell}
                     {assignments.filter(c => c.isVisible).map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
                             <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
@@ -413,7 +429,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return (
                 <tr key={student.id} className="hover:bg-gray-50 border-b">
                     <td className="p-3 border-l text-center text-gray-500">{i + 1}</td>
-                    <td className="p-3 border-l font-bold text-gray-800 sticky right-0 bg-white shadow-sm border-r">{student.name}</td>
+                    {nameCell}
                     <td className="p-3 border-l text-center font-bold bg-blue-50/50">{hwGrade.toFixed(1)}</td>
                     <td className="p-3 border-l text-center font-bold bg-amber-50/50">{actGrade.toFixed(1)}</td>
                     <td className="p-3 border-l text-center font-bold bg-green-50/50">{attGrade.toFixed(1)}</td>

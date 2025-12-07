@@ -517,6 +517,7 @@ const App: React.FC = () => {
                     onImportAttendance={handleBulkAddAttendance}
                     selectedDate={globalDate} // Use Global Date
                     onDateChange={setGlobalDate} // Update Global Date
+                    performance={performance} // Pass Performance for Smart Alerts
                 />
             )}
             {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}

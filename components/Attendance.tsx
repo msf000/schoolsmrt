@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface AttendanceProps {
   students: Student[];
   attendanceHistory: AttendanceRecord[];
+  performance?: PerformanceRecord[]; // NEW PROP
   onSaveAttendance: (records: AttendanceRecord[]) => void;
   onImportAttendance: (records: AttendanceRecord[]) => void;
   preSelectedClass?: string;
@@ -31,6 +32,7 @@ const DEFAULT_NEGATIVE_NOTES = [
 const Attendance: React.FC<AttendanceProps> = ({ 
     students, 
     attendanceHistory, 
+    performance = [], 
     onSaveAttendance, 
     onImportAttendance, 
     preSelectedClass, 
@@ -315,6 +317,22 @@ const Attendance: React.FC<AttendanceProps> = ({
       return colors[Math.abs(hash) % colors.length];
   };
 
+  // --- Stats Helper ---
+  const getStudentMetrics = (studentId: string) => {
+      const myPerf = performance.filter(p => p.studentId === studentId);
+      const myAtt = attendanceHistory.filter(a => a.studentId === studentId);
+      
+      const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+      
+      let avgGrade = 0;
+      if (myPerf.length > 0) {
+          const total = myPerf.reduce((sum, p) => sum + (p.score / p.maxScore), 0);
+          avgGrade = Math.round((total / myPerf.length) * 100);
+      }
+
+      return { absentCount, avgGrade, hasPerf: myPerf.length > 0 };
+  }
+
   const statusOptions = [
     { value: AttendanceStatus.PRESENT, label: 'حاضر', color: 'bg-green-100 text-green-700 border-green-200' },
     { value: AttendanceStatus.ABSENT, label: 'غائب', color: 'bg-red-100 text-red-700 border-red-200' },
@@ -513,16 +531,42 @@ const Attendance: React.FC<AttendanceProps> = ({
             </div>
 
             <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
-            {filteredStudents.length > 0 ? filteredStudents.map(student => (
+            {filteredStudents.length > 0 ? filteredStudents.map(student => {
+                // Get Metrics for Badge
+                const metrics = getStudentMetrics(student.id);
+                
+                return (
                 <div key={student.id} className="grid grid-cols-12 p-3 md:p-4 items-center hover:bg-gray-50 transition-colors group gap-y-3">
                     {/* Student Info: Full width on mobile, 3 cols on desktop */}
                     <div className="col-span-12 md:col-span-3 font-medium flex flex-row md:flex-col items-center md:items-start justify-between md:justify-center">
-                        <span className="text-gray-800 font-bold text-base">{student.name}</span>
-                        <div className="flex items-center gap-2 mt-0 md:mt-1">
-                            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
-                            {/* Behavior Status Badge */}
-                            {behaviorRecords[student.id] === BehaviorStatus.POSITIVE && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded flex items-center gap-1"><Smile size={10}/> ممتاز</span>}
-                            {behaviorRecords[student.id] === BehaviorStatus.NEGATIVE && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex items-center gap-1"><Frown size={10}/> سيء</span>}
+                        <div>
+                            <span className="text-gray-800 font-bold text-base block">{student.name}</span>
+                            
+                            {/* SMART INDICATORS */}
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
+                                
+                                {metrics.absentCount > 3 && (
+                                    <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 flex items-center gap-1 font-bold animate-pulse">
+                                        <AlertCircle size={10}/> غ: {metrics.absentCount}
+                                    </span>
+                                )}
+                                
+                                {metrics.hasPerf && (
+                                    metrics.avgGrade >= 90 ? (
+                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1 font-bold">
+                                            <Star size={10}/> متفوق
+                                        </span>
+                                    ) : metrics.avgGrade < 50 ? (
+                                        <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded border border-orange-100 flex items-center gap-1 font-bold">
+                                            <TrendingDown size={10}/> متعثر
+                                        </span>
+                                    ) : null
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex md:hidden items-center gap-2">
+                            {/* Mobile specific view could go here */}
                         </div>
                     </div>
                     
@@ -672,13 +716,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                         </div>
                     </div>
                 </div>
-            )) : (
-                <div className="p-12 text-center text-gray-400 flex flex-col items-center">
-                    <Users size={48} className="mb-4 opacity-20"/>
-                    <p>لا يوجد طلاب مسجلين في هذا الفصل ({selectedClass}).</p>
-                    <p className="text-xs mt-2">يرجى التأكد من تطابق اسم الفصل في "بيانات الطلاب" مع الاسم في الجدول.</p>
-                </div>
-            )}
+            )})}
             </div>
 
             {/* Sticky Footer for Save */}

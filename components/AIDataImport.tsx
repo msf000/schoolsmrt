@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { parseRawDataWithAI } from '../services/geminiService';
-import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download } from 'lucide-react';
+import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download, Image as ImageIcon, Upload } from 'lucide-react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
 import * as XLSX from 'xlsx';
 
@@ -13,23 +13,52 @@ interface AIDataImportProps {
 
 const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance }) => {
     const [rawText, setRawText] = useState('');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    
     const [importType, setImportType] = useState<'STUDENTS' | 'GRADES' | 'ATTENDANCE'>('STUDENTS');
     const [parsedData, setParsedData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<'INPUT' | 'PREVIEW'>('INPUT');
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPreviewUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const clearFile = () => {
+        setSelectedFile(null);
+        setPreviewUrl(null);
+    };
+
     const handleAnalyze = async () => {
-        if (!rawText.trim()) return;
+        if (!rawText.trim() && !selectedFile) return;
+        
         setLoading(true);
         setStatus(null);
+        
         try {
-            const data = await parseRawDataWithAI(rawText, importType);
+            let imageBase64 = undefined;
+            if (previewUrl) {
+                // Ensure base64 string is clean (service handles cleaning too, but good to check)
+                imageBase64 = previewUrl;
+            }
+
+            const data = await parseRawDataWithAI(rawText, importType, imageBase64);
+            
             if (Array.isArray(data) && data.length > 0) {
                 setParsedData(data);
                 setStep('PREVIEW');
             } else {
-                setStatus({ type: 'error', message: 'لم يتم العثور على بيانات واضحة في النص. حاول تنسيق النص بشكل أفضل.' });
+                setStatus({ type: 'error', message: 'لم يتم العثور على بيانات واضحة. حاول توضيح النص أو الصورة.' });
             }
         } catch (e: any) {
             setStatus({ type: 'error', message: e.message || 'حدث خطأ أثناء التحليل.' });
@@ -96,6 +125,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                 setStep('INPUT');
                 setParsedData([]);
                 setRawText('');
+                clearFile();
                 setStatus(null);
             }, 2000);
         } catch (e) {
@@ -120,8 +150,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     <Sparkles className="text-purple-600" />
                     استيراد البيانات الذكي (AI)
                 </h2>
-                <p className="text-gray-500 mt-2">
-                    ألصق أي نص عشوائي (من رسائل واتساب، بريد إلكتروني، ملفات PDF منسوخة) وسيقوم النظام باستخراج البيانات منه، ثم يمكنك حفظها أو تصديرها كـ Excel.
+                <p className="text-gray-500 mt-2 text-sm">
+                    قم برفع صورة (كشف درجات، قائمة طلاب) أو ألصق نصاً عشوائياً، وسيقوم الذكاء الاصطناعي باستخراج البيانات تلقائياً.
                 </p>
             </div>
 
@@ -159,27 +189,48 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                 {/* Content */}
                 <div className="flex-1 p-6 overflow-hidden flex flex-col">
                     {step === 'INPUT' ? (
-                        <div className="flex-1 flex flex-col">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">النص العشوائي:</label>
-                            <textarea 
-                                className="flex-1 w-full p-4 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none resize-none font-mono text-sm leading-relaxed"
-                                placeholder={`ألصق النص هنا... مثال:
+                        <div className="flex-1 flex flex-col md:flex-row gap-6">
+                            {/* Text Input Area */}
+                            <div className="flex-1 flex flex-col">
+                                <label className="block text-sm font-bold text-gray-700 mb-2">1. النص العشوائي (اختياري):</label>
+                                <textarea 
+                                    className="flex-1 w-full p-4 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none resize-none font-mono text-sm leading-relaxed"
+                                    placeholder={`ألصق النص هنا... مثال:
 "الطالب أحمد محمد - الصف الأول - غائب
-الطالبة سارة علي - الصف الأول - حاضرة
 محمد علي: 15 درجة في الرياضيات"`}
-                                value={rawText}
-                                onChange={e => setRawText(e.target.value)}
-                            />
-                            
-                            <div className="mt-4 flex justify-end">
-                                <button 
-                                    onClick={handleAnalyze}
-                                    disabled={loading || !rawText.trim()}
-                                    className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-black disabled:opacity-50 shadow-lg transition-all"
-                                >
-                                    {loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                                    {loading ? 'جاري تحليل النص...' : 'تحليل واستخراج البيانات'}
-                                </button>
+                                    value={rawText}
+                                    onChange={e => setRawText(e.target.value)}
+                                />
+                            </div>
+
+                            {/* File Upload Area */}
+                            <div className="w-full md:w-1/3 flex flex-col">
+                                <label className="block text-sm font-bold text-gray-700 mb-2">2. صورة من الملف (اختياري):</label>
+                                <div className="flex-1 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center justify-center p-4 hover:bg-gray-100 transition-colors relative overflow-hidden group">
+                                    {previewUrl ? (
+                                        <>
+                                            <img src={previewUrl} alt="Preview" className="max-w-full max-h-48 object-contain mb-4 rounded shadow-sm" />
+                                            <button onClick={clearFile} className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 shadow-md">
+                                                <Trash2 size={16}/>
+                                            </button>
+                                            <p className="text-xs text-gray-500 font-bold">{selectedFile?.name}</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                                <ImageIcon size={24}/>
+                                            </div>
+                                            <p className="text-sm text-gray-600 font-bold mb-1">اضغط لرفع صورة</p>
+                                            <p className="text-xs text-gray-400 text-center">يدعم صور الكشوفات، الجداول، أو لقطات الشاشة (PNG, JPG)</p>
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                                onChange={handleFileSelect}
+                                            />
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -215,8 +266,22 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    )}
 
-                            <div className="mt-6 flex flex-col md:flex-row justify-end gap-3">
+                    {/* Footer Actions */}
+                    <div className="mt-4 pt-4 border-t flex justify-end gap-3">
+                        {step === 'INPUT' ? (
+                            <button 
+                                onClick={handleAnalyze}
+                                disabled={loading || (!rawText.trim() && !selectedFile)}
+                                className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-black disabled:opacity-50 shadow-lg transition-all w-full md:w-auto justify-center"
+                            >
+                                {loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                                {loading ? 'جاري تحليل البيانات...' : 'تحليل واستخراج البيانات'}
+                            </button>
+                        ) : (
+                            <>
                                 <button onClick={handleExportExcel} className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-md">
                                     <Download size={18}/> تصدير Excel
                                 </button>
@@ -226,9 +291,9 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                                 <button onClick={() => setStep('INPUT')} className="px-6 py-2 border border-gray-300 rounded-lg text-gray-600 font-bold hover:bg-gray-50">
                                     إلغاء
                                 </button>
-                            </div>
-                        </div>
-                    )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 

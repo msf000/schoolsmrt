@@ -702,10 +702,11 @@ export const predictColumnMapping = async (
     }
 };
 
-// --- NEW: Parse Unstructured Text Data ---
+// --- NEW: Parse Unstructured Text Data (Multimodal supported) ---
 export const parseRawDataWithAI = async (
     rawText: string,
-    targetType: 'STUDENTS' | 'GRADES' | 'ATTENDANCE'
+    targetType: 'STUDENTS' | 'GRADES' | 'ATTENDANCE',
+    imageBase64?: string
 ): Promise<any[]> => {
     const { model, config } = getConfig();
     
@@ -746,12 +747,12 @@ export const parseRawDataWithAI = async (
     const truncatedInput = rawText.slice(0, 6000);
 
     const prompt = `
-    You are a smart data parser. I have unstructured text copied from a file, email, or message.
+    You are a smart data parser. I have unstructured data (text or an image of a table/list).
     Extract the data into a JSON Array based on the target schema.
     
     ${schemaDescription}
 
-    Input Text:
+    Input Text (if any):
     """
     ${truncatedInput}
     """
@@ -761,12 +762,26 @@ export const parseRawDataWithAI = async (
     2. Fix Arabic names if they appear reversed or broken.
     3. Return ONLY the JSON array. Do NOT return markdown formatting.
     4. If the list is too long, return the first 50 items.
+    5. If an image is provided, extract data using OCR.
     `;
 
     try {
+        const parts: any[] = [{ text: prompt }];
+        
+        if (imageBase64) {
+            // Remove prefix if present
+            const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+            parts.push({
+                inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: cleanBase64
+                }
+            });
+        }
+
         const response = await ai.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: { parts },
             config: {
                 responseMimeType: "application/json",
                 temperature: config.temperature
