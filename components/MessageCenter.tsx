@@ -21,6 +21,11 @@ const TEMPLATES = [
 ];
 
 const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, performance }) => {
+    // Safety check
+    if (!students || !attendance || !performance) {
+        return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
+    }
+
     const [activeTab, setActiveTab] = useState<'SMART' | 'COMPOSE' | 'HISTORY'>(() => {
         return localStorage.getItem('message_center_tab') as any || 'SMART';
     });

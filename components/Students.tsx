@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser } from '../types';
 import { deleteAllStudents } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock, Loader2 } from 'lucide-react';
 import DataImport from './DataImport';
 
 interface StudentsProps {
@@ -16,6 +16,11 @@ interface StudentsProps {
 
 const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents, currentUser }) => {
   
+  // Safety Check
+  if (!students) {
+      return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
+  }
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -111,7 +116,7 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
   );
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
             <h2 className="text-2xl font-bold text-gray-800">قائمة الطلاب</h2>

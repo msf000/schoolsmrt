@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig } from '../types';
-import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle } from 'lucide-react';
+import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2 } from 'lucide-react';
 import { getReportHeaderConfig, getSubjects } from '../services/storageService';
 import * as XLSX from 'xlsx';
 
@@ -10,6 +11,11 @@ interface MonthlyReportProps {
 }
 
 const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance }) => {
+  // Safety check
+  if (!students || !attendance) {
+      return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
+  }
+
   // Date Range State
   const [startDate, setStartDate] = useState(() => {
       const d = new Date();

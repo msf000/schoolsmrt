@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord } from '../types';
 import { generateStudentAnalysis } from '../services/geminiService';
 import { Sparkles, Bot, Loader2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown'; // Actually we will just display raw text or simple format since we didn't include markdown lib in requirements, so standard display
+import ReactMarkdown from 'react-markdown'; 
 
 interface AIReportsProps {
   students: Student[];
@@ -11,6 +12,11 @@ interface AIReportsProps {
 }
 
 const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance }) => {
+  // Safety check
+  if (!students || !attendance || !performance) {
+      return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
+  }
+
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [report, setReport] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

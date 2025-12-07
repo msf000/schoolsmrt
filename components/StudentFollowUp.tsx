@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus } from '../types';
 import { getSubjects, getAssignments } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentFollowUpProps {
@@ -12,6 +12,11 @@ interface StudentFollowUpProps {
 }
 
 const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance }) => {
+    // Safety check
+    if (!students || !performance || !attendance) {
+        return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
+    }
+
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [selectedSubject, setSelectedSubject] = useState<string>('');
     const [subjects, setSubjects] = useState<Subject[]>([]);

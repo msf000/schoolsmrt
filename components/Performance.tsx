@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser } from '../types';
 import { formatDualDate } from '../services/dateService';
-import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X } from 'lucide-react';
+import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2 } from 'lucide-react';
 import DataImport from './DataImport';
 import * as XLSX from 'xlsx';
 
@@ -16,6 +16,11 @@ interface PerformanceProps {
 }
 
 const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
+  // Safety Check
+  if (!students || !performance) {
+      return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
+  }
+
   const [activeTab, setActiveTab] = useState<'ENTRY' | 'LOG'>('ENTRY');
 
   const [studentId, setStudentId] = useState('');
@@ -164,7 +169,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
     .slice(0, 5);
 
   return (
-    <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
+    <div className="p-4 md:p-6 space-y-6 h-full flex flex-col animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4 print:hidden">
         <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
             <button 
