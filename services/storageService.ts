@@ -50,6 +50,38 @@ const TABLE_MAPPING: Record<string, string> = {
 let CACHE: typeof INITIAL_DATA = { ...INITIAL_DATA };
 let IS_DEMO_MODE = false;
 
+// --- SYNC STATUS MANAGEMENT ---
+export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
+let currentSyncStatus: SyncStatus = 'IDLE';
+const syncListeners: ((status: SyncStatus) => void)[] = [];
+const dataChangeListeners: (() => void)[] = [];
+
+const setSyncStatus = (status: SyncStatus) => {
+    currentSyncStatus = status;
+    syncListeners.forEach(l => l(status));
+};
+
+export const subscribeToSyncStatus = (listener: (status: SyncStatus) => void) => {
+    syncListeners.push(listener);
+    listener(currentSyncStatus); // Initial state
+    return () => {
+        const idx = syncListeners.indexOf(listener);
+        if (idx > -1) syncListeners.splice(idx, 1);
+    };
+};
+
+export const subscribeToDataChanges = (listener: () => void) => {
+    dataChangeListeners.push(listener);
+    return () => {
+        const idx = dataChangeListeners.indexOf(listener);
+        if (idx > -1) dataChangeListeners.splice(idx, 1);
+    };
+};
+
+const notifyDataChange = () => {
+    dataChangeListeners.forEach(l => l());
+};
+
 // --- HELPERS ---
 const loadFromLocal = () => {
     if (typeof window === 'undefined') return;
@@ -92,6 +124,7 @@ export const setSystemMode = (isDemo: boolean) => {
     } else {
         loadFromLocal(); // Reload real data
     }
+    notifyDataChange();
 };
 
 export const getStorageStatistics = () => {
@@ -102,36 +135,55 @@ export const getStorageStatistics = () => {
     };
 };
 
-export const generateEntityColor = (str: string) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+// --- CRUD OPERATIONS WITH CLOUD SYNC ---
+// Helper to push to cloud quietly
+const pushToCloud = async (table: string, data: any, action: 'UPSERT' | 'DELETE' = 'UPSERT') => {
+    if (IS_DEMO_MODE) return;
+    setSyncStatus('SYNCING');
+    try {
+        if (action === 'UPSERT') {
+            await supabase.from(table).upsert(data, { onConflict: 'id' });
+        } else {
+            await supabase.from(table).delete().eq('id', data);
+        }
+        setSyncStatus('ONLINE');
+    } catch (e) {
+        console.warn('Cloud sync failed', e);
+        setSyncStatus('ERROR');
     }
-    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-    return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
-
-// --- CRUD OPERATIONS ---
 
 // 1. STUDENTS
 export const getStudents = (): Student[] => CACHE.students;
-export const addStudent = (item: Student) => {
+export const addStudent = async (item: Student) => {
     const list = [...CACHE.students, item];
     saveToLocal('students', list);
+    notifyDataChange();
+    pushToCloud('students', item);
 };
-export const updateStudent = (item: Student) => {
+export const updateStudent = async (item: Student) => {
     const list = CACHE.students.map((s: Student) => s.id === item.id ? item : s);
     saveToLocal('students', list);
+    notifyDataChange();
+    pushToCloud('students', item);
 };
-export const deleteStudent = (id: string) => {
+export const deleteStudent = async (id: string) => {
     const list = CACHE.students.filter((s: Student) => s.id !== id);
     saveToLocal('students', list);
+    notifyDataChange();
+    pushToCloud('students', id, 'DELETE');
 };
-export const deleteAllStudents = () => saveToLocal('students', []);
-export const bulkAddStudents = (items: Student[]) => {
+export const deleteAllStudents = async () => {
+    saveToLocal('students', []);
+    notifyDataChange();
+    // Not deleting from cloud automatically for safety
+};
+export const bulkAddStudents = async (items: Student[]) => {
     saveToLocal('students', [...CACHE.students, ...items]);
+    notifyDataChange();
+    pushToCloud('students', items);
 };
-export const bulkUpsertStudents = (items: Student[], key: keyof Student = 'nationalId') => {
+export const bulkUpsertStudents = async (items: Student[], key: keyof Student = 'nationalId') => {
     let list = [...CACHE.students];
     items.forEach(newItem => {
         const idx = list.findIndex((s: Student) => s[key] && s[key] === newItem[key]);
@@ -139,12 +191,13 @@ export const bulkUpsertStudents = (items: Student[], key: keyof Student = 'natio
         else list.push(newItem);
     });
     saveToLocal('students', list);
+    notifyDataChange();
+    pushToCloud('students', items);
 };
 
 // 2. ATTENDANCE
 export const getAttendance = (): AttendanceRecord[] => CACHE.attendance_records;
-export const saveAttendance = (items: AttendanceRecord[]) => {
-    // Upsert logic based on ID
+export const saveAttendance = async (items: AttendanceRecord[]) => {
     let list = [...CACHE.attendance_records];
     items.forEach(newItem => {
         const idx = list.findIndex((r: AttendanceRecord) => r.id === newItem.id);
@@ -152,61 +205,80 @@ export const saveAttendance = (items: AttendanceRecord[]) => {
         else list.push(newItem);
     });
     saveToLocal('attendance_records', list);
+    notifyDataChange();
+    pushToCloud('attendance_records', items);
 };
 export const bulkAddAttendance = (items: AttendanceRecord[]) => saveAttendance(items);
 
 // 3. PERFORMANCE
 export const getPerformance = (): PerformanceRecord[] => CACHE.performance_records;
-export const addPerformance = (item: PerformanceRecord) => {
+export const addPerformance = async (item: PerformanceRecord) => {
     saveToLocal('performance_records', [...CACHE.performance_records, item]);
+    notifyDataChange();
+    pushToCloud('performance_records', item);
 };
-export const deletePerformance = (id: string) => {
+export const deletePerformance = async (id: string) => {
     const list = CACHE.performance_records.filter((p: PerformanceRecord) => p.id !== id);
     saveToLocal('performance_records', list);
+    notifyDataChange();
+    pushToCloud('performance_records', id, 'DELETE');
 };
-export const bulkAddPerformance = (items: PerformanceRecord[]) => {
+export const bulkAddPerformance = async (items: PerformanceRecord[]) => {
     saveToLocal('performance_records', [...CACHE.performance_records, ...items]);
+    notifyDataChange();
+    pushToCloud('performance_records', items);
 };
 
 // 4. SCHOOLS
 export const getSchools = (): School[] => CACHE.schools;
-export const addSchool = (item: School) => {
+export const addSchool = async (item: School) => {
     saveToLocal('schools', [...CACHE.schools, item]);
+    notifyDataChange();
+    pushToCloud('schools', item);
 };
-export const updateSchool = (item: School) => {
+export const updateSchool = async (item: School) => {
     const list = CACHE.schools.map((s: School) => s.id === item.id ? item : s);
     saveToLocal('schools', list);
+    notifyDataChange();
+    pushToCloud('schools', item);
 };
-export const deleteSchool = (id: string) => {
+export const deleteSchool = async (id: string) => {
     const list = CACHE.schools.filter((s: School) => s.id !== id);
     saveToLocal('schools', list);
+    notifyDataChange();
+    pushToCloud('schools', id, 'DELETE');
 };
 
 // 5. SYSTEM USERS
 export const getSystemUsers = (): SystemUser[] => CACHE.system_users;
-export const addSystemUser = (item: SystemUser) => {
+export const addSystemUser = async (item: SystemUser) => {
     saveToLocal('system_users', [...CACHE.system_users, item]);
+    notifyDataChange();
+    pushToCloud('system_users', item);
 };
-export const updateSystemUser = (item: SystemUser) => {
+export const updateSystemUser = async (item: SystemUser) => {
     const list = CACHE.system_users.map((u: SystemUser) => u.id === item.id ? item : u);
     saveToLocal('system_users', list);
+    notifyDataChange();
+    pushToCloud('system_users', item);
 };
-export const deleteSystemUser = (id: string) => {
+export const deleteSystemUser = async (id: string) => {
     const list = CACHE.system_users.filter((u: SystemUser) => u.id !== id);
     saveToLocal('system_users', list);
+    notifyDataChange();
+    pushToCloud('system_users', id, 'DELETE');
 };
 
 // 6. TEACHERS
 export const getTeachers = (): Teacher[] => CACHE.teachers;
 export const addTeacher = async (item: Teacher) => {
-    // Save locally
     const updatedTeachers = [...CACHE.teachers, item];
     saveToLocal('teachers', updatedTeachers);
     
-    // Also add to system users locally for immediate login capability
+    // Auto-create system user locally
     const users = getSystemUsers();
     if (!users.find(u => u.email === item.email)) {
-        addSystemUser({
+        const newUser: SystemUser = {
             id: item.id,
             name: item.name,
             email: item.email || item.nationalId || '',
@@ -214,31 +286,17 @@ export const addTeacher = async (item: Teacher) => {
             schoolId: item.schoolId,
             status: 'ACTIVE',
             password: item.password
-        });
+        };
+        addSystemUser(newUser); 
     }
-
-    // Try to sync to cloud immediately if connected
-    try {
-        const { error } = await supabase.from('teachers').insert(item);
-        if(!error) {
-             // Also insert system user to cloud
-             await supabase.from('system_users').insert({
-                id: item.id,
-                name: item.name,
-                email: item.email || item.nationalId || '',
-                role: 'TEACHER',
-                schoolId: item.schoolId,
-                status: 'ACTIVE',
-                password: item.password
-             });
-        }
-    } catch (e) {
-        console.warn('Could not sync new teacher to cloud immediately', e);
-    }
+    notifyDataChange();
+    pushToCloud('teachers', item);
 };
-export const updateTeacher = (item: Teacher) => {
+export const updateTeacher = async (item: Teacher) => {
     const list = CACHE.teachers.map((t: Teacher) => t.id === item.id ? item : t);
     saveToLocal('teachers', list);
+    notifyDataChange();
+    pushToCloud('teachers', item);
 };
 
 // 7. ASSIGNMENTS
@@ -248,40 +306,50 @@ export const getAssignments = (category?: PerformanceCategory, teacherId?: strin
     if (teacherId) list = list.filter((a: Assignment) => a.teacherId === teacherId);
     return list;
 };
-export const saveAssignment = (item: Assignment) => {
+export const saveAssignment = async (item: Assignment) => {
     let list = [...CACHE.assignments];
     const idx = list.findIndex((a: Assignment) => a.id === item.id);
     if (idx >= 0) list[idx] = item;
     else list.push(item);
     saveToLocal('assignments', list);
+    notifyDataChange();
+    pushToCloud('assignments', item);
 };
-export const deleteAssignment = (id: string) => {
+export const deleteAssignment = async (id: string) => {
     const list = CACHE.assignments.filter((a: Assignment) => a.id !== id);
     saveToLocal('assignments', list);
+    notifyDataChange();
+    pushToCloud('assignments', id, 'DELETE');
 };
 
 // 8. SCHEDULES
 export const getSchedules = (): ScheduleItem[] => CACHE.schedules;
-export const saveScheduleItem = (item: ScheduleItem) => {
+export const saveScheduleItem = async (item: ScheduleItem) => {
     let list = [...CACHE.schedules];
     const idx = list.findIndex((s: ScheduleItem) => s.id === item.id);
     if (idx >= 0) list[idx] = item;
     else list.push(item);
     saveToLocal('schedules', list);
+    notifyDataChange();
+    pushToCloud('schedules', item);
 };
-export const deleteScheduleItem = (id: string) => {
+export const deleteScheduleItem = async (id: string) => {
     const list = CACHE.schedules.filter((s: ScheduleItem) => s.id !== id);
     saveToLocal('schedules', list);
+    notifyDataChange();
+    pushToCloud('schedules', id, 'DELETE');
 };
 
 // 9. TEACHER ASSIGNMENTS
 export const getTeacherAssignments = (): TeacherAssignment[] => CACHE.teacher_assignments;
-export const saveTeacherAssignment = (item: TeacherAssignment) => {
+export const saveTeacherAssignment = async (item: TeacherAssignment) => {
     let list = [...CACHE.teacher_assignments];
     const idx = list.findIndex((a: TeacherAssignment) => a.id === item.id);
     if (idx >= 0) list[idx] = item;
     else list.push(item);
     saveToLocal('teacher_assignments', list);
+    notifyDataChange();
+    pushToCloud('teacher_assignments', item);
 };
 
 // 10. SUBJECTS
@@ -289,12 +357,16 @@ export const getSubjects = (teacherId?: string): Subject[] => {
     if (teacherId) return CACHE.subjects.filter((s: Subject) => s.teacherId === teacherId);
     return CACHE.subjects;
 };
-export const addSubject = (item: Subject) => {
+export const addSubject = async (item: Subject) => {
     saveToLocal('subjects', [...CACHE.subjects, item]);
+    notifyDataChange();
+    pushToCloud('subjects', item);
 };
-export const deleteSubject = (id: string) => {
+export const deleteSubject = async (id: string) => {
     const list = CACHE.subjects.filter((s: Subject) => s.id !== id);
     saveToLocal('subjects', list);
+    notifyDataChange();
+    pushToCloud('subjects', id, 'DELETE');
 };
 
 // 11. CUSTOM TABLES
@@ -302,41 +374,55 @@ export const getCustomTables = (teacherId?: string): CustomTable[] => {
     if (teacherId) return CACHE.custom_tables.filter((t: CustomTable) => t.teacherId === teacherId);
     return CACHE.custom_tables;
 };
-export const addCustomTable = (item: CustomTable) => {
+export const addCustomTable = async (item: CustomTable) => {
     saveToLocal('custom_tables', [...CACHE.custom_tables, item]);
+    notifyDataChange();
+    pushToCloud('custom_tables', item);
 };
-export const updateCustomTable = (item: CustomTable) => {
+export const updateCustomTable = async (item: CustomTable) => {
     const list = CACHE.custom_tables.map((t: CustomTable) => t.id === item.id ? item : t);
     saveToLocal('custom_tables', list);
+    notifyDataChange();
+    pushToCloud('custom_tables', item);
 };
-export const deleteCustomTable = (id: string) => {
+export const deleteCustomTable = async (id: string) => {
     const list = CACHE.custom_tables.filter((t: CustomTable) => t.id !== id);
     saveToLocal('custom_tables', list);
+    notifyDataChange();
+    pushToCloud('custom_tables', id, 'DELETE');
 };
 
 // 12. LESSON LINKS
 export const getLessonLinks = (): LessonLink[] => CACHE.lesson_links;
-export const saveLessonLink = (item: LessonLink) => {
+export const saveLessonLink = async (item: LessonLink) => {
     saveToLocal('lesson_links', [...CACHE.lesson_links, item]);
+    notifyDataChange();
+    pushToCloud('lesson_links', item);
 };
-export const deleteLessonLink = (id: string) => {
+export const deleteLessonLink = async (id: string) => {
     const list = CACHE.lesson_links.filter((l: LessonLink) => l.id !== id);
     saveToLocal('lesson_links', list);
+    notifyDataChange();
+    pushToCloud('lesson_links', id, 'DELETE');
 };
 
 // 13. MESSAGES
 export const getMessages = (): MessageLog[] => CACHE.message_logs;
-export const saveMessage = (item: MessageLog) => {
+export const saveMessage = async (item: MessageLog) => {
     saveToLocal('message_logs', [item, ...CACHE.message_logs]);
+    notifyDataChange();
+    pushToCloud('message_logs', item);
 };
 
 // 14. FEEDBACK
 export const getFeedback = (): Feedback[] => CACHE.feedbacks;
-export const addFeedback = (item: Feedback) => {
+export const addFeedback = async (item: Feedback) => {
     saveToLocal('feedbacks', [...CACHE.feedbacks, item]);
+    notifyDataChange();
+    pushToCloud('feedbacks', item);
 };
 
-// 15. SETTINGS & CONFIG
+// 15. SETTINGS & CONFIG (Local Only for now, could be cloud)
 export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig => {
     return CACHE.report_header_config || {
         schoolName: '',
@@ -367,6 +453,65 @@ export const saveUserTheme = (theme: UserTheme) => saveToLocal('user_theme', the
 export const getWorksMasterUrl = (): string => CACHE.works_master_url || '';
 export const saveWorksMasterUrl = (url: string) => saveToLocal('works_master_url', url);
 
+// --- HYBRID AUTHENTICATION ---
+export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | null> => {
+    // 1. Local Check (Offline Mode)
+    let user = CACHE.system_users.find(u => u.email === identifier || u.nationalId === identifier);
+    if (user && user.password === password) return user;
+
+    let teacher = CACHE.teachers.find(t => t.email === identifier || t.nationalId === identifier);
+    if (teacher && teacher.password === password) return { ...teacher, role: 'TEACHER', email: teacher.email || teacher.nationalId || '' } as SystemUser;
+
+    let student = CACHE.students.find(s => s.nationalId === identifier);
+    if (student && (student.password === password || student.nationalId?.slice(-4) === password)) {
+         return { ...student, role: 'STUDENT', email: student.nationalId || '' } as unknown as SystemUser;
+    }
+
+    // 2. Cloud Check (Online Mode - Sync on demand)
+    setSyncStatus('SYNCING');
+    try {
+        console.log("Attempting cloud login for:", identifier);
+        
+        // Check System Users table
+        const { data: cloudUsers, error: userError } = await supabase.from('system_users').select('*').or(`email.eq.${identifier},nationalId.eq.${identifier}`).limit(1);
+        if (cloudUsers && cloudUsers.length > 0) {
+            const u = cloudUsers[0];
+            if (u.password === password) {
+                console.log("User found in cloud, syncing to local...");
+                saveToLocal('system_users', [...CACHE.system_users.filter(x => x.id !== u.id), u]); // Update/Add local
+                setSyncStatus('ONLINE');
+                return u;
+            }
+        }
+
+        // Check Teachers table
+        const { data: cloudTeachers, error: teacherError } = await supabase.from('teachers').select('*').or(`email.eq.${identifier},nationalId.eq.${identifier}`).limit(1);
+        if (cloudTeachers && cloudTeachers.length > 0) {
+            const t = cloudTeachers[0];
+            if (t.password === password) {
+                console.log("Teacher found in cloud, syncing to local...");
+                const list = CACHE.teachers.filter(x => x.id !== t.id);
+                list.push(t);
+                saveToLocal('teachers', list);
+                
+                // Also ensure system_user exists locally
+                const sysUser: SystemUser = { id: t.id, name: t.name, email: t.email || t.nationalId || '', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE', password: t.password };
+                saveToLocal('system_users', [...CACHE.system_users.filter(x => x.id !== t.id), sysUser]);
+                
+                setSyncStatus('ONLINE');
+                return sysUser;
+            }
+        }
+        setSyncStatus('ONLINE');
+        
+    } catch (e) {
+        console.error("Cloud Auth Failed", e);
+        setSyncStatus('OFFLINE');
+    }
+
+    return null;
+}
+
 // --- UTILS ---
 export const createBackup = () => JSON.stringify(CACHE);
 export const restoreBackup = (json: string) => {
@@ -383,21 +528,33 @@ export const clearDatabase = () => {
     window.location.reload();
 };
 
-export const initAutoSync = () => {
-    // Check cloud on load and pull if configured?
-    // For now we keep it manual to avoid overwriting conflicts without user consent
-    console.log("Auto sync initialized");
+export const initAutoSync = async () => {
+    if (typeof window === 'undefined') return;
+    
+    if (!navigator.onLine) {
+        setSyncStatus('OFFLINE');
+        return;
+    }
+
+    setSyncStatus('SYNCING');
+    try {
+        console.log("Starting Auto-Sync...");
+        // Pull latest data from cloud
+        await downloadFromSupabase();
+        setSyncStatus('ONLINE');
+        notifyDataChange(); // Refresh UI
+    } catch (e) {
+        console.error("Auto Sync Failed:", e);
+        setSyncStatus('ERROR');
+    }
 };
 
 // --- SUPABASE / CLOUD FUNCTIONS (REAL IMPLEMENTATION) ---
 
 export const checkConnection = async () => {
     try {
-        // Try to fetch one row from a public table to check connection
         const { error } = await supabase.from('system_users').select('count', { count: 'exact', head: true });
         if (error && error.code !== 'PGRST116') {
-             // PGRST116 means no rows returned which is fine for connection check.
-             // If error code is different (e.g. 404 table not found, or 401 unauth), return error
              return { success: false, message: error.message };
         }
         return { success: true };
@@ -410,7 +567,6 @@ export const uploadToSupabase = async () => {
     const promises = Object.entries(TABLE_MAPPING).map(async ([localKey, tableName]) => {
         const data = CACHE[localKey as keyof typeof INITIAL_DATA];
         if (Array.isArray(data) && data.length > 0) {
-            // Using upsert to update existing records by ID
             const { error } = await supabase.from(tableName).upsert(data, { onConflict: 'id' });
             if (error) {
                 console.error(`Error uploading table ${tableName}:`, error);
@@ -425,17 +581,15 @@ export const downloadFromSupabase = async () => {
     const promises = Object.entries(TABLE_MAPPING).map(async ([localKey, tableName]) => {
         const { data, error } = await supabase.from(tableName).select('*');
         if (error) {
-            // If table doesn't exist, ignore (might be fresh cloud db)
             if(error.code === '42P01') return; 
-            throw new Error(`فشل تحميل جدول ${tableName}: ${error.message}`);
+            console.warn(`Could not fetch table ${tableName}`, error);
+            return;
         }
         if (data) {
             saveToLocal(localKey as any, data);
         }
     });
     await Promise.all(promises);
-    // Reload to apply changes
-    // Not reloading automatically to allow caller to handle UI feedback first
 };
 
 export const fetchCloudTableData = async (table: string) => {
@@ -668,7 +822,6 @@ alter table if exists schools add column if not exists "educationAdministration"
 };
 
 export const clearCloudTable = async (table: string) => {
-    // Delete all records (where id is not null)
     const { error } = await supabase.from(table).delete().neq('id', '000000');
     if (error) throw error;
 };
@@ -695,6 +848,5 @@ export const restoreCloudDatabase = async (json: string) => {
             await supabase.from(table).upsert(records);
         }
     }
-    // Also update local cache
     restoreBackup(json);
 };

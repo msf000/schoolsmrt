@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { getSystemUsers, getStudents, getTeachers, setSystemMode } from '../services/storageService';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus } from 'lucide-react';
+import { authenticateUser, getSystemUsers, getStudents, setSystemMode } from '../services/storageService';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -28,7 +28,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }, 500);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -36,11 +36,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     // IMPORTANT: Ensure we are in Production Mode for normal login form
     setSystemMode(false);
 
-    // Simulate network delay for better UX
-    setTimeout(() => {
+    try {
         const cleanIdentifier = identifier.trim();
 
-        // 1. Check Hardcoded Super Admin (Backdoor or Fallback)
+        // 1. Check Hardcoded Super Admin (Backdoor)
         if (cleanIdentifier.toLowerCase() === 'admin@school.com' && (password === 'SchoolSystem2025!' || password === '123')) {
             onLoginSuccess({ 
                 id: 'admin', 
@@ -51,73 +50,20 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             return;
         }
 
-        // 2. Check System Users (Admins/Teachers via SystemUser table)
-        const users = getSystemUsers();
-        const foundUser = users.find(u => u.email.toLowerCase().trim() === cleanIdentifier.toLowerCase());
-
-        if (foundUser) {
-            const storedPassword = foundUser.password || '123456';
-            if (password === storedPassword) {
-                onLoginSuccess(foundUser, rememberMe);
-            } else {
-                setError('كلمة المرور غير صحيحة');
-                setLoading(false);
-            }
-            return;
+        // 2. Hybrid Authentication (Local -> Cloud)
+        const user = await authenticateUser(cleanIdentifier, password);
+        
+        if (user) {
+            onLoginSuccess(user, rememberMe);
+        } else {
+            setError('البيانات المدخلة غير صحيحة أو غير مسجلة.');
         }
-
-        // 3. Check Teachers (via Teachers table - new method)
-        // Teachers can login with National ID or Email
-        const teachers = getTeachers();
-        const foundTeacher = teachers.find(t => 
-            (t.nationalId && t.nationalId === cleanIdentifier) || 
-            (t.email && t.email.toLowerCase().trim() === cleanIdentifier.toLowerCase())
-        );
-
-        if (foundTeacher) {
-            // Check password if set, otherwise default
-            const storedPassword = foundTeacher.password || '123456';
-            if (password === storedPassword) {
-                onLoginSuccess({
-                    ...foundTeacher,
-                    role: 'TEACHER', // Map to system role
-                    email: foundTeacher.email || foundTeacher.nationalId // Ensure identifier exists
-                }, rememberMe);
-                return;
-            } else {
-                // If found but password wrong, fail here
-                setError('كلمة المرور غير صحيحة');
-                setLoading(false);
-                return;
-            }
-        }
-
-        // 4. Check Students (By National ID)
-        if (/^\d{10}$/.test(cleanIdentifier)) {
-            const students = getStudents();
-            const foundStudent = students.find(s => s.nationalId === cleanIdentifier);
-
-            if (foundStudent) {
-                const defaultPass = foundStudent.nationalId ? foundStudent.nationalId.slice(-4) : '0000';
-                const storedPassword = foundStudent.password || defaultPass;
-
-                if (password === storedPassword) {
-                    onLoginSuccess({
-                        ...foundStudent,
-                        role: 'STUDENT',
-                        email: foundStudent.nationalId 
-                    }, rememberMe);
-                } else {
-                    setError('كلمة المرور غير صحيحة (الافتراضية: آخر 4 أرقام من الهوية)');
-                    setLoading(false);
-                }
-                return;
-            }
-        }
-
-        setError('البيانات المدخلة غير صحيحة أو غير مسجلة في النظام.');
+    } catch (e) {
+        console.error(e);
+        setError('حدث خطأ أثناء تسجيل الدخول.');
+    } finally {
         setLoading(false);
-    }, 800);
+    }
   };
 
   const handleDemoLogin = (role: 'MANAGER' | 'TEACHER' | 'STUDENT') => {
@@ -160,7 +106,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     <GraduationCap size={40} className="text-white" />
                 </div>
                 <h1 className="text-2xl font-bold text-white mb-1">نظام المدرس الذكي</h1>
-                <p className="text-teal-100 text-sm">بوابة الدخول الموحدة</p>
+                <p className="text-teal-100 text-sm">بوابة الدخول الموحدة (سحابية)</p>
             </div>
         </div>
 
@@ -168,7 +114,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <div className="p-8">
             <div className="mb-6 text-center">
                 <h2 className="text-xl font-bold text-gray-800">تسجيل الدخول</h2>
-                <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للدخول إلى النظام الحقيقي</p>
+                <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للدخول إلى النظام</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
@@ -259,7 +205,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </div>
             </div>
 
-            {/* Demo Access Buttons (Separated Data) */}
+            {/* Demo Access Buttons */}
             <div className="grid grid-cols-3 gap-3">
                 <button onClick={() => handleDemoLogin('MANAGER')} className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors text-xs font-bold text-purple-700 group">
                     <LayoutTemplate size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة مدير
@@ -272,9 +218,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </button>
             </div>
             
-            <p className="text-[10px] text-gray-400 text-center mt-4">
-                تنبيه: البيانات في وضع التجربة وهمية ومنفصلة تماماً عن بيانات النظام الحقيقية.
-            </p>
+            <div className="text-[10px] text-gray-400 text-center mt-4 flex items-center justify-center gap-1">
+                <CloudLightning size={12}/> النظام يدعم المزامنة السحابية
+            </div>
         </div>
       </div>
       

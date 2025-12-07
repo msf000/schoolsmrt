@@ -10,7 +10,7 @@ import {
     bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
     initAutoSync, getWorksMasterUrl, getUserTheme, 
     getTeacherAssignments, bulkUpsertStudents,
-    setSystemMode 
+    setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus
 } from './services/storageService';
 
 import Login from './components/Login';
@@ -34,7 +34,7 @@ import TeacherSubscription from './components/TeacherSubscription';
 import LessonPlanning from './components/LessonPlanning';
 import MonthlyReport from './components/MonthlyReport';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 
 const App: React.FC = () => {
     // Auth State
@@ -53,11 +53,24 @@ const App: React.FC = () => {
     const [currentView, setCurrentView] = useState('DASHBOARD');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showClassroomScreen, setShowClassroomScreen] = useState(false);
+    
+    // Sync State
+    const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
 
     useEffect(() => {
         if (currentUser) {
             loadData();
-            initAutoSync();
+            initAutoSync(); // Trigger auto sync on load
+            
+            // Listen for sync status changes
+            const unsubSync = subscribeToSyncStatus((status) => setSyncStatus(status));
+            // Listen for data changes (from other tabs or cloud sync)
+            const unsubData = subscribeToDataChanges(() => loadData());
+
+            return () => {
+                unsubSync();
+                unsubData();
+            };
         }
     }, [currentUser]);
 
@@ -189,6 +202,27 @@ const App: React.FC = () => {
                 </nav>
 
                 <div className="p-4 border-t bg-gray-50">
+                    {/* Sync Indicator */}
+                    <div className="mb-3 flex items-center justify-between text-xs px-2 py-1.5 rounded bg-white border">
+                        <span className="text-gray-500 font-bold">حالة المزامنة:</span>
+                        <div className="flex items-center gap-1">
+                            {syncStatus === 'SYNCING' && <RefreshCw size={12} className="text-blue-500 animate-spin"/>}
+                            {syncStatus === 'ONLINE' && <Cloud size={12} className="text-green-500"/>}
+                            {syncStatus === 'OFFLINE' && <CloudOff size={12} className="text-gray-400"/>}
+                            {syncStatus === 'ERROR' && <AlertCircle size={12} className="text-red-500"/>}
+                            
+                            <span className={`font-bold ${
+                                syncStatus === 'SYNCING' ? 'text-blue-600' :
+                                syncStatus === 'ONLINE' ? 'text-green-600' :
+                                syncStatus === 'ERROR' ? 'text-red-600' : 'text-gray-500'
+                            }`}>
+                                {syncStatus === 'SYNCING' ? 'جاري التحديث...' :
+                                 syncStatus === 'ONLINE' ? 'متصل' :
+                                 syncStatus === 'ERROR' ? 'خطأ' : 'غير متصل'}
+                            </span>
+                        </div>
+                    </div>
+
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
                             {currentUser.name.charAt(0)}
