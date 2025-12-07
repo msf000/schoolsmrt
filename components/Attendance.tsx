@@ -1,10 +1,10 @@
 
 // ... existing imports ...
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -82,6 +82,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [newNoteInput, setNewNoteInput] = useState('');
 
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // New state for auto-save indicator
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
   const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
@@ -262,32 +263,64 @@ const Attendance: React.FC<AttendanceProps> = ({
       }
   };
 
+  // Helper for Auto-Saving single record
+  const saveSingleRecord = (studentId: string, updates: Partial<AttendanceRecord>) => {
+      if (selectedPeriod === null) return;
+      setIsSaving(true);
+      
+      const periodSuffix = selectedPeriod ? `-${selectedPeriod}` : '-0';
+      const recordId = `${studentId}-${selectedDate}-${selectedSubject || 'manual'}${periodSuffix}`;
+      
+      // Merge with current state
+      const currentStatus = records[studentId] || AttendanceStatus.PRESENT;
+      const currentBehavior = behaviorRecords[studentId] || BehaviorStatus.NEUTRAL;
+      const currentNote = noteRecords[studentId] || '';
+
+      const record: AttendanceRecord = {
+          id: recordId,
+          studentId: studentId,
+          date: selectedDate,
+          status: updates.status || currentStatus,
+          subject: selectedSubject,
+          period: selectedPeriod || undefined,
+          behaviorStatus: updates.behaviorStatus !== undefined ? updates.behaviorStatus : currentBehavior,
+          behaviorNote: updates.behaviorNote !== undefined ? updates.behaviorNote : currentNote,
+          createdById: currentUser?.id
+      };
+
+      onSaveAttendance([record]); // Auto save immediately
+      
+      setTimeout(() => setIsSaving(false), 500);
+  };
+
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     setRecords(prev => ({ ...prev, [studentId]: status }));
-    setSaved(false);
+    saveSingleRecord(studentId, { status }); // Auto-save
   };
 
   const handleBehaviorChange = (studentId: string, status: BehaviorStatus) => {
-      setBehaviorRecords(prev => {
-          const current = prev[studentId];
-          const next = current === status ? BehaviorStatus.NEUTRAL : status;
-          return { ...prev, [studentId]: next };
-      });
-      setSaved(false);
+      const current = behaviorRecords[studentId];
+      const next = current === status ? BehaviorStatus.NEUTRAL : status;
+      
+      setBehaviorRecords(prev => ({ ...prev, [studentId]: next }));
+      saveSingleRecord(studentId, { behaviorStatus: next }); // Auto-save
   };
 
   const handleNoteChange = (studentId: string, note: string) => {
       setNoteRecords(prev => ({ ...prev, [studentId]: note }));
-      setSaved(false);
+      // Note: We don't auto-save on every keystroke here, waiting for blur or explicit action is better for text
+  };
+  
+  const handleNoteBlur = (studentId: string) => {
+      saveSingleRecord(studentId, { behaviorNote: noteRecords[studentId] });
   };
 
   const appendNote = (studentId: string, text: string) => {
-      setNoteRecords(prev => {
-          const current = prev[studentId] || '';
-          const updated = current ? `${current}، ${text}` : text;
-          return { ...prev, [studentId]: updated };
-      });
-      setSaved(false);
+      const current = noteRecords[studentId] || '';
+      const updated = current ? `${current}، ${text}` : text;
+      
+      setNoteRecords(prev => ({ ...prev, [studentId]: updated }));
+      saveSingleRecord(studentId, { behaviorNote: updated }); // Auto-save tag
   };
 
   const handleAddNewTag = (type: 'POS' | 'NEG') => {
@@ -310,30 +343,27 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   const handleMarkAll = (status: AttendanceStatus) => {
       const newRecords = { ...records };
+      const bulkToSave: AttendanceRecord[] = [];
+      const periodSuffix = selectedPeriod ? `-${selectedPeriod}` : '-0';
+
       filteredStudents.forEach(student => {
           newRecords[student.id] = status;
+          bulkToSave.push({
+              id: `${student.id}-${selectedDate}-${selectedSubject || 'manual'}${periodSuffix}`,
+              studentId: student.id,
+              date: selectedDate,
+              status: status,
+              subject: selectedSubject,
+              period: selectedPeriod || undefined,
+              behaviorStatus: behaviorRecords[student.id] || BehaviorStatus.NEUTRAL,
+              behaviorNote: noteRecords[student.id] || '',
+              createdById: currentUser?.id
+          });
       });
       setRecords(newRecords);
-      setSaved(false);
-  };
-
-  const handleSave = () => {
-    if (filteredStudents.length === 0 || selectedPeriod === null) return;
-    const periodSuffix = selectedPeriod ? `-${selectedPeriod}` : '-0';
-    const recordsToSave: AttendanceRecord[] = filteredStudents.map(s => ({
-      id: `${s.id}-${selectedDate}-${selectedSubject || 'manual'}${periodSuffix}`,
-      studentId: s.id,
-      date: selectedDate,
-      status: records[s.id] || AttendanceStatus.PRESENT,
-      subject: selectedSubject,
-      period: selectedPeriod || undefined,
-      behaviorStatus: behaviorRecords[s.id] || BehaviorStatus.NEUTRAL,
-      behaviorNote: noteRecords[s.id] || '',
-      createdById: currentUser?.id // Ensure audit trail
-    }));
-    onSaveAttendance(recordsToSave);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+      onSaveAttendance(bulkToSave);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
   };
 
   const handleScheduleClick = (schedule: ScheduleItem) => {
@@ -417,10 +447,15 @@ const Attendance: React.FC<AttendanceProps> = ({
                     <span className="text-sm text-gray-400">{formatDualDate(selectedDate)}</span>
                 </div>
                 {selectedClass && selectedPeriod !== null && (
-                    <div className="flex bg-gray-50 rounded-lg border text-xs">
-                        <div className="px-3 py-1 border-l text-green-700 font-bold">{stats.present} حاضر</div>
-                        <div className="px-3 py-1 border-l text-red-700 font-bold">{stats.absent} غائب</div>
-                        <div className="px-3 py-1 text-yellow-700 font-bold">{stats.late} متأخر</div>
+                    <div className="flex items-center gap-4">
+                        {isSaving && <span className="text-xs font-bold text-blue-600 flex items-center gap-1"><RefreshCw size={12} className="animate-spin"/> جاري الحفظ التلقائي...</span>}
+                        {saved && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><Check size={12}/> تم الحفظ</span>}
+                        
+                        <div className="flex bg-gray-50 rounded-lg border text-xs">
+                            <div className="px-3 py-1 border-l text-green-700 font-bold">{stats.present} حاضر</div>
+                            <div className="px-3 py-1 border-l text-red-700 font-bold">{stats.absent} غائب</div>
+                            <div className="px-3 py-1 text-yellow-700 font-bold">{stats.late} متأخر</div>
+                        </div>
                     </div>
                 )}
               </div>
@@ -530,7 +565,15 @@ const Attendance: React.FC<AttendanceProps> = ({
                                     {activeNoteStudent === student.id && (
                                         <div className="absolute bottom-full left-0 mb-2 w-72 bg-white shadow-xl rounded-xl border p-4 z-50 animate-fade-in">
                                             <div className="flex justify-between mb-2"><h4 className="text-xs font-bold">ملاحظة</h4><button onClick={() => setActiveNoteStudent(null)}><X size={14}/></button></div>
-                                            <textarea autoFocus className="w-full text-xs p-2 border rounded bg-gray-50 mb-2" rows={2} value={noteRecords[student.id] || ''} onChange={(e) => handleNoteChange(student.id, e.target.value)} placeholder="اكتب ملاحظة..."/>
+                                            <textarea 
+                                                autoFocus 
+                                                className="w-full text-xs p-2 border rounded bg-gray-50 mb-2" 
+                                                rows={2} 
+                                                value={noteRecords[student.id] || ''} 
+                                                onChange={(e) => handleNoteChange(student.id, e.target.value)}
+                                                onBlur={() => handleNoteBlur(student.id)} // Save note on blur
+                                                placeholder="اكتب ملاحظة..."
+                                            />
                                             <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
                                                 {positiveList.map(tag => <button key={tag} onClick={() => appendNote(student.id, tag)} className="text-[10px] bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100 hover:bg-green-100">{tag}</button>)}
                                                 {negativeList.map(tag => <button key={tag} onClick={() => appendNote(student.id, tag)} className="text-[10px] bg-red-50 text-red-700 px-2 py-1 rounded border border-red-100 hover:bg-red-100">{tag}</button>)}
@@ -542,10 +585,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                         </div>
                     )})}
                     </div>
-                    <div className="p-4 bg-gray-50 border-t flex justify-end sticky bottom-0">
-                         <button onClick={handleSave} disabled={filteredStudents.length === 0} className="bg-primary text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-teal-800 transition-all">
-                            {saved ? <CheckCircle2 size={20} /> : <Save size={20} />} {saved ? 'تم الحفظ' : `حفظ التحضير`}
-                         </button>
+                    {/* Auto Save Indicator instead of Big Save Button */}
+                    <div className="p-3 bg-gray-50 border-t flex justify-between items-center text-xs text-gray-500">
+                         <span className="flex items-center gap-1">
+                             <Cloud size={14} className={isSaving ? "text-blue-500 animate-pulse" : "text-green-500"}/> 
+                             {isSaving ? "جاري الحفظ التلقائي..." : "تم الحفظ تلقائياً في السحابة"}
+                         </span>
+                         <span className="font-mono text-[10px]">Auto-Save Enabled</span>
                     </div>
                 </div>
               )}

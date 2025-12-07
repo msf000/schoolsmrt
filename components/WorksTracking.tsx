@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, AlertTriangle, Zap } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, AlertTriangle, Zap, Check } from 'lucide-react';
 
 interface WorksTrackingProps {
   students: Student[];
@@ -51,6 +51,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     
     // Status States
     const [savedSuccess, setSavedSuccess] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [masterUrl, setMasterUrl] = useState('');
     const [isEditingUrl, setIsEditingUrl] = useState(false);
@@ -60,6 +61,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     // Quick Fill State
     const [quickFillValue, setQuickFillValue] = useState('');
     const [showQuickFill, setShowQuickFill] = useState<string | null>(null);
+
+    // Debounce Ref
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         // FIX: Fetch subjects including legacy/global ones by passing ID
@@ -189,11 +193,51 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             ...prev,
             [studentId]: { ...prev[studentId], [assignId]: val }
         }));
+
+        // Debounced Auto-Save
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        setIsSaving(true);
+        debounceTimerRef.current = setTimeout(() => {
+            saveSpecificScore(studentId, assignId, val);
+        }, 1000); // 1 second debounce
+    };
+
+    const saveSpecificScore = (studentId: string, assignId: string, val: string) => {
+        if (activeTab === 'YEAR_WORK') return;
+        const assignment = assignments.find(a => a.id === assignId);
+        if (!assignment) return;
+
+        const scoreVal = parseFloat(val);
+        if (isNaN(scoreVal) && val !== '') return; // Don't save invalid numbers, but allow saving empty as 0 if needed or logic below
+
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Construct single record
+        const record: PerformanceRecord = {
+            id: `${studentId}-${activeTab}-${assignId}`,
+            studentId: studentId,
+            subject: selectedSubject,
+            title: assignment.title,
+            category: activeTab,
+            score: isNaN(scoreVal) ? 0 : scoreVal, // Default to 0 if empty
+            maxScore: assignment.maxScore,
+            date: today,
+            notes: assignment.id, 
+            url: assignment.url,
+            createdById: currentUser?.id 
+        };
+
+        onAddPerformance([record]);
+        setIsSaving(false);
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 2000);
     };
 
     const handleQuickFill = (assignId: string) => {
         if (!quickFillValue) return;
         const newVal = quickFillValue;
+        
+        // 1. Update UI
         setGridData(prev => {
             const next = { ...prev };
             students.forEach(s => {
@@ -202,10 +246,45 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             });
             return next;
         });
+
+        // 2. Trigger Bulk Save
+        setIsSaving(true);
+        setTimeout(() => {
+            const recordsToSave: PerformanceRecord[] = [];
+            const today = new Date().toISOString().split('T')[0];
+            const assignment = assignments.find(a => a.id === assignId);
+            
+            if (assignment) {
+                const val = parseFloat(newVal);
+                if(!isNaN(val)) {
+                    students.forEach(student => {
+                        recordsToSave.push({
+                            id: `${student.id}-${activeTab}-${assignId}`,
+                            studentId: student.id,
+                            subject: selectedSubject,
+                            title: assignment.title,
+                            category: activeTab,
+                            score: val,
+                            maxScore: assignment.maxScore,
+                            date: today,
+                            notes: assignment.id, 
+                            url: assignment.url,
+                            createdById: currentUser?.id 
+                        });
+                    });
+                    onAddPerformance(recordsToSave);
+                }
+            }
+            setIsSaving(false);
+            setSavedSuccess(true);
+            setTimeout(() => setSavedSuccess(false), 3000);
+        }, 500);
+
         setShowQuickFill(null);
         setQuickFillValue('');
     };
 
+    // Manual Save Button (Backup)
     const handleSaveGrid = () => {
         if (activeTab === 'YEAR_WORK') return;
         const recordsToSave: PerformanceRecord[] = [];
@@ -429,6 +508,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </h2>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Saving Status Indicator */}
+                    {activeMode === 'GRADING' && (
+                        <div className="text-xs font-bold px-3 py-1 bg-white border rounded-lg flex items-center gap-1 transition-all">
+                            {isSaving ? (
+                                <><Loader2 size={12} className="animate-spin text-blue-500"/> <span className="text-blue-500">جاري الحفظ...</span></>
+                            ) : savedSuccess ? (
+                                <><CheckCircle size={12} className="text-green-500"/> <span className="text-green-500">تم الحفظ</span></>
+                            ) : (
+                                <><Cloud size={12} className="text-gray-400"/> <span className="text-gray-400">الحفظ التلقائي مفعل</span></>
+                            )}
+                        </div>
+                    )}
+
                     <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none text-sm">
                         {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
                     </select>

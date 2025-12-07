@@ -235,12 +235,30 @@ const App: React.FC = () => {
 
             {/* Sidebar */}
             <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-                    <h1 className="font-black text-xl text-gray-800">نظام المدرس الذكي</h1>
-                    <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-500"><X/></button>
+                {/* TOP: User Profile & Logout */}
+                <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-md border-2 border-indigo-100">
+                                {currentUser.name.charAt(0)}
+                            </div>
+                            <div className="overflow-hidden">
+                                <p className="text-sm font-bold text-gray-800 truncate w-32">{currentUser.name}</p>
+                                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold inline-block mt-1">
+                                    {currentUser.role === 'TEACHER' ? 'معلم' : currentUser.role === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : 'مسؤول'}
+                                </span>
+                            </div>
+                        </div>
+                        <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500"><X/></button>
+                    </div>
+
+                    <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-red-600 bg-white border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
+                        <LogOut size={16}/> تسجيل الخروج
+                    </button>
                 </div>
                 
-                <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-140px)]">
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-220px)]">
+                    <div className="text-xs font-bold text-gray-400 px-4 mb-2 mt-2">القائمة الرئيسية</div>
                     <NavItem view="DASHBOARD" label="لوحة القيادة" icon={LayoutGrid} />
                     
                     {currentUser.role === 'SUPER_ADMIN' && <NavItem view="ADMIN_DASHBOARD" label="إدارة النظام" icon={Settings} />}
@@ -259,7 +277,7 @@ const App: React.FC = () => {
                             <NavItem view="LESSON_PLANNING" label="التخطيط والإعداد" icon={PenTool} />
                             
                             <div className="pt-4 mt-4 border-t border-gray-100">
-                                <label className="px-4 text-xs font-bold text-gray-400">إضافات</label>
+                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">إضافات</label>
                                 <NavItem view="AI_REPORTS" label="تحليل AI" icon={BrainCircuit} />
                                 <NavItem view="CUSTOM_TABLES" label="جداول خاصة" icon={FileSpreadsheet} />
                                 <NavItem view="SCHOOL_MANAGEMENT" label="الإعدادات" icon={Settings} />
@@ -269,12 +287,12 @@ const App: React.FC = () => {
                     )}
                 </nav>
 
+                {/* BOTTOM: Sync Status */}
                 <div className="p-4 border-t bg-gray-50">
-                    {/* Sync Indicator Button */}
                     <button 
                         onClick={handleManualSync}
                         disabled={syncStatus === 'SYNCING' || syncStatus === 'ONLINE'}
-                        className={`mb-3 w-full flex items-center justify-between text-xs px-3 py-2 rounded border transition-colors ${
+                        className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded border transition-colors ${
                             syncStatus === 'ERROR' || syncStatus === 'OFFLINE' ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'
                         } ${
                             syncStatus === 'SYNCING' ? 'bg-blue-50 border-blue-200' :
@@ -297,23 +315,13 @@ const App: React.FC = () => {
                             }`}>
                                 {syncStatus === 'SYNCING' ? 'جاري التحديث...' :
                                  syncStatus === 'ONLINE' ? 'متصل' :
-                                 syncStatus === 'ERROR' ? 'خطأ (اضغط)' : 'غير متصل'}
+                                 syncStatus === 'ERROR' ? 'خطأ' : 'غير متصل'}
                             </span>
                         </div>
                     </button>
-
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                            {currentUser.name.charAt(0)}
-                        </div>
-                        <div className="overflow-hidden">
-                            <p className="text-sm font-bold truncate">{currentUser.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{currentUser.role === 'TEACHER' ? 'معلم' : currentUser.role === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : 'مسؤول'}</p>
-                        </div>
+                    <div className="text-center mt-2 text-[10px] text-gray-300">
+                        نظام المدرس الذكي v1.0
                     </div>
-                    <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-red-600 bg-white border border-red-100 py-2 rounded-lg text-sm font-bold hover:bg-red-50">
-                        <LogOut size={16}/> تسجيل الخروج
-                    </button>
                 </div>
             </aside>
 
