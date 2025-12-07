@@ -18,10 +18,9 @@ interface AttendanceProps {
   preSelectedSubject?: string;
   selectedDate?: string;
   onDateChange?: (date: string) => void;
-  currentUser?: SystemUser | null; // Passed for Smart Schedule Matching
+  currentUser?: SystemUser | null; 
 }
 
-// Default Predefined Notes
 const DEFAULT_POSITIVE_NOTES = [
     'مشاركة متميزة', 'حل الواجبات', 'انضباط سلوكي', 'مساعدة الزملاء', 
     'إجابة نموذجية', 'نظافة وترتيب', 'إحضار الأدوات', 'تفاعل إيجابي'
@@ -44,10 +43,8 @@ const Attendance: React.FC<AttendanceProps> = ({
     onDateChange,
     currentUser
 }) => {
-  // --- TABS STATE ---
   const [activeTab, setActiveTab] = useState<'REGISTER' | 'LOG'>('REGISTER');
 
-  // --- REGISTER TAB STATE ---
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
   const selectedDate = propDate !== undefined ? propDate : internalDate;
   
@@ -63,7 +60,6 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [noteRecords, setNoteRecords] = useState<Record<string, string>>({});
   const [activeNoteStudent, setActiveNoteStudent] = useState<string | null>(null);
 
-  // Dynamic Lists
   const [positiveList, setPositiveList] = useState<string[]>(() => {
       const saved = localStorage.getItem('behavior_positive_tags');
       return saved ? JSON.parse(saved) : DEFAULT_POSITIVE_NOTES;
@@ -84,7 +80,6 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [selectedSubject, setSelectedSubject] = useState(preSelectedSubject || '');
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
   
-  // --- LOG TAB STATE ---
   const [logFilterClass, setLogFilterClass] = useState('');
   const [logFilterDateStart, setLogFilterDateStart] = useState(() => {
       const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0];
@@ -109,32 +104,24 @@ const Attendance: React.FC<AttendanceProps> = ({
       localStorage.setItem('behavior_negative_tags', JSON.stringify(negativeList));
   }, [negativeList]);
 
-  // --- COMPUTED: Unique Classes for Filter ---
   const uniqueClasses = useMemo(() => {
       const classes = new Set(students.map(s => s.className).filter(Boolean));
       return Array.from(classes).sort();
   }, [students]);
 
-  // --- LOGIC: Filter History ---
   const filteredHistory = useMemo(() => {
       return attendanceHistory.filter(rec => {
           const student = students.find(s => s.id === rec.studentId);
           if (!student) return false;
 
-          // Date Range
           if (rec.date < logFilterDateStart || rec.date > logFilterDateEnd) return false;
-          
-          // Class Filter
           if (logFilterClass && student.className !== logFilterClass) return false;
-
-          // Text Search (Student Name)
           if (logSearch && !student.name.includes(logSearch)) return false;
 
           return true;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [attendanceHistory, students, logFilterClass, logFilterDateStart, logFilterDateEnd, logSearch]);
 
-  // --- HANDLERS: EXPORT & PRINT ---
   const handleExportLogExcel = () => {
       if (filteredHistory.length === 0) return alert('لا توجد بيانات للتصدير');
 
@@ -162,7 +149,6 @@ const Attendance: React.FC<AttendanceProps> = ({
       window.print();
   };
 
-  // --- REGISTER LOGIC ---
   const todaysSchedule = useMemo(() => {
       if (!selectedDate) return [];
       const dateObj = new Date(selectedDate);
@@ -170,10 +156,9 @@ const Attendance: React.FC<AttendanceProps> = ({
       const dayMap: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const currentDayName = dayMap[dayIndex];
 
-      // Filter by teacher if currentUser provided
       let dailySched = schedules.filter(s => s.day === currentDayName);
       if (currentUser && currentUser.role === 'TEACHER') {
-          dailySched = dailySched.filter(s => s.teacherId === currentUser.id); // Or utilize assignments logic if needed
+          dailySched = dailySched.filter(s => s.teacherId === currentUser.id); 
       }
       
       return dailySched.sort((a, b) => a.period - b.period);
@@ -237,7 +222,6 @@ const Attendance: React.FC<AttendanceProps> = ({
       return { present, absent, late };
   }, [filteredStudents, records]);
 
-  // --- Logic for Excuses ---
   const pendingExcuses = useMemo(() => {
       return attendanceHistory.filter(r => 
           (r.status === AttendanceStatus.ABSENT || r.status === AttendanceStatus.LATE) &&
@@ -257,7 +241,6 @@ const Attendance: React.FC<AttendanceProps> = ({
       }
   };
 
-  // --- Status & Behavior Handlers ---
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     setRecords(prev => ({ ...prev, [studentId]: status }));
     setSaved(false);
@@ -373,8 +356,6 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
-      
-      {/* TABS HEADER */}
       <div className="flex justify-between items-center mb-4 print:hidden">
           <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
               <button 
@@ -397,13 +378,11 @@ const Attendance: React.FC<AttendanceProps> = ({
                 <span className="hidden md:inline">صندوق الأعذار</span>
                 {pendingExcuses.length > 0 && <span className="bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full absolute -top-1 -right-1">{pendingExcuses.length}</span>}
              </button>
-             {/* Show Import buttons even in Log tab, but context might differ */}
              <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg flex items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
              <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-bold"><Sparkles size={18} /><span className="hidden md:inline">AI Import</span></button>
           </div>
       </div>
 
-      {/* --- REGISTER VIEW --- */}
       {activeTab === 'REGISTER' && (
           <div className="space-y-6 flex-1 overflow-auto">
               <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
@@ -424,7 +403,6 @@ const Attendance: React.FC<AttendanceProps> = ({
                 )}
               </div>
 
-              {/* TIMETABLE */}
               {!selectedClass && (
                   <div className="animate-fade-in space-y-6">
                       {sortedPeriods.length > 0 ? (
@@ -458,7 +436,6 @@ const Attendance: React.FC<AttendanceProps> = ({
                   </div>
               )}
 
-              {/* STUDENT LIST */}
               {selectedPeriod !== null && selectedClass && (
                 <div id="attendance-list" className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-slide-up flex-1 flex flex-col">
                     <div className="bg-gray-800 p-4 flex justify-between items-center text-white">
@@ -526,7 +503,6 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {/* --- LOG VIEW (HISTORY) --- */}
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
               <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">
@@ -555,7 +531,6 @@ const Attendance: React.FC<AttendanceProps> = ({
                           <input type="text" placeholder="بحث عن طالب..." value={logSearch} onChange={e => setLogSearch(e.target.value)} className="pl-2 pr-7 py-1 border rounded-lg outline-none text-sm w-40 focus:ring-1 focus:ring-purple-300"/>
                       </div>
                       
-                      {/* ACTION BUTTONS */}
                       <button 
                           onClick={handleExportLogExcel}
                           className="bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-green-700 transition-colors shadow-sm"
@@ -621,7 +596,6 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-       {/* --- IMPORT MODAL --- */}
       {isImportModalOpen && (
           <div className="fixed inset-0 z-[100] bg-white">
               <DataImport 
@@ -634,12 +608,11 @@ const Attendance: React.FC<AttendanceProps> = ({
                   onImportPerformance={() => {}}
                   forcedType="ATTENDANCE"
                   onClose={() => setIsImportModalOpen(false)}
-                  currentUser={currentUser} // Pass for smart matching
+                  currentUser={currentUser} 
               />
           </div>
       )}
 
-      {/* --- AI IMPORT MODAL --- */}
       {isAIImportModalOpen && (
           <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
@@ -652,14 +625,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                       onImportPerformance={() => {}}
                       forcedType="ATTENDANCE"
                       onClose={() => setIsAIImportModalOpen(false)}
-                      currentUser={currentUser} // Pass for smart matching
+                      currentUser={currentUser}
                       existingStudents={students} 
                   />
               </div>
           </div>
       )}
 
-      {/* --- EXCUSE MANAGEMENT MODAL --- */}
       {isExcuseModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">

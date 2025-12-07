@@ -22,7 +22,6 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser }) => {
   const effectiveDate = selectedDate || new Date().toISOString().split('T')[0];
   
-  // --- ROLE BASED ROUTING ---
   if (currentUser?.role === 'SUPER_ADMIN') {
       return <SystemAdminDashboard />;
   }
@@ -31,17 +30,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       return <SchoolManagerDashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} />;
   }
 
-  // Default: Teacher Dashboard
   return <TeacherDashboard students={students} attendance={attendance} performance={performance} selectedDate={effectiveDate} currentUser={currentUser} />;
 };
 
-// ... (SystemAdminDashboard and SchoolManagerDashboard remain the same, assume they are imported or kept as is) ...
-// For brevity in this response, I am focusing on the TeacherDashboard logic which is the main view needing the update.
-// However, to ensure the file is complete and valid, I will include the full SystemAdminDashboard and SchoolManagerDashboard code blocks.
-
-// ==========================================
-// 1. SYSTEM ADMIN DASHBOARD (Technical/Biz)
-// ==========================================
 const SystemAdminDashboard = () => {
     const [stats, setStats] = useState<any>({ schools: 0, users: 0, dbSize: 0 });
 
@@ -50,7 +41,7 @@ const SystemAdminDashboard = () => {
         setStats({
             schools: getSchools().length,
             users: getSystemUsers().length,
-            dbSize: storage.students + storage.attendance + storage.performance // Rough metric
+            dbSize: storage.students + storage.attendance + storage.performance 
         });
     }, []);
 
@@ -93,9 +84,6 @@ const SystemAdminDashboard = () => {
     );
 }
 
-// ==========================================
-// 2. SCHOOL MANAGER DASHBOARD
-// ==========================================
 const SchoolManagerDashboard: React.FC<{students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser: SystemUser}> = ({ students, attendance, performance, currentUser }) => {
     const totalStudents = students.length;
     const avgAttendance = attendance.length > 0 
@@ -113,7 +101,6 @@ const SchoolManagerDashboard: React.FC<{students: Student[], attendance: Attenda
                 </h1>
                 <p className="text-blue-200">متابعة الإنجازات، التقارير، وأداء المعلمين والطلاب.</p>
             </div>
-            {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <p className="text-gray-500 text-xs font-bold uppercase">إجمالي الطلاب</p>
@@ -138,9 +125,6 @@ const SchoolManagerDashboard: React.FC<{students: Student[], attendance: Attenda
     );
 }
 
-// ==========================================
-// 3. TEACHER DASHBOARD (Operational)
-// ==========================================
 const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser }) => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
@@ -150,7 +134,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       setSchedules(getSchedules());
       setAssignments(getTeacherAssignments());
       
-      // Load Feedback for this teacher
       if (currentUser?.role === 'TEACHER') {
           const teachers = getTeachers();
           const me = teachers.find(t => 
@@ -163,24 +146,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
           }
       }
   }, [currentUser]);
-
-  // --- Teacher Schedule Logic ---
-  const myDailySchedule = useMemo(() => {
-      if (!currentUser || currentUser.role !== 'TEACHER') return [];
-      
-      const dateObj = new Date(selectedDate || new Date());
-      const dayMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const currentDay = dayMap[dateObj.getDay()];
-
-      // 1. Get schedule for this day
-      const dailySched = schedules.filter(s => s.day === currentDay);
-
-      // 2. Filter for logged-in teacher
-      return dailySched.filter(s => {
-            const assignment = assignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName);
-            return assignment?.teacherId === currentUser.id;
-      }).sort((a,b) => a.period - b.period);
-  }, [schedules, assignments, currentUser, selectedDate]);
 
   const stats = useMemo(() => {
     const totalStudents = students.length;
@@ -210,7 +175,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
     ].filter(d => d.value > 0);
   }, [attendance]);
 
-  // Data for Risk Analysis
   const studentMetrics = useMemo(() => {
     return students.map(student => {
         const studentAttendance = attendance.filter(a => a.studentId === student.id);
@@ -227,7 +191,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
         const totalScore = studentPerformance.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
         const avgScore = studentPerformance.length > 0 ? (totalScore / studentPerformance.length) * 100 : 0;
 
-        // Calculate Negative Behavior Count
         const negativeBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
 
         return {
@@ -244,9 +207,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
   const atRiskStudents = studentMetrics.filter(s => s.attendance < 75 || (s.score < 50 && s.score > 0) || s.negativeBehaviors >= 3);
 
-  // --- UPDATED RECENT ACTIVITY LOGIC ---
   const recentActivity = useMemo(() => {
-      // Combine and sort latest 7 actions
       const perfs = performance.map(p => ({
           type: 'PERFORMANCE',
           date: p.date,
@@ -266,7 +227,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
               detail = `تم تسجيله ${statusText}`;
           }
           
-          // Priority to behavior in message if exists
           if (a.behaviorStatus === BehaviorStatus.POSITIVE) {
               type = 'BEHAVIOR_POS';
               detail = a.behaviorNote ? `سلوك إيجابي: ${a.behaviorNote}` : 'تسجيل سلوك إيجابي';
@@ -274,7 +234,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
               type = 'BEHAVIOR_NEG';
               detail = a.behaviorNote ? `سلوك سلبي: ${a.behaviorNote}` : 'تسجيل سلوك سلبي';
           } else if (a.behaviorNote) {
-              // Neutral note
               type = 'NOTE';
               detail = `ملاحظة: ${a.behaviorNote}`;
           }
@@ -309,7 +268,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
   return (
     <div className="space-y-6 animate-fade-in p-6">
       
-      {/* Quick Actions (AI Tools Shortcuts) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => (window as any).location.reload()}> 
               <div>
@@ -340,7 +298,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
           </div>
       </div>
 
-      {/* FEEDBACK SECTION */}
       {myFeedback.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm animate-slide-up mb-6">
               <h3 className="font-bold text-amber-800 mb-3 flex items-center gap-2">
@@ -360,7 +317,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
           </div>
       )}
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4 space-x-reverse transition-transform hover:scale-105">
           <div className="p-3 bg-blue-100 text-blue-600 rounded-full">
@@ -404,7 +360,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* At Risk Table */}
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
             <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
                 <AlertTriangle size={18} className="text-red-500"/>
@@ -455,7 +410,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
             )}
         </div>
 
-        {/* Attendance Pie Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-80 flex flex-col">
             <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
                 <Clock size={18} className="text-primary"/>
@@ -488,7 +442,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        {/* Correlation Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 flex flex-col">
             <h3 className="text-lg font-semibold mb-2 text-gray-700 flex items-center gap-2">
                 <TrendingUp size={18} className="text-blue-600"/>
@@ -513,7 +466,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
             </div>
         </div>
 
-        {/* Recent Activity */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 overflow-hidden flex flex-col">
             <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
                 <Activity size={18} className="text-purple-600"/>

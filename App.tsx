@@ -17,7 +17,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import AttendanceComponent from './components/Attendance';
-import PerformanceView from './components/Performance'; // Renamed to avoid collision with var
+import PerformanceView from './components/Performance';
 import WorksTracking from './components/WorksTracking';
 import StudentFollowUp from './components/StudentFollowUp';
 import AIReports from './components/AIReports';
@@ -61,7 +61,6 @@ const App: React.FC = () => {
     }, [currentUser]);
 
     const loadData = () => {
-        // In a real app, you would filter data based on currentUser role/school
         setStudents(getStudents());
         setAttendance(getAttendance());
         setPerformance(getPerformance());
@@ -106,7 +105,7 @@ const App: React.FC = () => {
     if (currentUser && currentUser.role === 'STUDENT') {
         return (
             <StudentPortal 
-                currentUser={currentUser as any} // Cast because Student type extends SystemUser roughly
+                currentUser={currentUser as any}
                 attendance={attendance} 
                 performance={performance} 
                 onLogout={handleLogout} 

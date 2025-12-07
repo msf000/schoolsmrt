@@ -15,7 +15,6 @@ interface StudentsProps {
 
 const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents }) => {
   
-  // States
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -23,11 +22,9 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
 
-  // Derive unique grades/classes for suggestions (DataList)
   const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
   const existingClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))), [students]);
 
-  // Form State
   const initialFormState = {
     name: '',
     nationalId: '',
@@ -41,14 +38,12 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
   };
   const [formData, setFormData] = useState(initialFormState);
 
-  // Open Add Modal
   const openAddModal = () => {
       setEditingStudent(null);
       setFormData(initialFormState);
       setIsFormModalOpen(true);
   };
 
-  // Open Edit Modal
   const openEditModal = (student: Student) => {
       setEditingStudent(student);
       setFormData({
@@ -69,13 +64,11 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
     e.preventDefault();
     if (!formData.name || !formData.nationalId) return;
 
-    // Use name as ID if no ID provided in edit, or new ID in create
-    // Also use the input values directly
     const studentData: Student = {
       id: editingStudent ? editingStudent.id : Date.now().toString(),
       name: formData.name,
       nationalId: formData.nationalId,
-      classId: formData.className, // Using name as ID for simplicity in new flat structure
+      classId: formData.className,
       gradeLevel: formData.gradeLevel,
       className: formData.className,
       email: formData.email,
@@ -83,7 +76,7 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
       parentName: formData.parentName,
       parentPhone: formData.parentPhone,
       parentEmail: formData.parentEmail,
-      schoolId: editingStudent?.schoolId // Maintain existing or allow parent to inject (handled in App.tsx)
+      schoolId: editingStudent?.schoolId 
     };
 
     try {
@@ -101,7 +94,7 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
   const handleDeleteAll = () => {
       if (window.confirm("تحذير: هل أنت متأكد من حذف جميع الطلاب؟ هذا الإجراء لا يمكن التراجع عنه.")) {
           deleteAllStudents();
-          onImportStudents([]); // Trigger refresh basically
+          onImportStudents([]); 
       }
   };
 
@@ -228,7 +221,6 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
         </div>
       </div>
 
-      {/* --- ADD / EDIT FORM MODAL --- */}
       {isFormModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl my-8">
@@ -372,7 +364,6 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
         </div>
       )}
 
-      {/* --- IMPORT MODAL (FULL SCREEN) --- */}
       {isImportModalOpen && (
           <div className="fixed inset-0 z-[100] bg-white">
               <DataImport 
@@ -389,7 +380,6 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
           </div>
       )}
 
-      {/* --- VIEW MODAL --- */}
       {isViewModalOpen && viewStudent && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl relative">

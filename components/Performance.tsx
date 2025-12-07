@@ -15,10 +15,8 @@ interface PerformanceProps {
 }
 
 const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onImportPerformance, onDeletePerformance }) => {
-  // Tabs State
   const [activeTab, setActiveTab] = useState<'ENTRY' | 'LOG'>('ENTRY');
 
-  // --- ENTRY TAB STATE ---
   const [studentId, setStudentId] = useState('');
   const [subject, setSubject] = useState('رياضيات');
   const [title, setTitle] = useState('');
@@ -29,18 +27,15 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [isSuccess, setIsSuccess] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  // Filters for Data Entry
   const [entryGrade, setEntryGrade] = useState('');
   const [entryClass, setEntryClass] = useState('');
 
-  // --- LOG TAB STATE ---
   const [logSearch, setLogSearch] = useState('');
   const [logClass, setLogClass] = useState('');
   const [logSubject, setLogSubject] = useState('');
   const [logDateStart, setLogDateStart] = useState('');
   const [logDateEnd, setLogDateEnd] = useState('');
 
-  // --- COMPUTED: Unique Values ---
   const uniqueGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
   
   const uniqueClasses = useMemo(() => {
@@ -55,7 +50,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       return Array.from(subs).sort();
   }, [performance]);
 
-  // Filter students for the dropdown (Entry Tab)
   const filteredStudentsEntry = useMemo(() => {
     return students.filter(student => {
         if (entryClass && student.className !== entryClass) return false;
@@ -64,34 +58,26 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
     });
   }, [students, entryGrade, entryClass]);
 
-  // Set default student when list changes
   useEffect(() => {
       if (filteredStudentsEntry.length > 0 && !filteredStudentsEntry.find(s => s.id === studentId)) {
           setStudentId(filteredStudentsEntry[0].id);
       }
   }, [filteredStudentsEntry, studentId]);
 
-  // --- LOGIC: Filter History (Log Tab) ---
   const filteredHistory = useMemo(() => {
       return performance.filter(p => {
           const student = students.find(s => s.id === p.studentId);
-          if (!student) return false; // Skip orphaned records
+          if (!student) return false; 
 
-          // Search
           if (logSearch && !student.name.includes(logSearch) && !p.title.includes(logSearch)) return false;
-          // Class
           if (logClass && student.className !== logClass) return false;
-          // Subject
           if (logSubject && p.subject !== logSubject) return false;
-          // Date Range
           if (logDateStart && p.date < logDateStart) return false;
           if (logDateEnd && p.date > logDateEnd) return false;
 
           return true;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [performance, students, logSearch, logClass, logSubject, logDateStart, logDateEnd]);
-
-  // --- HANDLERS ---
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,8 +163,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
 
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
-      
-      {/* HEADER & TABS */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4 print:hidden">
         <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
             <button 
@@ -206,10 +190,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
         </div>
       </div>
 
-      {/* --- ENTRY TAB --- */}
       {activeTab === 'ENTRY' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
-            {/* Entry Form */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-lg text-gray-700">إضافة درجة جديدة يدوياً</h3>
@@ -218,7 +200,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                     </span>
                 </div>
                 
-                {/* Quick Filters */}
                 <div className="bg-gray-50 p-3 rounded-lg mb-4 grid grid-cols-2 gap-2 border border-gray-200">
                     <div className="col-span-2 text-xs font-bold text-gray-500 flex items-center gap-1 mb-1">
                         <Filter size={12}/> تصفية قائمة الطلاب
@@ -325,7 +306,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                 </form>
             </div>
 
-            {/* Recent History */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-fit">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800">
                 <FileText className="text-purple-500" />
@@ -362,7 +342,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
           </div>
       )}
 
-      {/* --- LOG TAB --- */}
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
               <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">
@@ -465,7 +444,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
           </div>
       )}
 
-       {/* --- IMPORT MODAL --- */}
        {isImportModalOpen && (
           <div className="fixed inset-0 z-[100] bg-white">
               <DataImport 
