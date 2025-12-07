@@ -1,12 +1,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, SystemUser } from '../types';
+import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
 import { deleteAllStudents } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity } from 'lucide-react';
 import DataImport from './DataImport';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
 
 interface StudentsProps {
   students: Student[];
+  attendance?: AttendanceRecord[]; 
+  performance?: PerformanceRecord[]; 
   onAddStudent: (student: Student) => void;
   onUpdateStudent: (student: Student) => void;
   onDeleteStudent: (id: string) => void;
@@ -14,9 +17,8 @@ interface StudentsProps {
   currentUser?: SystemUser | null;
 }
 
-const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents, currentUser }) => {
+const Students: React.FC<StudentsProps> = ({ students, attendance = [], performance = [], onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents, currentUser }) => {
   
-  // Safety Check
   if (!students) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
   }
@@ -30,6 +32,43 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
 
   const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
   const existingClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))), [students]);
+
+  // Calculate Student Stats for View Modal
+  const studentStats = useMemo(() => {
+      if (!viewStudent) return null;
+      
+      const sAtt = attendance.filter(a => a.studentId === viewStudent.id);
+      const sPerf = performance.filter(p => p.studentId === viewStudent.id);
+
+      // Attendance Stats
+      const totalDays = sAtt.length;
+      const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+      const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+      const late = sAtt.filter(a => a.status === AttendanceStatus.LATE).length;
+      const attRate = totalDays > 0 ? Math.round(((present + late) / totalDays) * 100) : 100;
+
+      // Behavior Stats
+      const posBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
+      const negBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
+
+      // Academic Stats
+      const scores = sPerf.map(p => ({ score: p.score, max: p.maxScore || 10 }));
+      const totalScore = scores.reduce((sum, i) => sum + i.score, 0);
+      const totalMax = scores.reduce((sum, i) => sum + i.max, 0);
+      const avgScore = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+      
+      // Chart Data: Last 5 Grades
+      const recentGrades = sPerf
+        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // Chronological order
+        .slice(-5)
+        .map(p => ({
+            name: p.title || p.subject,
+            score: p.score,
+            max: p.maxScore
+        }));
+
+      return { attRate, absent, late, posBehavior, negBehavior, avgScore, recentGrades };
+  }, [viewStudent, attendance, performance]);
 
   const initialFormState = {
     name: '',
@@ -70,7 +109,6 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
     e.preventDefault();
     if (!formData.name || !formData.nationalId) return;
 
-    // Determine School ID
     let finalSchoolId = editingStudent?.schoolId;
     if (!finalSchoolId && currentUser?.schoolId) {
         finalSchoolId = currentUser.schoolId;
@@ -394,45 +432,109 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
           </div>
       )}
 
-      {isViewModalOpen && viewStudent && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl relative">
-                  <button onClick={() => setIsViewModalOpen(false)} className="absolute left-4 top-4 text-gray-400 hover:text-gray-600"><X size={24}/></button>
-                  <div className="text-center mb-6">
-                      <div className="w-20 h-20 bg-gray-100 rounded-full mx-auto flex items-center justify-center text-gray-400 mb-3">
-                          <User size={40} />
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-800">{viewStudent.name}</h3>
-                      <p className="text-gray-500">{viewStudent.gradeLevel} - {viewStudent.className}</p>
-                  </div>
+      {isViewModalOpen && viewStudent && studentStats && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl w-full max-w-3xl shadow-xl relative overflow-hidden flex flex-col max-h-[90vh]">
+                  <div className="absolute top-0 right-0 left-0 h-24 bg-gradient-to-r from-blue-600 to-purple-600"></div>
                   
-                  <div className="space-y-4">
-                      <div className="bg-gray-50 p-3 rounded-lg flex items-center gap-3">
-                          <FileText className="text-primary" size={20}/>
-                          <div>
-                              <p className="text-xs text-gray-500">رقم الهوية</p>
-                              <p className="font-mono font-bold">{viewStudent.nationalId || 'غير مسجل'}</p>
+                  <div className="relative pt-12 px-6 pb-6 overflow-y-auto custom-scrollbar">
+                      <button onClick={() => setIsViewModalOpen(false)} className="absolute left-4 top-4 text-white/80 hover:text-white bg-black/20 p-2 rounded-full"><X size={20}/></button>
+                      
+                      <div className="flex flex-col items-center mb-6">
+                          <div className="w-24 h-24 bg-white rounded-full p-1 shadow-lg mb-3">
+                              <div className="w-full h-full bg-gray-100 rounded-full flex items-center justify-center text-gray-400 border-2 border-white text-3xl font-bold">
+                                  {viewStudent.name.charAt(0)}
+                              </div>
+                          </div>
+                          <h3 className="text-2xl font-bold text-gray-900">{viewStudent.name}</h3>
+                          <p className="text-gray-500 font-medium">{viewStudent.gradeLevel} - {viewStudent.className}</p>
+                          <div className="mt-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-mono font-bold">
+                              ID: {viewStudent.nationalId || 'N/A'}
+                          </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                          {/* Attendance Card */}
+                          <div className="bg-white border rounded-xl p-4 shadow-sm relative overflow-hidden group">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+                              <h4 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Clock size={12}/> الحضور</h4>
+                              <div className="flex items-end gap-1">
+                                  <span className={`text-2xl font-black ${studentStats.attRate >= 90 ? 'text-green-600' : studentStats.attRate >= 75 ? 'text-yellow-600' : 'text-red-600'}`}>{studentStats.attRate}%</span>
+                                  <span className="text-gray-400 text-xs mb-1">نسبة الحضور</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400 mt-2">
+                                  غياب: <b className="text-red-500">{studentStats.absent}</b> | تأخر: <b className="text-yellow-600">{studentStats.late}</b>
+                              </p>
+                          </div>
+
+                          {/* Academic Card */}
+                          <div className="bg-white border rounded-xl p-4 shadow-sm relative overflow-hidden group">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                              <h4 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><TrendingUp size={12}/> الأكاديمي</h4>
+                              <div className="flex items-end gap-1">
+                                  <span className="text-2xl font-black text-blue-600">{studentStats.avgScore}%</span>
+                                  <span className="text-gray-400 text-xs mb-1">المعدل</span>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-500">
+                                  بناءً على {performance.filter(p => p.studentId === viewStudent.id).length} تقييم
+                              </div>
+                          </div>
+
+                          {/* Behavior Card */}
+                          <div className="bg-white border rounded-xl p-4 shadow-sm relative overflow-hidden group">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
+                              <h4 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Smile size={12}/> السلوك</h4>
+                              <div className="flex justify-between items-center mt-2">
+                                  <div className="text-center">
+                                      <div className="text-green-600 font-bold text-lg">{studentStats.posBehavior}</div>
+                                      <div className="text-[9px] text-gray-400">إيجابي</div>
+                                  </div>
+                                  <div className="w-[1px] h-8 bg-gray-100"></div>
+                                  <div className="text-center">
+                                      <div className="text-red-600 font-bold text-lg">{studentStats.negBehavior}</div>
+                                      <div className="text-[9px] text-gray-400">سلبي</div>
+                                  </div>
+                              </div>
                           </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
-                           <div className="bg-gray-50 p-3 rounded-lg">
-                                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Phone size={12}/> جوال الطالب</p>
-                                <p className="font-mono dir-ltr text-right text-sm font-bold">{viewStudent.phone || '-'}</p>
-                           </div>
-                           <div className="bg-gray-50 p-3 rounded-lg">
-                                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Mail size={12}/> إيميل الطالب</p>
-                                <p className="font-mono text-sm font-bold break-all">{viewStudent.email || '-'}</p>
-                           </div>
-                      </div>
+                      {/* Performance Chart */}
+                      {studentStats.recentGrades.length > 0 && (
+                          <div className="bg-white p-4 rounded-xl border border-gray-200 mb-6 h-64">
+                              <h4 className="font-bold text-gray-700 text-sm mb-4 flex items-center gap-2"><Activity size={16}/> تطور المستوى الأكاديمي</h4>
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={studentStats.recentGrades}>
+                                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                      <XAxis dataKey="name" tick={{fontSize: 10}} height={20} tickFormatter={(val) => val.length > 10 ? val.substr(0,10)+'..' : val}/>
+                                      <YAxis domain={[0, 'dataMax']} tick={{fontSize: 10}} width={30}/>
+                                      <Tooltip 
+                                          contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                          labelStyle={{fontWeight: 'bold', color: '#374151'}}
+                                      />
+                                      <Line type="monotone" dataKey="score" stroke="#8884d8" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
+                                  </LineChart>
+                              </ResponsiveContainer>
+                          </div>
+                      )}
 
-                      <div className="border-t pt-4">
-                          <p className="font-bold text-gray-800 mb-3 text-sm">بيانات ولي الأمر</p>
+                      <div className="space-y-4">
+                          <h4 className="font-bold text-gray-800 text-sm border-b pb-2">بيانات التواصل</h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                               <div className="bg-gray-50 p-3 rounded-lg">
+                                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Phone size={12}/> جوال الطالب</p>
+                                    <p className="font-mono dir-ltr text-right text-sm font-bold">{viewStudent.phone || '-'}</p>
+                               </div>
+                               <div className="bg-gray-50 p-3 rounded-lg">
+                                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Mail size={12}/> إيميل الطالب</p>
+                                    <p className="font-mono text-sm font-bold break-all">{viewStudent.email || '-'}</p>
+                               </div>
+                          </div>
+
                           <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                                <p className="font-bold text-gray-800 flex items-center gap-2"><User size={16}/> {viewStudent.parentName || 'غير مسجل'}</p>
+                                <p className="font-bold text-gray-800 flex items-center gap-2 mb-2"><User size={16}/> ولي الأمر: {viewStudent.parentName || 'غير مسجل'}</p>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
-                                    <span className="flex items-center gap-1 text-gray-600"><Phone size={14}/> {viewStudent.parentPhone || '-'}</span>
-                                    <span className="flex items-center gap-1 text-gray-600"><Mail size={14}/> {viewStudent.parentEmail || '-'}</span>
+                                    <span className="flex items-center gap-1 text-gray-600 font-mono"><Phone size={14}/> {viewStudent.parentPhone || '-'}</span>
+                                    <span className="flex items-center gap-1 text-gray-600 font-mono"><Mail size={14}/> {viewStudent.parentEmail || '-'}</span>
                                 </div>
                           </div>
                       </div>

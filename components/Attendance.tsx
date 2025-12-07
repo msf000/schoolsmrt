@@ -1,10 +1,9 @@
 
-// ... existing imports ...
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -44,7 +43,6 @@ const Attendance: React.FC<AttendanceProps> = ({
     onDateChange,
     currentUser
 }) => {
-  // --- SAFETY CHECK ---
   if (!students) {
       return (
           <div className="flex flex-col items-center justify-center h-full p-12 text-center">
@@ -55,6 +53,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   }
 
   const [activeTab, setActiveTab] = useState<'REGISTER' | 'LOG'>('REGISTER');
+  const [viewMode, setViewMode] = useState<'LIST' | 'GRID'>('GRID'); // Default to Grid for better UX
 
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
   const selectedDate = propDate !== undefined ? propDate : internalDate;
@@ -82,7 +81,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [newNoteInput, setNewNoteInput] = useState('');
 
   const [saved, setSaved] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // New state for auto-save indicator
+  const [isSaving, setIsSaving] = useState(false); 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
   const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
@@ -92,7 +91,6 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [selectedSubject, setSelectedSubject] = useState(preSelectedSubject || '');
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
   
-  // Manual Selection State
   const [manualClass, setManualClass] = useState('');
   const [manualSubject, setManualSubject] = useState('');
   
@@ -141,7 +139,6 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   const handleExportLogExcel = () => {
       if (filteredHistory.length === 0) return alert('لا توجد بيانات للتصدير');
-
       const dataToExport = filteredHistory.map(rec => {
           const student = students.find(s => s.id === rec.studentId);
           return {
@@ -155,16 +152,13 @@ const Attendance: React.FC<AttendanceProps> = ({
               'ملاحظات': rec.behaviorNote || ''
           };
       });
-
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "سجل الحضور");
       XLSX.writeFile(wb, `Attendance_Log_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const handlePrintLog = () => {
-      window.print();
-  };
+  const handlePrintLog = () => window.print();
 
   const todaysSchedule = useMemo(() => {
       if (!selectedDate) return [];
@@ -175,10 +169,8 @@ const Attendance: React.FC<AttendanceProps> = ({
 
       let dailySched = schedules.filter(s => s.day === currentDayName);
       if (currentUser && currentUser.role === 'TEACHER') {
-          // FIX: Show schedule items belonging to me OR orphan items (legacy support)
           dailySched = dailySched.filter(s => s.teacherId === currentUser.id || !s.teacherId); 
       }
-      
       return dailySched.sort((a, b) => a.period - b.period);
   }, [selectedDate, schedules, currentUser]);
 
@@ -209,7 +201,6 @@ const Attendance: React.FC<AttendanceProps> = ({
         setNoteRecords({});
         return;
     }
-    // FIX: Match period carefully (0 for manual)
     const existing = attendanceHistory.filter(a => {
         const p = a.period !== undefined ? Number(a.period) : 0;
         const sp = Number(selectedPeriod);
@@ -263,15 +254,12 @@ const Attendance: React.FC<AttendanceProps> = ({
       }
   };
 
-  // Helper for Auto-Saving single record
   const saveSingleRecord = (studentId: string, updates: Partial<AttendanceRecord>) => {
       if (selectedPeriod === null) return;
       setIsSaving(true);
-      
       const periodSuffix = selectedPeriod ? `-${selectedPeriod}` : '-0';
       const recordId = `${studentId}-${selectedDate}-${selectedSubject || 'manual'}${periodSuffix}`;
       
-      // Merge with current state
       const currentStatus = records[studentId] || AttendanceStatus.PRESENT;
       const currentBehavior = behaviorRecords[studentId] || BehaviorStatus.NEUTRAL;
       const currentNote = noteRecords[studentId] || '';
@@ -288,27 +276,37 @@ const Attendance: React.FC<AttendanceProps> = ({
           createdById: currentUser?.id
       };
 
-      onSaveAttendance([record]); // Auto save immediately
-      
+      onSaveAttendance([record]);
       setTimeout(() => setIsSaving(false), 500);
   };
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     setRecords(prev => ({ ...prev, [studentId]: status }));
-    saveSingleRecord(studentId, { status }); // Auto-save
+    saveSingleRecord(studentId, { status });
+  };
+
+  // Toggle for Grid View: Present -> Absent -> Late -> Present
+  const handleGridStatusToggle = (studentId: string) => {
+      const current = records[studentId] || AttendanceStatus.PRESENT;
+      let next = AttendanceStatus.PRESENT;
+      
+      if (current === AttendanceStatus.PRESENT) next = AttendanceStatus.ABSENT;
+      else if (current === AttendanceStatus.ABSENT) next = AttendanceStatus.LATE;
+      else if (current === AttendanceStatus.LATE) next = AttendanceStatus.PRESENT;
+      else if (current === AttendanceStatus.EXCUSED) next = AttendanceStatus.PRESENT;
+
+      handleStatusChange(studentId, next);
   };
 
   const handleBehaviorChange = (studentId: string, status: BehaviorStatus) => {
       const current = behaviorRecords[studentId];
       const next = current === status ? BehaviorStatus.NEUTRAL : status;
-      
       setBehaviorRecords(prev => ({ ...prev, [studentId]: next }));
-      saveSingleRecord(studentId, { behaviorStatus: next }); // Auto-save
+      saveSingleRecord(studentId, { behaviorStatus: next });
   };
 
   const handleNoteChange = (studentId: string, note: string) => {
       setNoteRecords(prev => ({ ...prev, [studentId]: note }));
-      // Note: We don't auto-save on every keystroke here, waiting for blur or explicit action is better for text
   };
   
   const handleNoteBlur = (studentId: string) => {
@@ -318,28 +316,9 @@ const Attendance: React.FC<AttendanceProps> = ({
   const appendNote = (studentId: string, text: string) => {
       const current = noteRecords[studentId] || '';
       const updated = current ? `${current}، ${text}` : text;
-      
       setNoteRecords(prev => ({ ...prev, [studentId]: updated }));
-      saveSingleRecord(studentId, { behaviorNote: updated }); // Auto-save tag
+      saveSingleRecord(studentId, { behaviorNote: updated });
   };
-
-  const handleAddNewTag = (type: 'POS' | 'NEG') => {
-      if(!newNoteInput.trim()) return;
-      if (type === 'POS') {
-          if (!positiveList.includes(newNoteInput)) setPositiveList(prev => [...prev, newNoteInput]);
-      } else {
-          if (!negativeList.includes(newNoteInput)) setNegativeList(prev => [...prev, newNoteInput]);
-      }
-      setNewNoteInput('');
-  };
-
-  const handleDeleteTag = (type: 'POS' | 'NEG', tag: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (confirm(`هل تريد حذف "${tag}" من القائمة؟`)) {
-          if(type === 'POS') setPositiveList(prev => prev.filter(t => t !== tag));
-          else setNegativeList(prev => prev.filter(t => t !== tag));
-      }
-  }
 
   const handleMarkAll = (status: AttendanceStatus) => {
       const newRecords = { ...records };
@@ -371,7 +350,7 @@ const Attendance: React.FC<AttendanceProps> = ({
       setSelectedSubject(schedule.subjectName);
       setSelectedPeriod(schedule.period);
       setTimeout(() => {
-          document.getElementById('attendance-list')?.scrollIntoView({ behavior: 'smooth' });
+          document.getElementById('attendance-workspace')?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
   };
 
@@ -399,28 +378,15 @@ const Attendance: React.FC<AttendanceProps> = ({
       return { absentCount, avgGrade, hasPerf: myPerf.length > 0 };
   }
 
-  const statusOptions = [
-    { value: AttendanceStatus.PRESENT, label: 'حاضر', color: 'bg-green-100 text-green-700 border-green-200' },
-    { value: AttendanceStatus.ABSENT, label: 'غائب', color: 'bg-red-100 text-red-700 border-red-200' },
-    { value: AttendanceStatus.LATE, label: 'متأخر', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-    { value: AttendanceStatus.EXCUSED, label: 'عذر', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  ];
-
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4 print:hidden">
           <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
-              <button 
-                  onClick={() => setActiveTab('REGISTER')}
-                  className={`px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
+              <button onClick={() => setActiveTab('REGISTER')} className={`px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <CheckSquare size={18}/> تسجيل الحضور
               </button>
-              <button 
-                  onClick={() => setActiveTab('LOG')}
-                  className={`px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'LOG' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
-                  <History size={18}/> السجل الشامل (غياب وسلوك)
+              <button onClick={() => setActiveTab('LOG')} className={`px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'LOG' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <History size={18}/> السجل الشامل
               </button>
           </div>
 
@@ -448,13 +414,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                 </div>
                 {selectedClass && selectedPeriod !== null && (
                     <div className="flex items-center gap-4">
-                        {isSaving && <span className="text-xs font-bold text-blue-600 flex items-center gap-1"><RefreshCw size={12} className="animate-spin"/> جاري الحفظ التلقائي...</span>}
+                        {isSaving && <span className="text-xs font-bold text-blue-600 flex items-center gap-1"><RefreshCw size={12} className="animate-spin"/> جاري الحفظ...</span>}
                         {saved && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><Check size={12}/> تم الحفظ</span>}
                         
-                        <div className="flex bg-gray-50 rounded-lg border text-xs">
-                            <div className="px-3 py-1 border-l text-green-700 font-bold">{stats.present} حاضر</div>
-                            <div className="px-3 py-1 border-l text-red-700 font-bold">{stats.absent} غائب</div>
-                            <div className="px-3 py-1 text-yellow-700 font-bold">{stats.late} متأخر</div>
+                        <div className="flex bg-gray-50 rounded-lg border text-xs overflow-hidden">
+                            <div className="px-3 py-1 bg-green-100 text-green-800 font-bold border-l border-green-200">{stats.present} حاضر</div>
+                            <div className="px-3 py-1 bg-red-100 text-red-800 font-bold border-l border-red-200">{stats.absent} غائب</div>
+                            <div className="px-3 py-1 bg-yellow-100 text-yellow-800 font-bold">{stats.late} متأخر</div>
                         </div>
                     </div>
                 )}
@@ -462,8 +428,6 @@ const Attendance: React.FC<AttendanceProps> = ({
 
               {!selectedClass && (
                   <div className="animate-fade-in space-y-6">
-                      
-                      {/* Manual Selection Fallback */}
                       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-end">
                            <div className="flex flex-col">
                                <label className="block text-xs font-bold text-gray-500 mb-1">فصل (اختيار يدوي)</label>
@@ -478,11 +442,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                            </div>
                            <button 
                               disabled={!manualClass}
-                              onClick={() => {
-                                  setSelectedClass(manualClass);
-                                  setSelectedSubject(manualSubject);
-                                  setSelectedPeriod(0); // 0 indicates manual/no-period
-                              }}
+                              onClick={() => { setSelectedClass(manualClass); setSelectedSubject(manualSubject); setSelectedPeriod(0); }}
                               className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-bold hover:bg-black disabled:opacity-50 transition-colors"
                            >
                                بدء التحضير
@@ -521,8 +481,9 @@ const Attendance: React.FC<AttendanceProps> = ({
               )}
 
               {selectedPeriod !== null && selectedClass && (
-                <div id="attendance-list" className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-slide-up flex-1 flex flex-col">
-                    <div className="bg-gray-800 p-4 flex justify-between items-center text-white">
+                <div id="attendance-workspace" className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-slide-up flex-1 flex flex-col">
+                    {/* Header Bar */}
+                    <div className="bg-gray-800 p-4 flex justify-between items-center text-white sticky top-0 z-20">
                         <div className="flex items-center gap-4">
                             <button onClick={handleBackToSchedule} className="p-2 hover:bg-white/10 rounded-full transition-colors"><ArrowRight size={20}/></button>
                             <div>
@@ -531,61 +492,122 @@ const Attendance: React.FC<AttendanceProps> = ({
                             </div>
                         </div>
                         <div className="flex gap-2">
+                            {/* View Toggle */}
+                            <div className="flex bg-white/10 p-1 rounded-lg border border-white/20">
+                                <button onClick={() => setViewMode('GRID')} className={`p-1.5 rounded ${viewMode === 'GRID' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><LayoutGrid size={16}/></button>
+                                <button onClick={() => setViewMode('LIST')} className={`p-1.5 rounded ${viewMode === 'LIST' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><List size={16}/></button>
+                            </div>
+                            <div className="w-[1px] bg-white/20 mx-1"></div>
                             <button onClick={() => handleMarkAll(AttendanceStatus.PRESENT)} className="flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-700 border border-green-500">تحضير الكل</button>
                             <button onClick={() => handleMarkAll(AttendanceStatus.ABSENT)} className="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-700 border border-red-500">غياب للكل</button>
                         </div>
                     </div>
 
-                    <div className="divide-y divide-gray-100 overflow-y-auto flex-1 p-2">
-                    {filteredStudents.map(student => {
-                        const metrics = getStudentMetrics(student.id);
-                        return (
-                        <div key={student.id} className="grid grid-cols-12 p-3 items-center hover:bg-gray-50 transition-colors group gap-y-3 rounded-lg border border-transparent hover:border-gray-100">
-                            <div className="col-span-12 md:col-span-3 font-medium">
-                                <span className="text-gray-800 font-bold block">{student.name}</span>
-                                <div className="flex flex-wrap items-center gap-2 mt-1">
-                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
-                                    {metrics.absentCount > 3 && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 font-bold flex gap-1"><AlertCircle size={10}/> غ: {metrics.absentCount}</span>}
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-5 flex gap-1">
-                                {statusOptions.map((opt) => (
-                                <button key={opt.value} onClick={() => handleStatusChange(student.id, opt.value)} className={`flex-1 py-1.5 rounded-md text-xs font-bold border transition-all ${records[student.id] === opt.value ? `${opt.color} shadow-sm` : 'bg-white text-gray-500 border-gray-200'}`}>
-                                    {opt.label}
-                                </button>
-                                ))}
-                            </div>
-                            <div className="col-span-12 md:col-span-4 flex items-center justify-end gap-2">
-                                <div className="flex bg-gray-50 p-1 rounded-lg border">
-                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-green-500'}`}><Smile size={18}/></button>
-                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-red-500'}`}><Frown size={18}/></button>
-                                </div>
-                                <div className="relative">
-                                    <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`p-2 rounded-lg border transition-all ${noteRecords[student.id] ? 'bg-yellow-50 border-yellow-200 text-yellow-600' : 'bg-white text-gray-400'}`}><MessageSquare size={16}/></button>
-                                    {activeNoteStudent === student.id && (
-                                        <div className="absolute bottom-full left-0 mb-2 w-72 bg-white shadow-xl rounded-xl border p-4 z-50 animate-fade-in">
-                                            <div className="flex justify-between mb-2"><h4 className="text-xs font-bold">ملاحظة</h4><button onClick={() => setActiveNoteStudent(null)}><X size={14}/></button></div>
-                                            <textarea 
-                                                autoFocus 
-                                                className="w-full text-xs p-2 border rounded bg-gray-50 mb-2" 
-                                                rows={2} 
-                                                value={noteRecords[student.id] || ''} 
-                                                onChange={(e) => handleNoteChange(student.id, e.target.value)}
-                                                onBlur={() => handleNoteBlur(student.id)} // Save note on blur
-                                                placeholder="اكتب ملاحظة..."
-                                            />
-                                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                                                {positiveList.map(tag => <button key={tag} onClick={() => appendNote(student.id, tag)} className="text-[10px] bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100 hover:bg-green-100">{tag}</button>)}
-                                                {negativeList.map(tag => <button key={tag} onClick={() => appendNote(student.id, tag)} className="text-[10px] bg-red-50 text-red-700 px-2 py-1 rounded border border-red-100 hover:bg-red-100">{tag}</button>)}
+                    {/* Students List/Grid */}
+                    <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                        {viewMode === 'LIST' ? (
+                            <div className="divide-y divide-gray-200 bg-white rounded-xl border shadow-sm">
+                                {filteredStudents.map(student => {
+                                    const metrics = getStudentMetrics(student.id);
+                                    return (
+                                    <div key={student.id} className="grid grid-cols-12 p-3 items-center hover:bg-gray-50 transition-colors group gap-y-3">
+                                        <div className="col-span-12 md:col-span-3 font-medium">
+                                            <span className="text-gray-800 font-bold block">{student.name}</span>
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
+                                                {metrics.absentCount > 3 && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 font-bold flex gap-1"><AlertCircle size={10}/> غ: {metrics.absentCount}</span>}
                                             </div>
                                         </div>
-                                    )}
+                                        <div className="col-span-12 md:col-span-5 flex gap-1">
+                                            {[AttendanceStatus.PRESENT, AttendanceStatus.ABSENT, AttendanceStatus.LATE, AttendanceStatus.EXCUSED].map((st) => (
+                                                <button key={st} onClick={() => handleStatusChange(student.id, st)} className={`flex-1 py-1.5 rounded-md text-xs font-bold border transition-all ${records[student.id] === st ? (st === AttendanceStatus.PRESENT ? 'bg-green-100 text-green-700 border-green-200' : st === AttendanceStatus.ABSENT ? 'bg-red-100 text-red-700 border-red-200' : st === AttendanceStatus.LATE ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-blue-100 text-blue-700 border-blue-200') : 'bg-white text-gray-500 border-gray-200'}`}>
+                                                    {st === 'PRESENT' ? 'حاضر' : st === 'ABSENT' ? 'غائب' : st === 'LATE' ? 'متأخر' : 'عذر'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="col-span-12 md:col-span-4 flex items-center justify-end gap-2">
+                                            <div className="flex bg-gray-50 p-1 rounded-lg border">
+                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-green-500'}`}><Smile size={18}/></button>
+                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-red-500'}`}><Frown size={18}/></button>
+                                            </div>
+                                            <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`p-2 rounded-lg border transition-all ${noteRecords[student.id] ? 'bg-yellow-50 border-yellow-200 text-yellow-600' : 'bg-white text-gray-400'}`}><MessageSquare size={16}/></button>
+                                        </div>
+                                    </div>
+                                )})}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                {filteredStudents.map(student => {
+                                    const status = records[student.id] || AttendanceStatus.PRESENT;
+                                    const behavior = behaviorRecords[student.id];
+                                    const metrics = getStudentMetrics(student.id);
+                                    
+                                    const bgClass = status === AttendanceStatus.PRESENT ? 'bg-white border-gray-200' : 
+                                                    status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-300 ring-1 ring-red-200' : 
+                                                    status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-300 ring-1 ring-yellow-200' : 
+                                                    'bg-blue-50 border-blue-300 ring-1 ring-blue-200';
+
+                                    return (
+                                        <div 
+                                            key={student.id}
+                                            onClick={() => handleGridStatusToggle(student.id)}
+                                            onDoubleClick={() => setActiveNoteStudent(student.id)}
+                                            className={`relative p-3 rounded-xl border shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md select-none flex flex-col justify-between h-32 ${bgClass}`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'PRESENT' ? 'bg-gray-300' : status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-blue-500'}`}>
+                                                    {student.name.charAt(0)}
+                                                </div>
+                                                {metrics.absentCount > 3 && (
+                                                    <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200">
+                                                        {metrics.absentCount} غ
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="mt-2 text-right">
+                                                <span className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight">{student.name}</span>
+                                            </div>
+
+                                            <div className="flex justify-between items-end mt-2 pt-2 border-t border-black/5" onClick={e => e.stopPropagation()}>
+                                                <div className="flex gap-1">
+                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-green-100'}`}><Smile size={14}/></button>
+                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-red-100'}`}><Frown size={14}/></button>
+                                                </div>
+                                                <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`text-xs ${noteRecords[student.id] ? 'text-yellow-600' : 'text-gray-300'}`}><MessageSquare size={14}/></button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        
+                        {/* Note Popup Overlay */}
+                        {activeNoteStudent && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={() => setActiveNoteStudent(null)}>
+                                <div className="bg-white p-4 rounded-xl shadow-2xl w-80 animate-bounce-in" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="font-bold text-gray-800">ملاحظة للطالب</h4>
+                                        <button onClick={() => setActiveNoteStudent(null)} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
+                                    </div>
+                                    <textarea 
+                                        autoFocus 
+                                        className="w-full text-sm p-3 border rounded-lg bg-gray-50 mb-3 focus:ring-2 focus:ring-blue-500 outline-none" 
+                                        rows={3} 
+                                        value={noteRecords[activeNoteStudent] || ''} 
+                                        onChange={(e) => handleNoteChange(activeNoteStudent, e.target.value)}
+                                        onBlur={() => handleNoteBlur(activeNoteStudent)} 
+                                        placeholder="اكتب ملاحظة..."
+                                    />
+                                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar">
+                                        {positiveList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100 hover:bg-green-100">{tag}</button>)}
+                                        {negativeList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded border border-red-100 hover:bg-red-100">{tag}</button>)}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )})}
+                        )}
                     </div>
-                    {/* Auto Save Indicator instead of Big Save Button */}
+                    
                     <div className="p-3 bg-gray-50 border-t flex justify-between items-center text-xs text-gray-500">
                          <span className="flex items-center gap-1">
                              <Cloud size={14} className={isSaving ? "text-blue-500 animate-pulse" : "text-green-500"}/> 
