@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student } from '../types';
+import { Student, SystemUser } from '../types';
 import { deleteAllStudents } from '../services/storageService';
 import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock } from 'lucide-react';
 import DataImport from './DataImport';
@@ -11,9 +11,10 @@ interface StudentsProps {
   onUpdateStudent: (student: Student) => void;
   onDeleteStudent: (id: string) => void;
   onImportStudents: (students: Student[], matchKey?: keyof Student, strategy?: 'UPDATE' | 'SKIP' | 'NEW', updateFields?: string[]) => void;
+  currentUser?: SystemUser | null;
 }
 
-const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents }) => {
+const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents, currentUser }) => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -64,6 +65,12 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
     e.preventDefault();
     if (!formData.name || !formData.nationalId) return;
 
+    // Determine School ID
+    let finalSchoolId = editingStudent?.schoolId;
+    if (!finalSchoolId && currentUser?.schoolId) {
+        finalSchoolId = currentUser.schoolId;
+    }
+
     const studentData: Student = {
       id: editingStudent ? editingStudent.id : Date.now().toString(),
       name: formData.name,
@@ -76,7 +83,8 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
       parentName: formData.parentName,
       parentPhone: formData.parentPhone,
       parentEmail: formData.parentEmail,
-      schoolId: editingStudent?.schoolId 
+      schoolId: finalSchoolId,
+      createdById: editingStudent?.createdById || currentUser?.id
     };
 
     try {
@@ -376,6 +384,7 @@ const Students: React.FC<StudentsProps> = ({ students, onAddStudent, onUpdateStu
                   onImportPerformance={() => {}}
                   forcedType="STUDENTS"
                   onClose={() => setIsImportModalOpen(false)}
+                  currentUser={currentUser}
               />
           </div>
       )}

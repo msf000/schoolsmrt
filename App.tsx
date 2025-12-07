@@ -75,9 +75,25 @@ const App: React.FC = () => {
     }, [currentUser]);
 
     const loadData = () => {
-        setStudents(getStudents());
-        setAttendance(getAttendance());
-        setPerformance(getPerformance());
+        let allStudents = getStudents();
+        let allAttendance = getAttendance();
+        let allPerformance = getPerformance();
+        
+        // --- DATA ISOLATION (Security) ---
+        // If user is part of a school (and not Super Admin), filter data to show ONLY that school's records.
+        if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.schoolId) {
+             // 1. Filter Students by School ID
+             allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
+             
+             // 2. Filter records based on visible students (to ensure consistency)
+             const visibleStudentIds = new Set(allStudents.map(s => s.id));
+             allAttendance = allAttendance.filter(a => visibleStudentIds.has(a.studentId));
+             allPerformance = allPerformance.filter(p => visibleStudentIds.has(p.studentId));
+        }
+
+        setStudents(allStudents);
+        setAttendance(allAttendance);
+        setPerformance(allPerformance);
         setTheme(getUserTheme());
     };
 
@@ -111,15 +127,26 @@ const App: React.FC = () => {
     const handleDeletePerformance = (id: string) => { deletePerformance(id); loadData(); };
     
     const handleImportStudents = (data: Student[], key?: keyof Student, strategy?: any, fields?: any[]) => {
+        // Enforce school ID on imported students
+        const enrichedData = data.map(s => ({
+            ...s,
+            schoolId: currentUser?.schoolId || s.schoolId,
+            createdById: currentUser?.id
+        }));
+
         if (strategy === 'UPDATE' || strategy === 'SKIP') {
-            bulkUpsertStudents(data, key || 'nationalId');
+            bulkUpsertStudents(enrichedData, key || 'nationalId');
         } else {
-            bulkAddStudents(data);
+            bulkAddStudents(enrichedData);
         }
         loadData();
     };
 
-    const handleImportAttendance = (recs: AttendanceRecord[]) => { bulkAddAttendance(recs); loadData(); };
+    const handleImportAttendance = (recs: AttendanceRecord[]) => { 
+        const enrichedRecs = recs.map(r => ({ ...r, createdById: currentUser?.id }));
+        bulkAddAttendance(enrichedRecs); 
+        loadData(); 
+    };
 
     // --- STUDENT PORTAL ---
     if (currentUser && currentUser.role === 'STUDENT') {
@@ -267,9 +294,9 @@ const App: React.FC = () => {
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
                     {currentView === 'DASHBOARD' && <Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={setCurrentView} />}
                     {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
-                    {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleImportStudents}/>}
+                    {currentView === 'STUDENTS' && <Students students={students} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleImportStudents} currentUser={currentUser} />}
                     {currentView === 'ATTENDANCE' && <AttendanceComponent students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={handleImportAttendance} currentUser={currentUser} />}
-                    {currentView === 'PERFORMANCE' && <PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance} onDeletePerformance={handleDeletePerformance}/>}
+                    {currentView === 'PERFORMANCE' && <PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance} onDeletePerformance={handleDeletePerformance} currentUser={currentUser} />}
                     {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance} currentUser={currentUser}/>}
                     {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance}/>}
                     {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance}/>}

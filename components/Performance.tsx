@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory } from '../types';
+import { Student, PerformanceRecord, PerformanceCategory, SystemUser } from '../types';
 import { formatDualDate } from '../services/dateService';
 import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X } from 'lucide-react';
 import DataImport from './DataImport';
@@ -12,9 +12,10 @@ interface PerformanceProps {
   onAddPerformance: (record: PerformanceRecord) => void;
   onImportPerformance: (records: PerformanceRecord[]) => void;
   onDeletePerformance: (id: string) => void;
+  currentUser?: SystemUser | null;
 }
 
-const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onImportPerformance, onDeletePerformance }) => {
+const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
   const [activeTab, setActiveTab] = useState<'ENTRY' | 'LOG'>('ENTRY');
 
   const [studentId, setStudentId] = useState('');
@@ -92,7 +93,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       maxScore: Number(maxScore),
       date: new Date().toISOString().split('T')[0],
       notes,
-      category: category 
+      category: category,
+      createdById: currentUser?.id
     };
 
     onAddPerformance(record);
