@@ -170,7 +170,8 @@ const Attendance: React.FC<AttendanceProps> = ({
 
       let dailySched = schedules.filter(s => s.day === currentDayName);
       if (currentUser && currentUser.role === 'TEACHER') {
-          dailySched = dailySched.filter(s => s.teacherId === currentUser.id); 
+          // FIX: Show schedule items belonging to me OR orphan items (legacy support)
+          dailySched = dailySched.filter(s => s.teacherId === currentUser.id || !s.teacherId); 
       }
       
       return dailySched.sort((a, b) => a.period - b.period);

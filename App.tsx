@@ -99,10 +99,16 @@ const App: React.FC = () => {
                  allPerformance = allPerformance.filter(p => p.studentId === currentUser.id);
              } else if (currentUser.schoolId) {
                  // School Context
-                 allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
+                 // FIX: Show students in the school OR orphaned students OR students created by this user (legacy/personal)
+                 allStudents = allStudents.filter(s => 
+                    s.schoolId === currentUser.schoolId || 
+                    s.createdById === currentUser.id || 
+                    !s.schoolId
+                 );
              } else if (currentUser.role === 'TEACHER') {
                  // Independent Teacher Context
-                 allStudents = allStudents.filter(s => s.createdById === currentUser.id);
+                 // FIX: Show students created by me OR students without an owner (Legacy Data)
+                 allStudents = allStudents.filter(s => s.createdById === currentUser.id || !s.createdById);
              }
              
              // Filter related records based on visible students (General Rule)

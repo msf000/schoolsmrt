@@ -117,7 +117,8 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
 
   const myClassAssignments = useMemo(() => {
       if (!currentUser) return [];
-      const myAssigns = assignments.filter(a => a.teacherId === currentUser.id);
+      // FIX: Include assignments without teacherId (legacy)
+      const myAssigns = assignments.filter(a => a.teacherId === currentUser.id || !a.teacherId);
       const classes = Array.from(new Set(myAssigns.map(a => a.classId)));
       return classes.sort();
   }, [assignments, currentUser]);
@@ -162,11 +163,11 @@ const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, studen
   const handleRemoveClass = (className: string) => {
       if (!currentUser) return;
       if (confirm(`هل تريد إزالة الفصل ${className} وجميع المواد المرتبطة به من قائمتك؟\n(لن يتم حذف بيانات الطلاب، فقط ارتباطك بالفصل)`)) {
-          const toRemove = assignments.filter(a => a.teacherId === currentUser.id && a.classId === className);
+          const toRemove = assignments.filter(a => (a.teacherId === currentUser.id || !a.teacherId) && a.classId === className);
           toRemove.forEach(a => deleteAssignment(a.id));
           
           // Also remove schedule items for this teacher & class
-          const scheduleToRemove = schedules.filter(s => s.teacherId === currentUser.id && s.classId === className);
+          const scheduleToRemove = schedules.filter(s => (s.teacherId === currentUser.id || !s.teacherId) && s.classId === className);
           scheduleToRemove.forEach(s => deleteScheduleItem(s.id));
 
           setAssignments(getTeacherAssignments());

@@ -492,7 +492,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                             {activity.type === 'NOTE' && <MessageSquare size={14}/>}
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-gray-800">{activity.studentName}</p>
+                            <p className="text-sm font-bold text-gray-800">{activity.studentName || 'طالب غير محدد'}</p>
                             <p className="text-xs text-gray-600">{activity.detail}</p>
                             <p className="text-[10px] text-gray-400 mt-1">{formatDualDate(activity.date)}</p>
                         </div>

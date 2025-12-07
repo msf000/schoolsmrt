@@ -387,7 +387,8 @@ export const updateTeacher = async (item: Teacher) => {
 export const getAssignments = (category?: PerformanceCategory, teacherId?: string): Assignment[] => {
     let list = CACHE.assignments || [];
     if (category) list = list.filter((a: Assignment) => a.category === category);
-    if (teacherId) list = list.filter((a: Assignment) => a.teacherId === teacherId);
+    // Fix: Allow assignments without teacherId (legacy or global)
+    if (teacherId) list = list.filter((a: Assignment) => a.teacherId === teacherId || !a.teacherId);
     return list;
 };
 export const saveAssignment = async (item: Assignment) => {
@@ -439,7 +440,8 @@ export const saveTeacherAssignment = async (item: TeacherAssignment) => {
 // 10. SUBJECTS
 export const getSubjects = (teacherId?: string): Subject[] => {
     const allSubjects = CACHE.subjects || [];
-    if (teacherId) return allSubjects.filter((s: Subject) => s.teacherId === teacherId);
+    // Fix: Allow subjects without teacherId (legacy or global)
+    if (teacherId) return allSubjects.filter((s: Subject) => s.teacherId === teacherId || !s.teacherId);
     return allSubjects;
 };
 export const addSubject = async (item: Subject) => {
@@ -457,7 +459,8 @@ export const deleteSubject = async (id: string) => {
 // 11. CUSTOM TABLES
 export const getCustomTables = (teacherId?: string): CustomTable[] => {
     const allTables = CACHE.custom_tables || [];
-    if (teacherId) return allTables.filter((t: CustomTable) => t.teacherId === teacherId);
+    // Fix: Allow tables without teacherId (legacy or global)
+    if (teacherId) return allTables.filter((t: CustomTable) => t.teacherId === teacherId || !t.teacherId);
     return allTables;
 };
 export const addCustomTable = async (item: CustomTable) => {

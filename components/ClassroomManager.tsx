@@ -490,7 +490,8 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
         if (currentUser && currentUser.role === 'TEACHER') {
              return classSched.filter(s => {
-                 return s.teacherId === currentUser.id || 
+                 // FIX: Allow if teacher matches OR if schedule has no teacher (orphan/legacy)
+                 return (s.teacherId === currentUser.id || !s.teacherId) || 
                         teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName)?.teacherId === currentUser.id;
              }).sort((a,b) => a.period - b.period);
         }
