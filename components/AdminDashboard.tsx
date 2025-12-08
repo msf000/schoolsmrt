@@ -853,9 +853,9 @@ const DatabaseSettings = () => {
                     {/* SQL Update Section */}
                     <div className="bg-teal-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-teal-400"></div>
-                        <h4 className="font-bold text-lg mb-2 flex items-center gap-2"><GitMerge size={20} className="text-teal-400"/> تحديثات القاعدة (Updates)</h4>
+                        <h4 className="font-bold text-lg mb-2 flex items-center gap-2"><GitMerge size={20} className="text-teal-400"/> تحديثات القاعدة (Curriculum & Exams)</h4>
                         <p className="text-teal-100 text-sm mb-4">
-                            استخدم هذا الكود إذا كانت قاعدة البيانات لديك منشأة مسبقاً وتريد إضافة الأعمدة الجديدة فقط دون حذف البيانات.
+                            هام: إذا أضفت ميزات جديدة (توزيع المنهج، بنك الأسئلة، الخطط) مؤخراً، يجب تشغيل هذا الكود لإنشاء الجداول الجديدة في قاعدة البيانات.
                         </p>
                         
                         <div className="bg-black/50 p-4 rounded-lg font-mono text-xs text-teal-300 overflow-x-auto h-32 mb-4 relative border border-teal-800">
