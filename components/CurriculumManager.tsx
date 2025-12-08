@@ -9,15 +9,33 @@ import {
 import { generateCurriculumMap } from '../services/geminiService';
 import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, Tag, BrainCircuit, Plus, List, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 
+const SAUDI_GRADES = [
+    "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
+    "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
+    "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
+    "الصف الأول الثانوي (السنة المشتركة)", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
+];
+
+const SAUDI_SUBJECTS = [
+    "الدراسات الإسلامية", "القرآن الكريم", "لغتي (اللغة العربية)", "الرياضيات", "العلوم", "اللغة الإنجليزية (We Can / Super Goal / Mega Goal)",
+    "الدراسات الاجتماعية", "المهارات الرقمية", "التربية الفنية", "التربية البدنية والدفاع عن النفس",
+    "التفكير الناقد", "التقنية الرقمية", "أحياء", "فيزياء", "كيمياء", "علم البيئة",
+    "علم الأرض والفضاء", "المهارات الحياتية والأسرية", "اللياقة والثقافة الصحية",
+    "علوم البيانات", "الذكاء الاصطناعي", "الأمن السيبراني", "الهندسة", "الإدارة المالية", "البحث ومصادر المعلومات"
+];
+
 interface CurriculumManagerProps {
     currentUser: SystemUser;
 }
 
 const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) => {
     const [view, setView] = useState<'MAP' | 'CONCEPTS'>('MAP');
-    const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [selectedSubject, setSelectedSubject] = useState('');
+    const [userSubjects, setUserSubjects] = useState<Subject[]>([]);
+    
+    // Selection State
+    const [selectedSemester, setSelectedSemester] = useState('الفصل الدراسي الأول');
     const [selectedGrade, setSelectedGrade] = useState('');
+    const [selectedSubject, setSelectedSubject] = useState('');
 
     // Data State
     const [units, setUnits] = useState<CurriculumUnit[]>([]);
@@ -34,7 +52,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
     const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
-        setSubjects(getSubjects(currentUser.id));
+        setUserSubjects(getSubjects(currentUser.id));
         refreshData();
     }, [currentUser]);
 
@@ -43,6 +61,13 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
         setLessons(getCurriculumLessons()); // Gets all, filter by unit later
         setConcepts(getMicroConcepts(currentUser.id));
     };
+
+    // Combine standard subjects with user custom subjects
+    const allSubjectsList = useMemo(() => {
+        const customNames = userSubjects.map(s => s.name);
+        // Merge and remove duplicates
+        return Array.from(new Set([...SAUDI_SUBJECTS, ...customNames])).sort();
+    }, [userSubjects]);
 
     const filteredUnits = useMemo(() => {
         return units.filter(u => 
@@ -127,7 +152,8 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
 
         setIsGenerating(true);
         try {
-            const structure = await generateCurriculumMap(selectedSubject, selectedGrade);
+            // Pass Semester to ensure we get the right part of the book
+            const structure = await generateCurriculumMap(selectedSubject, selectedGrade, selectedSemester);
             
             if (Array.isArray(structure) && structure.length > 0) {
                 let unitOrder = units.length; // Start ordering after existing
@@ -161,7 +187,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                     }
                 }
                 refreshData();
-                alert('تم توليد المنهج بنجاح وفقاً للمناهج السعودية!');
+                alert(`تم استيراد منهج ${selectedSemester} بنجاح!`);
             } else {
                 alert('لم يتمكن النظام من استخراج المنهج. تأكد من اسم المادة والصف.');
             }
@@ -189,21 +215,40 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                 <div className="flex-1 flex flex-col overflow-hidden">
                     {/* Controls */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4 flex flex-wrap gap-4 items-end">
+                        
+                        {/* 1. Semester */}
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">المادة</label>
-                            <select className="p-2 border rounded text-sm min-w-[150px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
-                                <option value="">-- اختر المادة --</option>
-                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                            <label className="block text-xs font-bold text-gray-500 mb-1">1. الفصل الدراسي</label>
+                            <select className="p-2 border rounded text-sm bg-gray-50 min-w-[140px]" value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
+                                <option value="الفصل الدراسي الأول">الفصل الأول</option>
+                                <option value="الفصل الدراسي الثاني">الفصل الثاني</option>
+                                <option value="الفصل الدراسي الثالث">الفصل الثالث</option>
                             </select>
                         </div>
+
+                        {/* 2. Grade (Dropdown) */}
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">الصف</label>
-                            <input className="p-2 border rounded text-sm w-32" placeholder="مثال: أول متوسط" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}/>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">2. الصف الدراسي</label>
+                            <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}>
+                                <option value="">-- اختر الصف --</option>
+                                {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
                         </div>
+
+                        {/* 3. Subject (Dropdown) */}
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">3. المادة</label>
+                            <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
+                                <option value="">-- اختر المادة --</option>
+                                {allSubjectsList.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                        
+                        {/* Manual Add Unit */}
                         <div className="flex-1 flex gap-2">
-                            <input className="flex-1 p-2 border rounded text-sm" placeholder="اسم الوحدة الجديدة..." value={newUnitName} onChange={e => setNewUnitName(e.target.value)}/>
+                            <input className="flex-1 p-2 border rounded text-sm" placeholder="اسم الوحدة الجديدة (يدوي)..." value={newUnitName} onChange={e => setNewUnitName(e.target.value)}/>
                             <button onClick={handleAddUnit} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700 flex items-center gap-2 text-sm whitespace-nowrap">
-                                <FolderPlus size={16}/> إضافة وحدة
+                                <FolderPlus size={16}/> إضافة
                             </button>
                         </div>
                         
@@ -215,7 +260,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                 className="bg-gradient-to-r from-teal-500 to-green-600 text-white px-4 py-2 rounded font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap shadow-md w-full justify-center"
                             >
                                 {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
-                                {isGenerating ? 'جاري سحب المنهج...' : 'استيراد المنهج السعودي (AI)'}
+                                {isGenerating ? 'جاري سحب المنهج...' : `استيراد ${selectedSemester} (AI)`}
                             </button>
                         </div>
                     </div>
@@ -285,7 +330,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             <div className="text-center py-20 text-gray-400">
                                 <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
                                 <p className="text-lg font-bold">لا يوجد منهج مسجل</p>
-                                <p className="text-sm">ابدأ بإضافة وحدة يدوياً أو استخدم زر الاستيراد الذكي أعلاه.</p>
+                                <p className="text-sm">ابدأ باختيار الفصل والصف والمادة ثم اضغط على زر الاستيراد.</p>
                             </div>
                         )}
                     </div>

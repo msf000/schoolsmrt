@@ -84,38 +84,41 @@ function tryRepairJson(jsonString: string): string {
 // --- NEW: Generate Curriculum Map (Units -> Lessons -> Standards) ---
 export const generateCurriculumMap = async (
     subject: string,
-    grade: string
+    grade: string,
+    semester: string = "الفصل الدراسي الأول"
 ): Promise<any[]> => {
     const { model, config, enabled } = getConfig();
     if (!enabled.planning) throw new Error("AI Planning is disabled");
 
     const prompt = `
-    Act as a specialized Educational Consultant for the Saudi Ministry of Education (MOE) Curriculum, specifically for the academic year 1447 AH.
+    Act as a specialized Educational Consultant for the Saudi Ministry of Education (MOE) Curriculum.
     
-    Task: Extract the full Table of Contents (Units and Lessons) for the following subject and grade from the official Saudi textbooks.
+    TARGET: Extract the Table of Contents (Units and Lessons) for the **1447 AH (2025-2026) Edition**.
+    
+    Details:
+    - Subject: ${subject}
+    - Grade Level: ${grade}
+    - Semester/Term: ${semester} (Critical: Only return units for this specific term).
+    
+    Context:
+    - If the grade is High School (ثانوي), assume "Tracks System" (نظام المسارات).
+    - If the grade is Elementary/Intermediate, assume "Three Semesters System" (نظام الفصول الثلاثة).
+    - Ensure exact titles from the "Book Index" (فهرس الكتاب).
 
-    Subject: ${subject}
-    Grade Level: ${grade}
-
-    Requirements:
-    1. **Strict Adherence:** Use the exact unit and lesson titles found in the Saudi textbooks (كتب وزارة التعليم السعودية).
-    2. **Structure:** Return a JSON array where each item is a "Unit" containing an array of "Lessons".
-    3. **Standards:** Estimate the Ministerial Standard Codes (المعايير) if exact ones aren't available, using the format: [SubjectCode].[Grade].[Unit].[Lesson] (e.g., MATH.1.2.1).
-    
-    Output Format: JSON Array ONLY. Do not include any introduction or markdown formatting outside the JSON.
-    
-    Schema:
-    [
-      {
-        "unitTitle": "اسم الوحدة (مثال: الوحدة الأولى: قدوات ومثل عليا)",
-        "lessons": [
-          {
-            "title": "اسم الدرس (مثال: نص الاستماع: سيدة نساء أهل الجنة)",
-            "standards": ["LANG.6.1.1"] 
-          }
-        ]
-      }
-    ]
+    Output Requirements:
+    1. Return a JSON Array ONLY.
+    2. Structure:
+       [
+         {
+           "unitTitle": "Unit Name (e.g., الوحدة الأولى: ...)",
+           "lessons": [
+             {
+               "title": "Lesson Name (e.g., الدرس الأول: ...)",
+               "standards": ["CODE.1.1"] (Estimate code if not explicit)
+             }
+           ]
+         }
+       ]
     `;
 
     try {
@@ -124,7 +127,7 @@ export const generateCurriculumMap = async (
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.2, // Very low temperature for factual accuracy
+                temperature: 0.1, // Very low for strict adherence to facts
                 systemInstruction: config.systemInstruction
             }
         });
