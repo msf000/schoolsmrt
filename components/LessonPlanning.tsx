@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { generateLessonBlocks } from '../services/geminiService';
+import React, { useState, useEffect, useMemo } from 'react';
+import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
 import { 
     saveLessonPlan, getLessonPlans, deleteLessonPlan, 
     getCurriculumUnits, getCurriculumLessons, getMicroConcepts, getSubjects
@@ -11,7 +11,7 @@ import {
     Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, 
     AlertTriangle, Calendar, Target, ListTree, BookOpenCheck, Save, Trash2, 
     Link, Video, Image as ImageIcon, MoveUp, MoveDown, Plus, Search, Grid,
-    ToggleLeft, ToggleRight, MoreVertical, X
+    ToggleLeft, ToggleRight, MoreVertical, X, RefreshCw, Hash, FileQuestion
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -37,7 +37,12 @@ const LessonPlanning: React.FC = () => {
     // Studio Settings (Right Column)
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedGrade, setSelectedGrade] = useState('');
-    const [topic, setTopic] = useState('');
+    
+    // Curriculum Selection instead of Manual Topic
+    const [selectedUnitId, setSelectedUnitId] = useState('');
+    const [selectedLessonId, setSelectedLessonId] = useState('');
+    const [topic, setTopic] = useState(''); // This will be derived from selectedLessonId mostly
+
     const [settings, setSettings] = useState({
         includeActivity: true,
         includeVideo: false,
@@ -47,7 +52,11 @@ const LessonPlanning: React.FC = () => {
     // Canvas Data (Middle Column)
     const [blocks, setBlocks] = useState<LessonBlock[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [regeneratingBlockId, setRegeneratingBlockId] = useState<string | null>(null);
     
+    // Previous Lesson Data
+    const [prevPlan, setPrevPlan] = useState<StoredLessonPlan | null>(null);
+
     // Initialization
     useEffect(() => {
         if (currentUser?.id) {
@@ -58,18 +67,53 @@ const LessonPlanning: React.FC = () => {
         }
     }, [currentUser?.id, activeTab]);
 
+    // Fetch Previous Lesson when Subject/Grade changes
+    useEffect(() => {
+        if (selectedSubject && selectedGrade) {
+            const plans = getLessonPlans(currentUser.id)
+                .filter(p => p.subject === selectedSubject) // Note: Grade level isn't strictly stored in StoredLessonPlan, usually implied by Subject context or topic
+                .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            
+            if (plans.length > 0) {
+                setPrevPlan(plans[0]);
+            } else {
+                setPrevPlan(null);
+            }
+        }
+    }, [selectedSubject, selectedGrade, currentUser.id]);
+
+    // Filter Logic
+    const filteredUnits = useMemo(() => {
+        return units.filter(u => u.subject === selectedSubject && u.gradeLevel === selectedGrade);
+    }, [units, selectedSubject, selectedGrade]);
+
+    const filteredLessons = useMemo(() => {
+        return curriculumLessons.filter(l => l.unitId === selectedUnitId).sort((a,b) => a.orderIndex - b.orderIndex);
+    }, [curriculumLessons, selectedUnitId]);
+
+    // Update Topic when Lesson Selected
+    useEffect(() => {
+        const lesson = curriculumLessons.find(l => l.id === selectedLessonId);
+        if (lesson) setTopic(lesson.title);
+    }, [selectedLessonId, curriculumLessons]);
+
     // --- ACTIONS ---
 
     const handleGenerate = async () => {
-        if (!topic || !selectedSubject) return alert('الرجاء إدخال المادة وعنوان الدرس');
+        if (!topic || !selectedSubject) return alert('الرجاء اختيار المادة والدرس من القائمة');
         
         setIsGenerating(true);
         try {
+            // Get Learning Standards for this lesson
+            const currentLesson = curriculumLessons.find(l => l.id === selectedLessonId);
+            const standards = currentLesson ? currentLesson.learningStandards : [];
+
             const newBlocks = await generateLessonBlocks(
                 selectedSubject, 
                 topic, 
                 selectedGrade, 
-                settings
+                settings,
+                standards
             );
             setBlocks(newBlocks);
         } catch (error) {
@@ -80,6 +124,24 @@ const LessonPlanning: React.FC = () => {
         }
     };
 
+    const handleRegenerateBlock = async (block: LessonBlock) => {
+        setRegeneratingBlockId(block.id);
+        try {
+            const prevContent = block.content;
+            const newContent = await regenerateSingleBlock(
+                block.type, 
+                block.title, 
+                { subject: selectedSubject, topic: topic, grade: selectedGrade, prevContent }
+            );
+            
+            setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, content: newContent } : b));
+        } catch (e) {
+            alert('فشل التحديث');
+        } finally {
+            setRegeneratingBlockId(null);
+        }
+    };
+
     const handleSavePlan = () => {
         if (blocks.length === 0 || !topic) return;
         const jsonContent = JSON.stringify(blocks);
@@ -87,10 +149,11 @@ const LessonPlanning: React.FC = () => {
         const newPlan: StoredLessonPlan = {
             id: Date.now().toString(),
             teacherId: currentUser.id,
+            lessonId: selectedLessonId || undefined,
             subject: selectedSubject,
             topic: topic,
             contentJson: jsonContent, // Storing Blocks JSON structure
-            resources: [], // Can extract from media blocks later
+            resources: [], 
             createdAt: new Date().toISOString()
         };
         saveLessonPlan(newPlan);
@@ -105,14 +168,18 @@ const LessonPlanning: React.FC = () => {
                 setBlocks(loadedBlocks);
                 setTopic(plan.topic);
                 setSelectedSubject(plan.subject);
+                // Try to find Unit/Lesson based on IDs if possible, otherwise just set Strings
+                if (plan.lessonId) {
+                    setSelectedLessonId(plan.lessonId);
+                    const lesson = curriculumLessons.find(l => l.id === plan.lessonId);
+                    if (lesson) setSelectedUnitId(lesson.unitId);
+                }
                 setActiveTab('STUDIO');
             } else {
-                // Fallback for legacy text plans
                 setBlocks([{ id: 'legacy', type: 'CONTENT', title: 'محتوى الدرس', content: plan.contentJson }]);
                 setActiveTab('STUDIO');
             }
         } catch (e) {
-            // Fallback
             setBlocks([{ id: 'legacy', type: 'CONTENT', title: 'محتوى الدرس', content: plan.contentJson }]);
             setActiveTab('STUDIO');
         }
@@ -159,8 +226,9 @@ const LessonPlanning: React.FC = () => {
     // --- RENDERERS ---
 
     const renderBlock = (block: LessonBlock, index: number) => {
+        const isRegenerating = regeneratingBlockId === block.id;
         return (
-            <div key={block.id} className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all mb-4 overflow-hidden relative break-inside-avoid">
+            <div key={block.id} className={`group bg-white rounded-xl border shadow-sm hover:shadow-md transition-all mb-4 overflow-hidden relative break-inside-avoid ${isRegenerating ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200'}`}>
                 {/* Block Header */}
                 <div className="bg-gray-50 px-4 py-2 border-b flex justify-between items-center handle cursor-move print:hidden">
                     <span className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-2
@@ -173,7 +241,16 @@ const LessonPlanning: React.FC = () => {
                         {block.title}
                     </span>
                     
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                            onClick={() => handleRegenerateBlock(block)} 
+                            disabled={isRegenerating}
+                            className={`p-1.5 rounded text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 ${isRegenerating ? 'animate-spin text-indigo-600' : ''}`}
+                            title="إعادة صياغة (AI)"
+                        >
+                            <RefreshCw size={14}/>
+                        </button>
+                        <div className="w-[1px] h-4 bg-gray-300 mx-1"></div>
                         <button onClick={() => moveBlock(index, 'UP')} className="p-1 hover:bg-gray-200 rounded text-gray-500" disabled={index === 0}><MoveUp size={14}/></button>
                         <button onClick={() => moveBlock(index, 'DOWN')} className="p-1 hover:bg-gray-200 rounded text-gray-500" disabled={index === blocks.length - 1}><MoveDown size={14}/></button>
                         <button onClick={() => deleteBlock(block.id)} className="p-1 hover:bg-red-100 text-red-500 rounded"><X size={14}/></button>
@@ -181,7 +258,12 @@ const LessonPlanning: React.FC = () => {
                 </div>
 
                 {/* Block Content */}
-                <div className="p-4">
+                <div className="p-4 relative">
+                    {isRegenerating && (
+                        <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center backdrop-blur-sm">
+                            <span className="text-indigo-600 text-sm font-bold flex items-center gap-2"><Sparkles className="animate-spin" size={16}/> جاري إعادة الصياغة...</span>
+                        </div>
+                    )}
                     {block.type === 'MEDIA' && block.mediaUrl ? (
                         <div className="flex flex-col items-center">
                             {block.content.includes('فيديو') ? (
@@ -211,7 +293,7 @@ const LessonPlanning: React.FC = () => {
                     <div className="bg-indigo-600 p-2 rounded-lg text-white"><PenTool size={20}/></div>
                     <div>
                         <h2 className="font-bold text-gray-800">استوديو الدروس الذكي</h2>
-                        <p className="text-xs text-gray-500">صمم دروسك باستخدام الذكاء الاصطناعي والكتل التفاعلية</p>
+                        <p className="text-xs text-gray-500">صمم دروسك باستخدام الذكاء الاصطناعي وتوزيع المنهج</p>
                     </div>
                 </div>
                 <div className="flex gap-2">
@@ -286,7 +368,7 @@ const LessonPlanning: React.FC = () => {
                                 <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 rounded-2xl p-10 bg-gray-50/50 print:hidden">
                                     <Sparkles size={48} className="mb-4 opacity-20"/>
                                     <h3 className="text-xl font-bold text-gray-500 mb-2">مساحة العمل فارغة</h3>
-                                    <p className="text-sm">املأ الإعدادات في القائمة اليمنى واضغط على "توليد التحضير" للبدء.</p>
+                                    <p className="text-sm">اختر الوحدة والدرس من القائمة اليمنى لبدء التحضير الذكي.</p>
                                 </div>
                             )}
 
@@ -313,8 +395,8 @@ const LessonPlanning: React.FC = () => {
                     {/* RIGHT COLUMN: Settings & Controls */}
                     <div className="w-80 bg-white border-r border-gray-200 flex flex-col z-10 shadow-sm overflow-y-auto custom-scrollbar print:hidden">
                         <div className="p-5 border-b bg-indigo-50">
-                            <h3 className="font-bold text-indigo-900 mb-1">إعدادات الدرس</h3>
-                            <p className="text-xs text-indigo-600">حدد المعايير لتوليد المحتوى</p>
+                            <h3 className="font-bold text-indigo-900 mb-1">إعدادات التحضير</h3>
+                            <p className="text-xs text-indigo-600">بيانات الدرس من المنهج</p>
                         </div>
                         
                         <div className="p-5 space-y-5">
@@ -323,7 +405,7 @@ const LessonPlanning: React.FC = () => {
                                 <select 
                                     className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                                     value={selectedSubject}
-                                    onChange={e => setSelectedSubject(e.target.value)}
+                                    onChange={e => { setSelectedSubject(e.target.value); setSelectedUnitId(''); setSelectedLessonId(''); }}
                                 >
                                     <option value="">-- اختر المادة --</option>
                                     {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -341,15 +423,45 @@ const LessonPlanning: React.FC = () => {
                                 />
                             </div>
 
+                            {/* Curriculum Cascading Dropdowns */}
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1.5">عنوان الدرس</label>
-                                <input 
-                                    className="w-full p-2.5 bg-white border-2 border-indigo-100 rounded-lg text-sm font-bold text-indigo-900 outline-none focus:border-indigo-500"
-                                    placeholder="مثال: نشأة الكون"
-                                    value={topic}
-                                    onChange={e => setTopic(e.target.value)}
-                                />
+                                <label className="block text-xs font-bold text-gray-600 mb-1.5">الوحدة</label>
+                                <select 
+                                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={selectedUnitId}
+                                    onChange={e => { setSelectedUnitId(e.target.value); setSelectedLessonId(''); }}
+                                    disabled={!selectedSubject}
+                                >
+                                    <option value="">-- اختر الوحدة --</option>
+                                    {filteredUnits.map(u => <option key={u.id} value={u.id}>{u.title}</option>)}
+                                </select>
                             </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
+                                    عنوان الدرس <span className="text-xs font-normal text-gray-400">(الموضوع)</span>
+                                </label>
+                                <select 
+                                    className="w-full p-2.5 bg-white border-2 border-indigo-100 rounded-lg text-sm font-bold text-indigo-900 outline-none focus:border-indigo-500"
+                                    value={selectedLessonId}
+                                    onChange={e => setSelectedLessonId(e.target.value)}
+                                    disabled={!selectedUnitId}
+                                >
+                                    <option value="">-- اختر الدرس --</option>
+                                    {filteredLessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Previous Lesson Context */}
+                            {prevPlan && (
+                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Clock size={12}/> الدرس السابق:</span>
+                                        <button onClick={() => loadPlan(prevPlan)} className="text-[10px] bg-white border px-2 py-0.5 rounded hover:text-blue-600">عرض</button>
+                                    </div>
+                                    <p className="text-xs text-blue-600 line-clamp-1">{prevPlan.topic}</p>
+                                </div>
+                            )}
 
                             <div className="space-y-3 pt-2 border-t">
                                 <label className="flex items-center justify-between cursor-pointer group">

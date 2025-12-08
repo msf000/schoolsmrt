@@ -30,23 +30,34 @@ function cleanJsonString(text: string): string {
     return clean.trim();
 }
 
-// ... existing helpers (tryRepairJson) ...
+// Helper to attempt repairing truncated JSON
 function tryRepairJson(jsonString: string): string {
     let fixed = jsonString.trim();
+    
+    // 1. Close unclosed string
     let inString = false;
     let escape = false;
     for (let i = 0; i < fixed.length; i++) {
         const char = fixed[i];
-        if (char === '\\') { escape = !escape; } 
-        else {
-            if (char === '"' && !escape) { inString = !inString; }
+        if (char === '\\') {
+            escape = !escape;
+        } else {
+            if (char === '"' && !escape) {
+                inString = !inString;
+            }
             escape = false;
         }
     }
     if (inString) fixed += '"';
+
+    // 2. Remove trailing comma if exists (common before closing)
     if (fixed.endsWith(',')) fixed = fixed.slice(0, -1);
+
+    // 3. Balance Brackets/Braces
     let openBraces = 0;
     let openBrackets = 0;
+    
+    // Recalculate context (simple counter, assuming strings are closed now)
     inString = false;
     escape = false;
     for (let i = 0; i < fixed.length; i++) {
@@ -54,6 +65,7 @@ function tryRepairJson(jsonString: string): string {
         if (char === '\\') { escape = !escape; continue; }
         if (char === '"' && !escape) { inString = !inString; }
         escape = false;
+
         if (!inString) {
             if (char === '{') openBraces++;
             else if (char === '}') openBraces = Math.max(0, openBraces - 1);
@@ -61,12 +73,125 @@ function tryRepairJson(jsonString: string): string {
             else if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
         }
     }
+
+    // Append missing closures
     while (openBraces > 0) { fixed += '}'; openBraces--; }
     while (openBrackets > 0) { fixed += ']'; openBrackets--; }
+
     return fixed;
 }
 
-// --- NEW: Generate Curriculum Map (Units -> Lessons -> Standards) ---
+// --- NEW: Regenerate Single Block ---
+export const regenerateSingleBlock = async (
+    blockType: string,
+    blockTitle: string,
+    lessonContext: { subject: string, topic: string, grade: string, prevContent?: string }
+): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) throw new Error("AI Planning is disabled");
+
+    const prompt = `
+    Act as an expert teacher. Rewrite the content for a specific section of a lesson plan.
+    
+    Context:
+    - Subject: ${lessonContext.subject}
+    - Lesson Topic: ${lessonContext.topic}
+    - Grade: ${lessonContext.grade}
+    
+    Section to Rewrite: "${blockTitle}" (Type: ${blockType})
+    
+    ${lessonContext.prevContent ? `Previous Content (for reference, try to be different/better): "${lessonContext.prevContent}"` : ''}
+
+    Instructions:
+    - Provide ONLY the new content text.
+    - Be concise, professional, and educational.
+    - If it's an "Activity", suggest a specific, engaging task.
+    - If it's "Objectives", list 3 clear SMART goals.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                temperature: 0.8, // Higher creativity for rewriting
+                systemInstruction: config.systemInstruction
+            }
+        });
+        return response.text || "فشلت إعادة الصياغة.";
+    } catch (error) {
+        console.error("Regenerate Block Error:", error);
+        return "حدث خطأ أثناء الاتصال بالذكاء الاصطناعي.";
+    }
+};
+
+// --- NEW: Generate Structured Lesson Blocks (Studio Mode) ---
+export const generateLessonBlocks = async (
+    subject: string,
+    topic: string,
+    gradeLevel: string,
+    settings: { includeActivity: boolean, includeVideo: boolean, includeWorksheet: boolean },
+    standards: string[] = [] // New parameter for curriculum standards
+): Promise<LessonBlock[]> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) throw new Error("AI Planning is disabled");
+
+    const prompt = `
+    Act as an expert teacher in the Saudi Curriculum (1447 AH).
+    Create a structured lesson plan for the "Lesson Studio".
+    
+    Subject: ${subject}
+    Topic: ${topic}
+    Grade: ${gradeLevel}
+    ${standards.length > 0 ? `Curriculum Standards/Codes: ${standards.join(', ')}` : ''}
+    
+    Settings:
+    - Include Kinetic Activity? ${settings.includeActivity ? 'Yes' : 'No'}
+    - Suggest Video Content? ${settings.includeVideo ? 'Yes' : 'No'}
+    - Include Worksheet Idea? ${settings.includeWorksheet ? 'Yes' : 'No'}
+
+    **SPECIAL CONTEXT for "Earth and Space Science" (علم الأرض والفضاء):**
+    If the topic is related to "Origin of the Universe" (نشأة الكون), "Big Bang" (الانفجار العظيم), or "Galaxies" (المجرات):
+    - Ensure alignment with Chapter 1: Evolution of the Universe.
+    - Mention the Big Bang Theory and evidence (Hubble's Law).
+    - Mention the expansion of the universe.
+
+    Output Format: JSON Array of Objects (LessonBlock).
+    Possible Types: 'OBJECTIVES', 'INTRO', 'STRATEGIES', 'CONTENT', 'ACTIVITY', 'MEDIA', 'ASSESSMENT', 'HOMEWORK'.
+    
+    JSON Structure:
+    [
+      { "type": "OBJECTIVES", "title": "الأهداف التعليمية", "content": "- Point 1..." },
+      { "type": "INTRO", "title": "التهيئة والتمهيد", "content": "..." },
+      { "type": "STRATEGIES", "title": "استراتيجيات التدريس", "content": "..." },
+      { "type": "CONTENT", "title": "إجراءات الدرس", "content": "..." },
+      { "type": "ACTIVITY", "title": "نشاط تفاعلي", "content": "..." },
+      { "type": "ASSESSMENT", "title": "التقويم الختامي", "content": "..." }
+    ]
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                temperature: 0.5,
+                systemInstruction: config.systemInstruction
+            }
+        });
+        const text = response.text || "[]";
+        const blocks: LessonBlock[] = JSON.parse(cleanJsonString(text));
+        
+        // Add IDs to blocks for frontend handling
+        return blocks.map(b => ({ ...b, id: Date.now().toString() + Math.random().toString(36).substr(2,9) }));
+    } catch (error) {
+        console.error("Lesson Studio Gen Error:", error);
+        return [];
+    }
+};
+
+// ... existing functions (generateCurriculumMap, generateParentMessage, organizeCourseContent, generateSlideQuestions, generateStudentAnalysis, generateQuiz, generateStructuredQuiz, generateRemedialPlan, generateLessonPlan, suggestSyllabus, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, predictColumnMapping, parseRawDataWithAI) ...
 export const generateCurriculumMap = async (
     subject: string,
     grade: string,
@@ -175,71 +300,6 @@ export const generateCurriculumMap = async (
     }
 };
 
-// --- NEW: Generate Structured Lesson Blocks (Studio Mode) ---
-export const generateLessonBlocks = async (
-    subject: string,
-    topic: string,
-    gradeLevel: string,
-    settings: { includeActivity: boolean, includeVideo: boolean, includeWorksheet: boolean }
-): Promise<LessonBlock[]> => {
-    const { model, config, enabled } = getConfig();
-    if (!enabled.planning) throw new Error("AI Planning is disabled");
-
-    const prompt = `
-    Act as an expert teacher in the Saudi Curriculum (1447 AH).
-    Create a structured lesson plan for the "Lesson Studio".
-    
-    Subject: ${subject}
-    Topic: ${topic}
-    Grade: ${gradeLevel}
-    
-    Settings:
-    - Include Kinetic Activity? ${settings.includeActivity ? 'Yes' : 'No'}
-    - Suggest Video Content? ${settings.includeVideo ? 'Yes' : 'No'}
-    - Include Worksheet Idea? ${settings.includeWorksheet ? 'Yes' : 'No'}
-
-    **SPECIAL CONTEXT for "Earth and Space Science" (علم الأرض والفضاء):**
-    If the topic is related to "Origin of the Universe" (نشأة الكون), "Big Bang" (الانفجار العظيم), or "Galaxies" (المجرات):
-    - Ensure alignment with Chapter 1: Evolution of the Universe.
-    - Mention the Big Bang Theory and evidence (Hubble's Law).
-    - Mention the expansion of the universe.
-
-    Output Format: JSON Array of Objects (LessonBlock).
-    Possible Types: 'OBJECTIVES', 'INTRO', 'STRATEGIES', 'CONTENT', 'ACTIVITY', 'MEDIA', 'ASSESSMENT', 'HOMEWORK'.
-    
-    JSON Structure:
-    [
-      { "type": "OBJECTIVES", "title": "الأهداف التعليمية", "content": "- Point 1..." },
-      { "type": "INTRO", "title": "التهيئة والتمهيد", "content": "..." },
-      { "type": "STRATEGIES", "title": "استراتيجيات التدريس", "content": "..." },
-      { "type": "CONTENT", "title": "إجراءات الدرس", "content": "..." },
-      { "type": "ACTIVITY", "title": "نشاط تفاعلي", "content": "..." },
-      { "type": "ASSESSMENT", "title": "التقويم الختامي", "content": "..." }
-    ]
-    `;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: model,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                temperature: 0.5,
-                systemInstruction: config.systemInstruction
-            }
-        });
-        const text = response.text || "[]";
-        const blocks: LessonBlock[] = JSON.parse(cleanJsonString(text));
-        
-        // Add IDs to blocks for frontend handling
-        return blocks.map(b => ({ ...b, id: Date.now().toString() + Math.random().toString(36).substr(2,9) }));
-    } catch (error) {
-        console.error("Lesson Studio Gen Error:", error);
-        return [];
-    }
-};
-
-// ... existing functions (generateParentMessage, organizeCourseContent, generateSlideQuestions, generateStudentAnalysis, generateQuiz, generateStructuredQuiz, generateRemedialPlan, generateLessonPlan, suggestSyllabus, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, predictColumnMapping, parseRawDataWithAI) ...
 export const generateParentMessage = async (studentName: string, topic: string, tone: 'OFFICIAL' | 'FRIENDLY' | 'URGENT'): Promise<string> => {
     const { model, config } = getConfig();
     const toneDesc = tone === 'OFFICIAL' ? 'رسمية ومهنية' : tone === 'FRIENDLY' ? 'ودية ومشجعة' : 'حازمة وعاجلة';
