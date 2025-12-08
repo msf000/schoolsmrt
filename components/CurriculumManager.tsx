@@ -171,10 +171,10 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                                             <FilePlus size={16} className="text-gray-400"/>
                                                             {lesson.title}
                                                         </div>
-                                                        {(lesson.learningStandards?.length > 0 || lesson.microConceptIds?.length > 0) && (
+                                                        {(lesson.learningStandards?.length > 0 || (lesson.microConceptIds?.length ?? 0) > 0) && (
                                                             <div className="flex gap-2 mt-1 mr-6">
                                                                 {lesson.learningStandards?.map((std, i) => <span key={i} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded border border-blue-100">{std}</span>)}
-                                                                {lesson.microConceptIds?.length && <span className="text-[10px] bg-green-50 text-green-600 px-1.5 rounded border border-green-100">{lesson.microConceptIds.length} مفاهيم</span>}
+                                                                {(lesson.microConceptIds?.length ?? 0) > 0 && <span className="text-[10px] bg-green-50 text-green-600 px-1.5 rounded border border-green-100">{lesson.microConceptIds!.length} مفاهيم</span>}
                                                             </div>
                                                         )}
                                                     </div>
