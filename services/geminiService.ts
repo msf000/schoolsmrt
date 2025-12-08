@@ -91,30 +91,38 @@ export const generateCurriculumMap = async (
     if (!enabled.planning) throw new Error("AI Planning is disabled");
 
     const prompt = `
-    Act as a specialized Educational Consultant for the Saudi Ministry of Education (MOE) Curriculum.
+    Act as a specialized Educational Consultant for the Saudi Ministry of Education (MOE) Curriculum (Tracks System / نظام المسارات).
     
     TARGET: Extract the Table of Contents (Units and Lessons) for the **1447 AH (2025-2026) Edition**.
     
     Details:
     - Subject: ${subject}
     - Grade Level: ${grade}
-    - Semester/Term: ${semester} (Critical: Only return units for this specific term).
+    - Semester/Term: ${semester}.
     
+    **CRITICAL INSTRUCTIONS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء):**
+    If the subject is "علم الأرض والفضاء" (Earth and Space Science) for "Third Secondary" (الصف الثالث الثانوي):
+    1. You MUST use the official coding structure: **EAS.12.Unit.Lesson**.
+    2. Example: 
+       - Unit 1 (Minerals): Lesson 1 is "EAS.12.1.1 What is a Mineral?", Lesson 2 is "EAS.12.1.2 Types of Minerals".
+       - Unit 2 (Rocks): Lesson 1 is "EAS.12.2.1 Igneous Rocks".
+       - Unit 6 (Earth-Sun-Moon): Lesson 1 is "EAS.12.6.1 Earth's Motion".
+    3. Ensure the Arabic titles match the textbook "كتاب علم الأرض والفضاء 1-1".
+
     Context:
-    - If the grade is High School (ثانوي), assume "Tracks System" (نظام المسارات).
-    - If the grade is Elementary/Intermediate, assume "Three Semesters System" (نظام الفصول الثلاثة).
-    - Ensure exact titles from the "Book Index" (فهرس الكتاب).
+    - If Grade is High School (Secondary), assume "Tracks System".
+    - If Grade is Elementary/Intermediate, assume "Three Semesters System".
 
     Output Requirements:
     1. Return a JSON Array ONLY.
     2. Structure:
        [
          {
-           "unitTitle": "Unit Name (e.g., الوحدة الأولى: ...)",
+           "unitTitle": "Unit Name (e.g., الفصل الأول: المعادن)",
            "lessons": [
              {
-               "title": "Lesson Name (e.g., الدرس الأول: ...)",
-               "standards": ["CODE.1.1"] (Estimate code if not explicit)
+               "title": "Lesson Name (e.g., 1-1 ما المعدن؟)",
+               "standards": ["EAS.12.1.1"] (Use the specific code here)
              }
            ]
          }
