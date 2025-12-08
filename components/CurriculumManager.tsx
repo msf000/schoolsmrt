@@ -6,7 +6,8 @@ import {
     getMicroConcepts, saveMicroConcept, deleteMicroConcept,
     getSubjects
 } from '../services/storageService';
-import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, Tag, BrainCircuit, Plus, List } from 'lucide-react';
+import { generateCurriculumMap } from '../services/geminiService';
+import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, Tag, BrainCircuit, Plus, List, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 
 interface CurriculumManagerProps {
     currentUser: SystemUser;
@@ -28,6 +29,9 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
     const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
     const [editingLesson, setEditingLesson] = useState<Partial<CurriculumLesson> | null>(null);
     const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
+    
+    // AI Generation State
+    const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
         setSubjects(getSubjects(currentUser.id));
@@ -109,6 +113,65 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
         }
     };
 
+    // --- AI Generation Logic ---
+    const handleAutoGenerate = async () => {
+        if (!selectedSubject || !selectedGrade) {
+            alert('يرجى تحديد المادة والصف أولاً لتوليد المنهج.');
+            return;
+        }
+        
+        if (filteredUnits.length > 0) {
+            if (!confirm('يوجد وحدات مسجلة بالفعل لهذه المادة. هل تريد الاستمرار وإضافة المزيد؟')) return;
+        }
+
+        setIsGenerating(true);
+        try {
+            const structure = await generateCurriculumMap(selectedSubject, selectedGrade);
+            
+            if (Array.isArray(structure) && structure.length > 0) {
+                let unitOrder = units.length;
+                
+                for (const unitData of structure) {
+                    const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
+                    
+                    const unit: CurriculumUnit = {
+                        id: unitId,
+                        teacherId: currentUser.id,
+                        subject: selectedSubject,
+                        gradeLevel: selectedGrade,
+                        title: unitData.unitTitle || 'وحدة جديدة',
+                        orderIndex: unitOrder++
+                    };
+                    saveCurriculumUnit(unit);
+
+                    if (Array.isArray(unitData.lessons)) {
+                        let lessonOrder = 0;
+                        for (const lesData of unitData.lessons) {
+                            const lesson: CurriculumLesson = {
+                                id: `les_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
+                                unitId: unitId,
+                                title: lesData.title || 'درس جديد',
+                                orderIndex: lessonOrder++,
+                                learningStandards: lesData.standards || [], // Store Ministerial Codes
+                                microConceptIds: [] 
+                            };
+                            saveCurriculumLesson(lesson);
+                        }
+                    }
+                }
+                refreshData();
+                alert('تم توليد المنهج بنجاح!');
+            } else {
+                alert('لم يتم العثور على هيكل منهج مناسب.');
+            }
+        } catch (e: any) {
+            console.error(e);
+            alert('حدث خطأ أثناء التوليد: ' + e.message);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             <div className="flex justify-between items-center mb-6">
@@ -138,8 +201,20 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                         </div>
                         <div className="flex-1 flex gap-2">
                             <input className="flex-1 p-2 border rounded text-sm" placeholder="اسم الوحدة الجديدة..." value={newUnitName} onChange={e => setNewUnitName(e.target.value)}/>
-                            <button onClick={handleAddUnit} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700 flex items-center gap-2">
+                            <button onClick={handleAddUnit} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700 flex items-center gap-2 text-sm whitespace-nowrap">
                                 <FolderPlus size={16}/> إضافة وحدة
+                            </button>
+                        </div>
+                        
+                        {/* AI Generate Button */}
+                        <div className="w-full md:w-auto border-t md:border-t-0 md:border-r pr-0 md:pr-4 pt-4 md:pt-0">
+                            <button 
+                                onClick={handleAutoGenerate} 
+                                disabled={isGenerating || !selectedSubject || !selectedGrade}
+                                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap shadow-md w-full justify-center"
+                            >
+                                {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
+                                {isGenerating ? 'جاري التوليد...' : 'توليد المنهج بالذكاء الاصطناعي'}
                             </button>
                         </div>
                     </div>
@@ -163,28 +238,42 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                     </div>
                                     
                                     {isExpanded && (
-                                        <div className="p-3 bg-white space-y-2 border-t border-gray-100 animate-slide-up">
+                                        <div className="p-0 bg-white border-t border-gray-100 animate-slide-up">
+                                            {/* Lesson Header */}
+                                            {unitLessons.length > 0 && (
+                                                <div className="grid grid-cols-12 bg-gray-50 text-xs font-bold text-gray-500 p-2 border-b">
+                                                    <div className="col-span-5 pr-8">اسم الدرس</div>
+                                                    <div className="col-span-4">المعيار (Standard)</div>
+                                                    <div className="col-span-3 text-center">إجراءات</div>
+                                                </div>
+                                            )}
+
                                             {unitLessons.map(lesson => (
-                                                <div key={lesson.id} className="flex items-center justify-between p-2 rounded hover:bg-purple-50 group border border-transparent hover:border-purple-100 ml-6">
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-center gap-2 font-medium text-gray-700">
-                                                            <FilePlus size={16} className="text-gray-400"/>
-                                                            {lesson.title}
-                                                        </div>
-                                                        {(lesson.learningStandards?.length > 0 || (lesson.microConceptIds?.length ?? 0) > 0) && (
-                                                            <div className="flex gap-2 mt-1 mr-6">
-                                                                {lesson.learningStandards?.map((std, i) => <span key={i} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded border border-blue-100">{std}</span>)}
-                                                                {(lesson.microConceptIds?.length ?? 0) > 0 && <span className="text-[10px] bg-green-50 text-green-600 px-1.5 rounded border border-green-100">{lesson.microConceptIds!.length} مفاهيم</span>}
-                                                            </div>
+                                                <div key={lesson.id} className="grid grid-cols-12 items-center p-2 hover:bg-purple-50 group border-b border-gray-50 last:border-0">
+                                                    <div className="col-span-5 flex items-center gap-2 font-medium text-gray-700 pr-6">
+                                                        <FilePlus size={16} className="text-gray-400 shrink-0"/>
+                                                        <span className="truncate" title={lesson.title}>{lesson.title}</span>
+                                                    </div>
+                                                    
+                                                    <div className="col-span-4 flex flex-wrap gap-1">
+                                                        {lesson.learningStandards && lesson.learningStandards.length > 0 ? (
+                                                            lesson.learningStandards.map((std, i) => (
+                                                                <span key={i} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-mono font-bold" title="كود المعيار الوزاري">
+                                                                    {std}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-xs text-gray-300">-</span>
                                                         )}
                                                     </div>
-                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 hover:bg-blue-50 p-1 rounded"><Edit2 size={14}/></button>
-                                                        <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
+
+                                                    <div className="col-span-3 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 hover:bg-blue-100 p-1.5 rounded"><Edit2 size={14}/></button>
+                                                        <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/></button>
                                                     </div>
                                                 </div>
                                             ))}
-                                            <button onClick={() => openAddLesson(unit.id)} className="w-full py-2 border-2 border-dashed border-gray-200 rounded text-gray-400 hover:border-purple-300 hover:text-purple-600 text-sm font-bold flex justify-center items-center gap-2 mt-2">
+                                            <button onClick={() => openAddLesson(unit.id)} className="w-full py-2 text-gray-400 hover:text-purple-600 text-sm font-bold flex justify-center items-center gap-2 hover:bg-gray-50 transition-colors">
                                                 <Plus size={16}/> إضافة درس جديد
                                             </button>
                                         </div>
@@ -194,7 +283,8 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                         }) : (
                             <div className="text-center py-20 text-gray-400">
                                 <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
-                                <p>ابدأ بإضافة وحدة دراسية لتنظيم المنهج.</p>
+                                <p className="text-lg font-bold">لا يوجد منهج مسجل</p>
+                                <p className="text-sm">ابدأ بإضافة وحدة يدوياً أو استخدم الزر أعلاه للتوليد بالذكاء الاصطناعي.</p>
                             </div>
                         )}
                     </div>
@@ -221,7 +311,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-600 mb-1 flex items-center gap-1"><BrainCircuit size={14}/> المفاهيم الدقيقة</label>
+                                <label className="block text-sm font-bold text-gray-600 mb-1 flex items-center gap-1"><BrainCircuit size={14}/> المفاهيم الدقيقة (Micro-Concepts)</label>
                                 <div className="border rounded p-2 max-h-32 overflow-y-auto bg-gray-50">
                                     {concepts.filter(c => !c.subject || c.subject === selectedSubject).map(c => (
                                         <label key={c.id} className="flex items-center gap-2 p-1 hover:bg-gray-100 rounded cursor-pointer text-sm">

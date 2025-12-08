@@ -81,6 +81,60 @@ function tryRepairJson(jsonString: string): string {
     return fixed;
 }
 
+// --- NEW: Generate Curriculum Map (Units -> Lessons -> Standards) ---
+export const generateCurriculumMap = async (
+    subject: string,
+    grade: string
+): Promise<any[]> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.planning) throw new Error("AI Planning is disabled");
+
+    const prompt = `
+    Act as an educational consultant for the Saudi Ministry of Education Curriculum (1447 AH).
+    Create a structured curriculum map for:
+    - Subject: ${subject}
+    - Grade: ${grade}
+
+    Requirements:
+    1. Identify the main Units (الوحدات).
+    2. Under each Unit, list the Lessons (الدروس).
+    3. For each Lesson, provide the specific "Learning Standard Code" (المعيار) as used in the ministry books (e.g., MATH.1.2, SCI.5.4, LANG.2.1). If exact code is unknown, generate a plausible code format.
+    
+    Output Format: JSON Array ONLY. No intro text.
+    Schema:
+    [
+      {
+        "unitTitle": "Unit Name",
+        "lessons": [
+          {
+            "title": "Lesson Name",
+            "standards": ["CODE.1.1", "CODE.1.2"]
+          }
+        ]
+      }
+    ]
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                temperature: 0.4, // Lower temperature for structured data
+                systemInstruction: config.systemInstruction
+            }
+        });
+        
+        const text = response.text || "[]";
+        const clean = cleanJsonString(text);
+        return JSON.parse(clean);
+    } catch (error) {
+        console.error("Curriculum Map Gen Error:", error);
+        return [];
+    }
+};
+
 // --- NEW: Generate Parent Message ---
 export const generateParentMessage = async (
     studentName: string,
