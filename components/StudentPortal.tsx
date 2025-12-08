@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet } from '../types';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
@@ -14,9 +14,9 @@ interface StudentPortalProps {
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
     // Restore last view from session storage or default
-    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE'>(() => {
+    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS'>(() => {
         const saved = sessionStorage.getItem('student_last_view');
-        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION' || saved === 'TIMETABLE') ? saved : 'EVALUATION';
+        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION' || saved === 'TIMETABLE' || saved === 'CUSTOM_RECORDS') ? saved : 'EVALUATION';
     });
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -39,6 +39,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         { id: 'EVALUATION', label: 'تقييمي (المتابعة الفردية)', icon: Award },
         { id: 'TIMETABLE', label: 'الجدول الدراسي', icon: Clock },
         { id: 'ATTENDANCE', label: 'سجل الحضور والأعذار', icon: Calendar },
+        { id: 'CUSTOM_RECORDS', label: 'سجلات المتابعة الخاصة', icon: Table },
         { id: 'PROFILE', label: 'الملف الشخصي', icon: User },
     ];
 
@@ -142,6 +143,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} />}
                     {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} />}
                     {view === 'TIMETABLE' && <StudentTimetable student={currentUser} />}
+                    {view === 'CUSTOM_RECORDS' && <StudentCustomRecords student={currentUser} />}
                 </main>
             </div>
         </div>
@@ -157,6 +159,90 @@ const VerticalDate = ({ dateStr }: { dateStr: string }) => {
         <div className="flex flex-col items-center leading-tight">
             <span className="font-bold text-gray-800 text-[11px] md:text-xs">{gregorian?.trim()}</span>
             <span className="text-gray-400 text-[9px] md:text-[10px] mt-0.5">{hijri?.trim()}</span>
+        </div>
+    );
+};
+
+// --- CUSTOM RECORDS VIEW ---
+const StudentCustomRecords = ({ student }: { student: Student }) => {
+    const [sheets, setSheets] = useState<TrackingSheet[]>([]);
+
+    useEffect(() => {
+        // Fetch all sheets and filter by student's class
+        const allSheets = getTrackingSheets();
+        const relevantSheets = allSheets.filter(s => s.className === student.className);
+        setSheets(relevantSheets);
+    }, [student]);
+
+    const renderValue = (type: string, val: any, maxScore?: number) => {
+        if (val === undefined || val === null || val === '') return <span className="text-gray-300">-</span>;
+        
+        if (type === 'CHECKBOX') {
+            return val ? <CheckCircle size={20} className="text-green-600 mx-auto" /> : <X size={20} className="text-red-300 mx-auto" />;
+        }
+        if (type === 'RATING') {
+            return (
+                <div className="flex gap-0.5 justify-center">
+                    {[1,2,3,4,5].map(s => (
+                        <Star key={s} size={14} className={s <= Number(val) ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}/>
+                    ))}
+                </div>
+            );
+        }
+        if (type === 'NUMBER') {
+            return <span className="font-bold text-blue-700">{val} <span className="text-gray-400 text-xs font-normal">/ {maxScore}</span></span>;
+        }
+        return <span className="text-sm font-medium">{val}</span>;
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <Table className="text-teal-600"/> سجلات المتابعة الخاصة
+            </h2>
+            
+            {sheets.length === 0 ? (
+                <div className="bg-white p-10 rounded-xl border-2 border-dashed border-gray-200 text-center text-gray-400">
+                    <Table size={48} className="mx-auto mb-4 opacity-20"/>
+                    <p>لا توجد سجلات متابعة خاصة لفصلك حالياً.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 gap-6">
+                    {sheets.map(sheet => (
+                        <div key={sheet.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-bold text-gray-800">{sheet.title}</h3>
+                                    <p className="text-xs text-gray-500 mt-1">{sheet.subject} • {formatDualDate(sheet.createdAt)}</p>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-center border-collapse text-sm">
+                                    <thead className="bg-gray-100 text-gray-600 font-bold">
+                                        <tr>
+                                            {sheet.columns.map(col => (
+                                                <th key={col.id} className="p-3 border-l border-gray-200">{col.title}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            {sheet.columns.map(col => {
+                                                const val = sheet.scores[student.id]?.[col.id];
+                                                return (
+                                                    <td key={col.id} className="p-4 border-l border-gray-100">
+                                                        {renderValue(col.type, val, col.maxScore)}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

@@ -12,6 +12,7 @@ import {
     getTeacherAssignments, bulkUpsertStudents,
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus
 } from './services/storageService';
+import { checkAIConnection } from './services/geminiService';
 
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -66,6 +67,9 @@ const App: React.FC = () => {
     
     // Sync State
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
+    
+    // AI Status State
+    const [aiStatus, setAiStatus] = useState<'IDLE' | 'CHECKING' | 'CONNECTED' | 'ERROR'>('IDLE');
 
     useEffect(() => {
         if (currentUser) {
@@ -82,6 +86,16 @@ const App: React.FC = () => {
                 }
             };
             startUp();
+            
+            // Check AI Connection once on startup
+            const checkAI = async () => {
+                if (currentUser.role !== 'STUDENT') { // Don't check for students
+                    setAiStatus('CHECKING');
+                    const res = await checkAIConnection();
+                    setAiStatus(res.success ? 'CONNECTED' : 'ERROR');
+                }
+            };
+            checkAI();
             
             const unsubSync = subscribeToSyncStatus((status) => setSyncStatus(status));
             const unsubData = subscribeToDataChanges(() => loadData());
@@ -150,6 +164,12 @@ const App: React.FC = () => {
         if (syncStatus === 'OFFLINE' || syncStatus === 'ERROR') {
             initAutoSync();
         }
+    };
+
+    const handleCheckAI = async () => {
+        setAiStatus('CHECKING');
+        const res = await checkAIConnection();
+        setAiStatus(res.success ? 'CONNECTED' : 'ERROR');
     };
 
     // --- CRUD WRAPPERS ---
@@ -329,8 +349,8 @@ const App: React.FC = () => {
                     )}
                 </nav>
 
-                {/* BOTTOM: Sync Status */}
-                <div className="p-4 border-t bg-gray-50">
+                {/* BOTTOM: Sync Status & AI Status */}
+                <div className="p-4 border-t bg-gray-50 space-y-2">
                     <button 
                         onClick={handleManualSync}
                         disabled={syncStatus === 'SYNCING' || syncStatus === 'ONLINE'}
@@ -361,6 +381,38 @@ const App: React.FC = () => {
                             </span>
                         </div>
                     </button>
+
+                    {/* AI STATUS BUTTON */}
+                    <button 
+                        onClick={handleCheckAI}
+                        disabled={aiStatus === 'CHECKING'}
+                        className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded border transition-colors ${
+                            aiStatus === 'ERROR' ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'
+                        } ${
+                            aiStatus === 'CHECKING' ? 'bg-purple-50 border-purple-200' :
+                            aiStatus === 'CONNECTED' ? 'bg-green-50 border-green-200' :
+                            aiStatus === 'ERROR' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
+                        }`}
+                        title={aiStatus === 'ERROR' ? 'اضغط لإعادة الفحص' : ''}
+                    >
+                        <span className="text-gray-500 font-bold">حالة الذكاء (AI):</span>
+                        <div className="flex items-center gap-1">
+                            {aiStatus === 'CHECKING' && <Loader2 size={14} className="text-purple-500 animate-spin"/>}
+                            {aiStatus === 'CONNECTED' && <BrainCircuit size={14} className="text-green-500"/>}
+                            {aiStatus === 'ERROR' && <AlertCircle size={14} className="text-red-500"/>}
+                            
+                            <span className={`font-bold ${
+                                aiStatus === 'CHECKING' ? 'text-purple-600' :
+                                aiStatus === 'CONNECTED' ? 'text-green-600' :
+                                aiStatus === 'ERROR' ? 'text-red-600' : 'text-gray-500'
+                            }`}>
+                                {aiStatus === 'CHECKING' ? 'جاري الفحص...' :
+                                 aiStatus === 'CONNECTED' ? 'متصل' :
+                                 aiStatus === 'ERROR' ? 'خطأ' : 'غير معروف'}
+                            </span>
+                        </div>
+                    </button>
+
                     <div className="text-center mt-2 text-[10px] text-gray-300">
                         نظام المدرس الذكي v1.0
                     </div>

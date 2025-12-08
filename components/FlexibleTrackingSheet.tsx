@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject } from '../types';
 import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects } from '../services/storageService';
-import { Plus, Trash2, Edit2, Save, Printer, ArrowLeft, MoreVertical, LayoutGrid, CheckSquare, Hash, Type, Table } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, Printer, ArrowLeft, MoreVertical, LayoutGrid, CheckSquare, Hash, Type, Table, Star } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface FlexibleTrackingSheetProps {
@@ -116,6 +116,22 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         return students.filter(s => s.className === tempClass).sort((a,b) => a.name.localeCompare(b.name));
     }, [students, tempClass]);
 
+    const renderRatingStars = (studentId: string, colId: string, currentVal: number) => {
+        return (
+            <div className="flex justify-center items-center gap-1">
+                {[1, 2, 3, 4, 5].map(star => (
+                    <button 
+                        key={star} 
+                        onClick={() => updateScore(studentId, colId, star === currentVal ? 0 : star)}
+                        className={`transition-transform hover:scale-110 ${star <= (currentVal || 0) ? 'text-yellow-400' : 'text-gray-200'}`}
+                    >
+                        <Star size={16} fill={star <= (currentVal || 0) ? "currentColor" : "none"} />
+                    </button>
+                ))}
+            </div>
+        );
+    };
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             {view === 'LIST' && (
@@ -199,6 +215,7 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                                                         <option value="NUMBER">رقم</option>
                                                         <option value="TEXT">نص</option>
                                                         <option value="CHECKBOX">صح/خطأ</option>
+                                                        <option value="RATING">تقييم (نجوم)</option>
                                                     </select>
                                                     {col.type === 'NUMBER' && (
                                                         <input className="w-8 text-[10px] text-center border rounded" value={col.maxScore} onChange={e => updateColumn(col.id, { maxScore: Number(e.target.value) })} placeholder="Max"/>
@@ -227,6 +244,10 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                                                                 checked={!!val} 
                                                                 onChange={e => updateScore(student.id, col.id, e.target.checked)} 
                                                             />
+                                                        </div>
+                                                    ) : col.type === 'RATING' ? (
+                                                        <div className="h-full py-2">
+                                                            {renderRatingStars(student.id, col.id, val)}
                                                         </div>
                                                     ) : col.type === 'NUMBER' ? (
                                                         <input 
