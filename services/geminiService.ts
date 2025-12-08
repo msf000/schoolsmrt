@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, LessonBlock } from "../types";
 import { getAISettings } from "./storageService";
@@ -22,11 +23,21 @@ const getConfig = () => {
     };
 };
 
-// Helper to clean JSON string from Markdown
+// Helper to clean JSON string from Markdown and extra text
 function cleanJsonString(text: string): string {
     if (!text) return "[]";
-    // Remove markdown code blocks ```json ... ``` or ``` ... ```
+    
+    // 1. Remove markdown code blocks
     let clean = text.replace(/```json/gi, '').replace(/```/g, '');
+    
+    // 2. Extract only the array part [ ... ]
+    const firstBracket = clean.indexOf('[');
+    const lastBracket = clean.lastIndexOf(']');
+    
+    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        return clean.substring(firstBracket, lastBracket + 1);
+    }
+
     return clean.trim();
 }
 
@@ -137,7 +148,7 @@ export const generateLessonBlocks = async (
     if (!enabled.planning) throw new Error("AI Planning is disabled");
 
     const prompt = `
-    Act as an expert teacher in the Saudi Curriculum (1447 AH).
+    Act as an expert teacher in the Saudi Curriculum.
     Create a structured lesson plan for the "Lesson Studio".
     
     Subject: ${subject}
@@ -149,12 +160,6 @@ export const generateLessonBlocks = async (
     - Include Kinetic Activity? ${settings.includeActivity ? 'Yes' : 'No'}
     - Suggest Video Content? ${settings.includeVideo ? 'Yes' : 'No'}
     - Include Worksheet Idea? ${settings.includeWorksheet ? 'Yes' : 'No'}
-
-    **SPECIAL CONTEXT for "Earth and Space Science" (علم الأرض والفضاء):**
-    If the topic is related to "Origin of the Universe" (نشأة الكون), "Big Bang" (الانفجار العظيم), or "Galaxies" (المجرات):
-    - Ensure alignment with Chapter 1: Evolution of the Universe.
-    - Mention the Big Bang Theory and evidence (Hubble's Law).
-    - Mention the expansion of the universe.
 
     Output Format: JSON Array of Objects (LessonBlock).
     Possible Types: 'OBJECTIVES', 'INTRO', 'STRATEGIES', 'CONTENT', 'ACTIVITY', 'MEDIA', 'ASSESSMENT', 'HOMEWORK'.
@@ -201,79 +206,39 @@ export const generateCurriculumMap = async (
     if (!enabled.planning) throw new Error("AI Planning is disabled");
 
     const prompt = `
-    Act as a specialized Educational Consultant for the Saudi Ministry of Education (MOE) Curriculum (Tracks System / نظام المسارات).
+    Act as a specialized Educational Consultant for the Saudi Ministry of Education (MOE) Curriculum.
     
-    TARGET: Extract the Table of Contents (Units and Lessons) for the **1447 AH (2025-2026) Edition**.
-    
-    Details:
+    TARGET: Generate a Table of Contents (Units and Lessons) for:
     - Subject: ${subject}
     - Grade Level: ${grade}
-    - Semester/Term: ${semester}.
+    - Semester/Term: ${semester}
     
-    **MANDATORY SYLLABUS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء):**
-    If the subject is "علم الأرض والفضاء" (Earth and Space Science), use the following structure depending on the semester:
+    NOTE: If exact 1447 AH data is unavailable, generate the most standard/common syllabus structure for this subject and grade in the Saudi curriculum. Do NOT return empty. Use generic but accurate educational topics if specific textbook data is missing.
 
-    **IF SEMESTER IS "الفصل الدراسي الأول" (Term 1):**
-    1. **الفصل 1: تطور الكون (Evolution of the Universe)**
-       - 1-1 نشأة الكون (Origin of the Universe) - Code: ES.12.1.1
-       - 1-2 النجوم والمجرات (Stars and Galaxies) - Code: ES.12.1.2
-    
-    2. **الفصل 2: الميكانيكا السماوية (Celestial Mechanics)**
-       - 2-1 قانون الجاذبية وقوانين كبلر (Gravitation and Kepler's Laws) - Code: ES.12.2.1
-       - 2-2 التقنية الفضائية (Space Technology) - Code: ES.12.2.2
-    
-    3. **الفصل 3: المعادن (Minerals)**
-       - 3-1 ما المعدن؟ (What is a Mineral?) - Code: ES.12.3.1
-       - 3-2 أنواع المعادن وأهميتها (Types of Minerals) - Code: ES.12.3.2
-    
-    4. **الفصل 4: الصخور (Rocks)**
-       - 4-1 الصخور النارية (Igneous Rocks) - Code: ES.12.4.1
-       - 4-2 الصخور الرسوبية (Sedimentary Rocks) - Code: ES.12.4.2
-       - 4-3 الصخور المتحولة (Metamorphic Rocks) - Code: ES.12.4.3
-    
-    5. **الفصل 5: الصفائح الأرضية (Plate Tectonics)**
-       - 5-1 انجراف القارات (Continental Drift) - Code: ES.12.5.1
-       - 5-2 توسع قاع المحيط (Seafloor Spreading) - Code: ES.12.5.2
-       - 5-3 حدود الصفائح وأسباب حركتها (Plate Boundaries) - Code: ES.12.5.3
-    
-    6. **الفصل 6: البراكين والزلازل (Volcanoes & Earthquakes)**
-       - 6-1 ما البركان؟ (What is a Volcano?) - Code: ES.12.6.1
-       - 6-2 الثورانات البركانية (Volcanic Eruptions) - Code: ES.12.6.2
-       - 6-3 الأمواج الزلزالية وبنية الأرض (Seismic Waves) - Code: ES.12.6.3
-       - 6-4 قياس الزلازل وتحديد أماكنها (Measuring Earthquakes) - Code: ES.12.6.4
-       - 6-5 الزلازل والمجتمع (Earthquakes and Society) - Code: ES.12.6.5
-
-    **IF SEMESTER IS "الفصل الدراسي الثاني" (Term 2):**
-    1. **الفصل 1: الكواكب (The Planets)**
-       - الكواكب الداخلية (Inner Planets) - Code: ES.S2.1.1
-       - الكواكب الخارجية والأجرام الأخرى (Outer Planets) - Code: ES.S2.1.2
-
-    2. **الفصل 2: الشمس والبيئة الفضائية (The Sun)**
-       - الشمس (البيئة الفضائية) - Code: ES.S2.2.1
-       - النشاط الشمسي - Code: ES.S2.2.2
-
-    3. **الفصل 3: أدوات الفلك (Astronomy Tools)**
-       - الطيف الكهرومغناطيسي - Code: ES.S2.3.1
-       - المناظير الأرضية والفضائية - Code: ES.S2.3.2
-
-    6. **الفصل 6: جيولوجيا المملكة (Geology of KSA)**
-       - صخور المملكة العربية السعودية - Code: ES.S2.6.1
-       - الصفيحة العربية وتكويناتها - Code: ES.S2.6.2
-       - المياه الجوفية في المملكة - Code: ES.S2.6.3
-
-    **For Other Subjects:**
-    Align with the official Saudi National Curriculum (1447 AH) as presented on the 'Ein' portal.
+    **MANDATORY SYLLABUS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء) IF SELECTED:**
+    If subject is "علم الأرض والفضاء" (Earth and Space Science), use this structure:
+    Term 1:
+    1. الفصل 1: تطور الكون (Evolution of the Universe)
+       - 1-1 نشأة الكون
+       - 1-2 النجوم والمجرات
+    2. الفصل 2: الميكانيكا السماوية
+       - 2-1 قانون الجاذبية وقوانين كبلر
+       - 2-2 التقنية الفضائية
+    3. الفصل 3: المعادن
+    4. الفصل 4: الصخور
+    5. الفصل 5: الصفائح الأرضية
+    6. الفصل 6: البراكين والزلازل
 
     Output Requirements:
-    1. Return a JSON Array ONLY.
+    1. Return a JSON Array ONLY. Do not include markdown code blocks.
     2. Structure:
        [
          {
-           "unitTitle": "Unit Name",
+           "unitTitle": "Unit Name in Arabic",
            "lessons": [
              {
-               "title": "Lesson Name",
-               "standards": ["CODE"]
+               "title": "Lesson Name in Arabic",
+               "standards": ["OPTIONAL_CODE"]
              }
            ]
          }
@@ -286,14 +251,21 @@ export const generateCurriculumMap = async (
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.1,
+                temperature: 0.1, // Low temp for consistency
                 systemInstruction: config.systemInstruction
             }
         });
         
         const text = response.text || "[]";
+        // Improved cleaning
         const clean = cleanJsonString(text);
-        return JSON.parse(clean);
+        
+        try {
+            return JSON.parse(clean);
+        } catch (e) {
+            // Last resort repair
+            return JSON.parse(tryRepairJson(clean));
+        }
     } catch (error) {
         console.error("Curriculum Map Gen Error:", error);
         return [];
@@ -392,7 +364,7 @@ export const generateLessonPlan = async (subject: string, topic: string, gradeLe
 
 export const suggestSyllabus = async (subject: string, gradeLevel: string): Promise<string> => {
     const { model, config } = getConfig();
-    const prompt = `List syllabus units/lessons for ${subject} ${gradeLevel} Saudi Curriculum 1447. Bullet points.`;
+    const prompt = `List syllabus units/lessons for ${subject} ${gradeLevel} Saudi Curriculum. Bullet points.`;
     try {
         const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature } });
         return response.text || "";
