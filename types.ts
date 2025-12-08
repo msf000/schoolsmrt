@@ -361,4 +361,24 @@ export interface StoredLessonPlan {
     createdAt: string;
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING' | 'CURRICULUM_MAP' | 'RESOURCES_VIEW' | 'SCHEDULE_VIEW';
+// --- FLEXIBLE TRACKING SHEET (New Feature) ---
+export interface TrackingColumn {
+    id: string;
+    title: string;
+    type: 'NUMBER' | 'TEXT' | 'CHECKBOX' | 'RATING';
+    maxScore?: number; // For Number/Rating
+}
+
+export interface TrackingSheet {
+    id: string;
+    title: string;
+    subject: string;
+    className: string; // Target Class
+    teacherId: string;
+    createdAt: string;
+    columns: TrackingColumn[];
+    // Data storage: { studentId: { columnId: value } }
+    scores: Record<string, Record<string, any>>; 
+}
+
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING' | 'CURRICULUM_MAP' | 'RESOURCES_VIEW' | 'SCHEDULE_VIEW' | 'FLEXIBLE_TRACKING';

@@ -1,8 +1,10 @@
+
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
     LessonLink, MessageLog, Feedback, ReportHeaderConfig, AISettings, UserTheme, 
-    PerformanceCategory, Exam, ExamResult, Question, CurriculumUnit, CurriculumLesson, MicroConcept, StoredLessonPlan
+    PerformanceCategory, Exam, ExamResult, Question, CurriculumUnit, CurriculumLesson, MicroConcept, StoredLessonPlan,
+    TrackingSheet
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -29,7 +31,8 @@ export const DB_MAP: Record<string, string> = {
     curriculum_units: 'curriculum_units',
     curriculum_lessons: 'curriculum_lessons',
     micro_concepts: 'micro_concepts',
-    lesson_plans_db: 'lesson_plans'
+    lesson_plans_db: 'lesson_plans',
+    tracking_sheets: 'tracking_sheets' // New
 };
 
 const INITIAL_DATA = {
@@ -54,6 +57,7 @@ const INITIAL_DATA = {
     curriculum_lessons: [] as CurriculumLesson[],
     micro_concepts: [] as MicroConcept[],
     lesson_plans_db: [] as StoredLessonPlan[],
+    tracking_sheets: [] as TrackingSheet[], // New
     report_header_config: { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' } as ReportHeaderConfig,
     ai_settings: { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' } as AISettings,
     user_theme: { mode: 'LIGHT', backgroundStyle: 'FLAT' } as UserTheme,
@@ -540,8 +544,7 @@ export const deleteQuestionFromBank = (id: string) => {
     pushToCloud('questions_bank', { id }, 'DELETE');
 };
 
-// 14. Curriculum & Intelligence (New)
-// Curriculum Units
+// 14. Curriculum & Intelligence
 export const getCurriculumUnits = (teacherId?: string) => {
     const all = CACHE.curriculum_units || [];
     if (!teacherId) return all;
@@ -559,7 +562,6 @@ export const deleteCurriculumUnit = (id: string) => {
     pushToCloud('curriculum_units', { id }, 'DELETE');
 };
 
-// Curriculum Lessons
 export const getCurriculumLessons = (unitId?: string) => {
     const all = CACHE.curriculum_lessons || [];
     if (!unitId) return all;
@@ -577,7 +579,6 @@ export const deleteCurriculumLesson = (id: string) => {
     pushToCloud('curriculum_lessons', { id }, 'DELETE');
 };
 
-// Micro Concepts
 export const getMicroConcepts = (teacherId?: string) => {
     const all = CACHE.micro_concepts || [];
     if (!teacherId) return all;
@@ -595,7 +596,6 @@ export const deleteMicroConcept = (id: string) => {
     pushToCloud('micro_concepts', { id }, 'DELETE');
 };
 
-// Lesson Plans
 export const getLessonPlans = (teacherId?: string) => {
     const all = CACHE.lesson_plans_db || [];
     if (!teacherId) return all;
@@ -611,6 +611,24 @@ export const saveLessonPlan = (p: StoredLessonPlan) => {
 export const deleteLessonPlan = (id: string) => {
     saveToLocal('lesson_plans_db', (CACHE.lesson_plans_db || []).filter(x => x.id !== id));
     pushToCloud('lesson_plans_db', { id }, 'DELETE');
+};
+
+// 15. Flexible Tracking Sheets (New)
+export const getTrackingSheets = (teacherId?: string) => {
+    const all = CACHE.tracking_sheets || [];
+    if (!teacherId) return all;
+    return all.filter(s => s.teacherId === teacherId);
+};
+export const saveTrackingSheet = (s: TrackingSheet) => {
+    const list = [...(CACHE.tracking_sheets || [])];
+    const idx = list.findIndex(x => x.id === s.id);
+    if (idx > -1) list[idx] = s; else list.push(s);
+    saveToLocal('tracking_sheets', list);
+    pushToCloud('tracking_sheets', s);
+};
+export const deleteTrackingSheet = (id: string) => {
+    saveToLocal('tracking_sheets', (CACHE.tracking_sheets || []).filter(x => x.id !== id));
+    pushToCloud('tracking_sheets', { id }, 'DELETE');
 };
 
 // --- SYSTEM UTILS ---
@@ -642,9 +660,7 @@ export const clearDatabase = () => {
 };
 
 export const setSystemMode = (isDemo: boolean) => {
-    // If demo mode is activated, we might seed some data
     if (isDemo && CACHE.students.length === 0) {
-        // Seed simple demo data if empty
         const demoTeacher: SystemUser = { id: 't1', name: 'المعلم التجريبي', role: 'TEACHER', email: 'teacher@demo.com', status: 'ACTIVE' };
         addSystemUser(demoTeacher);
     }
@@ -673,14 +689,10 @@ create table if not exists curriculum_units (id text primary key, teacherId text
 create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
 create table if not exists micro_concepts (id text primary key, name text, parentConcept text, subject text, teacherId text);
 create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
+create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
 `;
 
 export const getDatabaseUpdateSQL = () => `
 -- Updates
-alter table schools add column if not exists ministryCode text;
-create table if not exists questions_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
-create table if not exists curriculum_units (id text primary key, teacherId text, subject text, gradeLevel text, title text, orderIndex numeric);
-create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
-create table if not exists micro_concepts (id text primary key, name text, parentConcept text, subject text, teacherId text);
-create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
+create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
 `;

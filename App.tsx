@@ -38,8 +38,9 @@ import AutoGrading from './components/AutoGrading';
 import CurriculumManager from './components/CurriculumManager';
 import ResourcesView from './components/ResourcesView';
 import ScheduleView from './components/ScheduleView';
+import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table } from 'lucide-react';
 
 // FIX: Import SchoolManagement as named export since we changed it
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
@@ -276,27 +277,37 @@ const App: React.FC = () => {
                     
                     {currentUser.role === 'SUPER_ADMIN' && <NavItem view="ADMIN_DASHBOARD" label="إدارة النظام" icon={Settings} />}
                     
+                    {/* Basic Tools: Students, Attendance, etc. (Manager & Teacher Only) */}
                     {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER') && (
                         <>
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
                             <NavItem view="ATTENDANCE" label="الحضور والغياب" icon={CheckSquare} />
                             <NavItem view="CLASSROOM_MANAGEMENT" label="الإدارة الصفية" icon={MonitorPlay} />
                             <NavItem view="PERFORMANCE" label="رصد الدرجات" icon={BarChart} />
-                            
-                            <div className="pt-4 mt-4 border-t border-gray-100">
-                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط والمناهج</label>
-                                <NavItem view="SCHEDULE_VIEW" label="الجدول الدراسي" icon={Calendar} />
-                                <NavItem view="LESSON_PLANNING" label="تحضير الدروس" icon={PenTool} />
-                                <NavItem view="CURRICULUM_MAP" label="توزيع المنهج" icon={ListTree} />
-                                <NavItem view="RESOURCES_VIEW" label="مكتبة المصادر" icon={BookOpen} />
-                            </div>
+                        </>
+                    )}
+                    
+                    {/* Planning & Curriculum: Available for Admin, Manager, Teacher */}
+                    {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER' || currentUser.role === 'SUPER_ADMIN') && (
+                        <div className="pt-4 mt-4 border-t border-gray-100">
+                            <label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط والمناهج</label>
+                            <NavItem view="SCHEDULE_VIEW" label="الجدول الدراسي" icon={Calendar} />
+                            <NavItem view="LESSON_PLANNING" label="تحضير الدروس" icon={PenTool} />
+                            <NavItem view="CURRICULUM_MAP" label="توزيع المنهج" icon={ListTree} />
+                            <NavItem view="RESOURCES_VIEW" label="مكتبة المصادر" icon={BookOpen} />
+                        </div>
+                    )}
 
+                    {/* Advanced Tools & Exams (Manager & Teacher Only) */}
+                    {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER') && (
+                        <>
                             <div className="pt-4 mt-4 border-t border-gray-100">
                                 <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الاختبارات والتقييم</label>
                                 <NavItem view="QUESTION_BANK" label="بنك الأسئلة" icon={Library} />
                                 <NavItem view="EXAMS_MANAGER" label="الاختبارات" icon={FileQuestion} />
                                 <NavItem view="AUTO_GRADING" label="التصحيح الآلي" icon={ScanLine} />
                                 <NavItem view="WORKS_TRACKING" label="سجل الدرجات" icon={FileSpreadsheet} />
+                                <NavItem view="FLEXIBLE_TRACKING" label="سجلات مرنة (جديد)" icon={Table} />
                             </div>
 
                             <div className="pt-4 mt-4 border-t border-gray-100">
@@ -407,6 +418,7 @@ const App: React.FC = () => {
                         />
                     )}
                     {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser} />}
+                    {currentView === 'FLEXIBLE_TRACKING' && <FlexibleTrackingSheet currentUser={currentUser} />}
                 </div>
             </main>
         </div>
