@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity, FileBarChart } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -19,6 +19,7 @@ interface AttendanceProps {
   selectedDate?: string;
   onDateChange?: (date: string) => void;
   currentUser?: SystemUser | null; 
+  onNavigate?: (view: string) => void; // Added for navigation
 }
 
 const DEFAULT_POSITIVE_NOTES = [
@@ -41,7 +42,8 @@ const Attendance: React.FC<AttendanceProps> = ({
     preSelectedSubject, 
     selectedDate: propDate, 
     onDateChange,
-    currentUser
+    currentUser,
+    onNavigate
 }) => {
   if (!students) {
       return (
@@ -663,6 +665,15 @@ const Attendance: React.FC<AttendanceProps> = ({
                       <h3 className="font-bold text-gray-800">سجل المتابعة الشامل</h3>
                   </div>
                   <div className="flex flex-wrap gap-2 text-sm items-center">
+                      {/* Navigation Link to Monthly Report */}
+                      {onNavigate && (
+                          <button 
+                              onClick={() => onNavigate('MONTHLY_REPORT')} 
+                              className="bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-purple-200 transition-colors shadow-sm"
+                          >
+                              <FileBarChart size={14}/> عرض الكشف الشهري (الشبكة)
+                          </button>
+                      )}
                       <button onClick={handlePrintLog} className="bg-gray-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-black transition-colors shadow-sm"><Printer size={14}/> طباعة</button>
                   </div>
               </div>
