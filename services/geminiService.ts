@@ -23,19 +23,40 @@ const getConfig = () => {
     };
 };
 
+// --- RETRY LOGIC ---
+async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
+    try {
+        return await operation();
+    } catch (error: any) {
+        const isQuotaError = error.status === 429 || 
+                             error.code === 429 || 
+                             (error.message && (error.message.includes('429') || error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED')));
+        
+        if (isQuotaError && retries > 0) {
+            console.warn(`Gemini Quota exceeded. Retrying in ${delay}ms... (${retries} left)`);
+            await new Promise(res => setTimeout(res, delay));
+            return withRetry(operation, retries - 1, delay * 2);
+        }
+        throw error;
+    }
+}
+
 // --- NEW: Check Connection explicitly ---
 export const checkAIConnection = async (): Promise<{ success: boolean; message: string }> => {
     try {
         const { model } = getConfig();
-        const response = await ai.models.generateContent({
+        // Simple call, usually safe to retry once if transient
+        const response = await withRetry(() => ai.models.generateContent({
             model: model,
             contents: "Test connection. Reply with 'OK'.",
-        });
+        }), 1); 
         if (response.text) return { success: true, message: "تم الاتصال بنجاح!" };
         return { success: false, message: "لم يتم استلام رد من النموذج." };
     } catch (error: any) {
         console.error("AI Connection Test Error:", error);
-        return { success: false, message: error.message || "فشل الاتصال بمفتاح API." };
+        let msg = error.message || "فشل الاتصال بمفتاح API.";
+        if (msg.includes('429') || msg.includes('quota')) msg = "تم تجاوز حد الاستخدام (Quota). يرجى المحاولة لاحقاً.";
+        return { success: false, message: msg };
     }
 };
 
@@ -156,8 +177,8 @@ export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<a
 
     try {
         const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-        const response = await ai.models.generateContent({
-            model: model, // Must support vision (gemini-2.5-flash does)
+        const response = await withRetry(() => ai.models.generateContent({
+            model: model, 
             contents: {
                 parts: [
                     { text: prompt },
@@ -166,14 +187,14 @@ export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<a
             },
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.2, // Low temp for accuracy
+                temperature: 0.2, 
             }
-        });
+        }));
         
         return JSON.parse(cleanJsonString(response.text || "{}"));
     } catch (error) {
         console.error("Auto Grading Error:", error);
-        throw new Error("فشل التصحيح الآلي. تأكد من جودة الصورة.");
+        throw new Error("فشل التصحيح الآلي. تأكد من جودة الصورة أو حاول لاحقاً.");
     }
 };
 
@@ -206,14 +227,14 @@ export const regenerateSingleBlock = async (
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await withRetry(() => ai.models.generateContent({
             model: model,
             contents: prompt,
             config: {
-                temperature: 0.8, // Higher creativity for rewriting
+                temperature: 0.8,
                 systemInstruction: config.systemInstruction
             }
-        });
+        }));
         return response.text || "فشلت إعادة الصياغة.";
     } catch (error) {
         console.error("Regenerate Block Error:", error);
@@ -227,7 +248,7 @@ export const generateLessonBlocks = async (
     topic: string,
     gradeLevel: string,
     settings: { includeActivity: boolean, includeVideo: boolean, includeWorksheet: boolean },
-    standards: string[] = [] // New parameter for curriculum standards
+    standards: string[] = [] 
 ): Promise<LessonBlock[]> => {
     const { model, config, enabled } = getConfig();
     if (!enabled.planning) throw new Error("AI Planning is disabled");
@@ -261,7 +282,7 @@ export const generateLessonBlocks = async (
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await withRetry(() => ai.models.generateContent({
             model: model,
             contents: prompt,
             config: {
@@ -269,11 +290,10 @@ export const generateLessonBlocks = async (
                 temperature: 0.5,
                 systemInstruction: config.systemInstruction
             }
-        });
+        }));
         const text = response.text || "[]";
         const blocks: LessonBlock[] = JSON.parse(cleanJsonString(text));
         
-        // Add IDs to blocks for frontend handling
         return blocks.map(b => ({ ...b, id: Date.now().toString() + Math.random().toString(36).substr(2,9) }));
     } catch (error) {
         console.error("Lesson Studio Gen Error:", error);
@@ -281,7 +301,6 @@ export const generateLessonBlocks = async (
     }
 };
 
-// ... existing functions (generateCurriculumMap, generateParentMessage, organizeCourseContent, generateSlideQuestions, generateStudentAnalysis, generateQuiz, generateStructuredQuiz, generateRemedialPlan, generateLessonPlan, suggestSyllabus, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, predictColumnMapping, parseRawDataWithAI) ...
 export const generateCurriculumMap = async (
     subject: string,
     grade: string,
@@ -300,20 +319,6 @@ export const generateCurriculumMap = async (
     
     NOTE: If exact 1447 AH data is unavailable, generate the most standard/common syllabus structure for this subject and grade in the Saudi curriculum. Do NOT return empty. Use generic but accurate educational topics if specific textbook data is missing.
 
-    **MANDATORY SYLLABUS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء) IF SELECTED:**
-    If subject is "علم الأرض والفضاء" (Earth and Space Science), use this structure:
-    Term 1:
-    1. الفصل 1: تطور الكون (Evolution of the Universe)
-       - 1-1 نشأة الكون
-       - 1-2 النجوم والمجرات
-    2. الفصل 2: الميكانيكا السماوية
-       - 2-1 قانون الجاذبية وقوانين كبلر
-       - 2-2 التقنية الفضائية
-    3. الفصل 3: المعادن
-    4. الفصل 4: الصخور
-    5. الفصل 5: الصفائح الأرضية
-    6. الفصل 6: البراكين والزلازل
-
     Output Requirements:
     1. Return a JSON Array ONLY. Do not include markdown code blocks.
     2. Structure:
@@ -331,24 +336,22 @@ export const generateCurriculumMap = async (
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await withRetry(() => ai.models.generateContent({
             model: model,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.1, // Low temp for consistency
+                temperature: 0.1, 
                 systemInstruction: config.systemInstruction
             }
-        });
+        }));
         
         const text = response.text || "[]";
-        // Improved cleaning
         const clean = cleanJsonString(text);
         
         try {
             return JSON.parse(clean);
         } catch (e) {
-            // Last resort repair
             return JSON.parse(tryRepairJson(clean));
         }
     } catch (error) {
@@ -362,7 +365,7 @@ export const generateParentMessage = async (studentName: string, topic: string, 
     const toneDesc = tone === 'OFFICIAL' ? 'رسمية ومهنية' : tone === 'FRIENDLY' ? 'ودية ومشجعة' : 'حازمة وعاجلة';
     const prompt = `بصفتك مساعداً إدارياً، صغ رسالة قصيرة لولي أمر الطالب "${studentName}". الموضوع: ${topic}. النبرة: ${toneDesc}. لا تتجاوز 3 أسطر.`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: 0.7, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: 0.7, systemInstruction: config.systemInstruction } }));
         return response.text || "";
     } catch (error) { return ""; }
 };
@@ -372,7 +375,7 @@ export const organizeCourseContent = async (rawText: string, subject: string, gr
     if (!enabled.planning) return rawText;
     const prompt = `Organize this syllabus text for ${subject} (${grade}) into Markdown. Use ### for Units and - for Lessons. Input: """${rawText}"""`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: 0.3, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: 0.3, systemInstruction: config.systemInstruction } }));
         return response.text || rawText;
     } catch (error) { return rawText; }
 };
@@ -387,7 +390,7 @@ export const generateSlideQuestions = async (contextText: string, imageBase64?: 
             const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
             parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
         }
-        const response = await ai.models.generateContent({ model: model, contents: { parts }, config: { responseMimeType: "application/json", temperature: config.temperature } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: { parts }, config: { responseMimeType: "application/json", temperature: config.temperature } }));
         return JSON.parse(cleanJsonString(response.text || "[]"));
     } catch (error) { return []; }
 };
@@ -397,9 +400,9 @@ export const generateStudentAnalysis = async (student: Student, attendance: Atte
     if (!enabled.reports) return "التحليل معطل.";
     const prompt = `Analyze student ${student.name} (${student.gradeLevel}). Attendance: ${attendance.length} records. Performance: ${performance.length} records. Write a short professional report in Arabic for the parent.`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } }));
         return response.text || "";
-    } catch (error) { return "خطأ في التحليل"; }
+    } catch (error) { return "خطأ في التحليل - يرجى المحاولة لاحقاً."; }
 };
 
 export const generateQuiz = async (subject: string, topic: string, gradeLevel: string, questionCount: number, difficulty: 'EASY' | 'MEDIUM' | 'HARD'): Promise<string> => {
@@ -407,7 +410,7 @@ export const generateQuiz = async (subject: string, topic: string, gradeLevel: s
     if (!enabled.quiz) return "خدمة الاختبارات معطلة.";
     const prompt = `Create a ${questionCount}-question quiz for ${subject}: ${topic} (${gradeLevel}). Difficulty: ${difficulty}. Arabic. Output format: Q1: ... a) ... b) ... Answer: ...`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } }));
         return response.text || "";
     } catch (error) { return "فشل التوليد"; }
 };
@@ -420,7 +423,7 @@ export const generateStructuredQuiz = async (subject: string, topic: string, gra
     if (context?.concepts) ctx += `Concepts: ${context.concepts.join(',')}. `;
     const prompt = `Generate ${questionCount} questions JSON for ${subject}: ${topic} (${gradeLevel}). Diff: ${difficulty}. ${ctx} Schema: [{text, type:'MCQ'|'TRUE_FALSE', options[], correctAnswer, points}]`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { responseMimeType: "application/json", temperature: config.temperature } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { responseMimeType: "application/json", temperature: config.temperature } }));
         return JSON.parse(cleanJsonString(response.text || "[]"));
     } catch (error) { return []; }
 };
@@ -430,7 +433,7 @@ export const generateRemedialPlan = async (studentName: string, gradeLevel: stri
     if (!enabled.planning) return "Disabled";
     const prompt = `Create remedial plan for ${studentName} (${gradeLevel}) in ${subject}. Weakness: ${weaknessAreas}. Markdown format.`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } }));
         return response.text || "";
     } catch (error) { return ""; }
 };
@@ -442,7 +445,7 @@ export const generateLessonPlan = async (subject: string, topic: string, gradeLe
     if (context?.standards) ctx += `Standards: ${context.standards.join(',')}. `;
     const prompt = `Create lesson plan Markdown. ${subject}: ${topic} (${gradeLevel}, ${duration}min). Strategies: ${strategies.join(',')}. Resources: ${resources.join(',')}. Objectives: ${objectives}. ${ctx}`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } }));
         return response.text || "";
     } catch (error) { return ""; }
 };
@@ -451,7 +454,7 @@ export const suggestSyllabus = async (subject: string, gradeLevel: string): Prom
     const { model, config } = getConfig();
     const prompt = `List syllabus units/lessons for ${subject} ${gradeLevel} Saudi Curriculum. Bullet points.`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature } }));
         return response.text || "";
     } catch (error) { return ""; }
 };
@@ -461,7 +464,7 @@ export const generateSemesterPlan = async (subject: string, gradeLevel: string, 
     if (!enabled.planning) return "Disabled";
     const prompt = `Create semester plan Markdown table for ${subject} ${gradeLevel} ${term}. ${weeks} weeks, ${classesPerWeek} classes/week. Content: ${content}`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } }));
         return response.text || "";
     } catch (error) { return ""; }
 };
@@ -471,7 +474,7 @@ export const generateLearningPlan = async (subject: string, gradeLevel: string, 
     if (!enabled.planning) return "Disabled";
     const prompt = `Create individual learning plan Markdown table for ${subject} ${gradeLevel}. Goal: ${goal}. Duration: ${durationWeeks} weeks.`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } }));
         return response.text || "";
     } catch (error) { return ""; }
 };
@@ -481,7 +484,7 @@ export const generateLearningOutcomesMap = async (subject: string, gradeLevel: s
     if (!enabled.planning) return "Disabled";
     const prompt = `Create learning outcomes map Markdown table for ${subject} ${gradeLevel}. Content: ${content}`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { temperature: config.temperature, systemInstruction: config.systemInstruction } }));
         return response.text || "";
     } catch (error) { return ""; }
 };
@@ -490,7 +493,7 @@ export const predictColumnMapping = async (headers: string[], targetFields: { ke
     const { model, config } = getConfig();
     const prompt = `Map headers ${JSON.stringify(headers)} to targets ${JSON.stringify(targetFields)}. Sample: ${JSON.stringify(sampleData)}. Return JSON object.`;
     try {
-        const response = await ai.models.generateContent({ model: model, contents: prompt, config: { responseMimeType: "application/json", temperature: config.temperature } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: prompt, config: { responseMimeType: "application/json", temperature: config.temperature } }));
         return JSON.parse(cleanJsonString(response.text || "{}"));
     } catch (error) { return {}; }
 };
@@ -501,10 +504,10 @@ export const parseRawDataWithAI = async (rawText: string, targetType: 'STUDENTS'
     try {
         const parts: any[] = [{ text: prompt }];
         if (imageBase64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64 } });
-        const response = await ai.models.generateContent({ model: model, contents: { parts }, config: { responseMimeType: "application/json", temperature: config.temperature } });
+        const response = await withRetry(() => ai.models.generateContent({ model: model, contents: { parts }, config: { responseMimeType: "application/json", temperature: config.temperature } }));
         const clean = cleanJsonString(response.text || "[]");
         try { return JSON.parse(clean); } catch(e) { return JSON.parse(tryRepairJson(clean)); }
-    } catch (error) { throw new Error("AI Parse Error"); }
+    } catch (error) { throw new Error("AI Parse Error: " + (error as any).message); }
 };
 
 // --- NEW: Panic Button / Quick Activity ---
@@ -524,13 +527,14 @@ export const suggestQuickActivity = async (topic: string, gradeLevel: string): P
     `;
     
     try {
-        const response = await ai.models.generateContent({
+        const response = await withRetry(() => ai.models.generateContent({
             model: model,
             contents: prompt,
             config: { temperature: 0.9, systemInstruction: config.systemInstruction }
-        });
+        }));
         return response.text || "لعبة: تخمين الكلمة. فكر في كلمة وعلى الطلاب تخمينها.";
     } catch (e) {
+        // Fallback if quota exceeded even after retries
         return "لعبة سريعة: لعبة الحروف. اختر حرفاً وعلى الطلاب إيجاد 5 أشياء تبدأ به.";
     }
 };
