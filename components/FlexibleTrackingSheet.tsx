@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject } from '../types';
 import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects } from '../services/storageService';
-import { Plus, Trash2, Edit2, Save, Printer, ArrowLeft, MoreVertical, LayoutGrid, CheckSquare, Hash, Type, Table, Star } from 'lucide-react';
+import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface FlexibleTrackingSheetProps {
@@ -28,7 +28,14 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setSubjects(getSubjects(currentUser.id));
     }, [currentUser]);
 
-    const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
+    // Fix: Explicitly type ensuring no undefined values
+    const uniqueClasses = useMemo(() => {
+        const classes = new Set<string>();
+        students.forEach(s => {
+            if (s.className) classes.add(s.className);
+        });
+        return Array.from(classes).sort();
+    }, [students]);
 
     const createNewSheet = () => {
         const newSheet: TrackingSheet = {
