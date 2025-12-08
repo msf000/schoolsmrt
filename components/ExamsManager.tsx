@@ -43,7 +43,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
         const allStudents = getStudents();
         // Filter students by teacher if necessary, but getStudents() already handles basic context
         // Getting unique grades from students
-        const grades = Array.from(new Set(allStudents.map(s => s.gradeLevel).filter(Boolean))).sort();
+        const grades = Array.from(new Set(allStudents.map(s => s.gradeLevel).filter((g): g is string => !!g))).sort();
         setAvailableGrades(grades);
     };
 
