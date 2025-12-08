@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question } from '../types';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
@@ -14,9 +14,9 @@ interface StudentPortalProps {
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
     // Restore last view from session storage or default
-    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS'>(() => {
+    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS'>(() => {
         const saved = sessionStorage.getItem('student_last_view');
-        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION' || saved === 'TIMETABLE' || saved === 'CUSTOM_RECORDS') ? saved : 'EVALUATION';
+        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION' || saved === 'TIMETABLE' || saved === 'CUSTOM_RECORDS' || saved === 'EXAMS') ? saved : 'EVALUATION';
     });
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -38,6 +38,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     const navItems = [
         { id: 'EVALUATION', label: 'تقييمي (المتابعة الفردية)', icon: Award },
         { id: 'TIMETABLE', label: 'الجدول الدراسي', icon: Clock },
+        { id: 'EXAMS', label: 'الاختبارات والواجبات', icon: FileQuestion },
         { id: 'ATTENDANCE', label: 'سجل الحضور والأعذار', icon: Calendar },
         { id: 'CUSTOM_RECORDS', label: 'سجلات المتابعة الخاصة', icon: Table },
         { id: 'PROFILE', label: 'الملف الشخصي', icon: User },
@@ -144,11 +145,232 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} />}
                     {view === 'TIMETABLE' && <StudentTimetable student={currentUser} />}
                     {view === 'CUSTOM_RECORDS' && <StudentCustomRecords student={currentUser} />}
+                    {view === 'EXAMS' && <StudentExamsView student={currentUser} />}
                 </main>
             </div>
         </div>
     );
 };
+
+// ... (VerticalDate, StudentCustomRecords, StudentProfile, StudentTimetable, StudentAttendanceView, StudentEvaluationView - Keep existing) ...
+
+// --- NEW: STUDENT EXAMS VIEW ---
+const StudentExamsView = ({ student }: { student: Student }) => {
+    const [exams, setExams] = useState<Exam[]>([]);
+    const [myResults, setMyResults] = useState<ExamResult[]>([]);
+    const [activeExam, setActiveExam] = useState<Exam | null>(null);
+
+    useEffect(() => {
+        // Fetch all exams
+        // In real app, filter server-side. Here we filter locally.
+        const allExams = getExams();
+        // Filter exams for this student's grade
+        const relevantExams = allExams.filter(e => e.isActive && (e.gradeLevel === student.gradeLevel || !e.gradeLevel || e.gradeLevel === 'عام'));
+        setExams(relevantExams);
+
+        const allResults = getExamResults();
+        setMyResults(allResults.filter(r => r.studentId === student.id));
+    }, [student]);
+
+    const handleStartExam = (exam: Exam) => {
+        if (confirm('هل أنت مستعد لبدء الاختبار؟ سيتم احتساب الوقت.')) {
+            setActiveExam(exam);
+        }
+    };
+
+    const handleExamSubmit = (result: ExamResult) => {
+        saveExamResult(result);
+        setMyResults(prev => [...prev, result]);
+        setActiveExam(null);
+        alert(`تم إرسال الإجابات بنجاح! نتيجتك: ${result.score} / ${result.totalScore}`);
+    };
+
+    if (activeExam) {
+        return <ExamRunner exam={activeExam} student={student} onSubmit={handleExamSubmit} onCancel={() => setActiveExam(null)} />;
+    }
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <FileQuestion className="text-teal-600"/> الاختبارات المتاحة
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {exams.map(exam => {
+                    const result = myResults.find(r => r.examId === exam.id);
+                    return (
+                        <div key={exam.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="font-bold text-lg text-gray-800">{exam.title}</h3>
+                                    <p className="text-sm text-gray-500">{exam.subject} - {exam.durationMinutes} دقيقة</p>
+                                </div>
+                                <div className="bg-purple-50 text-purple-700 p-2 rounded-lg">
+                                    <FileQuestion size={24}/>
+                                </div>
+                            </div>
+                            
+                            {result ? (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                                    <p className="text-xs text-green-800 font-bold mb-1">تم تقديم الاختبار</p>
+                                    <p className="text-xl font-black text-green-600">{result.score} <span className="text-sm text-gray-400">/ {result.totalScore}</span></p>
+                                    <p className="text-[10px] text-gray-500 mt-1">{formatDualDate(result.date)}</p>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => handleStartExam(exam)}
+                                    className="w-full py-3 bg-teal-600 text-white rounded-lg font-bold hover:bg-teal-700 flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <PlayCircle size={18}/> ابدأ الاختبار
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+                
+                {exams.length === 0 && (
+                    <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
+                        <FileQuestion size={48} className="mx-auto mb-4 opacity-20"/>
+                        <p>لا توجد اختبارات متاحة حالياً.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- EXAM RUNNER COMPONENT ---
+const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student: Student, onSubmit: (res: ExamResult) => void, onCancel: () => void }) => {
+    const [answers, setAnswers] = useState<Record<string, string>>({});
+    const [timeLeft, setTimeLeft] = useState(exam.durationMinutes * 60);
+    const [currentQIndex, setCurrentQIndex] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    handleSubmit(); // Auto submit
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const handleSubmit = () => {
+        let score = 0;
+        let totalScore = 0;
+        
+        exam.questions.forEach(q => {
+            totalScore += q.points;
+            if (answers[q.id] === q.correctAnswer) {
+                score += q.points;
+            }
+        });
+
+        const result: ExamResult = {
+            id: Date.now().toString(),
+            examId: exam.id,
+            studentId: student.id,
+            studentName: student.name,
+            score,
+            totalScore,
+            date: new Date().toISOString(),
+            answers
+        };
+        onSubmit(result);
+    };
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const currentQuestion = exam.questions[currentQIndex];
+
+    return (
+        <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
+            {/* Header */}
+            <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
+                <div>
+                    <h2 className="font-bold text-lg text-gray-800">{exam.title}</h2>
+                    <p className="text-xs text-gray-500">الطالب: {student.name}</p>
+                </div>
+                <div className={`text-xl font-mono font-bold px-4 py-2 rounded-lg ${timeLeft < 60 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-800'}`}>
+                    <Timer className="inline-block mr-2" size={20}/>
+                    {formatTime(timeLeft)}
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center">
+                <div className="w-full max-w-2xl space-y-6">
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 h-2 rounded-full mb-6">
+                        <div className="bg-teal-600 h-2 rounded-full transition-all duration-300" style={{ width: `${((currentQIndex + 1) / exam.questions.length) * 100}%` }}></div>
+                    </div>
+
+                    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 animate-slide-up">
+                        <div className="flex justify-between items-start mb-6">
+                            <span className="bg-teal-100 text-teal-800 text-xs font-bold px-3 py-1 rounded-full">سؤال {currentQIndex + 1} من {exam.questions.length}</span>
+                            <span className="text-gray-400 text-xs">{currentQuestion.points} درجات</span>
+                        </div>
+                        
+                        <h3 className="text-xl font-bold text-gray-800 mb-8 leading-relaxed">
+                            {currentQuestion.text}
+                        </h3>
+
+                        <div className="space-y-3">
+                            {currentQuestion.options.map((opt, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setAnswers(prev => ({ ...prev, [currentQuestion.id]: opt }))}
+                                    className={`w-full p-4 rounded-xl border-2 text-right transition-all flex items-center justify-between group ${
+                                        answers[currentQuestion.id] === opt 
+                                            ? 'border-teal-500 bg-teal-50 text-teal-900 shadow-sm' 
+                                            : 'border-gray-100 hover:border-teal-200 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <span className="font-medium">{opt}</span>
+                                    {answers[currentQuestion.id] === opt && <CheckCircle className="text-teal-600" size={20}/>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-4">
+                        <button 
+                            onClick={() => setCurrentQIndex(Math.max(0, currentQIndex - 1))}
+                            disabled={currentQIndex === 0}
+                            className="px-6 py-2 rounded-lg text-gray-600 font-bold hover:bg-gray-200 disabled:opacity-50"
+                        >
+                            السابق
+                        </button>
+                        
+                        {currentQIndex === exam.questions.length - 1 ? (
+                            <button 
+                                onClick={handleSubmit}
+                                className="px-8 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-md flex items-center gap-2"
+                            >
+                                <Check size={18}/> إنهاء الاختبار
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={() => setCurrentQIndex(Math.min(exam.questions.length - 1, currentQIndex + 1))}
+                                className="px-8 py-3 bg-teal-600 text-white rounded-lg font-bold hover:bg-teal-700 shadow-md"
+                            >
+                                التالي
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // --- Helper for Date Stacking ---
 const VerticalDate = ({ dateStr }: { dateStr: string }) => {

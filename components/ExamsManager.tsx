@@ -1,20 +1,26 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Exam, Question, SystemUser, ExamResult, Subject } from '../types';
-import { getExams, saveExam, deleteExam, getExamResults, getSubjects, getStudents } from '../services/storageService';
+import { Exam, Question, SystemUser, ExamResult, Subject, CurriculumUnit, CurriculumLesson } from '../types';
+import { getExams, saveExam, deleteExam, getExamResults, getSubjects, getStudents, getQuestionBank, getCurriculumUnits, getCurriculumLessons } from '../services/storageService';
 import { generateStructuredQuiz } from '../services/geminiService';
-import { FileQuestion, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Clock, BookOpen, ListChecks, PlayCircle, StopCircle, ArrowLeft, BarChart2, Sparkles, Filter, Loader2, Check } from 'lucide-react';
+import { FileQuestion, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Clock, BookOpen, ListChecks, PlayCircle, StopCircle, ArrowLeft, BarChart2, Sparkles, Filter, Loader2, Check, Download, Search, ListTree } from 'lucide-react';
 
 interface ExamsManagerProps {
     currentUser: SystemUser;
 }
 
 const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
-    const [view, setView] = useState<'LIST' | 'EDITOR' | 'RESULTS' | 'CREATION_SELECTION'>('LIST');
+    const [view, setView] = useState<'LIST' | 'EDITOR' | 'RESULTS' | 'CREATION_SELECTION' | 'BANK_IMPORT'>('LIST');
     const [exams, setExams] = useState<Exam[]>([]);
     const [editingExam, setEditingExam] = useState<Partial<Exam>>({});
     const [viewingResults, setViewingResults] = useState<{ exam: Exam, results: ExamResult[] } | null>(null);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [availableGrades, setAvailableGrades] = useState<string[]>([]);
+
+    // Question Bank Data
+    const [bankQuestions, setBankQuestions] = useState<Question[]>([]);
+    const [selectedBankQuestions, setSelectedBankQuestions] = useState<Set<string>>(new Set());
+    const [bankFilterTopic, setBankFilterTopic] = useState('');
 
     // Filters
     const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('');
@@ -39,10 +45,9 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
         const all = getExams(currentUser.id);
         setExams(all.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setSubjects(getSubjects(currentUser.id));
+        setBankQuestions(getQuestionBank(currentUser.id));
         
         const allStudents = getStudents();
-        // Filter students by teacher if necessary, but getStudents() already handles basic context
-        // Getting unique grades from students
         const grades = Array.from(new Set(allStudents.map(s => s.gradeLevel).filter((g): g is string => !!g))).sort();
         setAvailableGrades(grades);
     };
@@ -59,7 +64,6 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
 
     // --- CREATION FLOW ---
     const startCreation = () => {
-        // Initialize with filter values if selected
         setEditingExam({
             id: Date.now().toString(),
             title: '',
@@ -93,7 +97,6 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                 aiConfig.difficulty
             );
             
-            // Map JSON to Question objects
             const mappedQuestions: Question[] = questions.map((q: any) => ({
                 id: Date.now().toString() + Math.random(),
                 text: q.text || q.question,
@@ -164,7 +167,6 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             questions: [...(prev.questions || []), newQ]
         }));
 
-        // Reset Question Form
         setCurrentQuestion({ type: 'MCQ', options: ['', '', '', ''], points: 1 });
     };
 
@@ -194,6 +196,31 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
         const newOpts = [...(currentQuestion.options || [])];
         newOpts[index] = val;
         setCurrentQuestion({ ...currentQuestion, options: newOpts });
+    };
+
+    // --- BANK IMPORT LOGIC ---
+    const filteredBankQuestions = useMemo(() => {
+        return bankQuestions.filter(q => 
+            q.subject === editingExam.subject && 
+            (!bankFilterTopic || q.topic?.includes(bankFilterTopic) || q.text.includes(bankFilterTopic))
+        );
+    }, [bankQuestions, editingExam.subject, bankFilterTopic]);
+
+    const toggleBankSelection = (id: string) => {
+        const newSet = new Set(selectedBankQuestions);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedBankQuestions(newSet);
+    };
+
+    const importSelectedQuestions = () => {
+        const selected = bankQuestions.filter(q => selectedBankQuestions.has(q.id));
+        setEditingExam(prev => ({
+            ...prev,
+            questions: [...(prev.questions || []), ...selected]
+        }));
+        setSelectedBankQuestions(new Set());
+        setView('EDITOR');
     };
 
     return (
@@ -274,7 +301,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             )}
 
             {view === 'CREATION_SELECTION' && (
-                <div className="flex flex-col items-center justify-center h-full">
+                <div className="flex flex-col items-center justify-center h-full relative">
                     <button onClick={() => setView('LIST')} className="absolute top-6 right-6 p-2 bg-white rounded-full shadow hover:bg-gray-100"><XCircle/></button>
                     
                     <h2 className="text-2xl font-bold mb-8 text-gray-800">كيف تريد إنشاء الاختبار؟</h2>
@@ -313,8 +340,8 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-purple-100 text-purple-600">
                                 <Edit size={32}/>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">إنشاء يدوي</h3>
-                            <p className="text-gray-500 text-sm">كتابة الأسئلة والخيارات بنفسك من الصفر.</p>
+                            <h3 className="text-xl font-bold text-gray-800 mb-2">إنشاء يدوي / من البنك</h3>
+                            <p className="text-gray-500 text-sm">كتابة الأسئلة يدوياً أو اختيارها من بنك الأسئلة.</p>
                         </button>
 
                         <div className="group p-8 bg-gradient-to-br from-purple-50 to-white border-2 border-purple-200 hover:border-purple-500 rounded-2xl text-center transition-all hover:shadow-xl relative overflow-hidden">
@@ -349,9 +376,17 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
 
             {view === 'EDITOR' && (
                 <div className="flex flex-col h-full">
-                    <div className="flex items-center gap-4 mb-6 pb-4 border-b">
-                        <button onClick={() => setView('LIST')} className="p-2 hover:bg-gray-200 rounded-full"><ArrowLeft/></button>
-                        <h2 className="text-xl font-bold text-gray-800">محرر الاختبار</h2>
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => setView('LIST')} className="p-2 hover:bg-gray-200 rounded-full"><ArrowLeft/></button>
+                            <h2 className="text-xl font-bold text-gray-800">محرر الاختبار</h2>
+                        </div>
+                        <button 
+                            onClick={() => setView('BANK_IMPORT')}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2"
+                        >
+                            <Download size={18}/> استيراد من البنك
+                        </button>
                     </div>
 
                     <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
@@ -472,6 +507,68 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {view === 'BANK_IMPORT' && (
+                <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2"><Download size={18} className="text-indigo-600"/> استيراد من بنك الأسئلة</h3>
+                        <div className="flex gap-2">
+                            <button onClick={() => setView('EDITOR')} className="px-4 py-2 border rounded-lg text-gray-600 bg-white hover:bg-gray-100 text-sm font-bold">إلغاء</button>
+                            <button onClick={importSelectedQuestions} disabled={selectedBankQuestions.size === 0} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-sm disabled:opacity-50 text-sm">
+                                إضافة المحدد ({selectedBankQuestions.size})
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="p-4 border-b flex gap-4 bg-white">
+                        <div className="relative flex-1">
+                            <Search className="absolute right-3 top-2.5 text-gray-400" size={16}/>
+                            <input 
+                                className="w-full pr-9 pl-4 py-2 border rounded-lg text-sm"
+                                placeholder="بحث في البنك..."
+                                value={bankFilterTopic}
+                                onChange={e => setBankFilterTopic(e.target.value)}
+                            />
+                        </div>
+                        <div className="bg-gray-100 px-3 py-2 rounded text-xs font-bold text-gray-500 border">
+                            المادة: {editingExam.subject}
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                        {filteredBankQuestions.length > 0 ? (
+                            <div className="grid gap-3">
+                                {filteredBankQuestions.map(q => (
+                                    <div 
+                                        key={q.id} 
+                                        onClick={() => toggleBankSelection(q.id)}
+                                        className={`p-4 border rounded-xl cursor-pointer transition-all ${selectedBankQuestions.has(q.id) ? 'border-indigo-500 bg-indigo-50 shadow-sm ring-1 ring-indigo-200' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <p className="font-bold text-gray-800 mb-1">{q.text}</p>
+                                                <div className="text-xs text-gray-500 flex gap-2">
+                                                    <span className="bg-white border px-2 rounded">{q.type === 'MCQ' ? 'اختيار متعدد' : 'صح/خطأ'}</span>
+                                                    <span className="bg-white border px-2 rounded">{q.points} درجة</span>
+                                                    {q.topic && <span className="bg-blue-50 text-blue-700 px-2 rounded">{q.topic}</span>}
+                                                </div>
+                                            </div>
+                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedBankQuestions.has(q.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300'}`}>
+                                                {selectedBankQuestions.has(q.id) && <Check size={14}/>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-20 text-gray-400">
+                                <ListChecks size={48} className="mx-auto mb-4 opacity-20"/>
+                                <p>لا توجد أسئلة مطابقة في البنك لهذه المادة.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
