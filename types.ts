@@ -1,4 +1,5 @@
 
+
 export interface EducationalStage {
   id: string;
   name: string; // e.g., "المرحلة الابتدائية"
@@ -20,7 +21,6 @@ export interface Student {
   id: string;
   name: string;
   nationalId?: string; // New: National ID / Identity Number
-  password?: string; // New: Student Login Password
   classId?: string; // Link to ClassRoom
   schoolId?: string; // Link to School
   createdById?: string; // NEW: Strict link to the Teacher who added this student
@@ -34,6 +34,7 @@ export interface Student {
   parentName?: string;
   parentPhone?: string;
   parentEmail?: string; // New: Parent Email
+  password?: string; // Added: Password for student portal
   
   // For Seating Plan
   seatIndex?: number; // 0 to N
@@ -43,9 +44,9 @@ export interface Teacher {
   id: string;
   name: string;
   nationalId?: string; // Added
-  password?: string;   // Added
   email?: string;
   phone?: string;
+  password?: string; // Added: Password
   subjectSpecialty?: string;
   schoolId?: string;   // Link to School
   managerId?: string;  // Link to School Manager (Direct link via National ID search)
@@ -187,9 +188,9 @@ export interface School {
 export interface SystemUser {
     id: string;
     name: string;
-    email: string; // OR National ID for Students/Managers
+    email: string;
     nationalId?: string; // Added for linking
-    password?: string; // New: Password field
+    password?: string; // Added: Password
     role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT';
     schoolId?: string; // If null, super admin. If Manager, lists owned schools logic handled elsewhere
     status: 'ACTIVE' | 'INACTIVE';
@@ -268,19 +269,63 @@ export interface AISettings {
 
 // --- UI Theme Settings (NEW) ---
 export interface UserTheme {
-    mode: 'LIGHT' | 'DARK' | 'NATURE' | 'OCEAN' | 'SUNSET';
-    backgroundStyle: 'FLAT' | 'GRADIENT' | 'MESH';
+    mode: 'LIGHT' | 'DARK';
+    backgroundStyle: 'FLAT' | 'GRADIENT';
 }
 
-// --- EXAM SYSTEM TYPES (NEW) ---
+// --- Added Types for Missing References ---
+
+export interface LessonBlock {
+    id: string;
+    type: 'OBJECTIVES' | 'INTRO' | 'STRATEGIES' | 'CONTENT' | 'ACTIVITY' | 'MEDIA' | 'ASSESSMENT' | 'HOMEWORK';
+    title: string;
+    content: string;
+    mediaUrl?: string;
+}
+
+export interface StoredLessonPlan {
+    id: string;
+    teacherId: string;
+    lessonId?: string;
+    subject: string;
+    topic: string;
+    contentJson: string;
+    resources: string[];
+    createdAt: string;
+}
+
+export interface CurriculumUnit {
+    id: string;
+    teacherId?: string; // Optional if global
+    subject: string;
+    gradeLevel: string;
+    title: string;
+    orderIndex: number;
+}
+
+export interface CurriculumLesson {
+    id: string;
+    unitId: string;
+    title: string;
+    orderIndex: number;
+    learningStandards: string[]; // Codes
+    microConceptIds: string[];
+}
+
+export interface MicroConcept {
+    id: string;
+    teacherId?: string;
+    subject?: string;
+    name: string;
+}
+
 export interface Question {
     id: string;
     text: string;
     type: 'MCQ' | 'TRUE_FALSE';
-    options: string[]; // For MCQ (e.g. 3-4 options), For TF (True, False)
+    options: string[];
     correctAnswer: string;
     points: number;
-    // New fields for Question Bank
     subject?: string;
     gradeLevel?: string;
     topic?: string;
@@ -292,12 +337,12 @@ export interface Exam {
     id: string;
     title: string;
     subject: string;
-    gradeLevel: string; // Target grade
+    gradeLevel: string;
     durationMinutes: number;
     questions: Question[];
-    isActive: boolean; // Published to students?
+    isActive: boolean;
     createdAt: string;
-    teacherId?: string; // Creator
+    teacherId?: string;
 }
 
 export interface ExamResult {
@@ -308,77 +353,23 @@ export interface ExamResult {
     score: number;
     totalScore: number;
     date: string;
-    answers: Record<string, string>; // questionId -> selectedAnswer
+    answers?: Record<string, string>; // questionId -> answer
 }
 
-// --- CURRICULUM & INTELLIGENCE TYPES (NEW) ---
-
-export interface CurriculumUnit {
-    id: string;
-    teacherId: string;
-    subject: string;
-    gradeLevel: string;
-    title: string;
-    orderIndex: number;
-}
-
-export interface CurriculumLesson {
-    id: string;
-    unitId: string; // Link to CurriculumUnit
-    title: string;
-    orderIndex: number;
-    learningStandards: string[]; // e.g. ["MATH.5.2", "SCI.1.1"] - Ministerial Codes
-    microConceptIds?: string[]; // Link to MicroConcepts
-}
-
-export interface MicroConcept {
-    id: string;
-    name: string; // e.g., "Adding fractions with different denominators"
-    parentConcept?: string; // e.g., "Fractions"
-    subject?: string;
-    teacherId: string;
-}
-
-export type LessonBlockType = 'OBJECTIVES' | 'INTRO' | 'STRATEGIES' | 'CONTENT' | 'ACTIVITY' | 'MEDIA' | 'ASSESSMENT' | 'HOMEWORK';
-
-export interface LessonBlock {
-    id: string;
-    type: LessonBlockType;
-    title: string;
-    content: string;
-    mediaUrl?: string; // Optional for images/videos
-    duration?: number; // Optional duration in minutes
-}
-
-export interface StoredLessonPlan {
-    id: string;
-    teacherId: string;
-    lessonId?: string; // Optional Link to CurriculumLesson
-    subject: string;
-    topic: string; // Lesson Title
-    contentJson: string; // Stores LessonBlock[]
-    resources: string[]; // Links
-    createdAt: string;
-}
-
-// --- FLEXIBLE TRACKING SHEET (New Feature) ---
 export interface TrackingColumn {
     id: string;
     title: string;
     type: 'NUMBER' | 'TEXT' | 'CHECKBOX' | 'RATING';
-    maxScore?: number; // For Number/Rating
+    maxScore?: number;
 }
 
 export interface TrackingSheet {
     id: string;
     title: string;
     subject: string;
-    className: string; // Target Class
+    className: string;
     teacherId: string;
     createdAt: string;
     columns: TrackingColumn[];
-    // Data storage: { studentId: { columnId: value } }
-    scores: Record<string, Record<string, any>>; 
+    scores: Record<string, Record<string, any>>; // studentId -> colId -> value
 }
-
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING' | 'CURRICULUM_MAP' | 'RESOURCES_VIEW' | 'SCHEDULE_VIEW' | 'FLEXIBLE_TRACKING';

@@ -1,10 +1,11 @@
 
+
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
     LessonLink, MessageLog, Feedback, ReportHeaderConfig, AISettings, UserTheme, 
-    PerformanceCategory, Exam, ExamResult, Question, CurriculumUnit, CurriculumLesson, MicroConcept, StoredLessonPlan,
-    TrackingSheet
+    PerformanceCategory, Exam, ExamResult, Question, StoredLessonPlan,
+    CurriculumUnit, CurriculumLesson, MicroConcept, TrackingSheet
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -17,7 +18,7 @@ export const DB_MAP: Record<string, string> = {
     system_users: 'system_users',
     attendance: 'attendance_records',
     performance: 'performance_records',
-    assignments: 'assignments',
+    assignments: 'assignments', 
     schedules: 'schedules',
     teacher_assignments: 'teacher_assignments',
     subjects: 'subjects',
@@ -25,14 +26,14 @@ export const DB_MAP: Record<string, string> = {
     lesson_links: 'lesson_links',
     message_logs: 'message_logs',
     feedbacks: 'feedbacks',
-    exams: 'exams',
-    exam_results: 'exam_results',
-    questions_bank: 'questions_bank',
+    lesson_plans: 'lesson_plans',
     curriculum_units: 'curriculum_units',
     curriculum_lessons: 'curriculum_lessons',
     micro_concepts: 'micro_concepts',
-    lesson_plans_db: 'lesson_plans',
-    tracking_sheets: 'tracking_sheets' // New
+    question_bank: 'question_bank',
+    exams: 'exams',
+    exam_results: 'exam_results',
+    tracking_sheets: 'tracking_sheets'
 };
 
 const INITIAL_DATA = {
@@ -42,7 +43,7 @@ const INITIAL_DATA = {
     system_users: [] as SystemUser[],
     attendance: [] as AttendanceRecord[],
     performance: [] as PerformanceRecord[],
-    assignments: [] as Assignment[],
+    assignments: [] as Assignment[], 
     schedules: [] as ScheduleItem[],
     teacher_assignments: [] as TeacherAssignment[],
     subjects: [] as Subject[],
@@ -50,14 +51,14 @@ const INITIAL_DATA = {
     lesson_links: [] as LessonLink[],
     message_logs: [] as MessageLog[],
     feedbacks: [] as Feedback[],
-    exams: [] as Exam[],
-    exam_results: [] as ExamResult[],
-    questions_bank: [] as Question[],
+    lesson_plans: [] as StoredLessonPlan[],
     curriculum_units: [] as CurriculumUnit[],
     curriculum_lessons: [] as CurriculumLesson[],
     micro_concepts: [] as MicroConcept[],
-    lesson_plans_db: [] as StoredLessonPlan[],
-    tracking_sheets: [] as TrackingSheet[], // New
+    question_bank: [] as Question[],
+    exams: [] as Exam[],
+    exam_results: [] as ExamResult[],
+    tracking_sheets: [] as TrackingSheet[],
     report_header_config: { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' } as ReportHeaderConfig,
     ai_settings: { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' } as AISettings,
     user_theme: { mode: 'LIGHT', backgroundStyle: 'FLAT' } as UserTheme,
@@ -362,25 +363,28 @@ export const deleteSystemUser = (id: string) => {
 export const authenticateUser = async (identifier: string, password?: string): Promise<SystemUser | null> => {
     // 1. Check local
     const users = getSystemUsers();
-    let user = users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === password);
+    let user = users.find(u => (u.email === identifier || u.nationalId === identifier));
     
     // 2. If not found locally, try students (simple login)
     if (!user) {
         const students = getStudents();
         const student = students.find(s => s.nationalId === identifier); // Students login with ID
         if (student) {
-            // Check student password if implemented, or allow if just ID for demo/simple mode
-            if (!student.password || student.password === password) {
-                return {
-                    id: student.id,
-                    name: student.name,
-                    email: student.nationalId || '',
-                    role: 'STUDENT',
-                    schoolId: student.schoolId,
-                    status: 'ACTIVE'
-                };
-            }
+            return {
+                id: student.id,
+                name: student.name,
+                email: student.nationalId || '',
+                role: 'STUDENT',
+                schoolId: student.schoolId,
+                status: 'ACTIVE',
+                password: student.password
+            };
         }
+    }
+
+    // In a real app, password check would happen here or via API
+    if (user && password && user.password && user.password !== password) {
+        return null;
     }
 
     return user || null;
@@ -498,136 +502,131 @@ export const addFeedback = (f: Feedback) => {
     pushToCloud('feedbacks', f);
 };
 
-// 12. Exams
-export const getExams = (teacherId?: string) => {
-    const all = CACHE.exams || [];
-    if (!teacherId) return all;
-    return all.filter(e => e.teacherId === teacherId || !e.teacherId);
+// 12. New Features (Lesson Plan, Curriculum, Exams)
+
+// Lesson Plans
+export const getLessonPlans = (teacherId?: string) => {
+    if (!teacherId) return CACHE.lesson_plans;
+    return CACHE.lesson_plans.filter(p => p.teacherId === teacherId);
 };
-export const saveExam = (e: Exam) => {
-    const list = [...(CACHE.exams || [])];
-    const idx = list.findIndex(x => x.id === e.id);
-    if (idx > -1) list[idx] = e; else list.push(e);
-    saveToLocal('exams', list);
-    pushToCloud('exams', e);
+export const saveLessonPlan = (plan: StoredLessonPlan) => {
+    const list = [...CACHE.lesson_plans];
+    const idx = list.findIndex(p => p.id === plan.id);
+    if (idx > -1) list[idx] = plan; else list.push(plan);
+    saveToLocal('lesson_plans', list);
+    pushToCloud('lesson_plans', plan);
 };
-export const deleteExam = (id: string) => {
-    saveToLocal('exams', (CACHE.exams || []).filter(x => x.id !== id));
-    pushToCloud('exams', { id }, 'DELETE');
+export const deleteLessonPlan = (id: string) => {
+    saveToLocal('lesson_plans', CACHE.lesson_plans.filter(p => p.id !== id));
+    pushToCloud('lesson_plans', { id }, 'DELETE');
 };
 
-export const getExamResults = (examId?: string) => {
-    const all = CACHE.exam_results || [];
-    if (!examId) return all;
-    return all.filter(r => r.examId === examId);
-};
-export const saveExamResult = (r: ExamResult) => {
-    saveToLocal('exam_results', [...(CACHE.exam_results || []), r]);
-    pushToCloud('exam_results', r);
-};
-
-// 13. Question Bank
-export const getQuestionBank = (teacherId?: string) => {
-    const all = CACHE.questions_bank || [];
-    if (!teacherId) return all;
-    return all.filter(q => q.teacherId === teacherId || !q.teacherId);
-};
-export const saveQuestionToBank = (q: Question) => {
-    const list = [...(CACHE.questions_bank || [])];
-    const idx = list.findIndex(x => x.id === q.id);
-    if (idx > -1) list[idx] = q; else list.push(q);
-    saveToLocal('questions_bank', list);
-    pushToCloud('questions_bank', q);
-};
-export const deleteQuestionFromBank = (id: string) => {
-    saveToLocal('questions_bank', (CACHE.questions_bank || []).filter(x => x.id !== id));
-    pushToCloud('questions_bank', { id }, 'DELETE');
-};
-
-// 14. Curriculum & Intelligence
+// Curriculum
 export const getCurriculumUnits = (teacherId?: string) => {
-    const all = CACHE.curriculum_units || [];
-    if (!teacherId) return all;
-    return all.filter(u => u.teacherId === teacherId || !u.teacherId);
+    // Units might be global or per teacher
+    if (!teacherId) return CACHE.curriculum_units;
+    return CACHE.curriculum_units.filter(u => u.teacherId === teacherId || !u.teacherId);
 };
-export const saveCurriculumUnit = (u: CurriculumUnit) => {
-    const list = [...(CACHE.curriculum_units || [])];
-    const idx = list.findIndex(x => x.id === u.id);
-    if (idx > -1) list[idx] = u; else list.push(u);
+export const saveCurriculumUnit = (unit: CurriculumUnit) => {
+    const list = [...CACHE.curriculum_units];
+    const idx = list.findIndex(u => u.id === unit.id);
+    if (idx > -1) list[idx] = unit; else list.push(unit);
     saveToLocal('curriculum_units', list);
-    pushToCloud('curriculum_units', u);
+    pushToCloud('curriculum_units', unit);
 };
 export const deleteCurriculumUnit = (id: string) => {
-    saveToLocal('curriculum_units', (CACHE.curriculum_units || []).filter(x => x.id !== id));
+    saveToLocal('curriculum_units', CACHE.curriculum_units.filter(u => u.id !== id));
     pushToCloud('curriculum_units', { id }, 'DELETE');
 };
 
-export const getCurriculumLessons = (unitId?: string) => {
-    const all = CACHE.curriculum_lessons || [];
-    if (!unitId) return all;
-    return all.filter(l => l.unitId === unitId);
-};
-export const saveCurriculumLesson = (l: CurriculumLesson) => {
-    const list = [...(CACHE.curriculum_lessons || [])];
-    const idx = list.findIndex(x => x.id === l.id);
-    if (idx > -1) list[idx] = l; else list.push(l);
+export const getCurriculumLessons = () => CACHE.curriculum_lessons;
+export const saveCurriculumLesson = (lesson: CurriculumLesson) => {
+    const list = [...CACHE.curriculum_lessons];
+    const idx = list.findIndex(l => l.id === lesson.id);
+    if (idx > -1) list[idx] = lesson; else list.push(lesson);
     saveToLocal('curriculum_lessons', list);
-    pushToCloud('curriculum_lessons', l);
+    pushToCloud('curriculum_lessons', lesson);
 };
 export const deleteCurriculumLesson = (id: string) => {
-    saveToLocal('curriculum_lessons', (CACHE.curriculum_lessons || []).filter(x => x.id !== id));
+    saveToLocal('curriculum_lessons', CACHE.curriculum_lessons.filter(l => l.id !== id));
     pushToCloud('curriculum_lessons', { id }, 'DELETE');
 };
 
 export const getMicroConcepts = (teacherId?: string) => {
-    const all = CACHE.micro_concepts || [];
-    if (!teacherId) return all;
-    return all.filter(c => c.teacherId === teacherId || !c.teacherId);
+    if (!teacherId) return CACHE.micro_concepts;
+    return CACHE.micro_concepts.filter(c => c.teacherId === teacherId || !c.teacherId);
 };
-export const saveMicroConcept = (c: MicroConcept) => {
-    const list = [...(CACHE.micro_concepts || [])];
-    const idx = list.findIndex(x => x.id === c.id);
-    if (idx > -1) list[idx] = c; else list.push(c);
+export const saveMicroConcept = (concept: MicroConcept) => {
+    const list = [...CACHE.micro_concepts];
+    const idx = list.findIndex(c => c.id === concept.id);
+    if (idx > -1) list[idx] = concept; else list.push(concept);
     saveToLocal('micro_concepts', list);
-    pushToCloud('micro_concepts', c);
+    pushToCloud('micro_concepts', concept);
 };
 export const deleteMicroConcept = (id: string) => {
-    saveToLocal('micro_concepts', (CACHE.micro_concepts || []).filter(x => x.id !== id));
+    saveToLocal('micro_concepts', CACHE.micro_concepts.filter(c => c.id !== id));
     pushToCloud('micro_concepts', { id }, 'DELETE');
 };
 
-export const getLessonPlans = (teacherId?: string) => {
-    const all = CACHE.lesson_plans_db || [];
-    if (!teacherId) return all;
-    return all.filter(p => p.teacherId === teacherId);
+// Exams & Questions
+export const getQuestionBank = (teacherId?: string) => {
+    if (!teacherId) return CACHE.question_bank;
+    return CACHE.question_bank.filter(q => q.teacherId === teacherId || !q.teacherId);
 };
-export const saveLessonPlan = (p: StoredLessonPlan) => {
-    const list = [...(CACHE.lesson_plans_db || [])];
-    const idx = list.findIndex(x => x.id === p.id);
-    if (idx > -1) list[idx] = p; else list.push(p);
-    saveToLocal('lesson_plans_db', list);
-    pushToCloud('lesson_plans_db', p);
+export const saveQuestionToBank = (q: Question) => {
+    const list = [...CACHE.question_bank];
+    const idx = list.findIndex(x => x.id === q.id);
+    if (idx > -1) list[idx] = q; else list.push(q);
+    saveToLocal('question_bank', list);
+    pushToCloud('question_bank', q);
 };
-export const deleteLessonPlan = (id: string) => {
-    saveToLocal('lesson_plans_db', (CACHE.lesson_plans_db || []).filter(x => x.id !== id));
-    pushToCloud('lesson_plans_db', { id }, 'DELETE');
+export const deleteQuestionFromBank = (id: string) => {
+    saveToLocal('question_bank', CACHE.question_bank.filter(q => q.id !== id));
+    pushToCloud('question_bank', { id }, 'DELETE');
 };
 
-// 15. Flexible Tracking Sheets (New)
-export const getTrackingSheets = (teacherId?: string) => {
-    const all = CACHE.tracking_sheets || [];
-    if (!teacherId) return all;
-    return all.filter(s => s.teacherId === teacherId);
+export const getExams = (teacherId?: string) => {
+    if (!teacherId) return CACHE.exams;
+    return CACHE.exams.filter(e => e.teacherId === teacherId);
 };
-export const saveTrackingSheet = (s: TrackingSheet) => {
-    const list = [...(CACHE.tracking_sheets || [])];
-    const idx = list.findIndex(x => x.id === s.id);
-    if (idx > -1) list[idx] = s; else list.push(s);
+export const saveExam = (exam: Exam) => {
+    const list = [...CACHE.exams];
+    const idx = list.findIndex(e => e.id === exam.id);
+    if (idx > -1) list[idx] = exam; else list.push(exam);
+    saveToLocal('exams', list);
+    pushToCloud('exams', exam);
+};
+export const deleteExam = (id: string) => {
+    saveToLocal('exams', CACHE.exams.filter(e => e.id !== id));
+    pushToCloud('exams', { id }, 'DELETE');
+};
+
+export const getExamResults = (examId?: string) => {
+    if (!examId) return CACHE.exam_results;
+    return CACHE.exam_results.filter(r => r.examId === examId);
+};
+export const saveExamResult = (result: ExamResult) => {
+    const list = [...CACHE.exam_results];
+    const idx = list.findIndex(r => r.id === result.id);
+    if (idx > -1) list[idx] = result; else list.push(result);
+    saveToLocal('exam_results', list);
+    pushToCloud('exam_results', result);
+};
+
+// Tracking Sheets
+export const getTrackingSheets = (teacherId?: string) => {
+    if (!teacherId) return CACHE.tracking_sheets;
+    return CACHE.tracking_sheets.filter(s => s.teacherId === teacherId);
+};
+export const saveTrackingSheet = (sheet: TrackingSheet) => {
+    const list = [...CACHE.tracking_sheets];
+    const idx = list.findIndex(s => s.id === sheet.id);
+    if (idx > -1) list[idx] = sheet; else list.push(sheet);
     saveToLocal('tracking_sheets', list);
-    pushToCloud('tracking_sheets', s);
+    pushToCloud('tracking_sheets', sheet);
 };
 export const deleteTrackingSheet = (id: string) => {
-    saveToLocal('tracking_sheets', (CACHE.tracking_sheets || []).filter(x => x.id !== id));
+    saveToLocal('tracking_sheets', CACHE.tracking_sheets.filter(s => s.id !== id));
     pushToCloud('tracking_sheets', { id }, 'DELETE');
 };
 
@@ -669,8 +668,8 @@ export const setSystemMode = (isDemo: boolean) => {
 export const getDatabaseSchemaSQL = () => `
 -- SQL Schema for Supabase
 create table if not exists schools (id text primary key, name text, ministryCode text, managerName text, managerNationalId text, type text, phone text, studentCount numeric, educationAdministration text, worksMasterUrl text);
-create table if not exists teachers (id text primary key, name text, nationalId text, email text, phone text, subjectSpecialty text, schoolId text, managerId text, subscriptionStatus text, subscriptionEndDate text, password text);
-create table if not exists students (id text primary key, name text, nationalId text, classId text, schoolId text, createdById text, gradeLevel text, className text, email text, phone text, parentId text, parentName text, parentPhone text, parentEmail text, seatIndex numeric, password text);
+create table if not exists teachers (id text primary key, name text, nationalId text, email text, phone text, password text, subjectSpecialty text, schoolId text, managerId text, subscriptionStatus text, subscriptionEndDate text);
+create table if not exists students (id text primary key, name text, nationalId text, classId text, schoolId text, createdById text, gradeLevel text, className text, email text, phone text, parentId text, parentName text, parentPhone text, parentEmail text, password text, seatIndex numeric);
 create table if not exists system_users (id text primary key, name text, email text, nationalId text, password text, role text, schoolId text, status text);
 create table if not exists attendance_records (id text primary key, studentId text, date text, status text, subject text, period numeric, behaviorStatus text, behaviorNote text, excuseNote text, excuseFile text, createdById text);
 create table if not exists performance_records (id text primary key, studentId text, subject text, title text, category text, score numeric, maxScore numeric, date text, notes text, url text, createdById text);
@@ -682,17 +681,24 @@ create table if not exists custom_tables (id text primary key, name text, create
 create table if not exists lesson_links (id text primary key, title text, url text, teacherId text, createdAt text);
 create table if not exists message_logs (id text primary key, studentId text, studentName text, parentPhone text, type text, content text, status text, date text, sentBy text);
 create table if not exists feedbacks (id text primary key, teacherId text, managerId text, content text, date text, isRead boolean);
-create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text);
-create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
-create table if not exists questions_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
+create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
 create table if not exists curriculum_units (id text primary key, teacherId text, subject text, gradeLevel text, title text, orderIndex numeric);
 create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
-create table if not exists micro_concepts (id text primary key, name text, parentConcept text, subject text, teacherId text);
-create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
+create table if not exists micro_concepts (id text primary key, teacherId text, subject text, name text);
+create table if not exists question_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
+create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text);
+create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
 create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
 `;
 
 export const getDatabaseUpdateSQL = () => `
 -- Updates
+create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
+create table if not exists curriculum_units (id text primary key, teacherId text, subject text, gradeLevel text, title text, orderIndex numeric);
+create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
+create table if not exists micro_concepts (id text primary key, teacherId text, subject text, name text);
+create table if not exists question_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
+create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text);
+create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
 create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
 `;

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord } from '../types';
-import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp } from 'lucide-react';
+import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp, Smile, Frown, Users, UserCheck, Star } from 'lucide-react';
 import { getReportHeaderConfig, getSubjects } from '../services/storageService';
 import * as XLSX from 'xlsx';
 
@@ -143,25 +143,71 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
       if (totalSessions > 0) {
           const absentPercentage = (stats.absent / totalSessions) * 100;
           if (absentPercentage >= 25) {
-              return { status: 'CRITICAL', text: 'محروم (غياب)', color: 'text-red-700 bg-red-100 font-bold' };
+              return { status: 'CRITICAL', text: 'محروم', color: 'text-red-700 bg-red-100 font-bold' };
           }
           if (absentPercentage >= 15) {
-              return { status: 'WARNING_HIGH', text: 'إنذار غياب', color: 'text-red-600 bg-red-50 font-bold' };
+              return { status: 'WARNING_HIGH', text: 'إنذار', color: 'text-red-600 bg-red-50 font-bold' };
           }
       }
 
       // 2. Academic Risks
       if (academic.count > 0 && academic.average < 50) {
-          return { status: 'ACADEMIC_RISK', text: 'تعثر دراسي', color: 'text-orange-700 bg-orange-100 font-bold' };
+          return { status: 'ACADEMIC_RISK', text: 'تعثر', color: 'text-orange-700 bg-orange-100 font-bold' };
       }
 
       // 3. Behavior Risks
       if (stats.negativeBehaviors >= 3) {
-          return { status: 'BEHAVIOR', text: 'متابعة سلوكية', color: 'text-purple-600 bg-purple-50 font-bold' };
+          return { status: 'BEHAVIOR', text: 'سلوك', color: 'text-purple-600 bg-purple-50 font-bold' };
       }
 
       return { status: 'NORMAL', text: 'منتظم', color: 'text-gray-500' };
   };
+
+  // --- COLUMN TOTALS (Footer) ---
+  const sessionTotals = useMemo(() => {
+      return sessions.map(session => {
+          let presentCount = 0;
+          let absentCount = 0;
+          filteredStudents.forEach(student => {
+              const rec = getStudentStatusForSession(student.id, session);
+              if (rec?.status === AttendanceStatus.PRESENT) presentCount++;
+              else if (rec?.status === AttendanceStatus.ABSENT) absentCount++;
+          });
+          return { present: presentCount, absent: absentCount };
+      });
+  }, [sessions, filteredStudents, attendance]);
+
+  // --- CLASS SUMMARY (New) ---
+  const classSummary = useMemo(() => {
+      if (filteredStudents.length === 0 || sessions.length === 0) return null;
+      
+      let totalPresent = 0;
+      let totalPossible = filteredStudents.length * sessions.length;
+      let totalScoreSum = 0;
+      let scoreCount = 0;
+      let topStudentName = '';
+      let maxAvg = -1;
+
+      filteredStudents.forEach(s => {
+          const stats = calculateStats(s.id);
+          const academic = calculateAcademicStats(s.id);
+          totalPresent += stats.present;
+          
+          if (academic.count > 0) {
+              totalScoreSum += academic.average;
+              scoreCount++;
+              if (academic.average > maxAvg) {
+                  maxAvg = academic.average;
+                  topStudentName = s.name;
+              }
+          }
+      });
+
+      const attendanceRate = Math.round((totalPresent / totalPossible) * 100);
+      const classAvg = scoreCount > 0 ? Math.round(totalScoreSum / scoreCount) : 0;
+
+      return { attendanceRate, classAvg, topStudentName };
+  }, [filteredStudents, sessions, attendance, performance]);
 
   const setRange = (type: 'WEEK' | 'MONTH' | 'SEMESTER') => {
       const end = new Date();
@@ -228,7 +274,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <ListFilter className="text-primary"/> سجل متابعة الطلاب (شامل)
                 </h2>
-                <p className="text-sm text-gray-500">تقرير الحضور والأداء الأكاديمي للفترات المحددة.</p>
+                <p className="text-sm text-gray-500">تقرير الحضور والسلوك والأداء الأكاديمي.</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
@@ -326,6 +372,33 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                             الفصل: <span className="font-normal mr-2">{selectedClass}</span>
                         </div>
                     </div>
+
+                    {/* NEW: Class Performance Summary (Cards) */}
+                    {classSummary && (
+                        <div className="grid grid-cols-3 gap-4 mt-6 print:hidden">
+                            <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 text-blue-600 rounded-full"><Users size={20}/></div>
+                                <div>
+                                    <p className="text-xs text-blue-500 font-bold">نسبة الحضور العامة</p>
+                                    <p className="text-xl font-black text-blue-800">{classSummary.attendanceRate}%</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg flex items-center gap-3">
+                                <div className="p-2 bg-purple-100 text-purple-600 rounded-full"><TrendingUp size={20}/></div>
+                                <div>
+                                    <p className="text-xs text-purple-500 font-bold">متوسط التحصيل</p>
+                                    <p className="text-xl font-black text-purple-800">{classSummary.classAvg}%</p>
+                                </div>
+                            </div>
+                            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg flex items-center gap-3">
+                                <div className="p-2 bg-yellow-100 text-yellow-600 rounded-full"><Star size={20}/></div>
+                                <div>
+                                    <p className="text-xs text-yellow-600 font-bold">نجم الفصل</p>
+                                    <p className="text-sm font-black text-yellow-800 line-clamp-1">{classSummary.topStudentName || '-'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 
                 <div className="overflow-auto flex-1 custom-scrollbar">
@@ -333,8 +406,8 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                         <thead className="bg-gray-100 text-gray-800 sticky top-0 z-10 shadow-sm border-b-2 border-gray-400">
                             <tr>
                                 <th className="p-2 border border-gray-400 min-w-[200px] sticky right-0 z-20 bg-gray-100">اسم الطالب</th>
-                                <th className="p-2 border border-gray-400 min-w-[120px]">التقييم العام</th>
-                                <th className="p-2 border border-gray-400 min-w-[100px]">المعدل الأكاديمي</th>
+                                <th className="p-2 border border-gray-400 min-w-[80px]">الحالة</th>
+                                <th className="p-2 border border-gray-400 min-w-[60px]">الأداء</th>
                                 {sessions.map((s, idx) => (
                                     <th key={idx} className="p-1 border border-gray-400 min-w-[30px] vertical-text">
                                         <div className="flex flex-col items-center justify-center py-2 h-24 w-6">
@@ -395,7 +468,22 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                                                 bgClass = 'bg-blue-50';
                                             }
 
-                                            return <td key={sIdx} className={`border border-gray-300 p-0 ${bgClass}`}>{content}</td>;
+                                            // Behavior Indicator Override (Small Dot)
+                                            let behaviorIcon = null;
+                                            if (record?.behaviorStatus === BehaviorStatus.POSITIVE) {
+                                                behaviorIcon = <div className="absolute top-0 right-0 text-[8px]"><Smile size={10} className="text-green-500 fill-green-100"/></div>;
+                                            } else if (record?.behaviorStatus === BehaviorStatus.NEGATIVE) {
+                                                behaviorIcon = <div className="absolute top-0 right-0 text-[8px]"><Frown size={10} className="text-red-500 fill-red-100"/></div>;
+                                            }
+
+                                            return (
+                                                <td key={sIdx} className={`border border-gray-300 p-0 relative h-8 ${bgClass}`}>
+                                                    {behaviorIcon}
+                                                    <div className="flex items-center justify-center h-full w-full">
+                                                        {content}
+                                                    </div>
+                                                </td>
+                                            );
                                         })}
                                         <td className="border border-gray-300 font-bold bg-gray-50">{stats.present}</td>
                                         <td className={`border border-gray-300 font-bold ${stats.absent > 0 ? 'text-red-600' : ''}`}>{stats.absent}</td>
@@ -403,6 +491,20 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                                     </tr>
                                 );
                             })}
+                            
+                            {/* Daily Summary Row */}
+                            <tr className="bg-gray-800 text-white font-bold text-[10px]">
+                                <td colSpan={3} className="p-2 border border-gray-600 text-left pl-4">المجموع اليومي (حضور/غياب)</td>
+                                {sessionTotals.map((t, idx) => (
+                                    <td key={idx} className="p-1 border border-gray-600">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-green-300">{t.present}</span>
+                                            <span className="text-red-300 border-t border-gray-600">{t.absent}</span>
+                                        </div>
+                                    </td>
+                                ))}
+                                <td colSpan={3} className="bg-gray-900 border border-gray-600"></td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
@@ -303,7 +304,7 @@ const App: React.FC = () => {
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
                             <NavItem view="ATTENDANCE" label="الحضور والغياب" icon={CheckSquare} />
                             <NavItem view="CLASSROOM_MANAGEMENT" label="الإدارة الصفية" icon={MonitorPlay} />
-                            <NavItem view="PERFORMANCE" label="رصد الدرجات" icon={BarChart} />
+                            <NavItem view="WORKS_TRACKING" label="سجل الرصد (الإلكتروني)" icon={Table} />
                         </>
                     )}
                     
@@ -326,8 +327,7 @@ const App: React.FC = () => {
                                 <NavItem view="QUESTION_BANK" label="بنك الأسئلة" icon={Library} />
                                 <NavItem view="EXAMS_MANAGER" label="الاختبارات" icon={FileQuestion} />
                                 <NavItem view="AUTO_GRADING" label="التصحيح الآلي" icon={ScanLine} />
-                                <NavItem view="WORKS_TRACKING" label="سجل الدرجات" icon={FileSpreadsheet} />
-                                <NavItem view="FLEXIBLE_TRACKING" label="سجلات مرنة (جديد)" icon={Table} />
+                                <NavItem view="FLEXIBLE_TRACKING" label="سجلات خاصة" icon={FileSpreadsheet} />
                             </div>
 
                             <div className="pt-4 mt-4 border-t border-gray-100">
@@ -341,7 +341,7 @@ const App: React.FC = () => {
                             <div className="pt-4 mt-4 border-t border-gray-100">
                                 <label className="px-4 text-xs font-bold text-gray-400 block mb-2">إضافات</label>
                                 <NavItem view="AI_REPORTS" label="تحليل AI" icon={BrainCircuit} />
-                                <NavItem view="CUSTOM_TABLES" label="جداول خاصة" icon={FileSpreadsheet} />
+                                <NavItem view="CUSTOM_TABLES" label="جداول مخصصة" icon={FileSpreadsheet} />
                                 <NavItem view="SCHOOL_MANAGEMENT" label="الإعدادات" icon={Settings} />
                                 <NavItem view="SUBSCRIPTION" label="الاشتراك" icon={CreditCard} />
                             </div>

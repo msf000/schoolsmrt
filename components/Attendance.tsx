@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
 import { getSchedules } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity, FileBarChart } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity, FileBarChart, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -54,7 +54,7 @@ const Attendance: React.FC<AttendanceProps> = ({
       );
   }
 
-  const [activeTab, setActiveTab] = useState<'REGISTER' | 'LOG'>('REGISTER');
+  const [activeTab, setActiveTab] = useState<'REGISTER' | 'WEEKLY' | 'LOG'>('REGISTER');
   const [viewMode, setViewMode] = useState<'LIST' | 'GRID'>('GRID'); // Default to Grid for better UX
 
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
@@ -97,6 +97,14 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [manualClass, setManualClass] = useState('');
   const [manualSubject, setManualSubject] = useState('');
   
+  // Weekly View State
+  const [weekStartDate, setWeekStartDate] = useState(() => {
+      const d = new Date(selectedDate);
+      const day = d.getDay(); // 0 is Sunday
+      d.setDate(d.getDate() - day); // Go back to Sunday
+      return d.toISOString().split('T')[0];
+  });
+
   const [logFilterClass, setLogFilterClass] = useState('');
   const [logFilterDateStart, setLogFilterDateStart] = useState(() => {
       const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0];
@@ -224,6 +232,50 @@ const Attendance: React.FC<AttendanceProps> = ({
     setNoteRecords(initialNotes);
     setSaved(false);
   }, [selectedDate, selectedPeriod, selectedClass, filteredStudents, attendanceHistory]);
+
+  // --- Weekly Logic ---
+  const currentWeekDays = useMemo(() => {
+      const days = [];
+      const start = new Date(weekStartDate);
+      for(let i=0; i<5; i++) { // Sun-Thu
+          const d = new Date(start);
+          d.setDate(start.getDate() + i);
+          days.push(d.toISOString().split('T')[0]);
+      }
+      return days;
+  }, [weekStartDate]);
+
+  const changeWeek = (dir: number) => {
+      const d = new Date(weekStartDate);
+      d.setDate(d.getDate() + (dir * 7));
+      setWeekStartDate(d.toISOString().split('T')[0]);
+  };
+
+  const getDayLabel = (dateStr: string) => {
+      return new Date(dateStr).toLocaleDateString('ar-SA', { weekday: 'long' });
+  };
+
+  const toggleWeeklyStatus = (studentId: string, date: string) => {
+      const record = attendanceHistory.find(a => a.studentId === studentId && a.date === date);
+      let newStatus = AttendanceStatus.ABSENT; // Default to toggle to Absent
+      
+      if (record) {
+          if (record.status === AttendanceStatus.PRESENT) newStatus = AttendanceStatus.ABSENT;
+          else if (record.status === AttendanceStatus.ABSENT) newStatus = AttendanceStatus.LATE;
+          else if (record.status === AttendanceStatus.LATE) newStatus = AttendanceStatus.PRESENT;
+          else newStatus = AttendanceStatus.PRESENT;
+      }
+
+      const newRecord: AttendanceRecord = {
+          id: record ? record.id : `${studentId}-${date}-weekly`,
+          studentId,
+          date,
+          status: newStatus,
+          subject: selectedSubject || 'عام', // Fallback
+          createdById: currentUser?.id
+      };
+      onSaveAttendance([newRecord]);
+  };
 
   const stats = useMemo(() => {
       if (filteredStudents.length === 0) return { present: 0, absent: 0, late: 0 };
@@ -414,10 +466,13 @@ const Attendance: React.FC<AttendanceProps> = ({
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4 print:hidden">
           <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
-              <button onClick={() => setActiveTab('REGISTER')} className={`px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+              <button onClick={() => setActiveTab('REGISTER')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <CheckSquare size={18}/> تسجيل الحضور
               </button>
-              <button onClick={() => setActiveTab('LOG')} className={`px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'LOG' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+              <button onClick={() => setActiveTab('WEEKLY')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'WEEKLY' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <CalendarDays size={18}/> عرض أسبوعي
+              </button>
+              <button onClick={() => setActiveTab('LOG')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'LOG' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <History size={18}/> السجل الشامل
               </button>
           </div>
@@ -653,6 +708,97 @@ const Attendance: React.FC<AttendanceProps> = ({
                          <span className="font-mono text-[10px]">Auto-Save Enabled</span>
                     </div>
                 </div>
+              )}
+          </div>
+      )}
+
+      {activeTab === 'WEEKLY' && (
+          <div className="space-y-4 animate-fade-in flex-1 flex flex-col">
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex items-center gap-4">
+                      <div className="bg-teal-50 text-teal-700 p-2 rounded-lg"><CalendarDays size={20}/></div>
+                      <div>
+                          <h3 className="font-bold text-gray-800">العرض الأسبوعي</h3>
+                          <p className="text-xs text-gray-500">متابعة الحضور للأسبوع بالكامل</p>
+                      </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
+                          <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
+                          <span className="text-sm font-bold w-32 text-center">{formatDualDate(weekStartDate).split('|')[0]}</span>
+                          <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronLeft size={16}/></button>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                          <select className="p-2 border rounded-lg text-sm font-bold bg-white" value={manualClass} onChange={e => setManualClass(e.target.value)}>
+                              <option value="">-- اختر الفصل --</option>
+                              {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                      </div>
+                  </div>
+              </div>
+
+              {manualClass ? (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+                      <div className="flex-1 overflow-auto">
+                          <table className="w-full text-center text-sm border-collapse">
+                              <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
+                                  <tr>
+                                      <th className="p-4 border-l border-gray-200 text-right w-48 sticky right-0 bg-gray-50 z-20">اسم الطالب</th>
+                                      {currentWeekDays.map(day => (
+                                          <th key={day} className="p-3 border-l border-gray-200 min-w-[100px]">
+                                              <div className="flex flex-col items-center">
+                                                  <span>{getDayLabel(day)}</span>
+                                                  <span className="text-[10px] text-gray-400 font-mono mt-1">{day.slice(5)}</span>
+                                              </div>
+                                          </th>
+                                      ))}
+                                      <th className="p-3 border-l border-gray-200 w-24">النسبة</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                  {students.filter(s => s.className === manualClass).map(student => {
+                                      // Calculate weekly stats
+                                      const studentRecords = attendanceHistory.filter(a => a.studentId === student.id && currentWeekDays.includes(a.date));
+                                      const presentCount = studentRecords.filter(a => a.status === AttendanceStatus.PRESENT).length;
+                                      const weeklyPct = Math.round((presentCount / 5) * 100);
+
+                                      return (
+                                          <tr key={student.id} className="hover:bg-gray-50 transition-colors">
+                                              <td className="p-4 border-l border-gray-200 text-right font-bold text-gray-800 sticky right-0 bg-white z-10">{student.name}</td>
+                                              {currentWeekDays.map(day => {
+                                                  const record = attendanceHistory.find(a => a.studentId === student.id && a.date === day);
+                                                  const status = record?.status || AttendanceStatus.PRESENT; // Default assumption if no record
+                                                  
+                                                  return (
+                                                      <td 
+                                                          key={day} 
+                                                          className="p-3 border-l border-gray-100 cursor-pointer"
+                                                          onClick={() => toggleWeeklyStatus(student.id, day)}
+                                                      >
+                                                          <div className={`mx-auto w-8 h-8 rounded flex items-center justify-center font-bold text-xs transition-all ${
+                                                              status === 'PRESENT' ? 'bg-green-100 text-green-700' : 
+                                                              status === 'ABSENT' ? 'bg-red-100 text-red-700' : 
+                                                              status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                                                          }`}>
+                                                              {status === 'PRESENT' ? '✓' : status === 'ABSENT' ? 'غ' : status === 'LATE' ? 'ت' : 'ع'}
+                                                          </div>
+                                                      </td>
+                                                  );
+                                              })}
+                                              <td className="p-3 border-l border-gray-200 font-mono font-bold text-gray-600">{weeklyPct}%</td>
+                                          </tr>
+                                      );
+                                  })}
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              ) : (
+                  <div className="flex-1 flex items-center justify-center bg-gray-50 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+                      <p>اختر الفصل لعرض الجدول الأسبوعي</p>
+                  </div>
               )}
           </div>
       )}
