@@ -160,9 +160,9 @@ const LessonPlanning: React.FC = () => {
 
     const renderBlock = (block: LessonBlock, index: number) => {
         return (
-            <div key={block.id} className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all mb-4 overflow-hidden relative">
+            <div key={block.id} className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all mb-4 overflow-hidden relative break-inside-avoid">
                 {/* Block Header */}
-                <div className="bg-gray-50 px-4 py-2 border-b flex justify-between items-center handle cursor-move">
+                <div className="bg-gray-50 px-4 py-2 border-b flex justify-between items-center handle cursor-move print:hidden">
                     <span className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-2
                         ${block.type === 'OBJECTIVES' ? 'bg-blue-100 text-blue-700' : 
                           block.type === 'INTRO' ? 'bg-amber-100 text-amber-700' :
@@ -185,7 +185,7 @@ const LessonPlanning: React.FC = () => {
                     {block.type === 'MEDIA' && block.mediaUrl ? (
                         <div className="flex flex-col items-center">
                             {block.content.includes('فيديو') ? (
-                                <iframe src={block.mediaUrl} className="w-full aspect-video rounded-lg shadow-sm" allowFullScreen></iframe>
+                                <iframe src={block.mediaUrl} className="w-full aspect-video rounded-lg shadow-sm print:hidden" allowFullScreen></iframe>
                             ) : (
                                 <img src={block.mediaUrl} alt={block.title} className="max-h-64 rounded-lg shadow-sm object-contain"/>
                             )}
@@ -193,7 +193,7 @@ const LessonPlanning: React.FC = () => {
                         </div>
                     ) : (
                         <textarea 
-                            className="w-full min-h-[80px] outline-none text-gray-700 text-sm leading-relaxed resize-y bg-transparent"
+                            className="w-full min-h-[80px] outline-none text-gray-700 text-sm leading-relaxed resize-y bg-transparent print:border-none print:resize-none"
                             value={block.content}
                             onChange={(e) => updateBlockContent(block.id, e.target.value)}
                         />
@@ -206,7 +206,7 @@ const LessonPlanning: React.FC = () => {
     return (
         <div className="flex flex-col h-full bg-gray-100 animate-fade-in">
             {/* Top Bar */}
-            <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm z-20">
+            <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm z-20 print:hidden">
                 <div className="flex items-center gap-3">
                     <div className="bg-indigo-600 p-2 rounded-lg text-white"><PenTool size={20}/></div>
                     <div>
@@ -231,7 +231,7 @@ const LessonPlanning: React.FC = () => {
             </div>
 
             {activeTab === 'MY_PLANS' ? (
-                <div className="p-8 overflow-y-auto">
+                <div className="p-8 overflow-y-auto print:hidden">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {myPlans.map(plan => (
                             <div key={plan.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative group">
@@ -254,7 +254,7 @@ const LessonPlanning: React.FC = () => {
             ) : (
                 <div className="flex-1 flex overflow-hidden">
                     {/* LEFT COLUMN: Media Library (Mock) */}
-                    <div className="w-64 bg-white border-l border-gray-200 flex flex-col z-10 shadow-sm hidden md:flex">
+                    <div className="w-64 bg-white border-l border-gray-200 flex flex-col z-10 shadow-sm hidden md:flex print:hidden">
                         <div className="p-4 border-b">
                             <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2"><ImageIcon size={16}/> مكتبة الوسائط</h3>
                             <div className="mt-2 relative">
@@ -279,23 +279,29 @@ const LessonPlanning: React.FC = () => {
                     </div>
 
                     {/* MIDDLE COLUMN: The Canvas (Editor) */}
-                    <div className="flex-1 bg-gray-100 overflow-y-auto p-8 custom-scrollbar">
-                        <div className="max-w-3xl mx-auto min-h-[600px]">
+                    <div className="flex-1 bg-gray-100 overflow-y-auto p-8 custom-scrollbar print:p-0 print:bg-white print:overflow-visible">
+                        <div className="max-w-3xl mx-auto min-h-[600px] print:w-full print:max-w-none">
                             {/* Empty State */}
                             {blocks.length === 0 && (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 rounded-2xl p-10 bg-gray-50/50">
+                                <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 rounded-2xl p-10 bg-gray-50/50 print:hidden">
                                     <Sparkles size={48} className="mb-4 opacity-20"/>
                                     <h3 className="text-xl font-bold text-gray-500 mb-2">مساحة العمل فارغة</h3>
                                     <p className="text-sm">املأ الإعدادات في القائمة اليمنى واضغط على "توليد التحضير" للبدء.</p>
                                 </div>
                             )}
 
+                            {/* Header for Print only */}
+                            <div className="hidden print:block mb-8 text-center border-b pb-4">
+                                <h1 className="text-2xl font-bold text-black">{topic}</h1>
+                                <p className="text-gray-600">{selectedSubject} - {selectedGrade}</p>
+                            </div>
+
                             {/* Blocks Rendering */}
                             {blocks.map((block, idx) => renderBlock(block, idx))}
 
                             {/* Add Block Manually */}
                             {blocks.length > 0 && (
-                                <div className="flex justify-center mt-8 pb-20">
+                                <div className="flex justify-center mt-8 pb-20 print:hidden">
                                     <button onClick={() => setBlocks([...blocks, { id: Date.now().toString(), type: 'CONTENT', title: 'فقرة جديدة', content: '' }])} className="bg-white border border-gray-300 text-gray-600 px-4 py-2 rounded-full shadow-sm hover:shadow hover:text-indigo-600 transition-all font-bold text-sm flex items-center gap-2">
                                         <Plus size={16}/> إضافة كتلة يدوياً
                                     </button>
@@ -305,7 +311,7 @@ const LessonPlanning: React.FC = () => {
                     </div>
 
                     {/* RIGHT COLUMN: Settings & Controls */}
-                    <div className="w-80 bg-white border-r border-gray-200 flex flex-col z-10 shadow-sm overflow-y-auto custom-scrollbar">
+                    <div className="w-80 bg-white border-r border-gray-200 flex flex-col z-10 shadow-sm overflow-y-auto custom-scrollbar print:hidden">
                         <div className="p-5 border-b bg-indigo-50">
                             <h3 className="font-bold text-indigo-900 mb-1">إعدادات الدرس</h3>
                             <p className="text-xs text-indigo-600">حدد المعايير لتوليد المحتوى</p>

@@ -339,18 +339,6 @@ export interface MicroConcept {
     teacherId: string;
 }
 
-export interface StoredLessonPlan {
-    id: string;
-    teacherId: string;
-    lessonId?: string; // Optional Link to CurriculumLesson
-    subject: string;
-    topic: string; // Lesson Title
-    contentJson: string; // Full JSON content of the plan
-    resources: string[]; // Links
-    createdAt: string;
-}
-
-// --- NEW STUDIO TYPES ---
 export type LessonBlockType = 'OBJECTIVES' | 'INTRO' | 'STRATEGIES' | 'CONTENT' | 'ACTIVITY' | 'MEDIA' | 'ASSESSMENT' | 'HOMEWORK';
 
 export interface LessonBlock {
@@ -360,6 +348,17 @@ export interface LessonBlock {
     content: string;
     mediaUrl?: string; // Optional for images/videos
     duration?: number; // Optional duration in minutes
+}
+
+export interface StoredLessonPlan {
+    id: string;
+    teacherId: string;
+    lessonId?: string; // Optional Link to CurriculumLesson
+    subject: string;
+    topic: string; // Lesson Title
+    contentJson: string; // Stores LessonBlock[]
+    resources: string[]; // Links
+    createdAt: string;
 }
 
 export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING' | 'CURRICULUM_MAP' | 'RESOURCES_VIEW' | 'SCHEDULE_VIEW';
