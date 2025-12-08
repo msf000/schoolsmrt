@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
 import { deleteAllStudents } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, GraduationCap, FileText, Eye, Edit, FileSpreadsheet, X, CheckCircle, AlertTriangle, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award } from 'lucide-react';
 import DataImport from './DataImport';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
+import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
 interface StudentsProps {
   students: Student[];
@@ -23,55 +23,86 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
   }
 
+  // --- State ---
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterGrade, setFilterGrade] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewModalTab, setViewModalTab] = useState<'OVERVIEW' | 'ACADEMIC' | 'BEHAVIOR' | 'INFO'>('OVERVIEW');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
 
-  const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
-  const existingClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))), [students]);
+  // --- Derived Data for Filters ---
+  const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))).sort(), [students]);
+  const existingClasses = useMemo(() => {
+      let classes = students.map(s => s.className).filter(Boolean) as string[];
+      if (filterGrade) {
+          classes = students.filter(s => s.gradeLevel === filterGrade).map(s => s.className).filter(Boolean) as string[];
+      }
+      return Array.from(new Set(classes)).sort();
+  }, [students, filterGrade]);
 
-  // Calculate Student Stats for View Modal
+  // --- Filtering Logic ---
+  const filteredStudents = useMemo(() => {
+      return students.filter(s => {
+          const matchesSearch = s.name.includes(searchTerm) || (s.nationalId && s.nationalId.includes(searchTerm));
+          const matchesGrade = !filterGrade || s.gradeLevel === filterGrade;
+          const matchesClass = !filterClass || s.className === filterClass;
+          return matchesSearch && matchesGrade && matchesClass;
+      }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [students, searchTerm, filterGrade, filterClass]);
+
+  // --- Student Stats Calculation (For View Modal) ---
   const studentStats = useMemo(() => {
       if (!viewStudent) return null;
       
       const sAtt = attendance.filter(a => a.studentId === viewStudent.id);
       const sPerf = performance.filter(p => p.studentId === viewStudent.id);
 
-      // Attendance Stats
+      // 1. Attendance
       const totalDays = sAtt.length;
       const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
       const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
       const late = sAtt.filter(a => a.status === AttendanceStatus.LATE).length;
-      const attRate = totalDays > 0 ? Math.round(((present + late) / totalDays) * 100) : 100;
+      const excused = sAtt.filter(a => a.status === AttendanceStatus.EXCUSED).length;
+      const attRate = totalDays > 0 ? Math.round(((present + late + excused) / totalDays) * 100) : 100;
 
-      // Behavior Stats
+      // 2. Behavior
       const posBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
       const negBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
+      const behaviorLogs = sAtt.filter(a => a.behaviorStatus !== BehaviorStatus.NEUTRAL || a.behaviorNote);
 
-      // Academic Stats
+      // 3. Academic (General)
       const scores = sPerf.map(p => ({ score: p.score, max: p.maxScore || 10 }));
       const totalScore = scores.reduce((sum, i) => sum + i.score, 0);
       const totalMax = scores.reduce((sum, i) => sum + i.max, 0);
       const avgScore = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
       
-      // Chart Data: Last 5 Grades
+      // 4. Academic Details (By Category)
+      const homeworks = sPerf.filter(p => p.category === 'HOMEWORK');
+      const activities = sPerf.filter(p => p.category === 'ACTIVITY');
+      const exams = sPerf.filter(p => p.category === 'PLATFORM_EXAM' || p.category === 'OTHER');
+
+      // 5. Charts Data
+      // Line Chart: Last 5 Grades
       const recentGrades = sPerf
-        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // Chronological order
+        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         .slice(-5)
         .map(p => ({
             name: p.title || p.subject,
-            score: p.score,
-            max: p.maxScore
+            score: Math.round((p.score / p.maxScore) * 100),
+            fullMark: 100
         }));
 
-      // Radar Data: Performance by Category
+      // Radar Chart: Skills
       const categories = ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'];
       const radarData = categories.map(cat => {
           const catPerfs = sPerf.filter(p => p.category === cat);
-          if (catPerfs.length === 0) return { subject: cat, A: 0, fullMark: 100 };
+          if (catPerfs.length === 0) return { subject: cat === 'HOMEWORK' ? 'الواجبات' : cat === 'ACTIVITY' ? 'الأنشطة' : 'الاختبارات', A: 0, fullMark: 100 };
           const obtained = catPerfs.reduce((acc, curr) => acc + curr.score, 0);
           const max = catPerfs.reduce((acc, curr) => acc + (curr.maxScore || 10), 0);
           const pct = max > 0 ? Math.round((obtained / max) * 100) : 0;
@@ -81,23 +112,21 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
               fullMark: 100
           };
       });
-      // Add Attendance to Radar
+      // Add Attendance & Behavior to Radar
       radarData.push({ subject: 'الحضور', A: attRate, fullMark: 100 });
       radarData.push({ subject: 'السلوك', A: Math.max(0, 100 - (negBehavior * 10)), fullMark: 100 });
 
-      return { attRate, absent, late, posBehavior, negBehavior, avgScore, recentGrades, radarData };
+      return { 
+          attRate, absent, late, excused, 
+          posBehavior, negBehavior, behaviorLogs,
+          avgScore, recentGrades, radarData,
+          homeworks, activities, exams
+      };
   }, [viewStudent, attendance, performance]);
 
+  // --- Form Handling ---
   const initialFormState = {
-    name: '',
-    nationalId: '',
-    gradeLevel: '',
-    className: '',
-    email: '',
-    phone: '',
-    parentName: '',
-    parentPhone: '',
-    parentEmail: ''
+    name: '', nationalId: '', gradeLevel: '', className: '', email: '', phone: '', parentName: '', parentPhone: '', parentEmail: ''
   };
   const [formData, setFormData] = useState(initialFormState);
 
@@ -128,9 +157,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
     if (!formData.name || !formData.nationalId) return;
 
     let finalSchoolId = editingStudent?.schoolId;
-    if (!finalSchoolId && currentUser?.schoolId) {
-        finalSchoolId = currentUser.schoolId;
-    }
+    if (!finalSchoolId && currentUser?.schoolId) finalSchoolId = currentUser.schoolId;
 
     const studentData: Student = {
       id: editingStudent ? editingStudent.id : Date.now().toString(),
@@ -149,11 +176,8 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
     };
 
     try {
-        if (editingStudent) {
-            onUpdateStudent(studentData);
-        } else {
-            onAddStudent(studentData);
-        }
+        if (editingStudent) onUpdateStudent(studentData);
+        else onAddStudent(studentData);
         setIsFormModalOpen(false);
     } catch (error: any) {
         alert(error.message);
@@ -167,156 +191,375 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       }
   };
 
-  const filteredStudents = students.filter(s => 
-    s.name.includes(searchTerm) || (s.gradeLevel && s.gradeLevel.includes(searchTerm)) || (s.nationalId && s.nationalId.includes(searchTerm))
-  );
-
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
+      {/* Header & Controls */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
-            <h2 className="text-2xl font-bold text-gray-800">قائمة الطلاب</h2>
-            <p className="text-sm text-gray-500 mt-1">إجمالي الطلاب: {students.length}</p>
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <User className="text-purple-600"/> سجل الطلاب
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">إدارة بيانات الطلاب، التعديل، والمتابعة الفردية.</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-            {students.length > 0 && (
-                <button 
-                onClick={handleDeleteAll}
-                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm"
+        
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+            {/* Filters */}
+            <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200 w-full md:w-auto">
+                <Filter size={16} className="text-gray-400 ml-1"/>
+                <select 
+                    className="bg-transparent text-sm font-bold text-gray-700 outline-none w-full md:w-auto"
+                    value={filterGrade}
+                    onChange={e => { setFilterGrade(e.target.value); setFilterClass(''); }}
                 >
-                <Trash2 size={18} />
-                <span>حذف الكل</span>
-                </button>
-            )}
-            <button 
-            onClick={() => setIsImportModalOpen(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm"
-            >
-            <FileSpreadsheet size={18} />
-            <span>استيراد ملف</span>
-            </button>
-            <button 
-            onClick={openAddModal}
-            className="bg-primary hover:bg-teal-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm"
-            >
-            <UserPlus size={18} />
-            <span>إضافة طالب</span>
-            </button>
-        </div>
-      </div>
+                    <option value="">جميع الصفوف</option>
+                    {existingGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+                <div className="w-[1px] h-4 bg-gray-300 mx-1"></div>
+                <select 
+                    className="bg-transparent text-sm font-bold text-gray-700 outline-none w-full md:w-auto"
+                    value={filterClass}
+                    onChange={e => setFilterClass(e.target.value)}
+                >
+                    <option value="">جميع الفصول</option>
+                    {existingClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+            </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-            <div className="relative">
-                <Search className="absolute right-3 top-2.5 text-gray-400" size={20} />
+            {/* Search */}
+            <div className="relative flex-1 md:flex-none">
+                <Search className="absolute right-3 top-2.5 text-gray-400" size={18} />
                 <input 
                     type="text" 
-                    placeholder="بحث عن طالب (الاسم، الهوية، الصف)..." 
-                    className="w-full pr-10 pl-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="بحث (اسم، هوية)..." 
+                    className="w-full md:w-48 pr-10 pl-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 w-full md:w-auto">
+                <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm">
+                    <FileSpreadsheet size={18} /> استيراد
+                </button>
+                <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm">
+                    <UserPlus size={18} /> إضافة
+                </button>
+                {students.length > 0 && (
+                    <button onClick={handleDeleteAll} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">
+                        <Trash2 size={18}/>
+                    </button>
+                )}
+            </div>
         </div>
-        <div className="overflow-x-auto">
-            <table className="w-full text-right min-w-[1400px]">
-            <thead className="bg-gray-50 text-gray-700 font-bold text-sm">
+      </div>
+
+      {/* Main Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+        <div className="flex-1 overflow-auto">
+            <table className="w-full text-right">
+            <thead className="bg-gray-50 text-gray-600 font-bold text-xs uppercase sticky top-0 z-10 shadow-sm">
                 <tr>
-                <th className="p-4 whitespace-nowrap">اسم الطالب</th>
-                <th className="p-4 whitespace-nowrap">المصدر</th>
-                <th className="p-4 whitespace-nowrap">رقم الهوية / السجل</th>
-                <th className="p-4 whitespace-nowrap">الصف</th>
-                <th className="p-4 whitespace-nowrap">الفصل</th>
-                <th className="p-4 whitespace-nowrap">جوال الطالب</th>
-                <th className="p-4 whitespace-nowrap">اسم ولي الأمر</th>
-                <th className="p-4 whitespace-nowrap">جوال ولي الأمر</th>
-                <th className="p-4 whitespace-nowrap w-40 text-center">إجراءات</th>
+                <th className="p-4">#</th>
+                <th className="p-4">اسم الطالب</th>
+                <th className="p-4">الصف / الفصل</th>
+                <th className="p-4">رقم الهوية</th>
+                <th className="p-4 text-center">نوع التسجيل</th>
+                <th className="p-4 text-center w-32">إجراءات</th>
                 </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredStudents.length > 0 ? filteredStudents.map(student => (
-                <tr key={student.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 font-bold text-gray-800">{student.name}</td>
+                {filteredStudents.length > 0 ? filteredStudents.map((student, i) => (
+                <tr key={student.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="p-4 text-gray-400 font-mono text-xs">{i + 1}</td>
                     <td className="p-4">
+                        <button 
+                            onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }}
+                            className="font-bold text-gray-800 hover:text-purple-600 hover:underline text-base text-right"
+                        >
+                            {student.name}
+                        </button>
+                    </td>
+                    <td className="p-4">
+                        <div className="flex flex-col">
+                            <span className="font-medium text-gray-700">{student.gradeLevel}</span>
+                            <span className="text-xs text-gray-500">{student.className}</span>
+                        </div>
+                    </td>
+                    <td className="p-4 font-mono text-gray-500">{student.nationalId || '-'}</td>
+                    <td className="p-4 text-center">
                         {student.schoolId ? (
-                            <span className="flex items-center gap-1 text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200 w-fit font-bold">
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-full border border-blue-100 font-bold">
                                 <Building2 size={10}/> مدرسة
                             </span>
                         ) : (
-                            <span className="flex items-center gap-1 text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded border border-purple-200 w-fit font-bold">
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-purple-50 text-purple-700 px-2 py-1 rounded-full border border-purple-100 font-bold">
                                 <Lock size={10}/> خاص
                             </span>
                         )}
                     </td>
-                    <td className="p-4 text-gray-600 font-mono">{student.nationalId || '-'}</td>
-                    <td className="p-4 text-gray-600">{student.gradeLevel}</td>
-                    <td className="p-4 text-gray-600">{student.className}</td>
-                    <td className="p-4 text-gray-600 font-mono dir-ltr text-right">{student.phone || '-'}</td>
-                    <td className="p-4 text-gray-600">{student.parentName || '-'}</td>
-                    <td className="p-4 text-green-700 font-medium font-mono dir-ltr text-right">{student.parentPhone || '-'}</td>
-                    <td className="p-4">
-                        <div className="flex items-center justify-center gap-2">
-                             <button 
-                                onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }}
-                                className="text-gray-500 hover:text-blue-600 p-2 rounded-full hover:bg-blue-50 transition-colors"
-                                title="عرض"
-                            >
-                                <Eye size={18} />
+                    <td className="p-4 text-center">
+                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50" title="عرض الملف">
+                                <Eye size={16} />
                             </button>
-                            <button 
-                                onClick={() => openEditModal(student)}
-                                className="text-gray-500 hover:text-yellow-600 p-2 rounded-full hover:bg-yellow-50 transition-colors"
-                                title="تحرير"
-                            >
-                                <Edit size={18} />
+                            <button onClick={() => openEditModal(student)} className="text-gray-400 hover:text-yellow-600 p-1.5 rounded-full hover:bg-yellow-50" title="تعديل">
+                                <Edit size={16} />
                             </button>
-                            <button 
-                                onClick={() => onDeleteStudent(student.id)}
-                                className="text-gray-500 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"
-                                title="حذف"
-                            >
-                                <Trash2 size={18} />
+                            <button onClick={() => onDeleteStudent(student.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50" title="حذف">
+                                <Trash2 size={16} />
                             </button>
                         </div>
                     </td>
                 </tr>
                 )) : (
                     <tr>
-                        <td colSpan={10} className="p-8 text-center text-gray-500">لا يوجد طلاب مطابقين للبحث</td>
+                        <td colSpan={6} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center">
+                            <Search size={48} className="mb-4 opacity-20"/>
+                            <p>لا يوجد طلاب مطابقين للبحث</p>
+                        </td>
                     </tr>
                 )}
             </tbody>
             </table>
         </div>
+        <div className="p-3 border-t bg-gray-50 text-xs text-gray-500 font-bold">
+            العدد الإجمالي: {filteredStudents.length} طالب
+        </div>
       </div>
 
+      {/* STUDENT CARD MODAL */}
+      {isViewModalOpen && viewStudent && studentStats && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                  {/* Modal Header */}
+                  <div className="bg-gray-900 text-white p-6 flex justify-between items-start shrink-0">
+                      <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-2xl font-bold border-4 border-white/20 shadow-lg">
+                              {viewStudent.name.charAt(0)}
+                          </div>
+                          <div>
+                              <h3 className="text-2xl font-bold">{viewStudent.name}</h3>
+                              <div className="flex items-center gap-3 text-gray-300 text-sm mt-1">
+                                  <span className="bg-white/10 px-2 py-0.5 rounded">{viewStudent.gradeLevel}</span>
+                                  <span>|</span>
+                                  <span className="font-mono">ID: {viewStudent.nationalId}</span>
+                              </div>
+                          </div>
+                      </div>
+                      <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-white bg-white/10 p-2 rounded-full hover:bg-white/20 transition-colors"><X size={20}/></button>
+                  </div>
+
+                  {/* Navigation Tabs */}
+                  <div className="flex border-b bg-gray-50 px-6 shrink-0 overflow-x-auto">
+                      <button onClick={() => setViewModalTab('OVERVIEW')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'OVERVIEW' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                          <Target size={16}/> نظرة عامة
+                      </button>
+                      <button onClick={() => setViewModalTab('ACADEMIC')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'ACADEMIC' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                          <BookOpen size={16}/> الأكاديمي والواجبات
+                      </button>
+                      <button onClick={() => setViewModalTab('BEHAVIOR')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'BEHAVIOR' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                          <Activity size={16}/> السلوك والحضور
+                      </button>
+                      <button onClick={() => setViewModalTab('INFO')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'INFO' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                          <User size={16}/> البيانات الشخصية
+                      </button>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar">
+                      
+                      {/* 1. OVERVIEW TAB */}
+                      {viewModalTab === 'OVERVIEW' && (
+                          <div className="space-y-6">
+                              {/* Quick Stats */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                      <div className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Clock size={14}/> الحضور</div>
+                                      <div className={`text-3xl font-black ${studentStats.attRate >= 90 ? 'text-green-600' : 'text-red-600'}`}>{studentStats.attRate}%</div>
+                                      <div className="text-xs text-gray-400 mt-1">أيام الغياب: {studentStats.absent}</div>
+                                  </div>
+                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                      <div className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><TrendingUp size={14}/> المستوى الأكاديمي</div>
+                                      <div className="text-3xl font-black text-blue-600">{studentStats.avgScore}%</div>
+                                      <div className="text-xs text-gray-400 mt-1">متوسط الدرجات</div>
+                                  </div>
+                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                      <div className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Smile size={14}/> السلوك</div>
+                                      <div className="flex items-end gap-2">
+                                          <span className="text-3xl font-black text-green-600">{studentStats.posBehavior}</span>
+                                          <span className="text-sm text-gray-300 mb-1">/</span>
+                                          <span className="text-3xl font-black text-red-600">{studentStats.negBehavior}</span>
+                                      </div>
+                                      <div className="text-xs text-gray-400 mt-1">إيجابي / سلبي</div>
+                                  </div>
+                              </div>
+
+                              {/* Charts */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="bg-white p-4 rounded-xl border border-gray-200 h-80 flex flex-col">
+                                      <h4 className="font-bold text-gray-700 text-sm mb-4">تحليل المهارات (Radar)</h4>
+                                      <div className="flex-1 min-h-0">
+                                          <ResponsiveContainer width="100%" height="100%">
+                                              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={studentStats.radarData}>
+                                                  <PolarGrid />
+                                                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'bold' }} />
+                                                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false}/>
+                                                  <Radar name="Student" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+                                                  <Tooltip />
+                                              </RadarChart>
+                                          </ResponsiveContainer>
+                                      </div>
+                                  </div>
+                                  <div className="bg-white p-4 rounded-xl border border-gray-200 h-80 flex flex-col">
+                                      <h4 className="font-bold text-gray-700 text-sm mb-4">تطور الدرجات (آخر 5)</h4>
+                                      <div className="flex-1 min-h-0">
+                                          <ResponsiveContainer width="100%" height="100%">
+                                              <LineChart data={studentStats.recentGrades}>
+                                                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                  <XAxis dataKey="name" tick={{fontSize: 10}} height={20}/>
+                                                  <YAxis domain={[0, 100]} tick={{fontSize: 10}} width={30}/>
+                                                  <Tooltip />
+                                                  <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={3} dot={{r: 4}} />
+                                              </LineChart>
+                                          </ResponsiveContainer>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+
+                      {/* 2. ACADEMIC TAB */}
+                      {viewModalTab === 'ACADEMIC' && (
+                          <div className="space-y-6">
+                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                  <div className="p-3 bg-blue-50 border-b border-blue-100 font-bold text-blue-800 text-sm flex items-center gap-2"><BookOpen size={16}/> الواجبات المنزلية</div>
+                                  <div className="max-h-60 overflow-y-auto">
+                                      {studentStats.homeworks.length > 0 ? (
+                                          <table className="w-full text-right text-sm">
+                                              <thead className="bg-gray-50 text-xs text-gray-500 sticky top-0"><tr><th className="p-3">العنوان</th><th className="p-3">المادة</th><th className="p-3">الدرجة</th></tr></thead>
+                                              <tbody className="divide-y">
+                                                  {studentStats.homeworks.map((h, i) => (
+                                                      <tr key={i} className="hover:bg-gray-50">
+                                                          <td className="p-3 font-medium">{h.title}</td>
+                                                          <td className="p-3 text-gray-500 text-xs">{h.subject}</td>
+                                                          <td className="p-3"><span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{h.score}/{h.maxScore}</span></td>
+                                                      </tr>
+                                                  ))}
+                                              </tbody>
+                                          </table>
+                                      ) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد واجبات مسجلة</div>}
+                                  </div>
+                              </div>
+
+                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                  <div className="p-3 bg-purple-50 border-b border-purple-100 font-bold text-purple-800 text-sm flex items-center gap-2"><Award size={16}/> الاختبارات والمنصة</div>
+                                  <div className="max-h-60 overflow-y-auto">
+                                      {studentStats.exams.length > 0 ? (
+                                          <table className="w-full text-right text-sm">
+                                              <thead className="bg-gray-50 text-xs text-gray-500 sticky top-0"><tr><th className="p-3">العنوان</th><th className="p-3">المادة</th><th className="p-3">الدرجة</th></tr></thead>
+                                              <tbody className="divide-y">
+                                                  {studentStats.exams.map((h, i) => (
+                                                      <tr key={i} className="hover:bg-gray-50">
+                                                          <td className="p-3 font-medium">{h.title}</td>
+                                                          <td className="p-3 text-gray-500 text-xs">{h.subject}</td>
+                                                          <td className="p-3"><span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">{h.score}/{h.maxScore}</span></td>
+                                                      </tr>
+                                                  ))}
+                                              </tbody>
+                                          </table>
+                                      ) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد اختبارات مسجلة</div>}
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+
+                      {/* 3. BEHAVIOR TAB */}
+                      {viewModalTab === 'BEHAVIOR' && (
+                          <div className="space-y-6">
+                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                  <div className="p-3 bg-gray-100 border-b font-bold text-gray-700 text-sm">سجل الملاحظات السلوكية</div>
+                                  <div className="max-h-80 overflow-y-auto">
+                                      {studentStats.behaviorLogs.length > 0 ? (
+                                          <table className="w-full text-right text-sm">
+                                              <thead className="bg-gray-50 text-xs text-gray-500 sticky top-0"><tr><th className="p-3">التاريخ</th><th className="p-3">النوع</th><th className="p-3">الملاحظة</th></tr></thead>
+                                              <tbody className="divide-y">
+                                                  {studentStats.behaviorLogs.map((log, i) => (
+                                                      <tr key={i} className="hover:bg-gray-50">
+                                                          <td className="p-3 text-xs font-mono text-gray-500">{log.date}</td>
+                                                          <td className="p-3">
+                                                              {log.behaviorStatus === BehaviorStatus.POSITIVE && <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold flex w-fit gap-1"><Smile size={12}/> إيجابي</span>}
+                                                              {log.behaviorStatus === BehaviorStatus.NEGATIVE && <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold flex w-fit gap-1"><Frown size={12}/> سلبي</span>}
+                                                          </td>
+                                                          <td className="p-3 text-gray-700">{log.behaviorNote}</td>
+                                                      </tr>
+                                                  ))}
+                                              </tbody>
+                                          </table>
+                                      ) : <div className="p-10 text-center text-gray-400">سجل السلوك نظيف! لا توجد ملاحظات.</div>}
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+
+                      {/* 4. INFO TAB */}
+                      {viewModalTab === 'INFO' && (
+                          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div>
+                                      <h4 className="font-bold text-gray-800 border-b pb-2 mb-3">بيانات الطالب</h4>
+                                      <div className="space-y-3 text-sm">
+                                          <div className="flex justify-between"><span className="text-gray-500">الاسم:</span> <span className="font-bold">{viewStudent.name}</span></div>
+                                          <div className="flex justify-between"><span className="text-gray-500">رقم الهوية:</span> <span className="font-mono">{viewStudent.nationalId}</span></div>
+                                          <div className="flex justify-between"><span className="text-gray-500">الصف / الفصل:</span> <span>{viewStudent.gradeLevel} - {viewStudent.className}</span></div>
+                                          <div className="flex justify-between"><span className="text-gray-500">الجوال:</span> <span className="font-mono dir-ltr">{viewStudent.phone || '-'}</span></div>
+                                          <div className="flex justify-between"><span className="text-gray-500">البريد:</span> <span className="font-mono">{viewStudent.email || '-'}</span></div>
+                                      </div>
+                                  </div>
+                                  <div>
+                                      <h4 className="font-bold text-gray-800 border-b pb-2 mb-3">بيانات ولي الأمر</h4>
+                                      <div className="space-y-3 text-sm">
+                                          <div className="flex justify-between"><span className="text-gray-500">الاسم:</span> <span className="font-bold">{viewStudent.parentName || '-'}</span></div>
+                                          <div className="flex justify-between"><span className="text-gray-500">الجوال:</span> <span className="font-mono dir-ltr text-green-700 font-bold">{viewStudent.parentPhone || '-'}</span></div>
+                                          <div className="flex justify-between"><span className="text-gray-500">البريد:</span> <span className="font-mono">{viewStudent.parentEmail || '-'}</span></div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Add/Edit Form Modal */}
       {isFormModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl my-8">
-            <h3 className="text-xl font-bold mb-4 border-b pb-2 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl my-8 border border-gray-100">
+            <h3 className="text-xl font-bold mb-4 border-b pb-2 flex justify-between items-center text-gray-800">
                 {editingStudent ? 'تعديل بيانات الطالب' : 'إضافة طالب جديد'}
                 <button onClick={() => setIsFormModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
             </h3>
             <form onSubmit={handleFormSubmit} className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-lg border">
-                  <h4 className="text-sm font-bold text-primary mb-3">البيانات الأساسية</h4>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-bold text-purple-700 mb-3">البيانات الأساسية</h4>
                   <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم الطالب *</label>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">اسم الطالب *</label>
                         <input 
                           type="text" 
                           required
-                          className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                          className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
                           value={formData.name}
                           onChange={(e) => setFormData({...formData, name: e.target.value})}
                         />
                       </div>
-                      <div className="col-span-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">رقم الهوية / السجل *</label>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">رقم الهوية / السجل *</label>
                         <input 
                           type="text"
                           required 
-                          className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                          className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
                           value={formData.nationalId}
                           onChange={(e) => setFormData({...formData, nationalId: e.target.value})}
                         />
@@ -324,14 +567,14 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   </div>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg border">
-                  <h4 className="text-sm font-bold text-primary mb-3">البيانات الأكاديمية (اكتب أو اختر)</h4>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-bold text-purple-700 mb-3">البيانات الأكاديمية</h4>
                   <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">الصف الدراسي (مثال: الصف الأول)</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">الصف الدراسي</label>
                         <input 
                             list="gradeOptions"
-                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
                             value={formData.gradeLevel}
                             onChange={(e) => setFormData({...formData, gradeLevel: e.target.value})}
                             placeholder="اكتب الصف..."
@@ -341,10 +584,10 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                         </datalist>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">الفصل (مثال: 1/أ)</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">الفصل</label>
                         <input 
                             list="classOptions"
-                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
                             value={formData.className}
                             onChange={(e) => setFormData({...formData, className: e.target.value})}
                             placeholder="اكتب الفصل..."
@@ -356,74 +599,41 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   </div>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg border">
-                  <h4 className="text-sm font-bold text-primary mb-3">بيانات التواصل (الطالب)</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">جوال الطالب</label>
-                        <input 
-                          type="tel" 
-                          className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">إيميل الطالب</label>
-                        <input 
-                          type="email" 
-                          className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
-                          value={formData.email}
-                          onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        />
-                      </div>
-                  </div>
-              </div>
-
-               <div className="bg-gray-50 p-4 rounded-lg border">
-                   <h4 className="text-sm font-bold text-primary mb-3">بيانات ولي الأمر</h4>
+               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                   <h4 className="text-sm font-bold text-purple-700 mb-3">بيانات ولي الأمر</h4>
                    <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم ولي الأمر</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">اسم ولي الأمر</label>
                         <input 
                         type="text" 
-                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
                         value={formData.parentName}
                         onChange={(e) => setFormData({...formData, parentName: e.target.value})}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">جوال ولي الأمر</label>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">جوال ولي الأمر</label>
                         <input 
                         type="tel" 
-                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
+                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
                         value={formData.parentPhone}
                         onChange={(e) => setFormData({...formData, parentPhone: e.target.value})}
-                        />
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">إيميل ولي الأمر</label>
-                        <input 
-                        type="email" 
-                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none"
-                        value={formData.parentEmail}
-                        onChange={(e) => setFormData({...formData, parentEmail: e.target.value})}
                         />
                     </div>
                    </div>
                </div>
 
-              <div className="flex gap-3 justify-end mt-6">
+              <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
                 <button 
                   type="button" 
                   onClick={() => setIsFormModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-bold"
                 >
                   إلغاء
                 </button>
                 <button 
                   type="submit" 
-                  className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-teal-800 shadow-lg"
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 shadow-lg text-sm font-bold"
                 >
                   {editingStudent ? 'حفظ التغييرات' : 'حفظ البيانات'}
                 </button>
@@ -447,133 +657,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   onClose={() => setIsImportModalOpen(false)}
                   currentUser={currentUser}
               />
-          </div>
-      )}
-
-      {isViewModalOpen && viewStudent && studentStats && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl w-full max-w-4xl shadow-xl relative overflow-hidden flex flex-col max-h-[90vh]">
-                  <div className="absolute top-0 right-0 left-0 h-24 bg-gradient-to-r from-blue-600 to-purple-600"></div>
-                  
-                  <div className="relative pt-12 px-6 pb-6 overflow-y-auto custom-scrollbar">
-                      <button onClick={() => setIsViewModalOpen(false)} className="absolute left-4 top-4 text-white/80 hover:text-white bg-black/20 p-2 rounded-full"><X size={20}/></button>
-                      
-                      <div className="flex flex-col items-center mb-6">
-                          <div className="w-24 h-24 bg-white rounded-full p-1 shadow-lg mb-3">
-                              <div className="w-full h-full bg-gray-100 rounded-full flex items-center justify-center text-gray-400 border-2 border-white text-3xl font-bold">
-                                  {viewStudent.name.charAt(0)}
-                              </div>
-                          </div>
-                          <h3 className="text-2xl font-bold text-gray-900">{viewStudent.name}</h3>
-                          <p className="text-gray-500 font-medium">{viewStudent.gradeLevel} - {viewStudent.className}</p>
-                          <div className="mt-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-mono font-bold">
-                              ID: {viewStudent.nationalId || 'N/A'}
-                          </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                          {/* Attendance Card */}
-                          <div className="bg-white border rounded-xl p-4 shadow-sm relative overflow-hidden group">
-                              <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
-                              <h4 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Clock size={12}/> الحضور</h4>
-                              <div className="flex items-end gap-1">
-                                  <span className={`text-2xl font-black ${studentStats.attRate >= 90 ? 'text-green-600' : studentStats.attRate >= 75 ? 'text-yellow-600' : 'text-red-600'}`}>{studentStats.attRate}%</span>
-                                  <span className="text-gray-400 text-xs mb-1">نسبة الحضور</span>
-                              </div>
-                              <p className="text-[10px] text-gray-400 mt-2">
-                                  غياب: <b className="text-red-500">{studentStats.absent}</b> | تأخر: <b className="text-yellow-600">{studentStats.late}</b>
-                              </p>
-                          </div>
-
-                          {/* Academic Card */}
-                          <div className="bg-white border rounded-xl p-4 shadow-sm relative overflow-hidden group">
-                              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                              <h4 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><TrendingUp size={12}/> الأكاديمي</h4>
-                              <div className="flex items-end gap-1">
-                                  <span className="text-2xl font-black text-blue-600">{studentStats.avgScore}%</span>
-                                  <span className="text-gray-400 text-xs mb-1">المعدل</span>
-                              </div>
-                              <div className="mt-2 text-xs text-gray-500">
-                                  بناءً على {performance.filter(p => p.studentId === viewStudent.id).length} تقييم
-                              </div>
-                          </div>
-
-                          {/* Behavior Card */}
-                          <div className="bg-white border rounded-xl p-4 shadow-sm relative overflow-hidden group">
-                              <div className="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
-                              <h4 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Smile size={12}/> السلوك</h4>
-                              <div className="flex justify-between items-center mt-2">
-                                  <div className="text-center">
-                                      <div className="text-green-600 font-bold text-lg">{studentStats.posBehavior}</div>
-                                      <div className="text-[9px] text-gray-400">إيجابي</div>
-                                  </div>
-                                  <div className="w-[1px] h-8 bg-gray-100"></div>
-                                  <div className="text-center">
-                                      <div className="text-red-600 font-bold text-lg">{studentStats.negBehavior}</div>
-                                      <div className="text-[9px] text-gray-400">سلبي</div>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                          {/* Performance Line Chart */}
-                          {studentStats.recentGrades.length > 0 && (
-                              <div className="bg-white p-4 rounded-xl border border-gray-200 h-72">
-                                  <h4 className="font-bold text-gray-700 text-sm mb-4 flex items-center gap-2"><Activity size={16}/> تطور المستوى الأكاديمي</h4>
-                                  <ResponsiveContainer width="100%" height="100%">
-                                      <LineChart data={studentStats.recentGrades}>
-                                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                          <XAxis dataKey="name" tick={{fontSize: 10}} height={20} tickFormatter={(val) => val.length > 10 ? val.substr(0,10)+'..' : val}/>
-                                          <YAxis domain={[0, 'dataMax']} tick={{fontSize: 10}} width={30}/>
-                                          <Tooltip 
-                                              contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                                              labelStyle={{fontWeight: 'bold', color: '#374151'}}
-                                          />
-                                          <Line type="monotone" dataKey="score" stroke="#8884d8" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
-                                      </LineChart>
-                                  </ResponsiveContainer>
-                              </div>
-                          )}
-
-                          {/* Performance Radar Chart */}
-                          <div className="bg-white p-4 rounded-xl border border-gray-200 h-72">
-                              <h4 className="font-bold text-gray-700 text-sm mb-2 flex items-center gap-2"><Target size={16}/> تحليل المهارات</h4>
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={studentStats.radarData}>
-                                      <PolarGrid />
-                                      <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{fontSize: 8}}/>
-                                      <Radar name="Performance" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
-                                      <Tooltip />
-                                  </RadarChart>
-                              </ResponsiveContainer>
-                          </div>
-                      </div>
-
-                      <div className="space-y-4">
-                          <h4 className="font-bold text-gray-800 text-sm border-b pb-2">بيانات التواصل</h4>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                               <div className="bg-gray-50 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Phone size={12}/> جوال الطالب</p>
-                                    <p className="font-mono dir-ltr text-right text-sm font-bold">{viewStudent.phone || '-'}</p>
-                               </div>
-                               <div className="bg-gray-50 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Mail size={12}/> إيميل الطالب</p>
-                                    <p className="font-mono text-sm font-bold break-all">{viewStudent.email || '-'}</p>
-                               </div>
-                          </div>
-
-                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                                <p className="font-bold text-gray-800 flex items-center gap-2 mb-2"><User size={16}/> ولي الأمر: {viewStudent.parentName || 'غير مسجل'}</p>
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                    <span className="flex items-center gap-1 text-gray-600 font-mono"><Phone size={14}/> {viewStudent.parentPhone || '-'}</span>
-                                    <span className="flex items-center gap-1 text-gray-600 font-mono"><Mail size={14}/> {viewStudent.parentEmail || '-'}</span>
-                                </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
           </div>
       )}
 
