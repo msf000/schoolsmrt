@@ -2,7 +2,7 @@ import {
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
     LessonLink, MessageLog, Feedback, ReportHeaderConfig, AISettings, UserTheme, 
-    PerformanceCategory, Exam, ExamResult
+    PerformanceCategory, Exam, ExamResult, Question
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -24,7 +24,8 @@ export const DB_MAP: Record<string, string> = {
     message_logs: 'message_logs',
     feedbacks: 'feedbacks',
     exams: 'exams',
-    exam_results: 'exam_results'
+    exam_results: 'exam_results',
+    questions_bank: 'questions_bank'
 };
 
 const INITIAL_DATA = {
@@ -44,6 +45,7 @@ const INITIAL_DATA = {
     feedbacks: [] as Feedback[],
     exams: [] as Exam[],
     exam_results: [] as ExamResult[],
+    questions_bank: [] as Question[],
     report_header_config: { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' } as ReportHeaderConfig,
     ai_settings: { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' } as AISettings,
     user_theme: { mode: 'LIGHT', backgroundStyle: 'FLAT' } as UserTheme,
@@ -512,6 +514,24 @@ export const saveExamResult = (r: ExamResult) => {
     pushToCloud('exam_results', r);
 };
 
+// 13. Question Bank
+export const getQuestionBank = (teacherId?: string) => {
+    const all = CACHE.questions_bank || [];
+    if (!teacherId) return all;
+    return all.filter(q => q.teacherId === teacherId || !q.teacherId);
+};
+export const saveQuestionToBank = (q: Question) => {
+    const list = [...(CACHE.questions_bank || [])];
+    const idx = list.findIndex(x => x.id === q.id);
+    if (idx > -1) list[idx] = q; else list.push(q);
+    saveToLocal('questions_bank', list);
+    pushToCloud('questions_bank', q);
+};
+export const deleteQuestionFromBank = (id: string) => {
+    saveToLocal('questions_bank', (CACHE.questions_bank || []).filter(x => x.id !== id));
+    pushToCloud('questions_bank', { id }, 'DELETE');
+};
+
 // --- SYSTEM UTILS ---
 
 export const getStorageStatistics = () => {
@@ -567,9 +587,11 @@ create table if not exists message_logs (id text primary key, studentId text, st
 create table if not exists feedbacks (id text primary key, teacherId text, managerId text, content text, date text, isRead boolean);
 create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text);
 create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
+create table if not exists questions_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
 `;
 
 export const getDatabaseUpdateSQL = () => `
 -- Updates
 alter table schools add column if not exists ministryCode text;
+create table if not exists questions_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
 `;

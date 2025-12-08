@@ -32,9 +32,11 @@ import StudentPortal from './components/StudentPortal';
 import TeacherSubscription from './components/TeacherSubscription';
 import LessonPlanning from './components/LessonPlanning';
 import MonthlyReport from './components/MonthlyReport';
-import ExamsManager from './components/ExamsManager'; // Imported
+import ExamsManager from './components/ExamsManager';
+import QuestionBank from './components/QuestionBank';
+import AutoGrading from './components/AutoGrading';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine } from 'lucide-react';
 
 // FIX: Import SchoolManagement as named export since we changed it
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
@@ -276,14 +278,24 @@ const App: React.FC = () => {
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
                             <NavItem view="ATTENDANCE" label="الحضور والغياب" icon={CheckSquare} />
                             <NavItem view="CLASSROOM_MANAGEMENT" label="الإدارة الصفية" icon={MonitorPlay} />
-                            <NavItem view="EXAMS_MANAGER" label="الاختبارات الإلكترونية" icon={FileQuestion} />
                             <NavItem view="PERFORMANCE" label="رصد الدرجات" icon={BarChart} />
-                            <NavItem view="WORKS_TRACKING" label="سجل المتابعة" icon={FileSpreadsheet} />
-                            <NavItem view="STUDENT_FOLLOWUP" label="تقارير الطلاب" icon={BookOpen} />
-                            <NavItem view="MONTHLY_REPORT" label="التقرير الشامل" icon={Printer} />
-                            <NavItem view="MESSAGE_CENTER" label="مركز الرسائل" icon={Mail} />
-                            <NavItem view="AI_TOOLS" label="أدوات المعلم AI" icon={BrainCircuit} />
-                            <NavItem view="LESSON_PLANNING" label="التخطيط والإعداد" icon={PenTool} />
+                            
+                            <div className="pt-4 mt-4 border-t border-gray-100">
+                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الاختبارات والتقييم</label>
+                                <NavItem view="QUESTION_BANK" label="بنك الأسئلة" icon={Library} />
+                                <NavItem view="EXAMS_MANAGER" label="الاختبارات" icon={FileQuestion} />
+                                <NavItem view="AUTO_GRADING" label="التصحيح الآلي" icon={ScanLine} />
+                                <NavItem view="WORKS_TRACKING" label="سجل الدرجات" icon={FileSpreadsheet} />
+                            </div>
+
+                            <div className="pt-4 mt-4 border-t border-gray-100">
+                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الأدوات والتقارير</label>
+                                <NavItem view="STUDENT_FOLLOWUP" label="تقارير الطلاب" icon={BookOpen} />
+                                <NavItem view="MONTHLY_REPORT" label="التقرير الشامل" icon={Printer} />
+                                <NavItem view="MESSAGE_CENTER" label="مركز الرسائل" icon={Mail} />
+                                <NavItem view="AI_TOOLS" label="أدوات المعلم AI" icon={BrainCircuit} />
+                                <NavItem view="LESSON_PLANNING" label="التخطيط والإعداد" icon={PenTool} />
+                            </div>
                             
                             <div className="pt-4 mt-4 border-t border-gray-100">
                                 <label className="px-4 text-xs font-bold text-gray-400 block mb-2">إضافات</label>
@@ -371,6 +383,8 @@ const App: React.FC = () => {
                     {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
                     {currentView === 'LESSON_PLANNING' && <LessonPlanning />}
                     {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser} />}
+                    {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser} />}
+                    {currentView === 'AUTO_GRADING' && <AutoGrading />}
                     {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
                 </div>
             </main>

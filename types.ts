@@ -280,6 +280,12 @@ export interface Question {
     options: string[]; // For MCQ (e.g. 3-4 options), For TF (True, False)
     correctAnswer: string;
     points: number;
+    // New fields for Question Bank
+    subject?: string;
+    gradeLevel?: string;
+    topic?: string;
+    difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
+    teacherId?: string;
 }
 
 export interface Exam {
@@ -305,4 +311,4 @@ export interface ExamResult {
     answers: Record<string, string>; // questionId -> selectedAnswer
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER';
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING';
