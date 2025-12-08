@@ -2,7 +2,7 @@ import {
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
     LessonLink, MessageLog, Feedback, ReportHeaderConfig, AISettings, UserTheme, 
-    PerformanceCategory, Exam, ExamResult, Question
+    PerformanceCategory, Exam, ExamResult, Question, CurriculumUnit, CurriculumLesson, MicroConcept, StoredLessonPlan
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -25,7 +25,11 @@ export const DB_MAP: Record<string, string> = {
     feedbacks: 'feedbacks',
     exams: 'exams',
     exam_results: 'exam_results',
-    questions_bank: 'questions_bank'
+    questions_bank: 'questions_bank',
+    curriculum_units: 'curriculum_units',
+    curriculum_lessons: 'curriculum_lessons',
+    micro_concepts: 'micro_concepts',
+    lesson_plans_db: 'lesson_plans'
 };
 
 const INITIAL_DATA = {
@@ -46,6 +50,10 @@ const INITIAL_DATA = {
     exams: [] as Exam[],
     exam_results: [] as ExamResult[],
     questions_bank: [] as Question[],
+    curriculum_units: [] as CurriculumUnit[],
+    curriculum_lessons: [] as CurriculumLesson[],
+    micro_concepts: [] as MicroConcept[],
+    lesson_plans_db: [] as StoredLessonPlan[],
     report_header_config: { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' } as ReportHeaderConfig,
     ai_settings: { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' } as AISettings,
     user_theme: { mode: 'LIGHT', backgroundStyle: 'FLAT' } as UserTheme,
@@ -532,6 +540,79 @@ export const deleteQuestionFromBank = (id: string) => {
     pushToCloud('questions_bank', { id }, 'DELETE');
 };
 
+// 14. Curriculum & Intelligence (New)
+// Curriculum Units
+export const getCurriculumUnits = (teacherId?: string) => {
+    const all = CACHE.curriculum_units || [];
+    if (!teacherId) return all;
+    return all.filter(u => u.teacherId === teacherId || !u.teacherId);
+};
+export const saveCurriculumUnit = (u: CurriculumUnit) => {
+    const list = [...(CACHE.curriculum_units || [])];
+    const idx = list.findIndex(x => x.id === u.id);
+    if (idx > -1) list[idx] = u; else list.push(u);
+    saveToLocal('curriculum_units', list);
+    pushToCloud('curriculum_units', u);
+};
+export const deleteCurriculumUnit = (id: string) => {
+    saveToLocal('curriculum_units', (CACHE.curriculum_units || []).filter(x => x.id !== id));
+    pushToCloud('curriculum_units', { id }, 'DELETE');
+};
+
+// Curriculum Lessons
+export const getCurriculumLessons = (unitId?: string) => {
+    const all = CACHE.curriculum_lessons || [];
+    if (!unitId) return all;
+    return all.filter(l => l.unitId === unitId);
+};
+export const saveCurriculumLesson = (l: CurriculumLesson) => {
+    const list = [...(CACHE.curriculum_lessons || [])];
+    const idx = list.findIndex(x => x.id === l.id);
+    if (idx > -1) list[idx] = l; else list.push(l);
+    saveToLocal('curriculum_lessons', list);
+    pushToCloud('curriculum_lessons', l);
+};
+export const deleteCurriculumLesson = (id: string) => {
+    saveToLocal('curriculum_lessons', (CACHE.curriculum_lessons || []).filter(x => x.id !== id));
+    pushToCloud('curriculum_lessons', { id }, 'DELETE');
+};
+
+// Micro Concepts
+export const getMicroConcepts = (teacherId?: string) => {
+    const all = CACHE.micro_concepts || [];
+    if (!teacherId) return all;
+    return all.filter(c => c.teacherId === teacherId || !c.teacherId);
+};
+export const saveMicroConcept = (c: MicroConcept) => {
+    const list = [...(CACHE.micro_concepts || [])];
+    const idx = list.findIndex(x => x.id === c.id);
+    if (idx > -1) list[idx] = c; else list.push(c);
+    saveToLocal('micro_concepts', list);
+    pushToCloud('micro_concepts', c);
+};
+export const deleteMicroConcept = (id: string) => {
+    saveToLocal('micro_concepts', (CACHE.micro_concepts || []).filter(x => x.id !== id));
+    pushToCloud('micro_concepts', { id }, 'DELETE');
+};
+
+// Lesson Plans
+export const getLessonPlans = (teacherId?: string) => {
+    const all = CACHE.lesson_plans_db || [];
+    if (!teacherId) return all;
+    return all.filter(p => p.teacherId === teacherId);
+};
+export const saveLessonPlan = (p: StoredLessonPlan) => {
+    const list = [...(CACHE.lesson_plans_db || [])];
+    const idx = list.findIndex(x => x.id === p.id);
+    if (idx > -1) list[idx] = p; else list.push(p);
+    saveToLocal('lesson_plans_db', list);
+    pushToCloud('lesson_plans_db', p);
+};
+export const deleteLessonPlan = (id: string) => {
+    saveToLocal('lesson_plans_db', (CACHE.lesson_plans_db || []).filter(x => x.id !== id));
+    pushToCloud('lesson_plans_db', { id }, 'DELETE');
+};
+
 // --- SYSTEM UTILS ---
 
 export const getStorageStatistics = () => {
@@ -588,10 +669,18 @@ create table if not exists feedbacks (id text primary key, teacherId text, manag
 create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text);
 create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
 create table if not exists questions_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
+create table if not exists curriculum_units (id text primary key, teacherId text, subject text, gradeLevel text, title text, orderIndex numeric);
+create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
+create table if not exists micro_concepts (id text primary key, name text, parentConcept text, subject text, teacherId text);
+create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
 `;
 
 export const getDatabaseUpdateSQL = () => `
 -- Updates
 alter table schools add column if not exists ministryCode text;
 create table if not exists questions_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
+create table if not exists curriculum_units (id text primary key, teacherId text, subject text, gradeLevel text, title text, orderIndex numeric);
+create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
+create table if not exists micro_concepts (id text primary key, name text, parentConcept text, subject text, teacherId text);
+create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
 `;

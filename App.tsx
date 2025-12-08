@@ -35,8 +35,9 @@ import MonthlyReport from './components/MonthlyReport';
 import ExamsManager from './components/ExamsManager';
 import QuestionBank from './components/QuestionBank';
 import AutoGrading from './components/AutoGrading';
+import CurriculumManager from './components/CurriculumManager';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar } from 'lucide-react';
 
 // FIX: Import SchoolManagement as named export since we changed it
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
@@ -281,6 +282,14 @@ const App: React.FC = () => {
                             <NavItem view="PERFORMANCE" label="رصد الدرجات" icon={BarChart} />
                             
                             <div className="pt-4 mt-4 border-t border-gray-100">
+                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط والمناهج</label>
+                                <NavItem view="SCHEDULE_VIEW" label="الجدول الدراسي" icon={Calendar} />
+                                <NavItem view="LESSON_PLANNING" label="تحضير الدروس" icon={PenTool} />
+                                <NavItem view="CURRICULUM_MAP" label="توزيع المنهج" icon={ListTree} />
+                                <NavItem view="RESOURCES_VIEW" label="مكتبة المصادر" icon={BookOpen} />
+                            </div>
+
+                            <div className="pt-4 mt-4 border-t border-gray-100">
                                 <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الاختبارات والتقييم</label>
                                 <NavItem view="QUESTION_BANK" label="بنك الأسئلة" icon={Library} />
                                 <NavItem view="EXAMS_MANAGER" label="الاختبارات" icon={FileQuestion} />
@@ -294,7 +303,6 @@ const App: React.FC = () => {
                                 <NavItem view="MONTHLY_REPORT" label="التقرير الشامل" icon={Printer} />
                                 <NavItem view="MESSAGE_CENTER" label="مركز الرسائل" icon={Mail} />
                                 <NavItem view="AI_TOOLS" label="أدوات المعلم AI" icon={BrainCircuit} />
-                                <NavItem view="LESSON_PLANNING" label="التخطيط والإعداد" icon={PenTool} />
                             </div>
                             
                             <div className="pt-4 mt-4 border-t border-gray-100">
@@ -386,6 +394,32 @@ const App: React.FC = () => {
                     {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser} />}
                     {currentView === 'AUTO_GRADING' && <AutoGrading />}
                     {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
+                    
+                    {/* NEW ROUTES */}
+                    {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser} />}
+                    {currentView === 'SCHEDULE_VIEW' && (
+                        // Reusing Classroom Manager's Tools tab logic or placeholder for now
+                        <ClassroomManager 
+                            students={students} 
+                            attendance={attendance}
+                            performance={performance}
+                            onLaunchScreen={() => setShowClassroomScreen(true)}
+                            onNavigateToAttendance={() => setCurrentView('ATTENDANCE')}
+                            onSaveAttendance={handleSaveAttendance}
+                            onImportAttendance={handleImportAttendance}
+                            currentUser={currentUser}
+                        />
+                    )}
+                    {currentView === 'RESOURCES_VIEW' && (
+                        // Placeholder for Resources View - reusing LessonPlanning content for now or simple message
+                        <div className="p-10 flex items-center justify-center text-gray-400">
+                            <div className="text-center">
+                                <BookOpen size={48} className="mx-auto mb-4 opacity-50"/>
+                                <h3 className="text-xl font-bold">مكتبة المصادر</h3>
+                                <p>سيتم تفعيل هذا القسم قريباً.</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>

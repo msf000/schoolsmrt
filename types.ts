@@ -311,4 +311,43 @@ export interface ExamResult {
     answers: Record<string, string>; // questionId -> selectedAnswer
 }
 
-export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING';
+// --- CURRICULUM & INTELLIGENCE TYPES (NEW) ---
+
+export interface CurriculumUnit {
+    id: string;
+    teacherId: string;
+    subject: string;
+    gradeLevel: string;
+    title: string;
+    orderIndex: number;
+}
+
+export interface CurriculumLesson {
+    id: string;
+    unitId: string; // Link to CurriculumUnit
+    title: string;
+    orderIndex: number;
+    learningStandards: string[]; // e.g. ["MATH.5.2", "SCI.1.1"] - Ministerial Codes
+    microConceptIds?: string[]; // Link to MicroConcepts
+}
+
+export interface MicroConcept {
+    id: string;
+    name: string; // e.g., "Adding fractions with different denominators"
+    parentConcept?: string; // e.g., "Fractions"
+    subject?: string;
+    teacherId: string;
+}
+
+export interface StoredLessonPlan {
+    id: string;
+    teacherId: string;
+    lessonId?: string; // Optional Link to CurriculumLesson
+    subject: string;
+    topic: string; // Lesson Title
+    contentJson: string; // Full JSON content of the plan
+    resources: string[]; // Links
+    createdAt: string;
+}
+
+export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING' | 'CURRICULUM_MAP' | 'RESOURCES_VIEW' | 'SCHEDULE_VIEW';
