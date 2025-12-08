@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Question, SystemUser, Subject } from '../types';
-import { getQuestionBank, saveQuestionToBank, deleteQuestionFromBank, getSubjects } from '../services/storageService';
+import { Question, SystemUser, Subject, CurriculumUnit, CurriculumLesson, MicroConcept } from '../types';
+import { getQuestionBank, saveQuestionToBank, deleteQuestionFromBank, getSubjects, getCurriculumUnits, getCurriculumLessons, getMicroConcepts } from '../services/storageService';
 import { generateStructuredQuiz } from '../services/geminiService';
-import { Search, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Filter, Sparkles, Loader2, Library, Copy, Check } from 'lucide-react';
+import { Search, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Filter, Sparkles, Loader2, Library, Copy, Check, ListTree } from 'lucide-react';
 
 interface QuestionBankProps {
     currentUser: SystemUser;
@@ -11,9 +11,19 @@ interface QuestionBankProps {
 const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
+    
+    // Curriculum Data for Linking
+    const [units, setUnits] = useState<CurriculumUnit[]>([]);
+    const [lessons, setLessons] = useState<CurriculumLesson[]>([]);
+    const [concepts, setConcepts] = useState<MicroConcept[]>([]);
+
     const [view, setView] = useState<'LIST' | 'EDITOR'>('LIST');
     const [editingQuestion, setEditingQuestion] = useState<Partial<Question>>({ type: 'MCQ', options: ['', '', '', ''], points: 1 });
     
+    // Editor State for Curriculum
+    const [selectedUnitId, setSelectedUnitId] = useState('');
+    const [selectedLessonId, setSelectedLessonId] = useState('');
+
     // Filters
     const [filterSubject, setFilterSubject] = useState('');
     const [filterGrade, setFilterGrade] = useState('');
@@ -30,6 +40,9 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
     const loadData = () => {
         setQuestions(getQuestionBank(currentUser.id));
         setSubjects(getSubjects(currentUser.id));
+        setUnits(getCurriculumUnits(currentUser.id));
+        setLessons(getCurriculumLessons());
+        setConcepts(getMicroConcepts(currentUser.id));
     };
 
     const uniqueGrades = useMemo(() => Array.from(new Set(questions.map(q => q.gradeLevel).filter(Boolean))).sort(), [questions]);
@@ -43,12 +56,22 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
         });
     }, [questions, filterSubject, filterGrade, searchTerm]);
 
+    // Helpers to get current linked data
+    const activeLesson = lessons.find(l => l.id === selectedLessonId);
+    const activeUnit = units.find(u => u.id === selectedUnitId);
+
     const handleSave = () => {
         if (!editingQuestion.text || !editingQuestion.correctAnswer || !editingQuestion.subject) {
             alert('يرجى إكمال البيانات الأساسية (النص، الإجابة، المادة)');
             return;
         }
         
+        // Append linked lesson info to topic if selected
+        let finalTopic = editingQuestion.topic;
+        if (activeLesson) {
+            finalTopic = finalTopic ? `${finalTopic} - ${activeLesson.title}` : activeLesson.title;
+        }
+
         const q: Question = {
             id: editingQuestion.id || Date.now().toString(),
             text: editingQuestion.text,
@@ -58,7 +81,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
             points: editingQuestion.points || 1,
             subject: editingQuestion.subject,
             gradeLevel: editingQuestion.gradeLevel,
-            topic: editingQuestion.topic,
+            topic: finalTopic,
             difficulty: editingQuestion.difficulty,
             teacherId: currentUser.id
         };
@@ -66,7 +89,13 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
         saveQuestionToBank(q);
         loadData();
         setView('LIST');
+        resetEditor();
+    };
+
+    const resetEditor = () => {
         setEditingQuestion({ type: 'MCQ', options: ['', '', '', ''], points: 1 });
+        setSelectedUnitId('');
+        setSelectedLessonId('');
     };
 
     const handleDelete = (id: string) => {
@@ -78,18 +107,28 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
 
     const handleEdit = (q: Question) => {
         setEditingQuestion({ ...q });
+        // Note: Reverse linking curriculum from string topic is hard, so we skip restoring dropdowns perfectly unless we stored IDs
         setView('EDITOR');
     };
 
     const handleGenerateAI = async () => {
         if (!filterSubject) return alert('اختر المادة أولاً لتوليد أسئلة لها');
-        if (!aiConfig.topic) return alert('أدخل موضوع الأسئلة');
+        
+        // Construct Context
+        const context: { standards?: string[], concepts?: string[] } = { standards: [], concepts: [] };
+        let generationTopic = aiConfig.topic;
+
+        // If a lesson is selected in the Editor (assuming we are generating inside editor flow or just using filter)
+        // For now, let's use the Filter + AI Config box. 
+        // If the user wants specific lesson generation, they should use the Editor AI button.
+        
+        if (!generationTopic) return alert('أدخل موضوع الأسئلة');
 
         setIsAiLoading(true);
         try {
             const generated = await generateStructuredQuiz(
                 filterSubject, 
-                aiConfig.topic, 
+                generationTopic, 
                 filterGrade || 'عام', 
                 aiConfig.count, 
                 aiConfig.difficulty
@@ -106,7 +145,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                     points: q.points || 1,
                     subject: filterSubject,
                     gradeLevel: filterGrade,
-                    topic: aiConfig.topic,
+                    topic: generationTopic,
                     difficulty: aiConfig.difficulty,
                     teacherId: currentUser.id
                 };
@@ -122,6 +161,51 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
             setIsAiLoading(false);
         }
     };
+
+    const handleGenerateAIInEditor = async () => {
+        if (!editingQuestion.subject) return alert('اختر المادة أولاً');
+        
+        let generationTopic = editingQuestion.topic || (activeLesson ? activeLesson.title : '');
+        if (!generationTopic) return alert('أدخل الموضوع أو اختر درساً من المنهج');
+
+        // Build Context from selected lesson
+        const context: { standards?: string[], concepts?: string[] } = {};
+        if (activeLesson) {
+            context.standards = activeLesson.learningStandards;
+            if (activeLesson.microConceptIds) {
+                context.concepts = concepts.filter(c => activeLesson.microConceptIds?.includes(c.id)).map(c => c.name);
+            }
+        }
+
+        setIsAiLoading(true);
+        try {
+            const generated = await generateStructuredQuiz(
+                editingQuestion.subject,
+                generationTopic,
+                editingQuestion.gradeLevel || 'عام',
+                1, // Generate 1 question to fill the form
+                editingQuestion.difficulty || 'MEDIUM',
+                context
+            );
+
+            if (generated.length > 0) {
+                const q = generated[0];
+                setEditingQuestion(prev => ({
+                    ...prev,
+                    text: q.text || q.question,
+                    type: q.type === 'TRUE_FALSE' ? 'TRUE_FALSE' : 'MCQ',
+                    options: q.options || [],
+                    correctAnswer: q.correctAnswer,
+                    topic: generationTopic // Ensure topic is set
+                }));
+            }
+        } catch (e) {
+            console.error(e);
+            alert('فشل التوليد');
+        } finally {
+            setIsAiLoading(false);
+        }
+    }
 
     const updateOption = (index: number, val: string) => {
         const newOpts = [...(editingQuestion.options || [])];
@@ -141,7 +225,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                 </div>
                 
                 <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={() => { setEditingQuestion({ type: 'MCQ', options: ['', '', '', ''], points: 1 }); setView('EDITOR'); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md">
+                    <button onClick={() => { resetEditor(); setView('EDITOR'); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md">
                         <Plus size={18}/> سؤال جديد
                     </button>
                 </div>
@@ -227,10 +311,11 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
             )}
 
             {view === 'EDITOR' && (
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 overflow-y-auto max-w-3xl mx-auto w-full">
-                    <h3 className="font-bold text-lg mb-6 border-b pb-2">محرر السؤال</h3>
-                    
-                    <div className="space-y-4">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 overflow-y-auto max-w-4xl mx-auto w-full flex flex-col md:flex-row gap-6">
+                    {/* Main Form */}
+                    <div className="flex-1 space-y-4">
+                        <h3 className="font-bold text-lg mb-6 border-b pb-2">محرر السؤال</h3>
+                        
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">المادة</label>
@@ -246,8 +331,13 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">نص السؤال</label>
-                            <textarea className="w-full p-3 border rounded h-24" value={editingQuestion.text || ''} onChange={e => setEditingQuestion({...editingQuestion, text: e.target.value})} placeholder="اكتب السؤال هنا..."/>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">
+                                نص السؤال 
+                                <button onClick={handleGenerateAIInEditor} disabled={isAiLoading} className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded mr-2 hover:bg-purple-200 disabled:opacity-50">
+                                    {isAiLoading ? 'جاري التوليد...' : '✨ اقتراح تلقائي'}
+                                </button>
+                            </label>
+                            <textarea className="w-full p-3 border rounded h-24 focus:ring-2 focus:ring-purple-500 outline-none" value={editingQuestion.text || ''} onChange={e => setEditingQuestion({...editingQuestion, text: e.target.value})} placeholder="اكتب السؤال هنا..."/>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -297,6 +387,45 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                             <button onClick={() => setView('LIST')} className="px-6 py-2 border rounded text-gray-600 hover:bg-gray-50">إلغاء</button>
                             <button onClick={handleSave} className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold">حفظ السؤال</button>
                         </div>
+                    </div>
+
+                    {/* Sidebar: Curriculum Link */}
+                    <div className="w-full md:w-64 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <h4 className="font-bold text-sm text-gray-700 mb-3 flex items-center gap-2"><ListTree size={16}/> ربط بالمنهج</h4>
+                        <p className="text-xs text-gray-500 mb-3">اربط السؤال بدرس محدد لتفعيل ميزات "المعايير الوزارية" والمقترحات الذكية.</p>
+                        
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">الوحدة</label>
+                                <select className="w-full p-2 border rounded text-xs" value={selectedUnitId} onChange={e => setSelectedUnitId(e.target.value)}>
+                                    <option value="">اختر الوحدة...</option>
+                                    {units.filter(u => !editingQuestion.subject || u.subject === editingQuestion.subject).map(u => (
+                                        <option key={u.id} value={u.id}>{u.title}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">الدرس</label>
+                                <select className="w-full p-2 border rounded text-xs" value={selectedLessonId} onChange={e => setSelectedLessonId(e.target.value)}>
+                                    <option value="">اختر الدرس...</option>
+                                    {lessons.filter(l => l.unitId === selectedUnitId).map(l => (
+                                        <option key={l.id} value={l.id}>{l.title}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {activeLesson && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                <h5 className="font-bold text-xs text-indigo-700 mb-2">المعايير المرتبطة:</h5>
+                                <div className="flex flex-wrap gap-1">
+                                    {activeLesson.learningStandards?.map((std, i) => (
+                                        <span key={i} className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-1 rounded border border-indigo-200">{std}</span>
+                                    ))}
+                                    {!activeLesson.learningStandards?.length && <span className="text-xs text-gray-400">لا توجد معايير</span>}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

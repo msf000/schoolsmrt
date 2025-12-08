@@ -37,6 +37,7 @@ import QuestionBank from './components/QuestionBank';
 import AutoGrading from './components/AutoGrading';
 import CurriculumManager from './components/CurriculumManager';
 import ResourcesView from './components/ResourcesView';
+import ScheduleView from './components/ScheduleView';
 
 import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar } from 'lucide-react';
 
@@ -399,16 +400,10 @@ const App: React.FC = () => {
                     {/* NEW ROUTES */}
                     {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser} />}
                     {currentView === 'SCHEDULE_VIEW' && (
-                        // Reusing Classroom Manager's Tools tab logic or placeholder for now
-                        <ClassroomManager 
-                            students={students} 
-                            attendance={attendance}
-                            performance={performance}
-                            onLaunchScreen={() => setShowClassroomScreen(true)}
-                            onNavigateToAttendance={() => setCurrentView('ATTENDANCE')}
-                            onSaveAttendance={handleSaveAttendance}
-                            onImportAttendance={handleImportAttendance}
+                        <ScheduleView 
                             currentUser={currentUser}
+                            onNavigateToLesson={() => setCurrentView('LESSON_PLANNING')}
+                            onNavigateToAttendance={() => setCurrentView('ATTENDANCE')}
                         />
                     )}
                     {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser} />}
