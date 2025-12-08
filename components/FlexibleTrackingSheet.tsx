@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject } from '../types';
 import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects } from '../services/storageService';
-import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table } from 'lucide-react';
+import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
+import * as XLSX from 'xlsx';
 
 interface FlexibleTrackingSheetProps {
     currentUser: SystemUser;
@@ -20,6 +21,7 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
     const [tempTitle, setTempTitle] = useState('');
     const [tempClass, setTempClass] = useState('');
     const [tempSubject, setTempSubject] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         setSheets(getTrackingSheets(currentUser.id));
@@ -28,7 +30,6 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setSubjects(getSubjects(currentUser.id));
     }, [currentUser]);
 
-    // Fix: Explicitly type ensuring no undefined values
     const uniqueClasses = useMemo<string[]>(() => {
         const classes = new Set<string>();
         students.forEach(s => {
@@ -57,6 +58,7 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setTempTitle(newSheet.title);
         setTempClass(newSheet.className);
         setTempSubject(newSheet.subject);
+        setSearchTerm('');
         setView('EDITOR');
     };
 
@@ -65,6 +67,7 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setTempTitle(sheet.title);
         setTempClass(sheet.className);
         setTempSubject(sheet.subject);
+        setSearchTerm('');
         setView('EDITOR');
     };
 
@@ -88,6 +91,31 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setSheets(getTrackingSheets(currentUser.id));
         setView('LIST');
         setActiveSheet(null);
+    };
+
+    const handleExportExcel = () => {
+        if (!activeSheet) return;
+        
+        const rows = filteredStudents.map((student, index) => {
+            const rowData: any = {
+                '#': index + 1,
+                'اسم الطالب': student.name,
+            };
+            
+            activeSheet.columns.forEach(col => {
+                let val = activeSheet.scores[student.id]?.[col.id];
+                if (col.type === 'CHECKBOX') val = val ? '✓' : '';
+                else if (col.type === 'NUMBER' && val) val = `${val}/${col.maxScore || 10}`;
+                rowData[col.title] = val || '';
+            });
+            
+            return rowData;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sijil");
+        XLSX.writeFile(wb, `${tempTitle || 'Tracking_Sheet'}.xlsx`);
     };
 
     // --- EDITOR LOGIC ---
@@ -122,8 +150,12 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
     };
 
     const filteredStudents = useMemo(() => {
-        return students.filter(s => s.className === tempClass).sort((a,b) => a.name.localeCompare(b.name));
-    }, [students, tempClass]);
+        let filtered = students.filter(s => s.className === tempClass);
+        if (searchTerm) {
+            filtered = filtered.filter(s => s.name.includes(searchTerm));
+        }
+        return filtered.sort((a,b) => a.name.localeCompare(b.name));
+    }, [students, tempClass, searchTerm]);
 
     const renderRatingStars = (studentId: string, colId: string, currentVal: number) => {
         return (
@@ -194,6 +226,16 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-2">
+                            <div className="relative">
+                                <Search size={14} className="absolute top-2.5 right-2 text-gray-400"/>
+                                <input 
+                                    className="w-32 pl-2 pr-7 py-2 border rounded text-xs focus:w-48 transition-all outline-none"
+                                    placeholder="بحث عن طالب..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="h-6 w-[1px] bg-gray-300 mx-1"></div>
                             <select className="p-2 border rounded text-sm bg-gray-50" value={tempSubject} onChange={e => setTempSubject(e.target.value)}>
                                 <option value="">المادة...</option>
                                 {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -204,6 +246,7 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                             </select>
                             <div className="h-6 w-[1px] bg-gray-300 mx-2"></div>
                             <button onClick={addColumn} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-100 flex items-center gap-1"><Plus size={14}/> عمود</button>
+                            <button onClick={handleExportExcel} className="bg-green-50 text-green-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-green-100 flex items-center gap-1"><Download size={14}/> إكسل</button>
                             <button onClick={() => window.print()} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-200 flex items-center gap-1"><Printer size={14}/> طباعة</button>
                             <button onClick={handleSaveSheet} className="bg-green-600 text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-green-700 flex items-center gap-1 shadow"><Save size={14}/> حفظ</button>
                         </div>

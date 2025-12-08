@@ -155,7 +155,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
 
     if (success) {
         return (
-            <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
+            <div className="fixed inset-0 bg-gray-50 flex flex-col justify-center items-center p-4 z-50">
                 <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md w-full animate-fade-in border border-green-100">
                     <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
                         <CheckCircle size={40} />
@@ -168,204 +168,207 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex justify-center items-center p-4 py-10" dir="rtl">
-            <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in flex flex-col md:flex-row">
-                
-                {/* Side Banner */}
-                <div className="bg-gradient-to-br from-teal-600 to-teal-800 text-white p-8 md:w-1/3 flex flex-col justify-between relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10"></div>
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-10 -mb-10"></div>
+        // Fixed overlay to handle scrolling on large forms
+        <div className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto custom-scrollbar" dir="rtl">
+            <div className="min-h-full w-full flex justify-center items-center p-4 py-10">
+                <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in flex flex-col md:flex-row">
                     
-                    <div>
-                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-sm">
-                            <BookOpen size={24}/>
-                        </div>
-                        <h2 className="text-2xl font-bold mb-2">انضم إلينا</h2>
-                        <p className="text-teal-100 text-sm leading-relaxed">
-                            سجل حسابك كمعلم وابدأ في إدارة فصولك، رصد الدرجات، واستخدام أدوات الذكاء الاصطناعي لتسهيل عملك اليومي.
-                        </p>
-                    </div>
-                    
-                    <button onClick={onBack} className="mt-8 flex items-center gap-2 text-sm text-teal-100 hover:text-white transition-colors w-fit">
-                        <ArrowRight size={16}/> العودة للدخول
-                    </button>
-                </div>
-
-                {/* Form */}
-                <div className="p-8 md:w-2/3">
-                    <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                        <User className="text-teal-600"/> تسجيل معلم جديد
-                    </h2>
-
-                    {error && (
-                        <div className="mb-6 bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2 border border-red-100">
-                            <AlertCircle size={16}/> {error}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {/* Personal Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">الاسم الكامل *</label>
-                                <div className="relative">
-                                    <User size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                    <input required name="name" value={formData.name} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="الاسم الرباعي"/>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">رقم الهوية / السجل *</label>
-                                <div className="relative">
-                                    <ShieldCheck size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                    <input required name="nationalId" value={formData.nationalId} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm font-mono" placeholder="10xxxxxxxx"/>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
-                                <div className="relative">
-                                    <Mail size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm dir-ltr text-right" placeholder="example@school.com"/>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">رقم الجوال</label>
-                                <div className="relative">
-                                    <Phone size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm font-mono" placeholder="05xxxxxxxx"/>
-                                </div>
-                            </div>
-                        </div>
-
+                    {/* Side Banner */}
+                    <div className="bg-gradient-to-br from-teal-600 to-teal-800 text-white p-8 md:w-1/3 flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10"></div>
+                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-10 -mb-10"></div>
+                        
                         <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1">التخصص</label>
-                            <input 
-                                type="text" 
-                                name="specialty" 
-                                value={formData.specialty} 
-                                onChange={handleChange} 
-                                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" 
-                                placeholder="مثال: لغة عربية، رياضيات، علوم..."
-                            />
-                        </div>
-
-                        {/* School Section */}
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                            <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">
-                                <SchoolIcon size={14}/> المدرسة (اختياري)
-                            </label>
-                            <p className="text-[10px] text-gray-500 mb-2">
-                                أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، سيطلب منك إدخال بياناتها لإنشائها.
+                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-sm">
+                                <BookOpen size={24}/>
+                            </div>
+                            <h2 className="text-2xl font-bold mb-2">انضم إلينا</h2>
+                            <p className="text-teal-100 text-sm leading-relaxed">
+                                سجل حسابك كمعلم وابدأ في إدارة فصولك، رصد الدرجات، واستخدام أدوات الذكاء الاصطناعي لتسهيل عملك اليومي.
                             </p>
-                            
-                            <div className="mb-3">
+                        </div>
+                        
+                        <button onClick={onBack} className="mt-8 flex items-center gap-2 text-sm text-teal-100 hover:text-white transition-colors w-fit">
+                            <ArrowRight size={16}/> العودة للدخول
+                        </button>
+                    </div>
+
+                    {/* Form */}
+                    <div className="p-8 md:w-2/3">
+                        <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                            <User className="text-teal-600"/> تسجيل معلم جديد
+                        </h2>
+
+                        {error && (
+                            <div className="mb-6 bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2 border border-red-100">
+                                <AlertCircle size={16}/> {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* Personal Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">الاسم الكامل *</label>
+                                    <div className="relative">
+                                        <User size={16} className="absolute top-2.5 right-3 text-gray-400"/>
+                                        <input required name="name" value={formData.name} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="الاسم الرباعي"/>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">رقم الهوية / السجل *</label>
+                                    <div className="relative">
+                                        <ShieldCheck size={16} className="absolute top-2.5 right-3 text-gray-400"/>
+                                        <input required name="nationalId" value={formData.nationalId} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm font-mono" placeholder="10xxxxxxxx"/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
+                                    <div className="relative">
+                                        <Mail size={16} className="absolute top-2.5 right-3 text-gray-400"/>
+                                        <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm dir-ltr text-right" placeholder="example@school.com"/>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">رقم الجوال</label>
+                                    <div className="relative">
+                                        <Phone size={16} className="absolute top-2.5 right-3 text-gray-400"/>
+                                        <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm font-mono" placeholder="05xxxxxxxx"/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1">التخصص</label>
                                 <input 
-                                    name="schoolCode" 
-                                    value={formData.schoolCode} 
+                                    type="text" 
+                                    name="specialty" 
+                                    value={formData.specialty} 
                                     onChange={handleChange} 
-                                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm font-mono tracking-widest text-center uppercase ${foundSchool ? 'border-green-400 bg-green-50' : ''}`}
-                                    placeholder="أدخل الرمز الوزاري هنا"
+                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" 
+                                    placeholder="مثال: لغة عربية، رياضيات، علوم..."
                                 />
                             </div>
 
-                            {foundSchool ? (
-                                <div className="bg-white p-3 rounded-lg border border-green-200 shadow-sm animate-fade-in">
-                                    <div className="flex items-center gap-2 mb-1 text-green-700 font-bold text-sm">
-                                        <CheckCircle size={16}/> تم العثور على المدرسة
-                                    </div>
-                                    <div className="text-xs text-gray-600 grid grid-cols-2 gap-2 mt-2">
-                                        <div className="bg-gray-50 p-2 rounded border">
-                                            <span className="block text-gray-400 text-[10px]">المدرسة</span>
-                                            <span className="font-bold">{foundSchool.name}</span>
-                                        </div>
-                                        <div className="bg-gray-50 p-2 rounded border">
-                                            <span className="block text-gray-400 text-[10px]">المدير</span>
-                                            <span className="font-bold">{foundSchool.managerName}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : formData.schoolCode.length >= 3 ? (
-                                <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2 bg-white p-3 rounded-lg border border-teal-100 shadow-sm">
-                                    <div className="flex items-center gap-2 text-teal-700 text-xs font-bold mb-2">
-                                        <Info size={14}/> إعداد مدرسة جديدة بالكامل:
-                                    </div>
-                                    
+                            {/* School Section */}
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">
+                                    <SchoolIcon size={14}/> المدرسة (اختياري)
+                                </label>
+                                <p className="text-[10px] text-gray-500 mb-2">
+                                    أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، سيطلب منك إدخال بياناتها لإنشائها.
+                                </p>
+                                
+                                <div className="mb-3">
                                     <input 
-                                        name="schoolName" 
-                                        value={formData.schoolName} 
+                                        name="schoolCode" 
+                                        value={formData.schoolCode} 
                                         onChange={handleChange} 
-                                        className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
-                                        placeholder="اسم المدرسة *"
+                                        className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm font-mono tracking-widest text-center uppercase ${foundSchool ? 'border-green-400 bg-green-50' : ''}`}
+                                        placeholder="أدخل الرمز الوزاري هنا"
                                     />
+                                </div>
 
-                                    <div className="grid grid-cols-2 gap-2">
+                                {foundSchool ? (
+                                    <div className="bg-white p-3 rounded-lg border border-green-200 shadow-sm animate-fade-in">
+                                        <div className="flex items-center gap-2 mb-1 text-green-700 font-bold text-sm">
+                                            <CheckCircle size={16}/> تم العثور على المدرسة
+                                        </div>
+                                        <div className="text-xs text-gray-600 grid grid-cols-2 gap-2 mt-2">
+                                            <div className="bg-gray-50 p-2 rounded border">
+                                                <span className="block text-gray-400 text-[10px]">المدرسة</span>
+                                                <span className="font-bold">{foundSchool.name}</span>
+                                            </div>
+                                            <div className="bg-gray-50 p-2 rounded border">
+                                                <span className="block text-gray-400 text-[10px]">المدير</span>
+                                                <span className="font-bold">{foundSchool.managerName}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : formData.schoolCode.length >= 3 ? (
+                                    <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2 bg-white p-3 rounded-lg border border-teal-100 shadow-sm">
+                                        <div className="flex items-center gap-2 text-teal-700 text-xs font-bold mb-2">
+                                            <Info size={14}/> إعداد مدرسة جديدة بالكامل:
+                                        </div>
+                                        
                                         <input 
-                                            name="educationAdmin" 
-                                            value={formData.educationAdmin} 
+                                            name="schoolName" 
+                                            value={formData.schoolName} 
                                             onChange={handleChange} 
                                             className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
-                                            placeholder="الإدارة التعليمية (مثال: جدة)"
+                                            placeholder="اسم المدرسة *"
                                         />
-                                        <select 
-                                            name="schoolType"
-                                            value={formData.schoolType}
-                                            onChange={handleChange}
-                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white"
-                                        >
-                                            <option value="PUBLIC">حكومي</option>
-                                            <option value="PRIVATE">أهلي</option>
-                                            <option value="INTERNATIONAL">دولي</option>
-                                        </select>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <input 
+                                                name="educationAdmin" 
+                                                value={formData.educationAdmin} 
+                                                onChange={handleChange} 
+                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
+                                                placeholder="الإدارة التعليمية (مثال: جدة)"
+                                            />
+                                            <select 
+                                                name="schoolType"
+                                                value={formData.schoolType}
+                                                onChange={handleChange}
+                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white"
+                                            >
+                                                <option value="PUBLIC">حكومي</option>
+                                                <option value="PRIVATE">أهلي</option>
+                                                <option value="INTERNATIONAL">دولي</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                                            <input 
+                                                name="managerName" 
+                                                value={formData.managerName} 
+                                                onChange={handleChange} 
+                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
+                                                placeholder="اسم المدير"
+                                            />
+                                            <input 
+                                                name="managerNationalId" 
+                                                value={formData.managerNationalId} 
+                                                onChange={handleChange} 
+                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white font-mono" 
+                                                placeholder="هوية المدير (للربط)"
+                                            />
+                                        </div>
                                     </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                                        <input 
-                                            name="managerName" 
-                                            value={formData.managerName} 
-                                            onChange={handleChange} 
-                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
-                                            placeholder="اسم المدير"
-                                        />
-                                        <input 
-                                            name="managerNationalId" 
-                                            value={formData.managerNationalId} 
-                                            onChange={handleChange} 
-                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white font-mono" 
-                                            placeholder="هوية المدير (للربط)"
-                                        />
+                                ) : null}
+                            </div>
+
+                            {/* Password Section */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">كلمة المرور *</label>
+                                    <div className="relative">
+                                        <Lock size={16} className="absolute top-2.5 right-3 text-gray-400"/>
+                                        <input type="password" required name="password" value={formData.password} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
                                     </div>
                                 </div>
-                            ) : null}
-                        </div>
-
-                        {/* Password Section */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">كلمة المرور *</label>
-                                <div className="relative">
-                                    <Lock size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                    <input type="password" required name="password" value={formData.password} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">تأكيد كلمة المرور *</label>
+                                    <div className="relative">
+                                        <Lock size={16} className="absolute top-2.5 right-3 text-gray-400"/>
+                                        <input type="password" required name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">تأكيد كلمة المرور *</label>
-                                <div className="relative">
-                                    <Lock size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                    <input type="password" required name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
-                                </div>
-                            </div>
-                        </div>
 
-                        <button 
-                            type="submit" 
-                            disabled={loading}
-                            className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                            {loading ? <Loader2 size={20} className="animate-spin" /> : 'إنشاء الحساب'}
-                        </button>
-                    </form>
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : 'إنشاء الحساب'}
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

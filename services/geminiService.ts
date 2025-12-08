@@ -23,39 +23,50 @@ const getConfig = () => {
     };
 };
 
-// --- RETRY LOGIC ---
+// --- RETRY LOGIC (New) ---
+// Wraps API calls to handle 429 (Quota Exceeded) errors gracefully
 async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
     try {
         return await operation();
     } catch (error: any) {
+        // Check for 429 or Quota related messages
         const isQuotaError = error.status === 429 || 
                              error.code === 429 || 
-                             (error.message && (error.message.includes('429') || error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED')));
+                             (error.message && (
+                                 error.message.includes('429') || 
+                                 error.message.toLowerCase().includes('quota') || 
+                                 error.message.includes('RESOURCE_EXHAUSTED')
+                             ));
         
         if (isQuotaError && retries > 0) {
-            console.warn(`Gemini Quota exceeded. Retrying in ${delay}ms... (${retries} left)`);
+            console.warn(`Gemini Quota exceeded. Retrying in ${delay}ms... (${retries} attempts left)`);
+            // Wait for the delay
             await new Promise(res => setTimeout(res, delay));
+            // Retry with double the delay (Exponential Backoff)
             return withRetry(operation, retries - 1, delay * 2);
         }
+        
+        // If not a quota error or retries exhausted, throw the error
         throw error;
     }
 }
 
-// --- NEW: Check Connection explicitly ---
+// --- Check Connection ---
 export const checkAIConnection = async (): Promise<{ success: boolean; message: string }> => {
     try {
         const { model } = getConfig();
-        // Simple call, usually safe to retry once if transient
+        // Use retry here too, but maybe fewer retries for a simple check
         const response = await withRetry(() => ai.models.generateContent({
             model: model,
             contents: "Test connection. Reply with 'OK'.",
-        }), 1); 
+        }), 1); // 1 retry only for check
+        
         if (response.text) return { success: true, message: "تم الاتصال بنجاح!" };
         return { success: false, message: "لم يتم استلام رد من النموذج." };
     } catch (error: any) {
         console.error("AI Connection Test Error:", error);
         let msg = error.message || "فشل الاتصال بمفتاح API.";
-        if (msg.includes('429') || msg.includes('quota')) msg = "تم تجاوز حد الاستخدام (Quota). يرجى المحاولة لاحقاً.";
+        if (msg.includes('429') || msg.includes('quota')) msg = "تم تجاوز حد الاستخدام اليومي (Quota). يرجى المحاولة لاحقاً.";
         return { success: false, message: msg };
     }
 };
@@ -134,7 +145,7 @@ function tryRepairJson(jsonString: string): string {
     return fixed;
 }
 
-// --- NEW: Grade Exam Paper ---
+// --- Grade Exam Paper ---
 export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<any> => {
     const { model, config, enabled } = getConfig();
     if (!enabled.quiz) throw new Error("AI Grading is disabled");
@@ -177,6 +188,8 @@ export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<a
 
     try {
         const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+        
+        // Wrap with retry
         const response = await withRetry(() => ai.models.generateContent({
             model: model, 
             contents: {
@@ -187,18 +200,18 @@ export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<a
             },
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.2, 
+                temperature: 0.2, // Low temp for accuracy
             }
         }));
         
         return JSON.parse(cleanJsonString(response.text || "{}"));
     } catch (error) {
         console.error("Auto Grading Error:", error);
-        throw new Error("فشل التصحيح الآلي. تأكد من جودة الصورة أو حاول لاحقاً.");
+        throw new Error("فشل التصحيح الآلي. تأكد من جودة الصورة أو حاول مرة أخرى.");
     }
 };
 
-// --- NEW: Regenerate Single Block ---
+// --- Regenerate Single Block ---
 export const regenerateSingleBlock = async (
     blockType: string,
     blockTitle: string,
@@ -231,7 +244,7 @@ export const regenerateSingleBlock = async (
             model: model,
             contents: prompt,
             config: {
-                temperature: 0.8,
+                temperature: 0.8, 
                 systemInstruction: config.systemInstruction
             }
         }));
@@ -242,7 +255,7 @@ export const regenerateSingleBlock = async (
     }
 };
 
-// --- NEW: Generate Structured Lesson Blocks (Studio Mode) ---
+// --- Generate Structured Lesson Blocks (Studio Mode) ---
 export const generateLessonBlocks = async (
     subject: string,
     topic: string,
@@ -294,6 +307,7 @@ export const generateLessonBlocks = async (
         const text = response.text || "[]";
         const blocks: LessonBlock[] = JSON.parse(cleanJsonString(text));
         
+        // Add IDs to blocks for frontend handling
         return blocks.map(b => ({ ...b, id: Date.now().toString() + Math.random().toString(36).substr(2,9) }));
     } catch (error) {
         console.error("Lesson Studio Gen Error:", error);
@@ -319,6 +333,20 @@ export const generateCurriculumMap = async (
     
     NOTE: If exact 1447 AH data is unavailable, generate the most standard/common syllabus structure for this subject and grade in the Saudi curriculum. Do NOT return empty. Use generic but accurate educational topics if specific textbook data is missing.
 
+    **MANDATORY SYLLABUS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء) IF SELECTED:**
+    If subject is "علم الأرض والفضاء" (Earth and Space Science), use this structure:
+    Term 1:
+    1. الفصل 1: تطور الكون (Evolution of the Universe)
+       - 1-1 نشأة الكون
+       - 1-2 النجوم والمجرات
+    2. الفصل 2: الميكانيكا السماوية
+       - 2-1 قانون الجاذبية وقوانين كبلر
+       - 2-2 التقنية الفضائية
+    3. الفصل 3: المعادن
+    4. الفصل 4: الصخور
+    5. الفصل 5: الصفائح الأرضية
+    6. الفصل 6: البراكين والزلازل
+
     Output Requirements:
     1. Return a JSON Array ONLY. Do not include markdown code blocks.
     2. Structure:
@@ -341,7 +369,7 @@ export const generateCurriculumMap = async (
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.1, 
+                temperature: 0.1, // Low temp for consistency
                 systemInstruction: config.systemInstruction
             }
         }));
@@ -510,7 +538,7 @@ export const parseRawDataWithAI = async (rawText: string, targetType: 'STUDENTS'
     } catch (error) { throw new Error("AI Parse Error: " + (error as any).message); }
 };
 
-// --- NEW: Panic Button / Quick Activity ---
+// --- Panic Button / Quick Activity ---
 export const suggestQuickActivity = async (topic: string, gradeLevel: string): Promise<string> => {
     const { model, config } = getConfig();
     const prompt = `
@@ -534,7 +562,6 @@ export const suggestQuickActivity = async (topic: string, gradeLevel: string): P
         }));
         return response.text || "لعبة: تخمين الكلمة. فكر في كلمة وعلى الطلاب تخمينها.";
     } catch (e) {
-        // Fallback if quota exceeded even after retries
         return "لعبة سريعة: لعبة الحروف. اختر حرفاً وعلى الطلاب إيجاد 5 أشياء تبدأ به.";
     }
 };
