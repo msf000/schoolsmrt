@@ -350,6 +350,7 @@ export interface StoredLessonPlan {
     createdAt: string;
 }
 
+// --- NEW STUDIO TYPES ---
 export type LessonBlockType = 'OBJECTIVES' | 'INTRO' | 'STRATEGIES' | 'CONTENT' | 'ACTIVITY' | 'MEDIA' | 'ASSESSMENT' | 'HOMEWORK';
 
 export interface LessonBlock {

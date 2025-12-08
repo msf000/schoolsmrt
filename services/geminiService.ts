@@ -30,23 +30,34 @@ function cleanJsonString(text: string): string {
     return clean.trim();
 }
 
-// ... existing helpers (tryRepairJson) ...
+// Helper to attempt repairing truncated JSON
 function tryRepairJson(jsonString: string): string {
     let fixed = jsonString.trim();
+    
+    // 1. Close unclosed string
     let inString = false;
     let escape = false;
     for (let i = 0; i < fixed.length; i++) {
         const char = fixed[i];
-        if (char === '\\') { escape = !escape; } 
-        else {
-            if (char === '"' && !escape) { inString = !inString; }
+        if (char === '\\') {
+            escape = !escape;
+        } else {
+            if (char === '"' && !escape) {
+                inString = !inString;
+            }
             escape = false;
         }
     }
     if (inString) fixed += '"';
+
+    // 2. Remove trailing comma if exists (common before closing)
     if (fixed.endsWith(',')) fixed = fixed.slice(0, -1);
+
+    // 3. Balance Brackets/Braces
     let openBraces = 0;
     let openBrackets = 0;
+    
+    // Recalculate context (simple counter, assuming strings are closed now)
     inString = false;
     escape = false;
     for (let i = 0; i < fixed.length; i++) {
@@ -54,6 +65,7 @@ function tryRepairJson(jsonString: string): string {
         if (char === '\\') { escape = !escape; continue; }
         if (char === '"' && !escape) { inString = !inString; }
         escape = false;
+
         if (!inString) {
             if (char === '{') openBraces++;
             else if (char === '}') openBraces = Math.max(0, openBraces - 1);
@@ -61,8 +73,11 @@ function tryRepairJson(jsonString: string): string {
             else if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
         }
     }
+
+    // Append missing closures
     while (openBraces > 0) { fixed += '}'; openBraces--; }
     while (openBrackets > 0) { fixed += ']'; openBrackets--; }
+
     return fixed;
 }
 
@@ -139,6 +154,10 @@ export const generateCurriculumMap = async (
     **For Other Subjects:**
     Align with the official Saudi National Curriculum (1447 AH) as presented on the 'Ein' portal.
 
+    Context:
+    - If Grade is High School (Secondary), assume "Tracks System".
+    - If Grade is Elementary/Intermediate, assume "Three Semesters System".
+
     Output Requirements:
     1. Return a JSON Array ONLY.
     2. Structure:
@@ -161,7 +180,7 @@ export const generateCurriculumMap = async (
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.1,
+                temperature: 0.1, // Very low for strict adherence to facts
                 systemInstruction: config.systemInstruction
             }
         });
@@ -239,7 +258,7 @@ export const generateLessonBlocks = async (
     }
 };
 
-// ... existing functions (generateParentMessage, organizeCourseContent, generateSlideQuestions, generateStudentAnalysis, generateQuiz, generateStructuredQuiz, generateRemedialPlan, generateLessonPlan, suggestSyllabus, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, predictColumnMapping, parseRawDataWithAI) ...
+// ... existing functions ...
 export const generateParentMessage = async (studentName: string, topic: string, tone: 'OFFICIAL' | 'FRIENDLY' | 'URGENT'): Promise<string> => {
     const { model, config } = getConfig();
     const toneDesc = tone === 'OFFICIAL' ? 'رسمية ومهنية' : tone === 'FRIENDLY' ? 'ودية ومشجعة' : 'حازمة وعاجلة';
