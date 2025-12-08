@@ -120,8 +120,9 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
             return;
         }
         
+        // Confirmation if data exists
         if (filteredUnits.length > 0) {
-            if (!confirm('يوجد وحدات مسجلة بالفعل لهذه المادة. هل تريد الاستمرار وإضافة المزيد؟')) return;
+            if (!confirm('يوجد وحدات مسجلة بالفعل لهذه المادة. هل تريد الاستمرار وإضافة المزيد من الوحدات المقترحة؟')) return;
         }
 
         setIsGenerating(true);
@@ -129,7 +130,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
             const structure = await generateCurriculumMap(selectedSubject, selectedGrade);
             
             if (Array.isArray(structure) && structure.length > 0) {
-                let unitOrder = units.length;
+                let unitOrder = units.length; // Start ordering after existing
                 
                 for (const unitData of structure) {
                     const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
@@ -160,9 +161,9 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                     }
                 }
                 refreshData();
-                alert('تم توليد المنهج بنجاح!');
+                alert('تم توليد المنهج بنجاح وفقاً للمناهج السعودية!');
             } else {
-                alert('لم يتم العثور على هيكل منهج مناسب.');
+                alert('لم يتمكن النظام من استخراج المنهج. تأكد من اسم المادة والصف.');
             }
         } catch (e: any) {
             console.error(e);
@@ -197,7 +198,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">الصف</label>
-                            <input className="p-2 border rounded text-sm w-32" placeholder="مثال: خامس" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}/>
+                            <input className="p-2 border rounded text-sm w-32" placeholder="مثال: أول متوسط" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}/>
                         </div>
                         <div className="flex-1 flex gap-2">
                             <input className="flex-1 p-2 border rounded text-sm" placeholder="اسم الوحدة الجديدة..." value={newUnitName} onChange={e => setNewUnitName(e.target.value)}/>
@@ -211,10 +212,10 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             <button 
                                 onClick={handleAutoGenerate} 
                                 disabled={isGenerating || !selectedSubject || !selectedGrade}
-                                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap shadow-md w-full justify-center"
+                                className="bg-gradient-to-r from-teal-500 to-green-600 text-white px-4 py-2 rounded font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap shadow-md w-full justify-center"
                             >
                                 {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
-                                {isGenerating ? 'جاري التوليد...' : 'توليد المنهج بالذكاء الاصطناعي'}
+                                {isGenerating ? 'جاري سحب المنهج...' : 'استيراد المنهج السعودي (AI)'}
                             </button>
                         </div>
                     </div>
@@ -284,7 +285,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             <div className="text-center py-20 text-gray-400">
                                 <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
                                 <p className="text-lg font-bold">لا يوجد منهج مسجل</p>
-                                <p className="text-sm">ابدأ بإضافة وحدة يدوياً أو استخدم الزر أعلاه للتوليد بالذكاء الاصطناعي.</p>
+                                <p className="text-sm">ابدأ بإضافة وحدة يدوياً أو استخدم زر الاستيراد الذكي أعلاه.</p>
                             </div>
                         )}
                     </div>

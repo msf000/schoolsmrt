@@ -90,25 +90,28 @@ export const generateCurriculumMap = async (
     if (!enabled.planning) throw new Error("AI Planning is disabled");
 
     const prompt = `
-    Act as an educational consultant for the Saudi Ministry of Education Curriculum (1447 AH).
-    Create a structured curriculum map for:
-    - Subject: ${subject}
-    - Grade: ${grade}
+    Act as a specialized Educational Consultant for the Saudi Ministry of Education (MOE) Curriculum, specifically for the academic year 1447 AH.
+    
+    Task: Extract the full Table of Contents (Units and Lessons) for the following subject and grade from the official Saudi textbooks.
+
+    Subject: ${subject}
+    Grade Level: ${grade}
 
     Requirements:
-    1. Identify the main Units (الوحدات).
-    2. Under each Unit, list the Lessons (الدروس).
-    3. For each Lesson, provide the specific "Learning Standard Code" (المعيار) as used in the ministry books (e.g., MATH.1.2, SCI.5.4, LANG.2.1). If exact code is unknown, generate a plausible code format.
+    1. **Strict Adherence:** Use the exact unit and lesson titles found in the Saudi textbooks (كتب وزارة التعليم السعودية).
+    2. **Structure:** Return a JSON array where each item is a "Unit" containing an array of "Lessons".
+    3. **Standards:** Estimate the Ministerial Standard Codes (المعايير) if exact ones aren't available, using the format: [SubjectCode].[Grade].[Unit].[Lesson] (e.g., MATH.1.2.1).
     
-    Output Format: JSON Array ONLY. No intro text.
+    Output Format: JSON Array ONLY. Do not include any introduction or markdown formatting outside the JSON.
+    
     Schema:
     [
       {
-        "unitTitle": "Unit Name",
+        "unitTitle": "اسم الوحدة (مثال: الوحدة الأولى: قدوات ومثل عليا)",
         "lessons": [
           {
-            "title": "Lesson Name",
-            "standards": ["CODE.1.1", "CODE.1.2"]
+            "title": "اسم الدرس (مثال: نص الاستماع: سيدة نساء أهل الجنة)",
+            "standards": ["LANG.6.1.1"] 
           }
         ]
       }
@@ -121,7 +124,7 @@ export const generateCurriculumMap = async (
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.4, // Lower temperature for structured data
+                temperature: 0.2, // Very low temperature for factual accuracy
                 systemInstruction: config.systemInstruction
             }
         });
