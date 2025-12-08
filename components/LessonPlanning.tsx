@@ -23,6 +23,15 @@ const MOCK_MEDIA = [
     { type: 'IMAGE', url: 'https://images.unsplash.com/photo-1614730341194-75c60740a070?w=400', title: 'صخور نارية' },
 ];
 
+const SAUDI_GRADES = [
+    "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
+    "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
+    "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
+    "الصف الأول الثانوي (السنة المشتركة)", 
+    "الصف الثاني الثانوي (مسارات)", 
+    "الصف الثالث الثانوي (مسارات)"
+];
+
 const LessonPlanning: React.FC = () => {
     // Layout State
     const [activeTab, setActiveTab] = useState<'STUDIO' | 'MY_PLANS'>('STUDIO');
@@ -84,7 +93,7 @@ const LessonPlanning: React.FC = () => {
 
     // Filter Logic
     const filteredUnits = useMemo(() => {
-        return units.filter(u => u.subject === selectedSubject && u.gradeLevel === selectedGrade);
+        return units.filter(u => u.subject === selectedSubject && u.gradeLevel === selectedGrade).sort((a,b) => a.orderIndex - b.orderIndex);
     }, [units, selectedSubject, selectedGrade]);
 
     const filteredLessons = useMemo(() => {
@@ -415,12 +424,14 @@ const LessonPlanning: React.FC = () => {
 
                             <div>
                                 <label className="block text-xs font-bold text-gray-600 mb-1.5">الصف</label>
-                                <input 
+                                <select 
                                     className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="مثال: الثالث الثانوي"
                                     value={selectedGrade}
-                                    onChange={e => setSelectedGrade(e.target.value)}
-                                />
+                                    onChange={e => { setSelectedGrade(e.target.value); setSelectedUnitId(''); setSelectedLessonId(''); }}
+                                >
+                                    <option value="">-- اختر الصف --</option>
+                                    {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
                             </div>
 
                             {/* Curriculum Cascading Dropdowns */}
@@ -430,7 +441,7 @@ const LessonPlanning: React.FC = () => {
                                     className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                                     value={selectedUnitId}
                                     onChange={e => { setSelectedUnitId(e.target.value); setSelectedLessonId(''); }}
-                                    disabled={!selectedSubject}
+                                    disabled={!selectedSubject || !selectedGrade}
                                 >
                                     <option value="">-- اختر الوحدة --</option>
                                     {filteredUnits.map(u => <option key={u.id} value={u.id}>{u.title}</option>)}
