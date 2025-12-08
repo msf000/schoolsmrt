@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
 import { 
@@ -11,17 +10,10 @@ import {
     Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, 
     AlertTriangle, Calendar, Target, ListTree, BookOpenCheck, Save, Trash2, 
     Link, Video, Image as ImageIcon, MoveUp, MoveDown, Plus, Search, Grid,
-    ToggleLeft, ToggleRight, MoreVertical, X, RefreshCw, Hash, FileQuestion
+    ToggleLeft, ToggleRight, MoreVertical, X, RefreshCw, Hash, FileQuestion, Globe, Youtube, ExternalLink
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-const MOCK_MEDIA = [
-    { type: 'IMAGE', url: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400', title: 'مجرة درب التبانة' },
-    { type: 'IMAGE', url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400', title: 'الأرض من الفضاء' },
-    { type: 'VIDEO', url: 'https://www.youtube.com/embed/HdPzOWlLrbE', title: 'نشأة الكون (وثائقي)' },
-    { type: 'IMAGE', url: 'https://images.unsplash.com/photo-1614730341194-75c60740a070?w=400', title: 'صخور نارية' },
-];
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
@@ -50,7 +42,7 @@ const LessonPlanning: React.FC = () => {
     // Curriculum Selection instead of Manual Topic
     const [selectedUnitId, setSelectedUnitId] = useState('');
     const [selectedLessonId, setSelectedLessonId] = useState('');
-    const [topic, setTopic] = useState(''); // This will be derived from selectedLessonId mostly
+    const [topic, setTopic] = useState(''); 
 
     const [settings, setSettings] = useState({
         includeActivity: true,
@@ -66,6 +58,11 @@ const LessonPlanning: React.FC = () => {
     // Previous Lesson Data
     const [prevPlan, setPrevPlan] = useState<StoredLessonPlan | null>(null);
 
+    // Media Library State
+    const [mediaQuery, setMediaQuery] = useState('');
+    const [mediaResults, setMediaResults] = useState<any[]>([]);
+    const [isMediaLoading, setIsMediaLoading] = useState(false);
+
     // Initialization
     useEffect(() => {
         if (currentUser?.id) {
@@ -80,7 +77,7 @@ const LessonPlanning: React.FC = () => {
     useEffect(() => {
         if (selectedSubject && selectedGrade) {
             const plans = getLessonPlans(currentUser.id)
-                .filter(p => p.subject === selectedSubject) // Note: Grade level isn't strictly stored in StoredLessonPlan, usually implied by Subject context or topic
+                .filter(p => p.subject === selectedSubject) 
                 .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             
             if (plans.length > 0) {
@@ -100,13 +97,42 @@ const LessonPlanning: React.FC = () => {
         return curriculumLessons.filter(l => l.unitId === selectedUnitId).sort((a,b) => a.orderIndex - b.orderIndex);
     }, [curriculumLessons, selectedUnitId]);
 
-    // Update Topic when Lesson Selected
+    // Update Topic when Lesson Selected & Auto-Search Media
     useEffect(() => {
         const lesson = curriculumLessons.find(l => l.id === selectedLessonId);
-        if (lesson) setTopic(lesson.title);
+        if (lesson) {
+            setTopic(lesson.title);
+            setMediaQuery(lesson.title);
+            handleSearchMedia(undefined, lesson.title);
+        }
     }, [selectedLessonId, curriculumLessons]);
 
     // --- ACTIONS ---
+
+    const handleSearchMedia = (e?: React.FormEvent, overrideQuery?: string) => {
+        e?.preventDefault();
+        const term = overrideQuery || mediaQuery;
+        if (!term) return;
+
+        setIsMediaLoading(true);
+        
+        // Simulate "Searching" by generating relevant dynamic URLs
+        // We use Pollinations.ai for instant image generation based on prompts, which acts like a search result
+        setTimeout(() => {
+            const results = [
+                // 1. Dynamic AI Generated Images (act as search results)
+                { type: 'IMAGE', url: `https://image.pollinations.ai/prompt/educational photo of ${encodeURIComponent(term)}?width=400&height=300&nologo=true`, title: 'صورة توضيحية (AI)' },
+                { type: 'IMAGE', url: `https://image.pollinations.ai/prompt/diagram of ${encodeURIComponent(term)} with white background?width=400&height=300&nologo=true`, title: 'مخطط بياني (AI)' },
+                { type: 'IMAGE', url: `https://image.pollinations.ai/prompt/illustration of ${encodeURIComponent(term)} for students?width=400&height=300&nologo=true`, title: 'رسم تعليمي (AI)' },
+                
+                // 2. External Search Links (Interactive)
+                { type: 'WEB_SEARCH', url: `https://www.google.com/search?q=${encodeURIComponent(term)}&tbm=isch`, title: 'بحث صور Google' },
+                { type: 'VIDEO_SEARCH', url: `https://www.youtube.com/results?search_query=${encodeURIComponent(term)}`, title: 'بحث في YouTube' }
+            ];
+            setMediaResults(results);
+            setIsMediaLoading(false);
+        }, 800);
+    };
 
     const handleGenerate = async () => {
         if (!topic || !selectedSubject) return alert('الرجاء اختيار المادة والدرس من القائمة');
@@ -222,6 +248,11 @@ const LessonPlanning: React.FC = () => {
     };
 
     const addMediaBlock = (media: { type: string, url: string, title: string }) => {
+        if (media.type === 'WEB_SEARCH' || media.type === 'VIDEO_SEARCH') {
+            window.open(media.url, '_blank');
+            return;
+        }
+
         const newBlock: LessonBlock = {
             id: Date.now().toString(),
             type: 'MEDIA',
@@ -344,28 +375,56 @@ const LessonPlanning: React.FC = () => {
                 </div>
             ) : (
                 <div className="flex-1 flex overflow-hidden">
-                    {/* LEFT COLUMN: Media Library (Mock) */}
+                    {/* LEFT COLUMN: Media Library (Interactive Search) */}
                     <div className="w-64 bg-white border-l border-gray-200 flex flex-col z-10 shadow-sm hidden md:flex print:hidden">
                         <div className="p-4 border-b">
-                            <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2"><ImageIcon size={16}/> مكتبة الوسائط</h3>
-                            <div className="mt-2 relative">
+                            <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2 mb-3"><ImageIcon size={16}/> مكتبة الوسائط التفاعلية</h3>
+                            <form onSubmit={handleSearchMedia} className="relative">
                                 <Search size={14} className="absolute top-2.5 right-2 text-gray-400"/>
-                                <input className="w-full pl-2 pr-8 py-2 bg-gray-50 border rounded text-xs" placeholder="بحث صور/فيديو..."/>
-                            </div>
+                                <input 
+                                    className="w-full pl-2 pr-8 py-2 bg-gray-50 border rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                    placeholder="بحث صور / فيديو..."
+                                    value={mediaQuery}
+                                    onChange={(e) => setMediaQuery(e.target.value)}
+                                />
+                            </form>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                            {MOCK_MEDIA.map((media, i) => (
-                                <div key={i} className="group relative rounded-lg overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
-                                    <img src={media.type === 'VIDEO' ? `https://img.youtube.com/vi/${media.url.split('/').pop()}/0.jpg` : media.url} className="w-full h-24 object-cover" />
-                                    <div className="p-2 bg-white text-xs font-bold text-gray-700 truncate">{media.title}</div>
-                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => addMediaBlock(media)} className="bg-white text-indigo-600 p-1.5 rounded-full hover:scale-110 transition-transform">
-                                            <Plus size={16}/>
-                                        </button>
-                                    </div>
-                                    {media.type === 'VIDEO' && <div className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full"><Video size={10}/></div>}
+                            {isMediaLoading ? (
+                                <div className="text-center py-10 text-gray-400 flex flex-col items-center gap-2">
+                                    <Loader2 className="animate-spin" size={24}/>
+                                    <span className="text-xs">جاري البحث وتوليد الوسائط...</span>
                                 </div>
-                            ))}
+                            ) : mediaResults.length > 0 ? (
+                                mediaResults.map((media, i) => (
+                                    <div key={i} className="group relative rounded-lg overflow-hidden border border-gray-200 cursor-pointer hover:shadow-md transition-all">
+                                        {media.type === 'IMAGE' ? (
+                                            <>
+                                                <img src={media.url} className="w-full h-24 object-cover" />
+                                                <div className="p-2 bg-white text-xs font-bold text-gray-700 truncate">{media.title}</div>
+                                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => addMediaBlock(media)} className="bg-white text-indigo-600 p-1.5 rounded-full hover:scale-110 transition-transform shadow-lg">
+                                                        <Plus size={16}/>
+                                                    </button>
+                                                </div>
+                                                <div className="absolute top-1 right-1 bg-indigo-500 text-white text-[8px] px-1 rounded">AI</div>
+                                            </>
+                                        ) : (
+                                            <div onClick={() => addMediaBlock(media)} className="p-3 bg-gray-50 flex items-center gap-3 hover:bg-gray-100 h-full">
+                                                <div className={`p-2 rounded-full text-white ${media.type === 'WEB_SEARCH' ? 'bg-blue-500' : 'bg-red-500'}`}>
+                                                    {media.type === 'WEB_SEARCH' ? <Globe size={16}/> : <Youtube size={16}/>}
+                                                </div>
+                                                <div className="text-xs font-bold text-gray-700">{media.title}</div>
+                                                <ExternalLink className="mr-auto text-gray-400" size={12}/>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-10 text-gray-400 text-xs">
+                                    ابحث عن موضوع الدرس لعرض صور ومقاطع مقترحة.
+                                </div>
+                            )}
                         </div>
                     </div>
 
