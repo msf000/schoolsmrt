@@ -506,3 +506,31 @@ export const parseRawDataWithAI = async (rawText: string, targetType: 'STUDENTS'
         try { return JSON.parse(clean); } catch(e) { return JSON.parse(tryRepairJson(clean)); }
     } catch (error) { throw new Error("AI Parse Error"); }
 };
+
+// --- NEW: Panic Button / Quick Activity ---
+export const suggestQuickActivity = async (topic: string, gradeLevel: string): Promise<string> => {
+    const { model, config } = getConfig();
+    const prompt = `
+    Emergency Mode! The lesson finished early. 
+    Suggest a quick, fun, 5-minute educational activity, game, or riddle for a class of ${gradeLevel} students.
+    
+    Topic Context: ${topic || 'General Knowledge'}.
+    
+    Constraints:
+    - Must be ready to play immediately (no prep).
+    - Engaging and energetic.
+    - Output in Arabic.
+    - Keep it short (1 paragraph).
+    `;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: { temperature: 0.9, systemInstruction: config.systemInstruction }
+        });
+        return response.text || "لعبة: تخمين الكلمة. فكر في كلمة وعلى الطلاب تخمينها.";
+    } catch (e) {
+        return "لعبة سريعة: لعبة الحروف. اختر حرفاً وعلى الطلاب إيجاد 5 أشياء تبدأ به.";
+    }
+};

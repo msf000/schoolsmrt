@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser } from '../types';
-import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star } from 'lucide-react';
+import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star, Siren, BarChart2, Check, Zap } from 'lucide-react';
 import { getLessonLinks } from '../services/storageService';
-import { generateSlideQuestions } from '../services/geminiService';
+import { generateSlideQuestions, suggestQuickActivity } from '../services/geminiService';
 
 interface ClassroomScreenProps {
     students: Student[];
@@ -345,7 +344,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
     const [inputUrl, setInputUrl] = useState('');
     
     // Tools State
-    const [activeFloatingTool, setActiveFloatingTool] = useState<'NONE' | 'TIMER' | 'PICKER' | 'SOUNDS' | 'NOTE' | 'PEN' | 'EXIT_TICKET' | 'AI_QUIZ'>('NONE');
+    const [activeFloatingTool, setActiveFloatingTool] = useState<'NONE' | 'TIMER' | 'PICKER' | 'SOUNDS' | 'NOTE' | 'PEN' | 'EXIT_TICKET' | 'AI_QUIZ' | 'HALL_PASS' | 'POLL' | 'TRAFFIC' | 'PANIC'>('NONE');
     const [laserMode, setLaserMode] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [lessonLinks, setLessonLinks] = useState<LessonLink[]>([]);
@@ -359,6 +358,21 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
     const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
     const [isQuizLoading, setIsQuizLoading] = useState(false);
     const [showAnswerFor, setShowAnswerFor] = useState<number | null>(null);
+
+    // Panic Button State
+    const [panicTopic, setPanicTopic] = useState('');
+    const [panicSuggestion, setPanicSuggestion] = useState('');
+    const [isPanicLoading, setIsPanicLoading] = useState(false);
+
+    // Traffic Light State
+    const [trafficLight, setTrafficLight] = useState<'RED'|'YELLOW'|'GREEN'>('GREEN');
+
+    // Poll State
+    const [pollVotes, setPollVotes] = useState({ A: 0, B: 0, C: 0, D: 0 });
+
+    // Hall Pass State
+    const [hallPasses, setHallPasses] = useState<{id: string, name: string, time: number}[]>([]);
+    const [passStudentId, setPassStudentId] = useState('');
 
     // Drawing State
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -586,6 +600,27 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
         setIsQuizLoading(false);
     };
 
+    // Panic Button Handler
+    const handlePanic = async () => {
+        setIsPanicLoading(true);
+        const result = await suggestQuickActivity(panicTopic, 'General'); // Use class grade if available in prop
+        setPanicSuggestion(result);
+        setIsPanicLoading(false);
+    }
+
+    // Hall Pass Handlers
+    const issuePass = () => {
+        const student = students.find(s => s.id === passStudentId);
+        if (student) {
+            setHallPasses(prev => [...prev, { id: Date.now().toString(), name: student.name, time: Date.now() }]);
+            setPassStudentId('');
+        }
+    }
+
+    // Poll Handlers
+    const vote = (opt: 'A'|'B'|'C'|'D') => setPollVotes(prev => ({ ...prev, [opt]: prev[opt] + 1 }));
+    const resetPoll = () => setPollVotes({ A: 0, B: 0, C: 0, D: 0 });
+
     const currentPage = pages[currentPageIndex];
 
     return (
@@ -717,7 +752,11 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
                         <ToolBtn icon={<Shuffle size={20}/>} active={activeFloatingTool === 'PICKER'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'PICKER' ? 'NONE' : 'PICKER')} />
                         <ToolBtn icon={<Clock size={20}/>} active={activeFloatingTool === 'TIMER'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'TIMER' ? 'NONE' : 'TIMER')} />
                         <ToolBtn icon={<Volume2 size={20}/>} active={activeFloatingTool === 'SOUNDS'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'SOUNDS' ? 'NONE' : 'SOUNDS')} />
-                        <ToolBtn icon={<DoorOpen size={20}/>} active={activeFloatingTool === 'EXIT_TICKET'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'EXIT_TICKET' ? 'NONE' : 'EXIT_TICKET')} label="خروج" />
+                        <ToolBtn icon={<DoorOpen size={20}/>} active={activeFloatingTool === 'HALL_PASS'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'HALL_PASS' ? 'NONE' : 'HALL_PASS')} label="خروج" />
+                        <ToolBtn icon={<AlertCircle size={20}/>} active={activeFloatingTool === 'TRAFFIC'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'TRAFFIC' ? 'NONE' : 'TRAFFIC')} label="انتباه" />
+                        <ToolBtn icon={<BarChart2 size={20}/>} active={activeFloatingTool === 'POLL'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'POLL' ? 'NONE' : 'POLL')} label="تصويت" />
+                        <div className="w-[1px] h-6 bg-white/20 mx-1"></div>
+                        <ToolBtn icon={<Siren size={20}/>} active={activeFloatingTool === 'PANIC'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'PANIC' ? 'NONE' : 'PANIC')} label="طوارئ" color="red" />
                         <ToolBtn icon={<BrainCircuit size={20}/>} active={activeFloatingTool === 'AI_QUIZ'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'AI_QUIZ' ? 'NONE' : 'AI_QUIZ')} label="مسابقة AI" />
                         <ToolBtn icon={<MousePointer2 size={20}/>} active={laserMode} onClick={() => setLaserMode(!laserMode)} color="red" />
                         <ToolBtn icon={<StickyNote size={20}/>} active={activeFloatingTool === 'NOTE'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'NOTE' ? 'NONE' : 'NOTE')} />
@@ -731,6 +770,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
                     <div className="relative bg-slate-900 border border-white/20 rounded-2xl shadow-2xl overflow-hidden min-w-[320px] max-w-md">
                         <button onClick={() => setActiveFloatingTool('NONE')} className="absolute top-2 right-2 text-gray-400 hover:text-white z-10"><X size={16}/></button>
 
+                        {/* --- WIDGETS --- */}
                         {activeFloatingTool === 'PICKER' && (
                             <div className="p-4">
                                 <h4 className="text-yellow-400 font-bold mb-2 flex items-center gap-2"><Shuffle size={16}/> الاختيار العشوائي</h4>
@@ -742,6 +782,109 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
                             <div className="p-4">
                                 <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2"><Clock size={16}/> المؤقت</h4>
                                 <div className="scale-75 origin-top"><ClassroomTimer /></div>
+                            </div>
+                        )}
+
+                        {activeFloatingTool === 'TRAFFIC' && (
+                            <div className="p-4">
+                                <h4 className="text-white font-bold mb-3 flex items-center gap-2"><AlertCircle size={16}/> إشارة الانضباط</h4>
+                                <div className="flex justify-center gap-4 bg-black/20 p-4 rounded-xl">
+                                    <div onClick={() => setTrafficLight('RED')} className={`w-12 h-12 rounded-full border-2 cursor-pointer transition-all ${trafficLight === 'RED' ? 'bg-red-600 border-white scale-110 shadow-lg shadow-red-500/50' : 'bg-red-900/50 border-red-900'}`}></div>
+                                    <div onClick={() => setTrafficLight('YELLOW')} className={`w-12 h-12 rounded-full border-2 cursor-pointer transition-all ${trafficLight === 'YELLOW' ? 'bg-yellow-400 border-white scale-110 shadow-lg shadow-yellow-500/50' : 'bg-yellow-900/50 border-yellow-900'}`}></div>
+                                    <div onClick={() => setTrafficLight('GREEN')} className={`w-12 h-12 rounded-full border-2 cursor-pointer transition-all ${trafficLight === 'GREEN' ? 'bg-green-500 border-white scale-110 shadow-lg shadow-green-500/50' : 'bg-green-900/50 border-green-900'}`}></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeFloatingTool === 'POLL' && (
+                            <div className="p-4">
+                                <h4 className="text-blue-300 font-bold mb-3 flex items-center gap-2"><BarChart2 size={16}/> تصويت سريع</h4>
+                                <div className="flex gap-2 items-end h-32 mb-2">
+                                    {['A', 'B', 'C', 'D'].map(opt => {
+                                        const totalVotes = Object.values(pollVotes).reduce((a: number, b: number) => a + b, 0);
+                                        const count = pollVotes[opt as keyof typeof pollVotes];
+                                        const pct = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
+                                        return (
+                                            <div key={opt} className="flex-1 flex flex-col justify-end h-full gap-1">
+                                                <div className="text-center text-xs text-gray-400 font-bold">{count}</div>
+                                                <div 
+                                                    className="w-full rounded-t bg-blue-500 transition-all duration-300" 
+                                                    style={{ height: `${Math.max(5, pct)}%` }}
+                                                ></div>
+                                                <button onClick={() => vote(opt as any)} className="w-full py-1 bg-white/10 hover:bg-white/20 rounded text-xs font-bold">{opt}</button>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                                <button onClick={resetPoll} className="w-full py-1 text-xs text-gray-400 hover:text-white">إعادة تعيين</button>
+                            </div>
+                        )}
+
+                        {activeFloatingTool === 'HALL_PASS' && (
+                            <div className="p-4 min-w-[300px]">
+                                <h4 className="text-orange-400 font-bold mb-3 flex items-center gap-2"><DoorOpen size={16}/> تصريح خروج</h4>
+                                <div className="flex gap-2 mb-3">
+                                    <select 
+                                        className="flex-1 bg-black/30 border border-white/20 rounded text-sm p-1.5 outline-none"
+                                        value={passStudentId}
+                                        onChange={e => setPassStudentId(e.target.value)}
+                                    >
+                                        <option value="">اختر الطالب...</option>
+                                        {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                    <button onClick={issuePass} disabled={!passStudentId} className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm font-bold disabled:opacity-50">خروج</button>
+                                </div>
+                                <div className="max-h-40 overflow-y-auto space-y-2">
+                                    {hallPasses.length > 0 ? hallPasses.map(p => (
+                                        <div key={p.id} className="bg-white/10 p-2 rounded flex justify-between items-center text-sm">
+                                            <span>{p.name}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-gray-400">{Math.floor((Date.now() - p.time) / 60000)} د</span>
+                                                <button onClick={() => setHallPasses(prev => prev.filter(x => x.id !== p.id))} className="text-red-400 hover:text-red-300">عودة</button>
+                                            </div>
+                                        </div>
+                                    )) : <div className="text-center text-gray-500 text-xs py-4">الجميع في الفصل</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeFloatingTool === 'PANIC' && (
+                            <div className="p-6 bg-red-900/90 text-white min-w-[350px]">
+                                <h4 className="text-red-200 font-bold mb-4 flex items-center gap-2">
+                                    <Siren size={20} className="animate-pulse"/> نشاط سريع (Panic Button)
+                                </h4>
+                                <p className="text-xs text-red-100 mb-4 opacity-80">انتهى الدرس مبكراً؟ دع الذكاء الاصطناعي يقترح لعبة أو لغزاً فورياً.</p>
+                                
+                                {panicSuggestion ? (
+                                    <div className="bg-black/30 p-4 rounded-xl border border-red-500/30 mb-4 text-sm leading-relaxed whitespace-pre-line animate-fade-in">
+                                        {panicSuggestion}
+                                    </div>
+                                ) : (
+                                    <div className="mb-4">
+                                        <input 
+                                            className="w-full bg-black/30 border border-red-500/30 rounded p-2 text-sm text-white placeholder-red-300/50 outline-none focus:border-red-400"
+                                            placeholder="موضوع الدرس (اختياري)..."
+                                            value={panicTopic}
+                                            onChange={e => setPanicTopic(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={handlePanic}
+                                        disabled={isPanicLoading}
+                                        className="flex-1 bg-white text-red-900 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-lg"
+                                    >
+                                        {isPanicLoading ? <Loader2 className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}
+                                        {isPanicLoading ? 'جاري البحث...' : 'اقترح نشاطاً فوراً'}
+                                    </button>
+                                    {panicSuggestion && (
+                                        <button onClick={() => setPanicSuggestion('')} className="px-3 bg-red-800 hover:bg-red-700 rounded-xl text-white">
+                                            جديد
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
 
