@@ -100,17 +100,40 @@ export const generateCurriculumMap = async (
     - Grade Level: ${grade}
     - Semester/Term: ${semester}.
     
-    **CRITICAL INSTRUCTIONS:**
-    1. Align all content with the official Saudi National Curriculum as presented on the **'Ein' portal (ien.edu.sa)** and **'Madrasati'**.
-    2. Ensure the Arabic titles match the official textbooks exactly.
+    **MANDATORY SYLLABUS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء) - TERM 1:**
+    If the subject is "علم الأرض والفضاء" (Earth and Space Science), you MUST strictly output the following Units and Lessons structure based on the official textbook 1446/1447 AH:
+
+    1. **الفصل 1: تطور الكون (Evolution of the Universe)**
+       - 1-1 نشأة الكون (Origin of the Universe) - Code: ES.12.1.1
+       - 1-2 النجوم والمجرات (Stars and Galaxies) - Code: ES.12.1.2
     
-    **SPECIFIC INSTRUCTIONS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء):**
-    If the subject is "علم الأرض والفضاء" (Earth and Space Science) for "Third Secondary" (الصف الثالث الثانوي):
-    1. You MUST use the official coding structure: **EAS.12.Unit.Lesson**.
-    2. Example: 
-       - Unit 1 (Minerals): Lesson 1 is "EAS.12.1.1 What is a Mineral?", Lesson 2 is "EAS.12.1.2 Types of Minerals".
-       - Unit 2 (Rocks): Lesson 1 is "EAS.12.2.1 Igneous Rocks".
-       - Unit 6 (Earth-Sun-Moon): Lesson 1 is "EAS.12.6.1 Earth's Motion".
+    2. **الفصل 2: الميكانيكا السماوية (Celestial Mechanics)**
+       - 2-1 قانون الجاذبية وقوانين كبلر (Gravitation and Kepler's Laws) - Code: ES.12.2.1
+       - 2-2 التقنية الفضائية (Space Technology) - Code: ES.12.2.2
+    
+    3. **الفصل 3: المعادن (Minerals)**
+       - 3-1 ما المعدن؟ (What is a Mineral?) - Code: ES.12.3.1
+       - 3-2 أنواع المعادن وأهميتها (Types of Minerals) - Code: ES.12.3.2
+    
+    4. **الفصل 4: الصخور (Rocks)**
+       - 4-1 الصخور النارية (Igneous Rocks) - Code: ES.12.4.1
+       - 4-2 الصخور الرسوبية (Sedimentary Rocks) - Code: ES.12.4.2
+       - 4-3 الصخور المتحولة (Metamorphic Rocks) - Code: ES.12.4.3
+    
+    5. **الفصل 5: الصفائح الأرضية (Plate Tectonics)**
+       - 5-1 انجراف القارات (Continental Drift) - Code: ES.12.5.1
+       - 5-2 توسع قاع المحيط (Seafloor Spreading) - Code: ES.12.5.2
+       - 5-3 حدود الصفائح وأسباب حركتها (Plate Boundaries) - Code: ES.12.5.3
+    
+    6. **الفصل 6: البراكين والزلازل (Volcanoes & Earthquakes)**
+       - 6-1 ما البركان؟ (What is a Volcano?) - Code: ES.12.6.1
+       - 6-2 الثورانات البركانية (Volcanic Eruptions) - Code: ES.12.6.2
+       - 6-3 الأمواج الزلزالية وبنية الأرض (Seismic Waves) - Code: ES.12.6.3
+       - 6-4 قياس الزلازل وتحديد أماكنها (Measuring Earthquakes) - Code: ES.12.6.4
+       - 6-5 الزلازل والمجتمع (Earthquakes and Society) - Code: ES.12.6.5
+
+    **For Other Subjects:**
+    Align with the official Saudi National Curriculum (1447 AH) as presented on the 'Ein' portal.
 
     Context:
     - If Grade is High School (Secondary), assume "Tracks System".
@@ -121,11 +144,11 @@ export const generateCurriculumMap = async (
     2. Structure:
        [
          {
-           "unitTitle": "Unit Name (e.g., الفصل الأول: المعادن)",
+           "unitTitle": "Unit Name",
            "lessons": [
              {
-               "title": "Lesson Name (e.g., 1-1 ما المعدن؟)",
-               "standards": ["EAS.12.1.1"] (Use the specific code here)
+               "title": "Lesson Name",
+               "standards": ["CODE"]
              }
            ]
          }
