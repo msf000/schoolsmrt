@@ -100,14 +100,17 @@ export const generateCurriculumMap = async (
     - Grade Level: ${grade}
     - Semester/Term: ${semester}.
     
-    **CRITICAL INSTRUCTIONS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء):**
+    **CRITICAL INSTRUCTIONS:**
+    1. Align all content with the official Saudi National Curriculum as presented on the **'Ein' portal (ien.edu.sa)** and **'Madrasati'**.
+    2. Ensure the Arabic titles match the official textbooks exactly.
+    
+    **SPECIFIC INSTRUCTIONS FOR EARTH AND SPACE SCIENCE (علم الأرض والفضاء):**
     If the subject is "علم الأرض والفضاء" (Earth and Space Science) for "Third Secondary" (الصف الثالث الثانوي):
     1. You MUST use the official coding structure: **EAS.12.Unit.Lesson**.
     2. Example: 
        - Unit 1 (Minerals): Lesson 1 is "EAS.12.1.1 What is a Mineral?", Lesson 2 is "EAS.12.1.2 Types of Minerals".
        - Unit 2 (Rocks): Lesson 1 is "EAS.12.2.1 Igneous Rocks".
        - Unit 6 (Earth-Sun-Moon): Lesson 1 is "EAS.12.6.1 Earth's Motion".
-    3. Ensure the Arabic titles match the textbook "كتاب علم الأرض والفضاء 1-1".
 
     Context:
     - If Grade is High School (Secondary), assume "Tracks System".
@@ -571,6 +574,8 @@ export const generateLessonPlan = async (
     - الوسائل ومصادر التعلم: ${resources.join('، ') || 'الكتاب المدرسي، منصة مدرستي، بوابة عين'}
     - الأهداف الخاصة: ${objectives}
     
+    **توجيه هام:** اقترح مصادر رقمية محددة (مثل أسماء فيديوهات أو إثراءات) موجودة على **بوابة عين (ien.edu.sa)** أو **منصة مدرستي** لدعم هذا الدرس.
+
     المطلوب تحضير مفصل بتنسيق Markdown احترافي (استخدم العناوين الكبيرة # والجداول عند الحاجة):
     
     # تحضير درس: ${topic}
@@ -582,7 +587,7 @@ export const generateLessonPlan = async (
     
     ## 2. استراتيجيات التدريس والوسائل
     * **الاستراتيجيات:** ...
-    * **الوسائل:** ...
+    * **الوسائل ومصادر عين/مدرستي:** ...
     
     ## 3. إجراءات الدرس (السيناريو المقترح)
     (يرجى وضع هذا القسم في جدول Markdown يحتوي على: التوقيت، النشاط، دور المعلم، دور الطالب)

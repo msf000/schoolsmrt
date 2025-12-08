@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LessonLink, SystemUser } from '../types';
 import { getLessonLinks, saveLessonLink, deleteLessonLink } from '../services/storageService';
-import { BookOpen, Link as LinkIcon, Youtube, FileText, Globe, Plus, Trash2, Search, ExternalLink } from 'lucide-react';
+import { BookOpen, Link as LinkIcon, Youtube, FileText, Globe, Plus, Trash2, Search, ExternalLink, School, Laptop } from 'lucide-react';
 
 interface ResourcesViewProps {
     currentUser?: SystemUser | null;
@@ -65,13 +65,49 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                 </button>
             </div>
 
-            {/* Controls */}
+            {/* Official Platforms Dashboard (New) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <a href="https://schools.madrasati.sa" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-blue-100 hover:border-blue-400 hover:shadow-md transition-all group">
+                    <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Laptop size={24}/>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-gray-800">منصة مدرستي</h3>
+                        <p className="text-xs text-gray-500">الدخول الموحد للكادر والطلاب</p>
+                    </div>
+                    <ExternalLink size={16} className="mr-auto text-gray-300 group-hover:text-blue-500"/>
+                </a>
+
+                <a href="https://www.ien.edu.sa" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-green-100 hover:border-green-400 hover:shadow-md transition-all group">
+                    <div className="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <BookOpen size={24}/>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-gray-800">بوابة عين التعليمية</h3>
+                        <p className="text-xs text-gray-500">الكتب، الفيديوهات، والإثراءات</p>
+                    </div>
+                    <ExternalLink size={16} className="mr-auto text-gray-300 group-hover:text-green-500"/>
+                </a>
+
+                <a href="https://ktbby.com" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-orange-100 hover:border-orange-400 hover:shadow-md transition-all group">
+                    <div className="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <School size={24}/>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-gray-800">مكتبة كتبي</h3>
+                        <p className="text-xs text-gray-500">تحميل المناهج والحلول PDF</p>
+                    </div>
+                    <ExternalLink size={16} className="mr-auto text-gray-300 group-hover:text-orange-500"/>
+                </a>
+            </div>
+
+            {/* Search */}
             <div className="bg-white p-4 rounded-xl border shadow-sm mb-4">
                 <div className="relative">
                     <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
                     <input 
                         className="w-full pr-10 pl-4 py-2 border rounded-lg bg-gray-50 focus:bg-white transition-colors outline-none" 
-                        placeholder="بحث في المصادر..." 
+                        placeholder="بحث في المصادر المحفوظة..." 
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />
@@ -79,7 +115,7 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
             </div>
 
             {/* List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-10 custom-scrollbar">
                 {filteredLinks.map(link => (
                     <div key={link.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative">
                         <div className="flex items-start gap-3">
