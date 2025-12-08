@@ -36,6 +36,7 @@ import ExamsManager from './components/ExamsManager';
 import QuestionBank from './components/QuestionBank';
 import AutoGrading from './components/AutoGrading';
 import CurriculumManager from './components/CurriculumManager';
+import ResourcesView from './components/ResourcesView';
 
 import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar } from 'lucide-react';
 
@@ -410,16 +411,7 @@ const App: React.FC = () => {
                             currentUser={currentUser}
                         />
                     )}
-                    {currentView === 'RESOURCES_VIEW' && (
-                        // Placeholder for Resources View - reusing LessonPlanning content for now or simple message
-                        <div className="p-10 flex items-center justify-center text-gray-400">
-                            <div className="text-center">
-                                <BookOpen size={48} className="mx-auto mb-4 opacity-50"/>
-                                <h3 className="text-xl font-bold">مكتبة المصادر</h3>
-                                <p>سيتم تفعيل هذا القسم قريباً.</p>
-                            </div>
-                        </div>
-                    )}
+                    {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser} />}
                 </div>
             </main>
         </div>

@@ -1,7 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { generateLessonPlan, generateSemesterPlan, generateLearningPlan, generateLearningOutcomesMap, suggestSyllabus, organizeCourseContent } from '../services/geminiService';
-import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table, Target, ListTree, BookOpenCheck } from 'lucide-react';
+import { 
+    saveLessonPlan, getLessonPlans, deleteLessonPlan, 
+    getCurriculumUnits, getCurriculumLessons 
+} from '../services/storageService';
+import { StoredLessonPlan, CurriculumUnit, CurriculumLesson } from '../types';
+import { BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, AlertTriangle, Calendar, Map, Table, Target, ListTree, BookOpenCheck, Save, Trash2, Link } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -17,14 +21,18 @@ const TEACHING_RESOURCES = [
 ];
 
 const LessonPlanning: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'CONTENT' | 'SEMESTER' | 'LESSON' | 'OUTCOMES' | 'LEARNING'>(() => {
-        return localStorage.getItem('lesson_planning_tab') as any || 'CONTENT';
+    const [activeTab, setActiveTab] = useState<'MY_PLANS' | 'CONTENT' | 'SEMESTER' | 'LESSON' | 'OUTCOMES' | 'LEARNING'>(() => {
+        return localStorage.getItem('lesson_planning_tab') as any || 'LESSON';
     });
 
     useEffect(() => {
         localStorage.setItem('lesson_planning_tab', activeTab);
     }, [activeTab]);
 
+    // User Context (Mock - in real app pass via props)
+    const currentUser = JSON.parse(localStorage.getItem('current_user') || '{}');
+
+    // Lesson Generator State
     const [lessonStep, setLessonStep] = useState<1 | 2 | 3>(1);
     const [subject, setSubject] = useState('');
     const [topic, setTopic] = useState('');
@@ -35,6 +43,13 @@ const LessonPlanning: React.FC = () => {
     const [customObjectives, setCustomObjectives] = useState('');
     const [lessonPlanResult, setLessonPlanResult] = useState('');
     
+    // Database Integration State
+    const [myPlans, setMyPlans] = useState<StoredLessonPlan[]>([]);
+    const [units, setUnits] = useState<CurriculumUnit[]>([]);
+    const [curriculumLessons, setCurriculumLessons] = useState<CurriculumLesson[]>([]);
+    const [selectedLinkId, setSelectedLinkId] = useState(''); // ID of CurriculumLesson to link to
+
+    // Other Tabs State
     const [semSubject, setSemSubject] = useState('');
     const [semGrade, setSemGrade] = useState('');
     const [semTerm, setSemTerm] = useState('الفصل الدراسي الأول');
@@ -63,6 +78,14 @@ const LessonPlanning: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
 
+    useEffect(() => {
+        if (currentUser?.id) {
+            setMyPlans(getLessonPlans(currentUser.id));
+            setUnits(getCurriculumUnits(currentUser.id));
+            setCurriculumLessons(getCurriculumLessons()); // Get all, filter later if needed
+        }
+    }, [currentUser?.id, activeTab]);
+
     const toggleSelection = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, item: string) => {
         if (list.includes(item)) {
             setList(list.filter(i => i !== item));
@@ -84,6 +107,33 @@ const LessonPlanning: React.FC = () => {
             setLessonPlanResult("عذراً، حدث خطأ أثناء إنشاء التحضير.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSavePlan = () => {
+        if (!lessonPlanResult || !currentUser?.id) return;
+        
+        const newPlan: StoredLessonPlan = {
+            id: Date.now().toString(),
+            teacherId: currentUser.id,
+            lessonId: selectedLinkId || undefined,
+            subject: subject,
+            topic: topic,
+            contentJson: lessonPlanResult, // Storing MD as string for now
+            resources: selectedResources,
+            createdAt: new Date().toISOString()
+        };
+
+        saveLessonPlan(newPlan);
+        setMyPlans(getLessonPlans(currentUser.id));
+        alert('تم حفظ التحضير بنجاح!');
+        setActiveTab('MY_PLANS');
+    };
+
+    const handleDeletePlan = (id: string) => {
+        if(confirm('حذف هذا التحضير؟')) {
+            deleteLessonPlan(id);
+            if(currentUser?.id) setMyPlans(getLessonPlans(currentUser.id));
         }
     };
 
@@ -248,22 +298,28 @@ const LessonPlanning: React.FC = () => {
                 
                 <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
                     <button 
+                        onClick={() => setActiveTab('LESSON')}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'LESSON' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                    >
+                        <PenTool size={16}/> تحضير درس
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('MY_PLANS')}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'MY_PLANS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                    >
+                        <List size={16}/> خططي
+                    </button>
+                    <button 
                         onClick={() => setActiveTab('CONTENT')}
                         className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'CONTENT' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
                     >
-                        <BookOpenCheck size={16}/> إعداد المادة الدراسية
+                        <BookOpenCheck size={16}/> إعداد المادة
                     </button>
                     <button 
                         onClick={() => setActiveTab('SEMESTER')}
                         className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'SEMESTER' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
                     >
                         <Table size={16}/> الخطة الفصلية
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('LESSON')}
-                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'LESSON' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
-                    >
-                        <PenTool size={16}/> تحضير درس
                     </button>
                     <button 
                         onClick={() => setActiveTab('OUTCOMES')}
@@ -280,45 +336,51 @@ const LessonPlanning: React.FC = () => {
                 </div>
             </div>
 
-            {activeTab === 'CONTENT' && (
-                <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
-                    <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
-                        <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
-                            <BookOpenCheck size={20} className="text-indigo-500"/> إعداد المادة الدراسية
-                        </h3>
-                        <p className="text-xs text-gray-500 mb-4">هذه الصفحة مخصصة لتحديد محتويات المادة (الفهرس والوحدات) لتكون مرجعاً لباقي الخطط.</p>
-                        
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">المادة الدراسية</label>
-                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={contentSubject} onChange={e => setContentSubject(e.target.value)} placeholder="مثال: علوم الأرض والفضاء"/>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">الصف</label>
-                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={contentGrade} onChange={e => setContentGrade(e.target.value)} placeholder="مثال: ثالث ثانوي"/>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">محتويات المادة (الفهرس / الوحدات)</label>
-                                <textarea 
-                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-40 text-sm"
-                                    placeholder="يمكنك كتابة أو لصق فهرس الكتاب هنا (اختياري).&#10;مثال:&#10;الوحدة الأولى: ...&#10;الدرس 1: ...&#10;أو اتركها فارغة ليقوم الذكاء الاصطناعي باقتراح المنهج."
-                                    value={manualContent}
-                                    onChange={e => setManualContent(e.target.value)}
-                                />
-                            </div>
-
-                            <button onClick={handleGenerateContent} disabled={!contentSubject || !contentGrade || loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg mt-4 disabled:opacity-50">
-                                {loading ? <Loader2 className="animate-spin inline"/> : <Sparkles className="inline mr-2"/>} 
-                                {manualContent ? 'تنسيق المحتوى (AI)' : 'جلب واقتراح المنهج (AI)'}
-                            </button>
+            {/* MY PLANS TAB */}
+            {activeTab === 'MY_PLANS' && (
+                <div className="flex-1 overflow-y-auto">
+                    {myPlans.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {myPlans.map(plan => {
+                                // Find linked lesson info if any
+                                const linkedLesson = plan.lessonId ? curriculumLessons.find(l => l.id === plan.lessonId) : null;
+                                return (
+                                    <div key={plan.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative group">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <h4 className="font-bold text-lg text-gray-800 line-clamp-1">{plan.topic}</h4>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => { setLessonPlanResult(plan.contentJson); setActiveTab('LESSON'); setLessonStep(3); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><FileText size={16}/></button>
+                                                <button onClick={() => handleDeletePlan(plan.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                            </div>
+                                        </div>
+                                        <div className="text-sm text-gray-500 mb-2">
+                                            <span className="block font-bold text-indigo-600">{plan.subject}</span>
+                                            <span className="text-xs">{new Date(plan.createdAt).toLocaleDateString('ar-SA')}</span>
+                                        </div>
+                                        {linkedLesson && (
+                                            <div className="mt-2 text-xs bg-green-50 text-green-700 p-1.5 rounded border border-green-100 flex items-center gap-1">
+                                                <Link size={12}/> مرتبط بـ: {linkedLesson.title}
+                                            </div>
+                                        )}
+                                        <div className="mt-3 flex flex-wrap gap-1">
+                                            {plan.resources?.slice(0, 3).map((r, i) => (
+                                                <span key={i} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{r}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    </div>
-                    <div className="flex-1 h-full min-h-[500px]">
-                        {renderOutput(contentResult)}
-                    </div>
+                    ) : (
+                        <div className="h-64 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-xl">
+                            <PenTool size={48} className="mb-4 opacity-20"/>
+                            <p>لا توجد تحضيرات محفوظة. ابدأ بإنشاء تحضير جديد.</p>
+                        </div>
+                    )}
                 </div>
             )}
 
+            {/* LESSON TAB (GENERATOR) */}
             {activeTab === 'LESSON' && (
                 <>
                     <div className="mb-8 print:hidden">
@@ -412,8 +474,28 @@ const LessonPlanning: React.FC = () => {
 
                         {lessonStep === 3 && (
                             <div className="w-full h-full flex flex-col relative animate-fade-in">
-                                <div className="absolute top-4 right-4 z-10 print:hidden">
-                                    <button onClick={() => { setLessonStep(1); setLessonPlanResult(''); }} className="bg-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-gray-50 border">تحضير جديد</button>
+                                <div className="absolute top-4 right-4 z-10 print:hidden flex gap-2">
+                                    {/* DB Save Controls */}
+                                    <div className="flex bg-white rounded-lg border shadow-sm p-1 gap-1 items-center">
+                                        <select 
+                                            className="text-xs max-w-[150px] p-1 border rounded"
+                                            value={selectedLinkId}
+                                            onChange={e => setSelectedLinkId(e.target.value)}
+                                        >
+                                            <option value="">(اختياري) ربط بالمنهج...</option>
+                                            {units.map(u => (
+                                                <optgroup key={u.id} label={u.title}>
+                                                    {curriculumLessons.filter(l => l.unitId === u.id).map(l => (
+                                                        <option key={l.id} value={l.id}>{l.title}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                        </select>
+                                        <button onClick={handleSavePlan} className="bg-green-600 text-white px-3 py-1.5 rounded font-bold text-xs hover:bg-green-700 flex items-center gap-1">
+                                            <Save size={14}/> حفظ في خططي
+                                        </button>
+                                    </div>
+                                    <button onClick={() => { setLessonStep(1); setLessonPlanResult(''); setSelectedLinkId(''); }} className="bg-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-gray-50 border">تحضير جديد</button>
                                 </div>
                                 {renderOutput(lessonPlanResult)}
                             </div>
@@ -422,11 +504,50 @@ const LessonPlanning: React.FC = () => {
                 </>
             )}
 
+            {activeTab === 'CONTENT' && (
+                <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
+                    <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
+                        <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
+                            <BookOpenCheck size={20} className="text-indigo-500"/> إعداد المادة الدراسية
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">هذه الصفحة مخصصة لتحديد محتويات المادة (الفهرس والوحدات) لتكون مرجعاً لباقي الخطط.</p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">المادة الدراسية</label>
+                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={contentSubject} onChange={e => setContentSubject(e.target.value)} placeholder="مثال: علوم الأرض والفضاء"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">الصف</label>
+                                <input className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" value={contentGrade} onChange={e => setContentGrade(e.target.value)} placeholder="مثال: ثالث ثانوي"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">محتويات المادة (الفهرس / الوحدات)</label>
+                                <textarea 
+                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-40 text-sm"
+                                    placeholder="يمكنك كتابة أو لصق فهرس الكتاب هنا (اختياري).&#10;مثال:&#10;الوحدة الأولى: ...&#10;الدرس 1: ...&#10;أو اتركها فارغة ليقوم الذكاء الاصطناعي باقتراح المنهج."
+                                    value={manualContent}
+                                    onChange={e => setManualContent(e.target.value)}
+                                />
+                            </div>
+
+                            <button onClick={handleGenerateContent} disabled={!contentSubject || !contentGrade || loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg mt-4 disabled:opacity-50">
+                                {loading ? <Loader2 className="animate-spin inline"/> : <Sparkles className="inline mr-2"/>} 
+                                {manualContent ? 'تنسيق المحتوى (AI)' : 'جلب واقتراح المنهج (AI)'}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex-1 h-full min-h-[500px]">
+                        {renderOutput(contentResult)}
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'SEMESTER' && (
                 <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
                     <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
                         <h3 className="font-bold text-lg mb-6 border-b pb-4 flex items-center gap-2 text-gray-800">
-                            <Table size={20} className="text-indigo-500"/> إعدادات الخطة الفصلية (1447هـ)
+                            <Table size={20} className="text-indigo-500"/> إعداد الخطة الفصلية (1447هـ)
                         </h3>
                         <div className="space-y-4">
                             <div>
