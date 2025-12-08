@@ -23,6 +23,22 @@ const getConfig = () => {
     };
 };
 
+// --- NEW: Check Connection explicitly ---
+export const checkAIConnection = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+        const { model } = getConfig();
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: "Test connection. Reply with 'OK'.",
+        });
+        if (response.text) return { success: true, message: "تم الاتصال بنجاح!" };
+        return { success: false, message: "لم يتم استلام رد من النموذج." };
+    } catch (error: any) {
+        console.error("AI Connection Test Error:", error);
+        return { success: false, message: error.message || "فشل الاتصال بمفتاح API." };
+    }
+};
+
 // Helper to clean JSON string from Markdown and extra text
 function cleanJsonString(text: string): string {
     if (!text) return "[]";

@@ -14,17 +14,17 @@ import {
     getTeachers, updateTeacher
 } from '../services/storageService';
 import { updateSupabaseConfig } from '../services/supabaseClient';
+import { checkAIConnection } from '../services/geminiService';
 import { School, SystemUser, AISettings, Teacher } from '../types';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
     Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
     CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
-    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson, Crown, Star
+    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson, Crown, Star,
+    Zap, ZapOff
 } from 'lucide-react';
 
-// ==========================================
-// 1. SCHOOLS MANAGER COMPONENT
-// ==========================================
+// ... (SchoolsManager component code - no changes) ...
 const SchoolsManager = () => {
     const [schools, setSchools] = useState<School[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -199,9 +199,7 @@ const SchoolsManager = () => {
     );
 };
 
-// ==========================================
-// 2. USERS MANAGER COMPONENT
-// ==========================================
+// ... (UsersManager component code - no changes) ...
 const UsersManager = () => {
     const [users, setUsers] = useState<SystemUser[]>([]);
     const [schools, setSchools] = useState<School[]>([]);
@@ -393,9 +391,7 @@ const UsersManager = () => {
     );
 };
 
-// ==========================================
-// 3. SUBSCRIPTIONS MANAGER
-// ==========================================
+// ... (SubscriptionsManager component code - no changes) ...
 const SubscriptionsManager = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -485,10 +481,11 @@ const SubscriptionsManager = () => {
 };
 
 // ==========================================
-// 4. AI SETTINGS COMPONENT
+// 4. AI SETTINGS COMPONENT (UPDATED)
 // ==========================================
 const AISettingsView = () => {
     const [aiConfig, setAiConfig] = useState<AISettings>({ modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' });
+    const [connectionStatus, setConnectionStatus] = useState<{status: 'IDLE' | 'TESTING' | 'SUCCESS' | 'ERROR', msg: string}>({status: 'IDLE', msg: ''});
 
     useEffect(() => {
         setAiConfig(getAISettings());
@@ -499,6 +496,16 @@ const AISettingsView = () => {
         alert('تم حفظ إعدادات الذكاء الاصطناعي.');
     };
 
+    const handleTestConnection = async () => {
+        setConnectionStatus({ status: 'TESTING', msg: 'جاري فحص الاتصال...' });
+        const res = await checkAIConnection();
+        if (res.success) {
+            setConnectionStatus({ status: 'SUCCESS', msg: res.message });
+        } else {
+            setConnectionStatus({ status: 'ERROR', msg: res.message });
+        }
+    };
+
     return (
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm animate-fade-in max-w-4xl mx-auto">
             <div className="flex items-center gap-3 border-b pb-4 mb-4">
@@ -507,6 +514,28 @@ const AISettingsView = () => {
                     <h3 className="font-bold text-gray-800">إعدادات الذكاء الاصطناعي (Gemini)</h3>
                     <p className="text-xs text-gray-500">التحكم في نماذج التوليد والمميزات الذكية</p>
                 </div>
+            </div>
+
+            {/* Connection Test Section */}
+            <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${connectionStatus.status === 'SUCCESS' ? 'bg-green-100 text-green-600' : connectionStatus.status === 'ERROR' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'}`}>
+                        {connectionStatus.status === 'SUCCESS' ? <Zap size={20}/> : connectionStatus.status === 'ERROR' ? <ZapOff size={20}/> : <BrainCircuit size={20}/>}
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-gray-800">فحص الاتصال (API Check)</h4>
+                        <p className={`text-xs ${connectionStatus.status === 'SUCCESS' ? 'text-green-600 font-bold' : connectionStatus.status === 'ERROR' ? 'text-red-600' : 'text-gray-500'}`}>
+                            {connectionStatus.msg || 'لم يتم الفحص بعد'}
+                        </p>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleTestConnection} 
+                    disabled={connectionStatus.status === 'TESTING'}
+                    className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors"
+                >
+                    {connectionStatus.status === 'TESTING' ? 'جاري الفحص...' : 'فحص الاتصال'}
+                </button>
             </div>
 
             <div className="space-y-5">
@@ -569,9 +598,7 @@ const AISettingsView = () => {
     );
 };
 
-// ==========================================
-// 5. DATABASE SETTINGS
-// ==========================================
+// ... (DatabaseSettings component and main AdminDashboard wrapper - no changes) ...
 const DatabaseSettings = () => {
     const [dbTab, setDbTab] = useState<'CONFIG' | 'CLOUD' | 'MAINTENANCE'>('CONFIG');
     const [connectionStatus, setConnectionStatus] = useState<'CHECKING' | 'CONNECTED' | 'ERROR' | 'IDLE'>('IDLE');
@@ -947,9 +974,6 @@ const DatabaseSettings = () => {
     );
 };
 
-// ==========================================
-// 6. MAIN ADMIN DASHBOARD WRAPPER
-// ==========================================
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState<'SCHOOLS' | 'USERS' | 'SUBSCRIPTIONS' | 'AI' | 'DATABASE'>('SCHOOLS');
 
