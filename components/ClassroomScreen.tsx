@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser } from '../types';
 import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star, Siren, BarChart2, Check, Zap } from 'lucide-react';
@@ -801,7 +802,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
                                 <h4 className="text-blue-300 font-bold mb-3 flex items-center gap-2"><BarChart2 size={16}/> تصويت سريع</h4>
                                 <div className="flex gap-2 items-end h-32 mb-2">
                                     {['A', 'B', 'C', 'D'].map(opt => {
-                                        const totalVotes = Object.values(pollVotes).reduce((a: number, b: number) => a + b, 0);
+                                        const totalVotes = (Object.values(pollVotes) as number[]).reduce((a, b) => a + b, 0);
                                         const count = pollVotes[opt as keyof typeof pollVotes];
                                         const pct = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
                                         return (

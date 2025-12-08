@@ -29,7 +29,7 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
     }, [currentUser]);
 
     // Fix: Explicitly type ensuring no undefined values
-    const uniqueClasses = useMemo(() => {
+    const uniqueClasses = useMemo<string[]>(() => {
         const classes = new Set<string>();
         students.forEach(s => {
             if (s.className) classes.add(s.className);
@@ -38,11 +38,13 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
     }, [students]);
 
     const createNewSheet = () => {
+        const defaultClass = uniqueClasses.length > 0 ? (uniqueClasses[0] || '') : '';
+        
         const newSheet: TrackingSheet = {
             id: Date.now().toString(),
             title: 'سجل جديد',
             subject: subjects.length > 0 ? subjects[0].name : '',
-            className: uniqueClasses.length > 0 ? uniqueClasses[0] : '',
+            className: defaultClass,
             teacherId: currentUser.id,
             createdAt: new Date().toISOString(),
             columns: [
