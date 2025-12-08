@@ -350,4 +350,15 @@ export interface StoredLessonPlan {
     createdAt: string;
 }
 
+export type LessonBlockType = 'OBJECTIVES' | 'INTRO' | 'STRATEGIES' | 'CONTENT' | 'ACTIVITY' | 'MEDIA' | 'ASSESSMENT' | 'HOMEWORK';
+
+export interface LessonBlock {
+    id: string;
+    type: LessonBlockType;
+    title: string;
+    content: string;
+    mediaUrl?: string; // Optional for images/videos
+    duration?: number; // Optional duration in minutes
+}
+
 export type ViewState = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'PERFORMANCE' | 'WORKS_TRACKING' | 'STUDENT_FOLLOWUP' | 'AI_REPORTS' | 'AI_TOOLS' | 'CLASSROOM_SCREEN' | 'CLASSROOM_MANAGEMENT' | 'DATA_IMPORT' | 'SCHOOL_MANAGEMENT' | 'ADMIN_DASHBOARD' | 'CUSTOM_TABLES' | 'MONTHLY_REPORT' | 'MESSAGE_CENTER' | 'AI_DATA_IMPORT' | 'LESSON_PLANNING' | 'SUBSCRIPTION' | 'EXAMS_MANAGER' | 'QUESTION_BANK' | 'AUTO_GRADING' | 'CURRICULUM_MAP' | 'RESOURCES_VIEW' | 'SCHEDULE_VIEW';
