@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, LessonBlock } from "../types";
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, LessonBlock, Exam } from "../types";
 import { getAISettings } from "./storageService";
 
 // Initialize with ENV key - but config can be dynamic
@@ -46,12 +46,17 @@ function cleanJsonString(text: string): string {
     // 1. Remove markdown code blocks
     let clean = text.replace(/```json/gi, '').replace(/```/g, '');
     
-    // 2. Extract only the array part [ ... ]
+    // 2. Extract only the array part [ ... ] or object part { ... }
     const firstBracket = clean.indexOf('[');
-    const lastBracket = clean.lastIndexOf(']');
+    const firstBrace = clean.indexOf('{');
     
-    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-        return clean.substring(firstBracket, lastBracket + 1);
+    // Determine if it's likely an array or object
+    if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+        const lastBracket = clean.lastIndexOf(']');
+        if (lastBracket > firstBracket) return clean.substring(firstBracket, lastBracket + 1);
+    } else if (firstBrace !== -1) {
+        const lastBrace = clean.lastIndexOf('}');
+        if (lastBrace > firstBrace) return clean.substring(firstBrace, lastBrace + 1);
     }
 
     return clean.trim();
@@ -107,6 +112,70 @@ function tryRepairJson(jsonString: string): string {
 
     return fixed;
 }
+
+// --- NEW: Grade Exam Paper ---
+export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<any> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.quiz) throw new Error("AI Grading is disabled");
+
+    const questionsContext = exam.questions.map((q, i) => 
+        `Q${i+1}: ${q.text} (Type: ${q.type}, Points: ${q.points}, Correct Answer: ${q.correctAnswer})`
+    ).join('\n');
+
+    const prompt = `
+    Act as a strict teacher grading an exam paper.
+    
+    Exam Context:
+    - Title: ${exam.title}
+    - Questions & Key:
+    ${questionsContext}
+
+    Task:
+    1. Analyze the image to identify the student's name (if written).
+    2. Review the student's answers for each question visible in the image.
+    3. Compare with the Correct Answer key.
+    4. Provide a JSON output with the grading results.
+
+    Output JSON Format:
+    {
+      "studentNameDetected": "Name or null",
+      "totalScore": number,
+      "maxTotalScore": number,
+      "questions": [
+        {
+          "index": 1,
+          "questionText": "...",
+          "studentAnswer": "...",
+          "isCorrect": boolean,
+          "score": number,
+          "feedback": "Short reason if wrong"
+        }
+      ]
+    }
+    `;
+
+    try {
+        const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+        const response = await ai.models.generateContent({
+            model: model, // Must support vision (gemini-2.5-flash does)
+            contents: {
+                parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }
+                ]
+            },
+            config: {
+                responseMimeType: "application/json",
+                temperature: 0.2, // Low temp for accuracy
+            }
+        });
+        
+        return JSON.parse(cleanJsonString(response.text || "{}"));
+    } catch (error) {
+        console.error("Auto Grading Error:", error);
+        throw new Error("فشل التصحيح الآلي. تأكد من جودة الصورة.");
+    }
+};
 
 // --- NEW: Regenerate Single Block ---
 export const regenerateSingleBlock = async (
