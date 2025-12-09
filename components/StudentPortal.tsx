@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem } from '../types';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
@@ -13,9 +13,9 @@ interface StudentPortalProps {
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
     // Restore last view from session storage or default
-    const [view, setView] = useState<'DASHBOARD' | 'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS'>(() => {
+    const [view, setView] = useState<'DASHBOARD' | 'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS' | 'WEEKLY_PLAN'>(() => {
         const saved = sessionStorage.getItem('student_last_view');
-        return (saved && ['DASHBOARD', 'PROFILE', 'ATTENDANCE', 'EVALUATION', 'TIMETABLE', 'CUSTOM_RECORDS', 'EXAMS'].includes(saved)) ? saved as any : 'DASHBOARD';
+        return (saved && ['DASHBOARD', 'PROFILE', 'ATTENDANCE', 'EVALUATION', 'TIMETABLE', 'CUSTOM_RECORDS', 'EXAMS', 'WEEKLY_PLAN'].includes(saved)) ? saved as any : 'DASHBOARD';
     });
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -36,6 +36,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
     const navItems = [
         { id: 'DASHBOARD', label: 'الرئيسية', icon: LayoutGrid },
+        { id: 'WEEKLY_PLAN', label: 'الخطة الأسبوعية', icon: CalendarDays },
         { id: 'EVALUATION', label: 'تقييمي (درجاتي)', icon: Award },
         { id: 'TIMETABLE', label: 'الجدول الدراسي', icon: Clock },
         { id: 'EXAMS', label: 'الاختبارات والواجبات', icon: FileQuestion },
@@ -55,7 +56,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     <h1 className="text-lg font-bold text-gray-800 text-center">{currentUser.name}</h1>
                     <p className="text-xs text-gray-500 font-medium">{currentUser.className}</p>
                 </div>
-                <nav className="flex-1 p-4 space-y-2">
+                <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
                     {navItems.map(item => (
                         <button
                             key={item.id}
@@ -141,6 +142,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-50 custom-scrollbar w-full">
                     {view === 'DASHBOARD' && <StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={setView} />}
+                    {view === 'WEEKLY_PLAN' && <StudentWeeklyPlan student={currentUser} />}
                     {view === 'PROFILE' && <StudentProfile student={currentUser} />}
                     {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} />}
                     {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} />}
@@ -152,6 +154,91 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         </div>
     );
 };
+
+// --- NEW: STUDENT WEEKLY PLAN ---
+const StudentWeeklyPlan = ({ student }: { student: Student }) => {
+    const [allPlans, setAllPlans] = useState<WeeklyPlanItem[]>([]);
+    const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+        const d = new Date();
+        const day = d.getDay();
+        d.setDate(d.getDate() - day);
+        return d.toISOString().split('T')[0];
+    });
+
+    useEffect(() => {
+        // In real app, fetch only relevant plans. Here we fetch all then filter.
+        // Assuming global access or filtered by backend. Here checking local.
+        const plans = getWeeklyPlans().filter(p => p.classId === student.className);
+        setAllPlans(plans);
+    }, [student]);
+
+    const changeWeek = (dir: number) => {
+        const d = new Date(currentWeekStart);
+        d.setDate(d.getDate() + (dir * 7));
+        setCurrentWeekStart(d.toISOString().split('T')[0]);
+    };
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+
+    const currentWeekPlans = useMemo(() => {
+        return allPlans.filter(p => p.weekStartDate === currentWeekStart).sort((a,b) => a.period - b.period);
+    }, [allPlans, currentWeekStart]);
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-10">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <CalendarDays className="text-teal-600"/> الخطة الأسبوعية
+                </h2>
+                <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border">
+                    <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight/></button>
+                    <div className="font-bold text-gray-700 min-w-[120px] text-center">{formatDualDate(currentWeekStart).split('|')[0]}</div>
+                    <button onClick={() => changeWeek(1)} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft/></button>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                {days.map(day => {
+                    const dayPlans = currentWeekPlans.filter(p => p.day === day);
+                    const isToday = new Date().toLocaleDateString('en-US', { weekday: 'long' }) === day && new Date().toISOString().split('T')[0] >= currentWeekStart && new Date().toISOString().split('T')[0] <= new Date(new Date(currentWeekStart).setDate(new Date(currentWeekStart).getDate()+6)).toISOString().split('T')[0];
+
+                    return (
+                        <div key={day} className={`bg-white rounded-xl shadow-sm border overflow-hidden ${isToday ? 'border-teal-500 ring-1 ring-teal-200' : 'border-gray-200'}`}>
+                            <div className={`p-3 font-bold text-lg border-b ${isToday ? 'bg-teal-50 text-teal-800' : 'bg-gray-50 text-gray-700'}`}>
+                                {dayNamesAr[day as keyof typeof dayNamesAr]}
+                                {isToday && <span className="mr-2 text-xs bg-teal-600 text-white px-2 py-0.5 rounded-full">اليوم</span>}
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {dayPlans.length > 0 ? dayPlans.map(plan => (
+                                    <div key={plan.id} className="p-4 flex flex-col md:flex-row gap-4 items-start">
+                                        <div className="min-w-[100px] flex items-center gap-2">
+                                            <span className="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded">حصة {plan.period}</span>
+                                            <span className="font-bold text-gray-800 text-sm">{plan.subjectName}</span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold text-purple-700 mb-1 flex items-center gap-2"><BookOpen size={14}/> {plan.lessonTopic}</p>
+                                            {plan.homework && (
+                                                <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 flex items-start gap-2">
+                                                    <FileText size={12} className="shrink-0 mt-0.5"/> 
+                                                    {plan.homework}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="p-6 text-center text-gray-400 text-sm">لا توجد خطة مسجلة لهذا اليوم.</div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+// ... (Rest of the components: StudentDashboard, ExamRunner, VerticalDate, StudentCustomRecords, StudentProfile, StudentTimetable, StudentAttendanceView, StudentEvaluationView - Keep existing) ...
 
 // --- STUDENT DASHBOARD COMPONENT ---
 const StudentDashboard = ({ student, attendance, performance, onViewChange }: { student: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[], onViewChange: (v: any) => void }) => {
@@ -304,6 +391,10 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: { 
             {/* Quick Access Grid */}
             <h3 className="font-bold text-gray-700 mt-8 mb-4">الوصول السريع</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button onClick={() => onViewChange('WEEKLY_PLAN')} className="p-4 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center gap-2 transition-all hover:-translate-y-1 hover:shadow-md group">
+                    <div className="bg-indigo-100 p-3 rounded-full text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors"><CalendarDays size={24}/></div>
+                    <span className="font-bold text-gray-700 text-sm">الخطة الأسبوعية</span>
+                </button>
                 <button onClick={() => onViewChange('EVALUATION')} className="p-4 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center gap-2 transition-all hover:-translate-y-1 hover:shadow-md group">
                     <div className="bg-blue-100 p-3 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors"><Award size={24}/></div>
                     <span className="font-bold text-gray-700 text-sm">درجاتي</span>
@@ -316,10 +407,6 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: { 
                     <div className="bg-orange-100 p-3 rounded-full text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors"><Table size={24}/></div>
                     <span className="font-bold text-gray-700 text-sm">السجلات</span>
                 </button>
-                <button onClick={() => onViewChange('PROFILE')} className="p-4 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center gap-2 transition-all hover:-translate-y-1 hover:shadow-md group">
-                    <div className="bg-gray-100 p-3 rounded-full text-gray-600 group-hover:bg-gray-800 group-hover:text-white transition-colors"><User size={24}/></div>
-                    <span className="font-bold text-gray-700 text-sm">حسابي</span>
-                </button>
             </div>
         </div>
     );
@@ -327,7 +414,6 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: { 
 
 // ... (Rest of the components: StudentExamsView, ExamRunner, VerticalDate, StudentCustomRecords, StudentProfile, StudentTimetable, StudentAttendanceView, StudentEvaluationView - Keep existing) ...
 
-// --- NEW: STUDENT EXAMS VIEW ---
 const StudentExamsView = ({ student }: { student: Student }) => {
     const [exams, setExams] = useState<Exam[]>([]);
     const [myResults, setMyResults] = useState<ExamResult[]>([]);

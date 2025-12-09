@@ -86,6 +86,18 @@ export interface ScheduleItem {
   teacherId?: string; // Linked Teacher ID
 }
 
+export interface WeeklyPlanItem {
+  id: string;
+  teacherId: string;
+  classId: string;
+  subjectName: string;
+  day: DayOfWeek;
+  period: number;
+  weekStartDate: string; // YYYY-MM-DD of the Sunday of that week
+  lessonTopic: string;
+  homework: string;
+}
+
 export enum AttendanceStatus {
   PRESENT = 'PRESENT',
   ABSENT = 'ABSENT',

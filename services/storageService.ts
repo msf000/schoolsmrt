@@ -5,7 +5,7 @@ import {
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
     LessonLink, MessageLog, Feedback, ReportHeaderConfig, AISettings, UserTheme, 
     PerformanceCategory, Exam, ExamResult, Question, StoredLessonPlan,
-    CurriculumUnit, CurriculumLesson, MicroConcept, TrackingSheet
+    CurriculumUnit, CurriculumLesson, MicroConcept, TrackingSheet, WeeklyPlanItem
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -33,7 +33,8 @@ export const DB_MAP: Record<string, string> = {
     question_bank: 'question_bank',
     exams: 'exams',
     exam_results: 'exam_results',
-    tracking_sheets: 'tracking_sheets'
+    tracking_sheets: 'tracking_sheets',
+    weekly_plans: 'weekly_plans'
 };
 
 const INITIAL_DATA = {
@@ -59,6 +60,7 @@ const INITIAL_DATA = {
     exams: [] as Exam[],
     exam_results: [] as ExamResult[],
     tracking_sheets: [] as TrackingSheet[],
+    weekly_plans: [] as WeeklyPlanItem[],
     report_header_config: { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' } as ReportHeaderConfig,
     ai_settings: { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' } as AISettings,
     user_theme: { mode: 'LIGHT', backgroundStyle: 'FLAT' } as UserTheme,
@@ -630,6 +632,23 @@ export const deleteTrackingSheet = (id: string) => {
     pushToCloud('tracking_sheets', { id }, 'DELETE');
 };
 
+// Weekly Plans
+export const getWeeklyPlans = (teacherId?: string) => {
+    if (!teacherId) return CACHE.weekly_plans;
+    return CACHE.weekly_plans.filter(p => p.teacherId === teacherId);
+};
+export const saveWeeklyPlanItem = (item: WeeklyPlanItem) => {
+    const list = [...CACHE.weekly_plans];
+    const idx = list.findIndex(p => p.id === item.id);
+    if (idx > -1) list[idx] = item; else list.push(item);
+    saveToLocal('weekly_plans', list);
+    pushToCloud('weekly_plans', item);
+};
+export const deleteWeeklyPlanItem = (id: string) => {
+    saveToLocal('weekly_plans', CACHE.weekly_plans.filter(p => p.id !== id));
+    pushToCloud('weekly_plans', { id }, 'DELETE');
+};
+
 // --- SYSTEM UTILS ---
 
 export const getStorageStatistics = () => {
@@ -689,16 +708,10 @@ create table if not exists question_bank (id text primary key, text text, type t
 create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text, date text);
 create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
 create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
+create table if not exists weekly_plans (id text primary key, teacherId text, classId text, subjectName text, day text, period numeric, weekStartDate text, lessonTopic text, homework text);
 `;
 
 export const getDatabaseUpdateSQL = () => `
 -- Updates
-create table if not exists lesson_plans (id text primary key, teacherId text, lessonId text, subject text, topic text, contentJson text, resources jsonb, createdAt text);
-create table if not exists curriculum_units (id text primary key, teacherId text, subject text, gradeLevel text, title text, orderIndex numeric);
-create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
-create table if not exists micro_concepts (id text primary key, teacherId text, subject text, name text);
-create table if not exists question_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
-create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text, date text);
-create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
-create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
+create table if not exists weekly_plans (id text primary key, teacherId text, classId text, subjectName text, day text, period numeric, weekStartDate text, lessonTopic text, homework text);
 `;
