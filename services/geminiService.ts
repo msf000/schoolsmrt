@@ -388,6 +388,50 @@ export const generateCurriculumMap = async (
     }
 };
 
+export const generateClassReport = async (
+    className: string,
+    period: string,
+    stats: { attendanceRate: number, avgScore: number, topStudent: string, totalStudents: number }
+): Promise<string> => {
+    const { model, config, enabled } = getConfig();
+    if (!enabled.reports) return "التقارير الذكية معطلة.";
+
+    const prompt = `
+    Act as an educational consultant. Analyze the following class data and write a concise, professional summary report in Arabic for the school principal.
+    
+    Class: ${className}
+    Period: ${period}
+    Total Students: ${stats.totalStudents}
+    
+    Data:
+    - Overall Attendance Rate: ${stats.attendanceRate}%
+    - Academic Class Average: ${stats.avgScore}%
+    - Top Performing Student: ${stats.topStudent || 'N/A'}
+    
+    Required Output Sections (in Markdown):
+    1. **نظرة عامة**: One sentence summary of the class performance.
+    2. **نقاط القوة**: Mention high attendance or good grades if applicable.
+    3. **توصيات**: Suggest 1-2 actions to improve (e.g., remedial classes, parent meeting) based on the data.
+    
+    Tone: Professional, Constructive.
+    `;
+
+    try {
+        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                temperature: 0.7,
+                systemInstruction: config.systemInstruction
+            }
+        }));
+        return response.text || "لم يتم إنشاء التقرير.";
+    } catch (error) {
+        console.error("Class Report Gen Error:", error);
+        return "حدث خطأ أثناء توليد التقرير.";
+    }
+};
+
 export const generateParentMessage = async (studentName: string, topic: string, tone: 'OFFICIAL' | 'FRIENDLY' | 'URGENT'): Promise<string> => {
     const { model, config } = getConfig();
     const toneDesc = tone === 'OFFICIAL' ? 'رسمية ومهنية' : tone === 'FRIENDLY' ? 'ودية ومشجعة' : 'حازمة وعاجلة';

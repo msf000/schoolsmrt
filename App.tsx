@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
@@ -117,17 +118,18 @@ const App: React.FC = () => {
                  allAttendance = allAttendance.filter(a => a.studentId === currentUser.id);
                  allPerformance = allPerformance.filter(p => p.studentId === currentUser.id);
              } else if (currentUser.role === 'PARENT') {
-                 // Parents see only linked children
-                 // (Handled inside ParentPortal, but for safety we could filter here too)
-                 // Keeping it open for ParentPortal to do aggregation
-             } else if (currentUser.schoolId) {
-                 allStudents = allStudents.filter(s => 
-                    s.schoolId === currentUser.schoolId || 
-                    s.createdById === currentUser.id || 
-                    !s.schoolId
-                 );
+                 // Parents see linked children (logic in ParentPortal handles aggregation)
+             } else if (currentUser.role === 'SCHOOL_MANAGER') {
+                 if (currentUser.schoolId) {
+                     allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
+                 }
              } else if (currentUser.role === 'TEACHER') {
-                 allStudents = allStudents.filter(s => s.createdById === currentUser.id || !s.createdById);
+                 // Teachers see students they created OR students in their school (if linked) OR generic students
+                 allStudents = allStudents.filter(s => 
+                     (currentUser.schoolId && s.schoolId === currentUser.schoolId) || 
+                     s.createdById === currentUser.id || 
+                     !s.createdById
+                 );
              }
              
              if (currentUser.role !== 'PARENT') {
@@ -458,7 +460,7 @@ const App: React.FC = () => {
                     {currentView === 'ATTENDANCE' && <AttendanceComponent students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={handleImportAttendance} currentUser={currentUser} onNavigate={setCurrentView} />}
                     {currentView === 'PERFORMANCE' && <PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance} onDeletePerformance={handleDeletePerformance} currentUser={currentUser} />}
                     {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance} currentUser={currentUser}/>}
-                    {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser}/>}
+                    {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser} onSaveAttendance={handleSaveAttendance}/>}
                     {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance} performance={performance}/>}
                     {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance}/>}
                     {currentView === 'CLASSROOM_MANAGEMENT' && (
@@ -493,7 +495,7 @@ const App: React.FC = () => {
                     )}
                     {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser} />}
                     {currentView === 'FLEXIBLE_TRACKING' && <FlexibleTrackingSheet currentUser={currentUser} />}
-                    {currentView === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} />}
+                    {currentView === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} onSaveAttendance={handleSaveAttendance} />}
                 </div>
             </main>
         </div>

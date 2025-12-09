@@ -1,12 +1,13 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { getSchools, saveAttendance } from '../services/storageService';
-import { Award, Printer, CheckSquare, Search, Sparkles, Star, Medal, ThumbsUp, Calendar, LayoutTemplate, TrendingUp, CheckCircle } from 'lucide-react';
+import { getSchools } from '../services/storageService';
+import { Award, Printer, CheckSquare, Search, LayoutTemplate, TrendingUp, Medal, Star, ThumbsUp } from 'lucide-react';
 
 interface CertificatesCenterProps {
     students: Student[];
     currentUser?: SystemUser | null;
+    onSaveAttendance?: (records: AttendanceRecord[]) => void;
 }
 
 const TEMPLATES = [
@@ -16,13 +17,12 @@ const TEMPLATES = [
     { id: 'THANKS', label: 'شكر عام', icon: ThumbsUp, color: 'text-purple-600', border: 'border-purple-600', bg: 'bg-purple-50', title: 'شهادة شكر وتقدير' },
 ];
 
-const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, currentUser }) => {
+const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, currentUser, onSaveAttendance }) => {
     const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0]);
     const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
     const [filterClass, setFilterClass] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [customText, setCustomText] = useState('نظير جهوده المتميزة ومستواه الرائع خلال الفترة الماضية، متمنين له دوام التوفيق.');
-    const [printMode, setPrintMode] = useState(false);
     const [logToHistory, setLogToHistory] = useState(true);
 
     const [schoolInfo, setSchoolInfo] = useState<School | undefined>(() => {
@@ -54,7 +54,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     };
 
     const handlePrint = () => {
-        if (logToHistory) {
+        if (logToHistory && onSaveAttendance) {
             const records: AttendanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
             
@@ -70,13 +70,11 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                 });
             });
             
-            if (records.length > 0) saveAttendance(records);
+            if (records.length > 0) onSaveAttendance(records);
         }
 
-        setPrintMode(true);
         setTimeout(() => {
             window.print();
-            setPrintMode(false);
         }, 500);
     };
 

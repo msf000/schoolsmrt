@@ -1,9 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord } from '../types';
-import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp, Smile, Frown, Users, UserCheck, Star } from 'lucide-react';
+import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp, Smile, Frown, Users, UserCheck, Star, Sparkles, BrainCircuit } from 'lucide-react';
 import { getReportHeaderConfig, getSubjects } from '../services/storageService';
+import { generateClassReport } from '../services/geminiService';
 import * as XLSX from 'xlsx';
+import ReactMarkdown from 'react-markdown';
 
 interface MonthlyReportProps {
   students: Student[];
@@ -32,6 +34,10 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
   const [selectedSubject, setSelectedSubject] = useState('');
   const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig>({ schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', logoBase64: '' });
   const [subjects, setSubjects] = useState<string[]>([]);
+  
+  // AI State
+  const [aiSummary, setAiSummary] = useState('');
+  const [loadingAI, setLoadingAI] = useState(false);
 
   useEffect(() => {
       setHeaderConfig(getReportHeaderConfig());
@@ -219,6 +225,30 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
       setStartDate(start.toISOString().split('T')[0]);
   };
 
+  const handleAIAnalysis = async () => {
+        if (!classSummary || !selectedClass) return;
+        setLoadingAI(true);
+        setAiSummary('');
+        
+        try {
+            const summary = await generateClassReport(
+                selectedClass, 
+                headerConfig.term || 'الفترة الحالية',
+                {
+                    attendanceRate: classSummary.attendanceRate,
+                    avgScore: classSummary.classAvg,
+                    topStudent: classSummary.topStudentName,
+                    totalStudents: filteredStudents.length
+                }
+            );
+            setAiSummary(summary);
+        } catch (e) {
+            setAiSummary('تعذر إنشاء التقرير. تأكد من الاتصال بالإنترنت.');
+        } finally {
+            setLoadingAI(false);
+        }
+  };
+
   const handlePrint = () => window.print();
 
   const handleExportExcel = () => {
@@ -296,7 +326,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                     <Filter size={16} className="text-gray-500"/>
                     <select 
                         value={selectedClass} 
-                        onChange={(e) => { setSelectedClass(e.target.value); }}
+                        onChange={(e) => { setSelectedClass(e.target.value); setAiSummary(''); }}
                         className="bg-transparent w-full text-sm font-bold outline-none"
                     >
                         <option value="">-- اختر الفصل --</option>
@@ -315,6 +345,16 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                         {subjects.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                 </div>
+
+                {selectedClass && (
+                    <button 
+                        onClick={handleAIAnalysis} 
+                        disabled={loadingAI}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-2 hover:opacity-90 disabled:opacity-50 shadow-md"
+                    >
+                        {loadingAI ? <Loader2 className="animate-spin" size={14}/> : <BrainCircuit size={14}/>} تحليل AI
+                    </button>
+                )}
 
                 <button onClick={handleExportExcel} disabled={!selectedClass} className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-2 hover:bg-green-700 disabled:opacity-50">
                     <Download size={14}/> إكسل
@@ -372,6 +412,18 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                             الفصل: <span className="font-normal mr-2">{selectedClass}</span>
                         </div>
                     </div>
+
+                    {/* AI SUMMARY BOX */}
+                    {aiSummary && (
+                        <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4 print:bg-white print:border-black">
+                            <h3 className="font-bold text-purple-800 flex items-center gap-2 mb-2 print:text-black">
+                                <Sparkles size={16} className="text-purple-600 print:hidden"/> تحليل الأداء الذكي
+                            </h3>
+                            <div className="prose prose-sm prose-purple max-w-none text-gray-700 print:text-black leading-relaxed">
+                                <ReactMarkdown>{aiSummary}</ReactMarkdown>
+                            </div>
+                        </div>
+                    )}
 
                     {/* NEW: Class Performance Summary (Cards) */}
                     {classSummary && (

@@ -2,8 +2,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem } from '../types';
 import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -156,7 +157,454 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     );
 };
 
-// ... (Other components: StudentWeeklyPlan, StudentDashboard, etc. omitted for brevity as they are unchanged) ...
+// --- SUB-COMPONENTS ---
+
+const StudentDashboard = ({ student, attendance, performance, onViewChange }: any) => {
+    // Stats
+    const totalScore = performance.reduce((acc: number, curr: PerformanceRecord) => acc + (curr.score / curr.maxScore), 0);
+    const avgScore = performance.length > 0 ? Math.round((totalScore / performance.length) * 100) : 0;
+    
+    const totalAtt = attendance.length;
+    const present = attendance.filter((a: AttendanceRecord) => a.status === 'PRESENT' || a.status === 'LATE').length;
+    const attRate = totalAtt > 0 ? Math.round((present / totalAtt) * 100) : 100;
+
+    // Next Class Logic
+    const [nextClass, setNextClass] = useState<ScheduleItem | null>(null);
+    useEffect(() => {
+        const schedules = getSchedules();
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = days[new Date().getDay()];
+        const mySchedule = schedules.filter(s => s.classId === student.className && s.day === today);
+        // Simple logic: assume current hour determines period (mock: period 1 at 7am)
+        const currentHour = new Date().getHours();
+        const currentPeriod = currentHour - 6; // 7am -> 1, 8am -> 2...
+        const next = mySchedule.find(s => s.period >= currentPeriod) || mySchedule[0]; // Or first of day if early
+        setNextClass(next || null);
+    }, [student]);
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            {/* Welcome Banner */}
+            <div className="bg-gradient-to-r from-teal-600 to-teal-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                <div className="relative z-10">
+                    <h2 className="text-2xl font-bold mb-1">مرحباً، {student.name} 👋</h2>
+                    <p className="text-teal-100 opacity-90">نتمنى لك يوماً دراسياً ممتعاً ومليئاً بالإنجازات.</p>
+                </div>
+                <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10">
+                    <Award size={150} />
+                </div>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
+                    <div className="text-gray-500 text-xs font-bold mb-1">الحضور</div>
+                    <div className={`text-2xl font-black ${attRate >= 90 ? 'text-green-600' : 'text-orange-500'}`}>{attRate}%</div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
+                    <div className="text-gray-500 text-xs font-bold mb-1">المعدل العام</div>
+                    <div className="text-2xl font-black text-blue-600">{avgScore}%</div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
+                    <div className="text-gray-500 text-xs font-bold mb-1">الواجبات</div>
+                    <div className="text-2xl font-black text-purple-600">{performance.filter((p:any) => p.category === 'HOMEWORK').length}</div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
+                    <div className="text-gray-500 text-xs font-bold mb-1">السلوك الإيجابي</div>
+                    <div className="text-2xl font-black text-yellow-500">{attendance.filter((a:any) => a.behaviorStatus === 'POSITIVE').length}</div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Next Class */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => onViewChange('TIMETABLE')}>
+                    <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2"><Clock className="text-teal-600"/> الحصة القادمة</h3>
+                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">جدول اليوم</span>
+                    </div>
+                    {nextClass ? (
+                        <div className="text-center py-4 bg-teal-50 rounded-xl border border-teal-100">
+                            <h4 className="text-xl font-black text-teal-800 mb-1">{nextClass.subjectName}</h4>
+                            <p className="text-sm text-teal-600">الحصة {nextClass.period}</p>
+                        </div>
+                    ) : (
+                        <div className="text-center py-4 text-gray-400 text-sm">لا توجد حصص متبقية اليوم</div>
+                    )}
+                </div>
+
+                {/* Latest Grade */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => onViewChange('EVALUATION')}>
+                    <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2"><TrendingUp className="text-purple-600"/> آخر درجة</h3>
+                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">سجل الدرجات</span>
+                    </div>
+                    {performance.length > 0 ? (
+                        <div className="text-center py-4 bg-purple-50 rounded-xl border border-purple-100">
+                            <h4 className="text-xl font-black text-purple-800 mb-1">
+                                {performance[performance.length-1].score} / {performance[performance.length-1].maxScore}
+                            </h4>
+                            <p className="text-sm text-purple-600">{performance[performance.length-1].subject} - {performance[performance.length-1].title}</p>
+                        </div>
+                    ) : (
+                        <div className="text-center py-4 text-gray-400 text-sm">لا توجد درجات مسجلة</div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const StudentWeeklyPlan = ({ student }: { student: Student }) => {
+    const [weekStart, setWeekStart] = useState(() => {
+        const d = new Date();
+        const day = d.getDay();
+        d.setDate(d.getDate() - day);
+        return d.toISOString().split('T')[0];
+    });
+    const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
+
+    useEffect(() => {
+        // Fetch ALL plans then filter by class & week
+        const allPlans = getWeeklyPlans();
+        const filtered = allPlans.filter(p => p.classId === student.className && p.weekStartDate === weekStart);
+        setPlans(filtered);
+    }, [weekStart, student]);
+
+    const changeWeek = (dir: number) => {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + (dir * 7));
+        setWeekStart(d.toISOString().split('T')[0]);
+    };
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><CalendarDays className="text-teal-600"/> الخطة الأسبوعية</h2>
+                <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
+                    <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
+                    <span className="text-xs font-bold w-24 text-center">{formatDualDate(weekStart).split('|')[0]}</span>
+                    <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronLeft size={16}/></button>
+                </div>
+            </div>
+
+            <div className="grid gap-4">
+                {days.map(day => {
+                    const dayPlans = plans.filter(p => p.day === day).sort((a,b) => a.period - b.period);
+                    return (
+                        <div key={day} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 p-3 border-b border-gray-100 font-bold text-gray-700 flex justify-between">
+                                <span>{dayNamesAr[day]}</span>
+                                <span className="text-xs font-normal text-gray-400">{dayPlans.length} حصص</span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {dayPlans.length > 0 ? dayPlans.map(plan => (
+                                    <div key={plan.id} className="p-4 hover:bg-gray-50 transition-colors">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="bg-teal-100 text-teal-800 text-xs font-bold px-2 py-1 rounded">حصة {plan.period}</span>
+                                                <h4 className="font-bold text-gray-800">{plan.subjectName}</h4>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-2">
+                                            <div className="bg-blue-50 p-2 rounded border border-blue-100">
+                                                <span className="text-blue-500 font-bold block text-xs mb-1">الدرس:</span>
+                                                <p className="text-gray-700">{plan.lessonTopic}</p>
+                                            </div>
+                                            {plan.homework && (
+                                                <div className="bg-orange-50 p-2 rounded border border-orange-100">
+                                                    <span className="text-orange-500 font-bold block text-xs mb-1">الواجب:</span>
+                                                    <p className="text-gray-700">{plan.homework}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )) : <div className="p-4 text-center text-gray-400 text-xs">لا توجد خطة مسجلة لهذا اليوم</div>}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+const StudentTimetable = ({ student }: { student: Student }) => {
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    useEffect(() => {
+        const all = getSchedules();
+        setSchedules(all.filter(s => s.classId === student.className));
+    }, [student]);
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h2 className="font-bold text-gray-800 flex items-center gap-2"><Clock className="text-teal-600"/> الجدول الدراسي</h2>
+                <span className="bg-white border px-3 py-1 rounded text-xs font-bold text-gray-600">{student.className}</span>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-center text-sm border-collapse min-w-[600px]">
+                    <thead>
+                        <tr className="bg-teal-600 text-white">
+                            <th className="p-3 border border-teal-500 w-24">اليوم</th>
+                            {periods.map(p => <th key={p} className="p-3 border border-teal-500">الحصة {p}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {days.map(day => (
+                            <tr key={day} className="hover:bg-gray-50">
+                                <td className="p-3 font-bold border bg-gray-50 text-gray-700">{dayNamesAr[day]}</td>
+                                {periods.map(period => {
+                                    const item = schedules.find(s => s.day === day && s.period === period);
+                                    return (
+                                        <td key={period} className="border p-2 h-14">
+                                            {item ? (
+                                                <div className="font-bold text-teal-700 bg-teal-50 rounded py-1 px-2 text-xs shadow-sm">
+                                                    {item.subjectName}
+                                                </div>
+                                            ) : <span className="text-gray-300">-</span>}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+const StudentAttendanceView = ({ student, attendance }: { student: Student, attendance: AttendanceRecord[] }) => {
+    const myRecords = attendance.filter(a => a.studentId === student.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><Calendar className="text-teal-600"/> سجل الحضور والغياب</h2>
+                
+                {myRecords.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                                <tr>
+                                    <th className="p-3">التاريخ</th>
+                                    <th className="p-3">الحالة</th>
+                                    <th className="p-3">المادة / الحصة</th>
+                                    <th className="p-3">ملاحظات السلوك</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {myRecords.map(rec => (
+                                    <tr key={rec.id} className="hover:bg-gray-50">
+                                        <td className="p-3 font-mono text-gray-500">{formatDualDate(rec.date)}</td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                rec.status === 'PRESENT' ? 'bg-green-100 text-green-700' :
+                                                rec.status === 'ABSENT' ? 'bg-red-100 text-red-700' :
+                                                rec.status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                {rec.status === 'PRESENT' ? 'حاضر' : rec.status === 'ABSENT' ? 'غائب' : rec.status === 'LATE' ? 'تأخر' : 'بعذر'}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-gray-600">{rec.subject || '-'} {rec.period ? `(ح${rec.period})` : ''}</td>
+                                        <td className="p-3">
+                                            {(rec.behaviorStatus !== 'NEUTRAL' || rec.behaviorNote) ? (
+                                                <div className="flex items-center gap-2">
+                                                    {rec.behaviorStatus === 'POSITIVE' && <Smile size={16} className="text-green-500"/>}
+                                                    {rec.behaviorStatus === 'NEGATIVE' && <Frown size={16} className="text-red-500"/>}
+                                                    <span className="text-xs text-gray-600">{rec.behaviorNote}</span>
+                                                </div>
+                                            ) : '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : <div className="text-center py-10 text-gray-400">لا يوجد سجلات حضور</div>}
+            </div>
+        </div>
+    );
+};
+
+const StudentEvaluationView = ({ student, performance, attendance }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[] }) => {
+    const myPerf = performance.filter(p => p.studentId === student.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    // Chart Data (Last 5 grades)
+    const chartData = myPerf.slice(0, 5).reverse().map(p => ({
+        name: p.title,
+        score: Math.round((p.score / p.maxScore) * 100),
+        full: 100
+    }));
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                    <h2 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><Award className="text-purple-600"/> سجل الدرجات والتقييم</h2>
+                    {myPerf.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-right text-sm">
+                                <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                                    <tr>
+                                        <th className="p-3">التاريخ</th>
+                                        <th className="p-3">المادة</th>
+                                        <th className="p-3">عنوان التقييم</th>
+                                        <th className="p-3">الدرجة</th>
+                                        <th className="p-3">النسبة</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {myPerf.map(p => (
+                                        <tr key={p.id} className="hover:bg-gray-50">
+                                            <td className="p-3 font-mono text-gray-500 text-xs">{p.date}</td>
+                                            <td className="p-3 text-gray-700">{p.subject}</td>
+                                            <td className="p-3 font-bold text-gray-800">{p.title}</td>
+                                            <td className="p-3"><span className="font-mono bg-gray-100 px-2 py-1 rounded">{p.score} / {p.maxScore}</span></td>
+                                            <td className="p-3">
+                                                <span className={`text-xs font-bold px-2 py-1 rounded ${(p.score/p.maxScore) >= 0.9 ? 'bg-green-100 text-green-700' : (p.score/p.maxScore) >= 0.7 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {Math.round((p.score / p.maxScore) * 100)}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : <div className="text-center py-10 text-gray-400">لا يوجد درجات مرصودة</div>}
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="font-bold text-gray-700 mb-4">تطور المستوى</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData}>
+                                <defs>
+                                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="name" hide />
+                                <YAxis domain={[0, 100]} hide />
+                                <Tooltip />
+                                <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <p className="text-center text-xs text-gray-400 mt-2">رسم بياني لآخر 5 تقييمات</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const StudentProfile = ({ student }: { student: Student }) => {
+    return (
+        <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4 flex items-center gap-2"><User className="text-teal-600"/> الملف الشخصي</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm text-gray-500 mb-1">الاسم الكامل</label>
+                    <div className="font-bold text-gray-800 text-lg">{student.name}</div>
+                </div>
+                <div>
+                    <label className="block text-sm text-gray-500 mb-1">رقم الهوية / السجل</label>
+                    <div className="font-mono text-gray-800 bg-gray-50 p-2 rounded inline-block">{student.nationalId}</div>
+                </div>
+                <div>
+                    <label className="block text-sm text-gray-500 mb-1">الصف / الفصل</label>
+                    <div className="font-bold text-gray-800">{student.gradeLevel} - {student.className}</div>
+                </div>
+                <div>
+                    <label className="block text-sm text-gray-500 mb-1">المدرسة</label>
+                    <div className="font-bold text-gray-800 flex items-center gap-2">
+                        {student.schoolId ? <span className="text-green-600 flex items-center gap-1"><CheckCircle size={14}/> مسجل</span> : 'غير مرتبط'}
+                    </div>
+                </div>
+                <div className="md:col-span-2 border-t pt-4 mt-2">
+                    <h3 className="font-bold text-gray-700 mb-3">بيانات التواصل (ولي الأمر)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
+                        <div>
+                            <span className="text-xs text-gray-500 block">الاسم:</span>
+                            <span className="font-bold">{student.parentName || '-'}</span>
+                        </div>
+                        <div>
+                            <span className="text-xs text-gray-500 block">الجوال:</span>
+                            <span className="font-mono dir-ltr">{student.parentPhone || '-'}</span>
+                        </div>
+                        <div>
+                            <span className="text-xs text-gray-500 block">البريد الإلكتروني:</span>
+                            <span className="font-mono">{student.parentEmail || '-'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const StudentCustomRecords = ({ student }: { student: Student }) => {
+    const [sheets, setSheets] = useState<TrackingSheet[]>([]);
+    
+    useEffect(() => {
+        // Fetch ALL sheets then filter by class client-side as service returns all for teacher context usually
+        // But for student, we need sheets where className matches student.className
+        const allSheets = getTrackingSheets(); // Returns all in cache
+        const relevant = allSheets.filter(s => s.className === student.className);
+        setSheets(relevant);
+    }, [student]);
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><Table className="text-teal-600"/> السجلات الخاصة (المرنة)</h2>
+            {sheets.length > 0 ? (
+                <div className="grid gap-6">
+                    {sheets.map(sheet => {
+                        const myScores = sheet.scores[student.id] || {};
+                        return (
+                            <div key={sheet.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
+                                    <h3 className="font-bold text-gray-800">{sheet.title}</h3>
+                                    <span className="text-xs bg-white border px-2 py-1 rounded text-gray-500">{sheet.subject}</span>
+                                </div>
+                                <div className="p-4 overflow-x-auto">
+                                    <div className="flex gap-4">
+                                        {sheet.columns.map(col => (
+                                            <div key={col.id} className="flex-1 min-w-[100px] border rounded-lg p-3 text-center bg-gray-50/50">
+                                                <div className="text-xs text-gray-500 font-bold mb-2 h-8 flex items-center justify-center">{col.title}</div>
+                                                <div className="font-bold text-teal-700 text-lg">
+                                                    {myScores[col.id] !== undefined ? (
+                                                        col.type === 'CHECKBOX' ? (myScores[col.id] ? <CheckCircle className="mx-auto text-green-500"/> : '-') :
+                                                        col.type === 'RATING' ? <div className="flex justify-center text-yellow-400"><Star size={16} fill="currentColor"/> <span className="text-black ml-1">{myScores[col.id]}</span></div> :
+                                                        myScores[col.id]
+                                                    ) : '-'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="text-center py-20 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
+                    <Table size={48} className="mx-auto mb-4 opacity-20"/>
+                    <p>لا توجد سجلات خاصة تم رصدها لفصلك.</p>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const StudentExamsView = ({ student }: { student: Student }) => {
     const [exams, setExams] = useState<Exam[]>([]);
@@ -402,17 +850,5 @@ const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student
         </div>
     );
 }
-
-// ... (Other Components: StudentCustomRecords, StudentProfile, etc. need to be defined or imported. For brevity in this update, assuming they exist in file or user has them from previous prompt. I've only modified StudentPortal and StudentExamsView mostly) ...
-const StudentWeeklyPlan = ({ student }: { student: Student }) => {
-    // ... Existing implementation ...
-    return <div>Weekly Plan</div>; 
-};
-const StudentDashboard = ({ student, attendance, performance, onViewChange }: any) => { return <div>Dashboard</div>; };
-const StudentProfile = ({ student }: { student: Student }) => { return <div>Profile</div>; };
-const StudentTimetable = ({ student }: { student: Student }) => { return <div>Timetable</div>; };
-const StudentAttendanceView = ({ student, attendance }: { student: Student, attendance: AttendanceRecord[] }) => { return <div>Attendance</div>; };
-const StudentEvaluationView = ({ student, performance, attendance }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[] }) => { return <div>Evaluation</div>; };
-const StudentCustomRecords = ({ student }: { student: Student }) => { return <div>Records</div>; };
 
 export default StudentPortal;

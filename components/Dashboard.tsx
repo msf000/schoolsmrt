@@ -2,11 +2,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell, ScatterChart, Scatter, LineChart, Line
+  PieChart, Pie, Cell, ScatterChart, Scatter, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School } from '../types';
-import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam } from '../types';
+import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -18,7 +18,7 @@ interface DashboardProps {
   onNavigate: (view: string) => void;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   // Safety Check
@@ -33,13 +33,12 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   }
 
   if (currentUser?.role === 'SCHOOL_MANAGER') {
-      return <SchoolManagerDashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} />;
+      return <SchoolManagerDashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={onNavigate} />;
   }
 
   return <TeacherDashboard students={students} attendance={attendance} performance={performance} selectedDate={effectiveDate} currentUser={currentUser} onNavigate={onNavigate} />;
 };
 
-// ... (SystemAdminDashboard and SchoolManagerDashboard remain unchanged, they are simple) ...
 const SystemAdminDashboard = () => (
     <div className="p-6 h-full flex flex-col items-center justify-center text-gray-500">
         <Server size={64} className="mb-4 text-gray-300"/>
@@ -48,13 +47,155 @@ const SystemAdminDashboard = () => (
     </div>
 );
 
-const SchoolManagerDashboard: React.FC<any> = ({ students }) => (
-    <div className="p-6 h-full flex flex-col items-center justify-center text-gray-500">
-        <Building2 size={64} className="mb-4 text-gray-300"/>
-        <h2 className="text-xl font-bold">لوحة تحكم مدير المدرسة</h2>
-        <p>عدد الطلاب المسجلين: {students.length}</p>
-    </div>
-);
+// --- SCHOOL MANAGER DASHBOARD ---
+const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performance, currentUser, onNavigate }) => {
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    
+    useEffect(() => {
+        const allTeachers = getTeachers();
+        // Filter teachers belonging to this school manager's school
+        // Assuming currentUser.schoolId is set, or linking via managerNationalId
+        const mySchoolTeachers = allTeachers.filter(t => t.schoolId === currentUser.schoolId || t.managerId === currentUser.nationalId);
+        setTeachers(mySchoolTeachers);
+    }, [currentUser]);
+
+    const stats = useMemo(() => {
+        const totalStudents = students.length;
+        const totalTeachers = teachers.length;
+        
+        // Today's Attendance
+        const today = new Date().toISOString().split('T')[0];
+        const todaysRecords = attendance.filter((a: any) => a.date === today);
+        const presentToday = todaysRecords.filter((a: any) => a.status === 'PRESENT').length;
+        const absentToday = todaysRecords.filter((a: any) => a.status === 'ABSENT').length;
+        const attendanceRate = totalStudents > 0 && todaysRecords.length > 0 ? Math.round((presentToday / todaysRecords.length) * 100) : 0;
+
+        // Performance Avg
+        const totalScore = performance.reduce((acc: number, curr: any) => acc + (curr.score / curr.maxScore), 0);
+        const avgPerformance = performance.length > 0 ? Math.round((totalScore / performance.length) * 100) : 0;
+
+        return { totalStudents, totalTeachers, attendanceRate, absentToday, avgPerformance, presentToday };
+    }, [students, attendance, performance, teachers]);
+
+    // Chart Data: Attendance by Grade
+    const attendanceByGrade = useMemo(() => {
+        const grades = Array.from(new Set(students.map((s: any) => s.gradeLevel))).filter(Boolean);
+        return grades.map(grade => {
+            const gradeStudents = students.filter((s: any) => s.gradeLevel === grade);
+            const studentIds = new Set(gradeStudents.map((s: any) => s.id));
+            const gradeAtt = attendance.filter((a: any) => studentIds.has(a.studentId));
+            const present = gradeAtt.filter((a: any) => a.status === 'PRESENT').length;
+            const total = gradeAtt.length;
+            return {
+                name: grade,
+                rate: total > 0 ? Math.round((present / total) * 100) : 0
+            };
+        });
+    }, [students, attendance]);
+
+    return (
+        <div className="p-6 space-y-6 animate-fade-in">
+            {/* Header Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">إجمالي الطلاب</p>
+                        <h3 className="text-3xl font-black text-gray-800">{stats.totalStudents}</h3>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded-full text-blue-600"><GraduationCap size={24}/></div>
+                </div>
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">الكادر التعليمي</p>
+                        <h3 className="text-3xl font-black text-gray-800">{stats.totalTeachers}</h3>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded-full text-purple-600"><Briefcase size={24}/></div>
+                </div>
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">حضور اليوم</p>
+                        <h3 className="text-3xl font-black text-green-600">{stats.attendanceRate}%</h3>
+                        <span className="text-[10px] text-gray-400">({stats.presentToday} حاضر)</span>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-full text-green-600"><CheckSquare size={24}/></div>
+                </div>
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">الأداء العام</p>
+                        <h3 className="text-3xl font-black text-orange-500">{stats.avgPerformance}%</h3>
+                    </div>
+                    <div className="bg-orange-50 p-3 rounded-full text-orange-600"><Activity size={24}/></div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Chart 1: Attendance by Grade */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-blue-500"/> نسبة الحضور حسب الصف</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={attendanceByGrade}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{fontSize: 10}} />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip />
+                                <Bar dataKey="rate" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-3">
+                    <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><Layout size={18}/> الوصول السريع</h3>
+                    <button onClick={() => onNavigate('TEACHERS')} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-bold text-gray-700">
+                        <Users size={18} className="text-purple-600"/> إدارة المعلمين
+                    </button>
+                    <button onClick={() => onNavigate('STUDENTS')} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-bold text-gray-700">
+                        <GraduationCap size={18} className="text-blue-600"/> سجل الطلاب
+                    </button>
+                    <button onClick={() => onNavigate('MONTHLY_REPORT')} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-bold text-gray-700">
+                        <FileText size={18} className="text-green-600"/> التقارير الشاملة
+                    </button>
+                    <button onClick={() => onNavigate('SETTINGS')} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-bold text-gray-700">
+                        <Building2 size={18} className="text-orange-600"/> إعدادات المدرسة
+                    </button>
+                </div>
+            </div>
+
+            {/* Recent Alerts */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><AlertCircle size={18} className="text-red-500"/> تنبيهات المدير</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {stats.absentToday > 5 ? (
+                        <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-center gap-3">
+                            <div className="bg-red-100 p-2 rounded-full text-red-600"><TrendingDown size={20}/></div>
+                            <div>
+                                <h4 className="font-bold text-red-800">غياب مرتفع اليوم</h4>
+                                <p className="text-xs text-red-600">عدد الغائبين ({stats.absentToday}) تجاوز المعدل الطبيعي.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="p-4 bg-green-50 border border-green-100 rounded-lg flex items-center gap-3">
+                            <div className="bg-green-100 p-2 rounded-full text-green-600"><CheckCircle size={20}/></div>
+                            <div>
+                                <h4 className="font-bold text-green-800">نسبة الحضور جيدة</h4>
+                                <p className="text-xs text-green-600">الأمور تسير على ما يرام.</p>
+                            </div>
+                        </div>
+                    )}
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-3">
+                        <div className="bg-blue-100 p-2 rounded-full text-blue-600"><Users size={20}/></div>
+                        <div>
+                            <h4 className="font-bold text-blue-800">اكتمال الكادر</h4>
+                            <p className="text-xs text-blue-600">تم تسجيل {stats.totalTeachers} معلم في النظام.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // --- TODO WIDGET ---
 const TodoWidget = () => {
@@ -115,6 +256,64 @@ const TodoWidget = () => {
                 />
                 <button type="submit" className="p-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Plus size={16}/></button>
             </form>
+        </div>
+    );
+};
+
+// --- UPCOMING EXAMS WIDGET ---
+const UpcomingExamsWidget = ({ teacherId, onNavigate }: { teacherId: string, onNavigate?: (view: string) => void }) => {
+    const [upcomingExams, setUpcomingExams] = useState<Exam[]>([]);
+
+    useEffect(() => {
+        if(teacherId) {
+            const allExams = getExams(teacherId);
+            const today = new Date().toISOString().split('T')[0];
+            const future = allExams
+                .filter(e => e.date && e.date >= today)
+                .sort((a,b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
+                .slice(0, 3);
+            setUpcomingExams(future);
+        }
+    }, [teacherId]);
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-80 overflow-hidden">
+            <div className="p-4 border-b bg-purple-50 flex justify-between items-center">
+                <h3 className="font-bold text-purple-800 flex items-center gap-2 text-sm"><FileQuestion size={16}/> اختبارات قادمة</h3>
+                {onNavigate && (
+                    <button onClick={() => onNavigate('EXAMS_MANAGER')} className="text-xs text-purple-600 hover:underline">
+                        عرض الكل
+                    </button>
+                )}
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                {upcomingExams.length > 0 ? upcomingExams.map(exam => (
+                    <div 
+                        key={exam.id} 
+                        onClick={() => onNavigate && onNavigate('EXAMS_MANAGER')}
+                        className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-200 transition-colors cursor-pointer group"
+                    >
+                        <div className="flex justify-between items-start mb-1">
+                            <h4 className="font-bold text-gray-800 text-sm truncate w-full group-hover:text-purple-700 transition-colors">{exam.title}</h4>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${exam.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                                {exam.isActive ? 'نشط' : 'مسودة'}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span className="flex items-center gap-1"><CalendarDays size={12}/> {formatDualDate(exam.date!).split('|')[0]}</span>
+                            <span>•</span>
+                            <span>{exam.gradeLevel}</span>
+                        </div>
+                    </div>
+                )) : (
+                    <div className="text-center text-gray-400 text-xs py-10 flex flex-col items-center justify-center h-full">
+                        <Calendar size={32} className="mb-2 opacity-20"/>
+                        <p>لا توجد اختبارات مجدولة قريباً.</p>
+                        {onNavigate && <button onClick={() => onNavigate('EXAMS_MANAGER')} className="mt-2 text-purple-600 hover:underline">جدولة اختبار</button>}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
@@ -221,7 +420,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       </div>
 
       {/* Today's Schedule & Feedback */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-2 space-y-6">
               {/* Schedule Widget */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -253,6 +452,10 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
           <div className="lg:col-span-1">
               <TodoWidget />
+          </div>
+          
+          <div className="lg:col-span-1">
+              <UpcomingExamsWidget teacherId={currentUser?.id || ''} onNavigate={onNavigate} />
           </div>
       </div>
 
