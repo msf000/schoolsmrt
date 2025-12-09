@@ -161,7 +161,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!masterUrl) return;
         setIsGenerating(true);
         try {
-            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
+            const structure = await fetchWorkbookStructureUrl(masterUrl);
+            const workbook = structure.workbook;
+            const sheetNames = structure.sheetNames as string[];
+            
             setWorkbookCache(workbook);
             setAvailableSheets(sheetNames);
             
@@ -241,9 +244,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (!workbook) {
                 const res = await fetchWorkbookStructureUrl(masterUrl);
                 workbook = res.workbook;
+                const sheetNames = res.sheetNames as string[];
                 // If target sheet not set or invalid, try to guess or use first
-                if (!currentSheetName || !res.sheetNames.includes(currentSheetName)) {
-                    currentSheetName = res.sheetNames[0];
+                if (!currentSheetName || !sheetNames.includes(currentSheetName)) {
+                    currentSheetName = String(sheetNames[0]);
                     // Save preference if we had to guess
                     handleSetTargetSheet(currentSheetName);
                 }
