@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School } from '../types';
 import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin, Mail, Server, Database, ShieldCheck, Building2, CreditCard, Loader2, ArrowRight } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin, Mail, Server, Database, ShieldCheck, Building2, CreditCard, Loader2, ArrowRight, CheckCircle, PlusCircle, Trophy } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -208,6 +208,10 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
         const avgScore = studentPerformance.length > 0 ? (totalScore / studentPerformance.length) * 100 : 0;
 
         const negativeBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
+        const positiveBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
+
+        // Calculate a meta-score for leaderboard
+        const leaderboardScore = (attendanceRate * 0.4) + (avgScore * 0.4) + ((positiveBehaviors - negativeBehaviors) * 5);
 
         return {
             id: student.id,
@@ -216,12 +220,15 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
             attendance: Math.round(attendanceRate),
             score: Math.round(avgScore),
             negativeBehaviors,
+            positiveBehaviors,
+            leaderboardScore: Math.round(leaderboardScore),
             count: 1
         };
     });
   }, [students, attendance, performance]);
 
   const atRiskStudents = studentMetrics.filter(s => s.attendance < 75 || (s.score < 50 && s.score > 0) || s.negativeBehaviors >= 3);
+  const topStudents = [...studentMetrics].sort((a,b) => b.leaderboardScore - a.leaderboardScore).slice(0, 5);
 
   const recentActivity = useMemo(() => {
       const perfs = performance.map(p => ({
@@ -281,6 +288,49 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
     return null;
   };
 
+  // --- WELCOME STATE (If no students) ---
+  if (students.length === 0) {
+      return (
+        <div className="p-8 max-w-5xl mx-auto animate-fade-in flex flex-col items-center justify-center min-h-[80vh]">
+           <div className="bg-white rounded-2xl p-10 shadow-xl border border-indigo-100 text-center w-full relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+               
+               <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                   <Sparkles size={48} className="text-indigo-600" />
+               </div>
+               
+               <h2 className="text-3xl font-black text-gray-800 mb-4">مرحباً بك في نظام المدرس الذكي!</h2>
+               <p className="text-gray-500 mb-10 text-lg max-w-2xl mx-auto leading-relaxed">
+                   يبدو أن حسابك جديد. لقد قمنا بتجهيز كل الأدوات التي تحتاجها. ابدأ بإعداد بياناتك الأساسية لتنطلق في رحلة تعليمية ذكية.
+               </p>
+    
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-right">
+                   <div onClick={() => onNavigate('STUDENTS')} className="cursor-pointer group bg-gradient-to-b from-blue-50 to-white border border-blue-100 hover:border-blue-300 p-6 rounded-2xl transition-all hover:shadow-lg hover:-translate-y-1">
+                       <div className="bg-blue-600 w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4 shadow-lg shadow-blue-200 group-hover:scale-110 transition-transform"><Users size={24}/></div>
+                       <h3 className="font-bold text-xl text-gray-800 mb-2 group-hover:text-blue-700 transition-colors">1. إضافة الطلاب</h3>
+                       <p className="text-sm text-gray-500 leading-relaxed">الخطوة الأولى هي بناء قاعدة بيانات طلابك. يمكنك إضافتهم يدوياً أو استيراد ملف Excel.</p>
+                       <div className="mt-4 text-blue-600 text-xs font-bold flex items-center gap-1">ابدأ الآن <ArrowRight size={14}/></div>
+                   </div>
+    
+                   <div onClick={() => onNavigate('SCHEDULE_VIEW')} className="cursor-pointer group bg-gradient-to-b from-purple-50 to-white border border-purple-100 hover:border-purple-300 p-6 rounded-2xl transition-all hover:shadow-lg hover:-translate-y-1">
+                       <div className="bg-purple-600 w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4 shadow-lg shadow-purple-200 group-hover:scale-110 transition-transform"><Calendar size={24}/></div>
+                       <h3 className="font-bold text-xl text-gray-800 mb-2 group-hover:text-purple-700 transition-colors">2. إعداد الجدول</h3>
+                       <p className="text-sm text-gray-500 leading-relaxed">سجل حصصك الأسبوعية لتمكين ميزات التحضير التلقائي ورصد الحضور حسب الحصة.</p>
+                       <div className="mt-4 text-purple-600 text-xs font-bold flex items-center gap-1">ابدأ الآن <ArrowRight size={14}/></div>
+                   </div>
+    
+                   <div onClick={() => onNavigate('CURRICULUM_MAP')} className="cursor-pointer group bg-gradient-to-b from-green-50 to-white border border-green-100 hover:border-green-300 p-6 rounded-2xl transition-all hover:shadow-lg hover:-translate-y-1">
+                       <div className="bg-green-600 w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4 shadow-lg shadow-green-200 group-hover:scale-110 transition-transform"><BookOpen size={24}/></div>
+                       <h3 className="font-bold text-xl text-gray-800 mb-2 group-hover:text-green-700 transition-colors">3. توزيع المنهج</h3>
+                       <p className="text-sm text-gray-500 leading-relaxed">استخدم الذكاء الاصطناعي (AI) لتوليد توزيع المنهج الدراسي وربطه بالدروس تلقائياً.</p>
+                       <div className="mt-4 text-green-600 text-xs font-bold flex items-center gap-1">ابدأ الآن <ArrowRight size={14}/></div>
+                   </div>
+               </div>
+           </div>
+        </div>
+      );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in p-6">
       
@@ -334,8 +384,9 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   ))}
               </div>
           ) : (
-              <div className="text-center text-gray-400 py-4 text-sm bg-gray-50 rounded-lg border border-dashed">
-                  لا توجد حصص مسجلة لهذا اليوم
+              <div className="text-center text-gray-400 py-4 text-sm bg-gray-50 rounded-lg border border-dashed flex flex-col items-center gap-2">
+                  <span className="text-xs">لا توجد حصص مسجلة لهذا اليوم</span>
+                  <button onClick={() => onNavigate('SCHEDULE_VIEW')} className="text-xs text-indigo-600 font-bold hover:underline flex items-center gap-1"><PlusCircle size={12}/> إضافة حصص</button>
               </div>
           )}
       </div>
@@ -403,51 +454,33 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
-                <AlertTriangle size={18} className="text-red-500"/>
-                طلاب يحتاجون للمتابعة
-            </h3>
-            {atRiskStudents.length > 0 ? (
-                <div className="overflow-x-auto flex-1">
-                    <table className="w-full text-right text-sm">
-                        <thead className="bg-red-50 text-red-800">
-                            <tr>
-                                <th className="p-3 rounded-r-lg">الطالب</th>
-                                <th className="p-3 text-center">الحضور</th>
-                                <th className="p-3 text-center">الأداء</th>
-                                <th className="p-3 rounded-l-lg">ملاحظات النظام</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {atRiskStudents.slice(0, 5).map(s => (
-                                <tr key={s.id}>
-                                    <td className="p-3 font-bold">
-                                        {s.name}
-                                        <div className="text-[10px] text-gray-400 font-normal">{s.grade}</div>
-                                    </td>
-                                    <td className="p-3 text-center">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${s.attendance < 75 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                            {s.attendance}%
-                                        </span>
-                                    </td>
-                                    <td className="p-3 text-center">
-                                         <span className={`px-2 py-1 rounded text-xs font-bold ${s.score < 50 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                            {s.score}%
-                                        </span>
-                                    </td>
-                                    <td className="p-3 text-xs text-gray-500">
-                                        {s.attendance < 75 && <span className="ml-1 text-red-600 block">• غياب مرتفع.</span>}
-                                        {s.score < 50 && <span className="ml-1 text-orange-600 block">• تحصيل ضعيف.</span>}
-                                        {s.negativeBehaviors >= 3 && <span className="text-red-700 font-bold bg-red-50 px-1 rounded block mt-1">• سلوكيات سلبية ({s.negativeBehaviors}).</span>}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                    <Trophy size={18} className="text-yellow-500"/>
+                    لوحة الشرف (الأفضل أداءً)
+                </h3>
+                <button onClick={() => onNavigate('STUDENT_FOLLOWUP')} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
+            </div>
+            
+            {topStudents.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                    {topStudents.map((s, idx) => (
+                        <div key={s.id} className="relative bg-gradient-to-b from-yellow-50 to-white p-3 rounded-xl border border-yellow-100 flex flex-col items-center text-center shadow-sm">
+                            <div className="absolute top-0 right-0 w-6 h-6 bg-yellow-400 text-white rounded-bl-xl font-bold flex items-center justify-center text-xs">
+                                {idx + 1}
+                            </div>
+                            <div className="w-10 h-10 bg-yellow-200 text-yellow-800 rounded-full flex items-center justify-center font-bold mb-2 text-sm border-2 border-white shadow-sm">
+                                {s.name.charAt(0)}
+                            </div>
+                            <div className="font-bold text-gray-800 text-xs line-clamp-1 w-full">{s.name}</div>
+                            <div className="text-[10px] text-gray-500">{s.grade}</div>
+                            <div className="mt-2 text-xs font-black text-yellow-600">{s.score}%</div>
+                        </div>
+                    ))}
                 </div>
             ) : (
-                <div className="flex-1 flex items-center justify-center">
-                    <p className="text-green-600 bg-green-50 p-4 rounded-lg text-center w-full">ممتاز! لا يوجد طلاب في دائرة الخطر حالياً.</p>
+                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-100 rounded-xl">
+                    <p className="text-gray-400 text-sm">لا توجد بيانات كافية للترتيب</p>
                 </div>
             )}
         </div>

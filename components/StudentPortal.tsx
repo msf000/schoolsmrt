@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question } from '../types';
 import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
@@ -14,9 +13,9 @@ interface StudentPortalProps {
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
     // Restore last view from session storage or default
-    const [view, setView] = useState<'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS'>(() => {
+    const [view, setView] = useState<'DASHBOARD' | 'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS'>(() => {
         const saved = sessionStorage.getItem('student_last_view');
-        return (saved === 'PROFILE' || saved === 'ATTENDANCE' || saved === 'EVALUATION' || saved === 'TIMETABLE' || saved === 'CUSTOM_RECORDS' || saved === 'EXAMS') ? saved : 'EVALUATION';
+        return (saved && ['DASHBOARD', 'PROFILE', 'ATTENDANCE', 'EVALUATION', 'TIMETABLE', 'CUSTOM_RECORDS', 'EXAMS'].includes(saved)) ? saved as any : 'DASHBOARD';
     });
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -36,11 +35,12 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     };
 
     const navItems = [
-        { id: 'EVALUATION', label: 'تقييمي (المتابعة الفردية)', icon: Award },
+        { id: 'DASHBOARD', label: 'الرئيسية', icon: LayoutGrid },
+        { id: 'EVALUATION', label: 'تقييمي (درجاتي)', icon: Award },
         { id: 'TIMETABLE', label: 'الجدول الدراسي', icon: Clock },
         { id: 'EXAMS', label: 'الاختبارات والواجبات', icon: FileQuestion },
-        { id: 'ATTENDANCE', label: 'سجل الحضور والأعذار', icon: Calendar },
-        { id: 'CUSTOM_RECORDS', label: 'سجلات المتابعة الخاصة', icon: Table },
+        { id: 'ATTENDANCE', label: 'سجل الحضور', icon: Calendar },
+        { id: 'CUSTOM_RECORDS', label: 'سجلات خاصة', icon: Table },
         { id: 'PROFILE', label: 'الملف الشخصي', icon: User },
     ];
 
@@ -49,7 +49,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
             {/* Sidebar Desktop */}
             <aside className="hidden md:flex flex-col w-64 bg-white border-l border-gray-200 shadow-sm z-30">
                 <div className="p-6 border-b border-gray-100 flex flex-col items-center justify-center">
-                    <div className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-3 shadow-lg ring-4 ring-teal-50">
+                    <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-teal-700 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-3 shadow-lg ring-4 ring-teal-50">
                         {currentUser.name.charAt(0)}
                     </div>
                     <h1 className="text-lg font-bold text-gray-800 text-center">{currentUser.name}</h1>
@@ -140,6 +140,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 </header>
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-50 custom-scrollbar w-full">
+                    {view === 'DASHBOARD' && <StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={setView} />}
                     {view === 'PROFILE' && <StudentProfile student={currentUser} />}
                     {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} />}
                     {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} />}
@@ -152,7 +153,151 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     );
 };
 
-// ... (VerticalDate, StudentCustomRecords, StudentProfile, StudentTimetable, StudentAttendanceView, StudentEvaluationView - Keep existing) ...
+// --- STUDENT DASHBOARD COMPONENT ---
+const StudentDashboard = ({ student, attendance, performance, onViewChange }: { student: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[], onViewChange: (v: any) => void }) => {
+    // Stats Calculation
+    const stats = useMemo(() => {
+        // Attendance
+        const myAtt = attendance.filter(a => a.studentId === student.id);
+        const present = myAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        const totalDays = myAtt.length;
+        const attRate = totalDays > 0 ? Math.round((present / totalDays) * 100) : 100;
+
+        // Points (Stars)
+        const stars = myAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
+        const alerts = myAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
+
+        // Next Class
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = days[new Date().getDay()];
+        const allSchedules = getSchedules();
+        const mySchedule = allSchedules
+            .filter(s => s.classId === student.className && s.day === today)
+            .sort((a,b) => a.period - b.period);
+        
+        // Simple logic: Assuming 8AM start, 45min periods. Just showing first active one or next one.
+        // For simplicity, showing the first lesson of the day or "Done"
+        const nextClass = mySchedule.length > 0 ? mySchedule[0] : null;
+
+        // Exams
+        const allExams = getExams();
+        const myResults = getExamResults().filter(r => r.studentId === student.id);
+        const pendingExams = allExams.filter(e => 
+            e.isActive && 
+            (e.gradeLevel === student.gradeLevel || !e.gradeLevel || e.gradeLevel === 'عام') &&
+            !myResults.find(r => r.examId === e.id)
+        );
+
+        return { attRate, stars, alerts, nextClass, pendingExamsCount: pendingExams.length };
+    }, [student, attendance, performance]);
+
+    return (
+        <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
+            {/* Welcome Banner */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full bg-white/10 opacity-30 pattern-grid-lg"></div>
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div>
+                        <h2 className="text-3xl font-black mb-2">مرحباً بك، {student.name.split(' ')[0]}! 👋</h2>
+                        <p className="text-indigo-100 opacity-90">أتمنى لك يوماً دراسياً مليئاً بالإنجاز والتفوق.</p>
+                    </div>
+                    <div className="flex gap-4">
+                        <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm text-center min-w-[100px]">
+                            <div className="text-2xl font-black text-yellow-300">{stats.stars}</div>
+                            <div className="text-xs font-bold uppercase">نجمة تميز</div>
+                        </div>
+                        <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm text-center min-w-[100px]">
+                            <div className="text-2xl font-black text-green-300">{stats.attRate}%</div>
+                            <div className="text-xs font-bold uppercase">حضور</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Next Class Card */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3">
+                        <Clock size={24}/>
+                    </div>
+                    <h3 className="font-bold text-gray-800 text-lg">حصتك القادمة</h3>
+                    {stats.nextClass ? (
+                        <>
+                            <p className="text-2xl font-black text-blue-700 mt-2">{stats.nextClass.subjectName}</p>
+                            <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full mt-2">الحصة {stats.nextClass.period}</span>
+                        </>
+                    ) : (
+                        <p className="text-gray-400 mt-2 text-sm">لا توجد حصص متبقية اليوم</p>
+                    )}
+                    <button onClick={() => onViewChange('TIMETABLE')} className="mt-4 text-xs text-blue-600 font-bold hover:underline">عرض الجدول الكامل</button>
+                </div>
+
+                {/* Pending Exams Card */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                    {stats.pendingExamsCount > 0 && <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full m-4 animate-ping"></div>}
+                    <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-3">
+                        <FileQuestion size={24}/>
+                    </div>
+                    <h3 className="font-bold text-gray-800 text-lg">الواجبات والاختبارات</h3>
+                    <p className="text-3xl font-black text-purple-700 mt-2">{stats.pendingExamsCount}</p>
+                    <p className="text-xs text-gray-500 mt-1">مهام بانتظار الإنجاز</p>
+                    <button 
+                        onClick={() => onViewChange('EXAMS')}
+                        className="mt-4 w-full py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors shadow-sm"
+                    >
+                        ابدأ الحل الآن
+                    </button>
+                </div>
+
+                {/* Behavior Card */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <ActivityIcon size={18} className="text-orange-500"/> تقرير السلوك
+                    </h3>
+                    <div className="flex-1 flex flex-col justify-center gap-4">
+                        <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-100">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white p-2 rounded-full text-green-500 shadow-sm"><Smile size={16}/></div>
+                                <span className="font-bold text-green-800 text-sm">نقاط إيجابية</span>
+                            </div>
+                            <span className="font-black text-green-700 text-lg">{stats.stars}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white p-2 rounded-full text-red-500 shadow-sm"><Frown size={16}/></div>
+                                <span className="font-bold text-red-800 text-sm">ملاحظات سلبية</span>
+                            </div>
+                            <span className="font-black text-red-700 text-lg">{stats.alerts}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Access Grid */}
+            <h3 className="font-bold text-gray-700 mt-8 mb-4">الوصول السريع</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button onClick={() => onViewChange('EVALUATION')} className="p-4 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center gap-2 transition-all hover:-translate-y-1 hover:shadow-md group">
+                    <div className="bg-blue-100 p-3 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors"><Award size={24}/></div>
+                    <span className="font-bold text-gray-700 text-sm">درجاتي</span>
+                </button>
+                <button onClick={() => onViewChange('ATTENDANCE')} className="p-4 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center gap-2 transition-all hover:-translate-y-1 hover:shadow-md group">
+                    <div className="bg-teal-100 p-3 rounded-full text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-colors"><Calendar size={24}/></div>
+                    <span className="font-bold text-gray-700 text-sm">غيابي</span>
+                </button>
+                <button onClick={() => onViewChange('CUSTOM_RECORDS')} className="p-4 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center gap-2 transition-all hover:-translate-y-1 hover:shadow-md group">
+                    <div className="bg-orange-100 p-3 rounded-full text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors"><Table size={24}/></div>
+                    <span className="font-bold text-gray-700 text-sm">السجلات</span>
+                </button>
+                <button onClick={() => onViewChange('PROFILE')} className="p-4 bg-white hover:bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center gap-2 transition-all hover:-translate-y-1 hover:shadow-md group">
+                    <div className="bg-gray-100 p-3 rounded-full text-gray-600 group-hover:bg-gray-800 group-hover:text-white transition-colors"><User size={24}/></div>
+                    <span className="font-bold text-gray-700 text-sm">حسابي</span>
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ... (Rest of the components: StudentExamsView, ExamRunner, VerticalDate, StudentCustomRecords, StudentProfile, StudentTimetable, StudentAttendanceView, StudentEvaluationView - Keep existing) ...
 
 // --- NEW: STUDENT EXAMS VIEW ---
 const StudentExamsView = ({ student }: { student: Student }) => {
@@ -286,7 +431,7 @@ const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
     const currentQuestion = exam.questions[currentQIndex];
@@ -405,7 +550,7 @@ const StudentCustomRecords = ({ student }: { student: Student }) => {
         if (type === 'RATING') {
             return (
                 <div className="flex gap-0.5 justify-center">
-                    {[1,2,3,4,5].map(s => (
+                    {[1, 2, 3, 4, 5].map(s => (
                         <Star key={s} size={14} className={s <= Number(val) ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}/>
                     ))}
                 </div>

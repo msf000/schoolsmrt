@@ -1,11 +1,9 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser } from '../types';
 import { getSubjects, getAssignments } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -34,7 +32,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [certType, setCertType] = useState<'EXCELLENCE' | 'ATTENDANCE' | 'BEHAVIOR' | 'THANKS'>('EXCELLENCE');
 
     useEffect(() => {
-        // FIX: Fetch all relevant subjects (including legacy ones) using currentUser
         const subs = getSubjects(currentUser?.id); 
         setSubjects(subs);
         if (subs.length > 0) setSelectedSubject(subs[0].name);
@@ -87,7 +84,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
     const student = students.find(s => s.id === selectedStudentId);
 
-    // FIX: Get Assignments generally (allow legacy) for the current user
     const rawActivityCols = getAssignments('ACTIVITY', currentUser?.id).filter(c => c.isVisible);
     const activityCols = rawActivityCols.filter(c => 
         !c.title.includes('حضور') && 
@@ -112,7 +108,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
         const gradePart = (attPercent / 100) * 15;
 
-        // Note: Performance records are already filtered by App.tsx to include legacy ones
         const studentHWs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
         const totalHWCount = homeworkCols.length;
         const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
@@ -149,6 +144,29 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             .filter(a => (a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL) || a.behaviorNote)
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+        // --- TREND ANALYSIS ---
+        // 1. Behavior Trend (Cumulative)
+        let behScore = 0;
+        const behaviorTrendData = studentAtt
+            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .map(a => {
+                if(a.behaviorStatus === 'POSITIVE') behScore += 1;
+                if(a.behaviorStatus === 'NEGATIVE') behScore -= 1;
+                return { date: a.date.slice(5), score: behScore };
+            })
+            // Filter to reduce points for cleaner chart
+            .filter((_, i) => i % 2 === 0 || i === studentAtt.length - 1); 
+
+        // 2. Academic Trend (Grades over time)
+        const academicTrendData = performance
+            .filter(p => p.studentId === student.id && p.subject === selectedSubject)
+            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .map(p => ({
+                name: p.title,
+                grade: Math.round((p.score / p.maxScore) * 100),
+                full: 100
+            }));
+
         // Prepare chart data
         const chartData = [
             { name: 'الحضور', value: Math.round(attPercent), full: 100, fill: '#10b981' },
@@ -165,7 +183,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             totalTasks, totalPeriod,
             studentActs, studentHWs, studentExams,
             behaviorLogs,
-            chartData
+            chartData,
+            behaviorTrendData,
+            academicTrendData
         };
     };
 
@@ -272,7 +292,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                 <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto z-0">
                     
                     <div className="text-center mb-8">
-                        <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject} الفصل الأول 1447هـ</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject}</h1>
                     </div>
 
                     <div className="overflow-x-auto mb-8">
@@ -308,10 +328,52 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         </table>
                     </div>
 
-                    {/* Chart Section */}
+                    {/* Charts Section */}
+                    <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
+                        {/* 1. Behavior Trend */}
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 h-72 flex flex-col">
+                            <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2 text-sm">
+                                <TrendingUp size={16} className="text-blue-600"/> تطور السلوك (تراكمي)
+                            </h4>
+                            <div className="flex-1 min-h-0">
+                                {stats.behaviorTrendData.length > 1 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={stats.behaviorTrendData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="date" tick={{fontSize: 10}} />
+                                            <YAxis tick={{fontSize: 10}} />
+                                            <Tooltip />
+                                            <Area type="monotone" dataKey="score" stroke="#2563eb" fill="#3b82f6" fillOpacity={0.1} strokeWidth={2} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                ) : <div className="h-full flex items-center justify-center text-gray-400 text-xs">لا توجد بيانات كافية</div>}
+                            </div>
+                        </div>
+
+                        {/* 2. Academic Trend */}
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 h-72 flex flex-col">
+                            <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2 text-sm">
+                                <LineChartIcon size={16} className="text-purple-600"/> التقدم الأكاديمي
+                            </h4>
+                            <div className="flex-1 min-h-0">
+                                {stats.academicTrendData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={stats.academicTrendData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" tick={{fontSize: 9}} angle={-15} textAnchor="end" height={40}/>
+                                            <YAxis domain={[0, 100]} tick={{fontSize: 10}} />
+                                            <Tooltip />
+                                            <Line type="monotone" dataKey="grade" stroke="#8b5cf6" strokeWidth={2} dot={{r:4}} activeDot={{r:6}} />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                ) : <div className="h-full flex items-center justify-center text-gray-400 text-xs">لا توجد درجات مسجلة</div>}
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 h-64 flex flex-col">
-                            <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2 text-sm"><BarChart2 size={16}/> الرسم البياني للأداء</h4>
+                            <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2 text-sm"><BarChart2 size={16}/> توزيع الدرجات</h4>
                             <div className="flex-1 min-h-0">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={stats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
