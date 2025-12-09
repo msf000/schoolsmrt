@@ -4,9 +4,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, ScatterChart, Scatter, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam } from '../types';
-import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem } from '../types';
+import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -318,6 +318,80 @@ const UpcomingExamsWidget = ({ teacherId, onNavigate }: { teacherId: string, onN
     );
 };
 
+// --- WEEKLY PLAN WIDGET ---
+const WeeklyPlanWidget = ({ teacherId, onNavigate }: { teacherId: string, onNavigate?: (view: string) => void }) => {
+    const [progress, setProgress] = useState({ totalSlots: 0, filledSlots: 0 });
+    const [currentWeekStart, setCurrentWeekStart] = useState('');
+
+    useEffect(() => {
+        if (!teacherId) return;
+        const d = new Date();
+        const day = d.getDay();
+        d.setDate(d.getDate() - day);
+        const weekStart = d.toISOString().split('T')[0];
+        setCurrentWeekStart(weekStart);
+
+        const schedules = getSchedules();
+        const plans = getWeeklyPlans(teacherId);
+
+        // Get Teacher Schedules
+        const mySchedule = schedules.filter(s => s.teacherId === teacherId || !s.teacherId); // Include loose schedules
+        const totalSlots = mySchedule.length;
+
+        // Get Filled Plans for this week
+        const filled = plans.filter(p => p.weekStartDate === weekStart && p.lessonTopic).length;
+
+        setProgress({ totalSlots, filledSlots: filled });
+    }, [teacherId]);
+
+    const percentage = progress.totalSlots > 0 ? Math.round((progress.filledSlots / progress.totalSlots) * 100) : 0;
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-80 overflow-hidden">
+            <div className="p-4 border-b bg-teal-50 flex justify-between items-center">
+                <h3 className="font-bold text-teal-800 flex items-center gap-2 text-sm"><PenTool size={16}/> الخطة الأسبوعية</h3>
+                <span className="text-[10px] bg-white text-teal-700 px-2 py-0.5 rounded border border-teal-200">{percentage}% مكتمل</span>
+            </div>
+            
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                <div className="relative w-32 h-32 mb-4">
+                    <svg className="w-full h-full transform -rotate-90">
+                        <circle cx="50%" cy="50%" r="45%" stroke="#e2e8f0" strokeWidth="10" fill="transparent" />
+                        <circle 
+                            cx="50%" cy="50%" r="45%" 
+                            stroke="#0f766e" strokeWidth="10" 
+                            fill="transparent" 
+                            strokeDasharray={2 * Math.PI * 45} 
+                            strokeDashoffset={2 * Math.PI * 45 * (1 - percentage / 100)} 
+                            strokeLinecap="round"
+                            className="transition-all duration-1000 ease-out"
+                        />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-black text-teal-800">{progress.filledSlots}</span>
+                        <span className="text-xs text-gray-400">من {progress.totalSlots}</span>
+                    </div>
+                </div>
+                
+                {percentage < 100 ? (
+                    <>
+                        <p className="text-xs text-gray-500 mb-3">لديك حصص لم يتم تخطيطها لهذا الأسبوع.</p>
+                        {onNavigate && (
+                            <button onClick={() => onNavigate('SCHEDULE_VIEW')} className="text-xs bg-teal-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-teal-700 shadow-sm transition-colors w-full">
+                                إكمال الخطة الآن
+                            </button>
+                        )}
+                    </>
+                ) : (
+                    <div className="text-green-600 font-bold flex items-center gap-2 animate-bounce">
+                        <CheckCircle size={18}/> خطة الأسبوع مكتملة!
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
@@ -450,11 +524,12 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
               </div>
           </div>
 
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 flex flex-col gap-4">
               <TodoWidget />
           </div>
           
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 flex flex-col gap-4">
+              <WeeklyPlanWidget teacherId={currentUser?.id || ''} onNavigate={onNavigate} />
               <UpcomingExamsWidget teacherId={currentUser?.id || ''} onNavigate={onNavigate} />
           </div>
       </div>

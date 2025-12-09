@@ -97,56 +97,106 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const syncDataFromSheet = async (category: PerformanceCategory) => {
         if (!masterUrl || !currentUser) return;
         setIsGenerating(true);
-        setStatusMsg('جاري المزامنة مع الملف...');
+        setStatusMsg('جاري الاتصال وسحب البيانات...');
         try {
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
             if (sheetNames.length === 0) throw new Error("Excel file is empty");
 
             // Assuming data is in the first sheet
-            const { headers } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
 
             const keywords = getKeywordsForCategory(category);
             const matchedHeaders = headers.filter(h => keywords.some(k => h.toLowerCase().includes(k)));
 
+            let newAssignmentsCount = 0;
+            let updatedScoresCount = 0;
+            const recordsToSave: PerformanceRecord[] = [];
+            const today = new Date().toISOString().split('T')[0];
+
+            // 1. Sync Columns (Assignments)
             if (matchedHeaders.length > 0) {
                 const existing = getAssignments(category, currentUser.id);
-                let addedCount = 0;
+                
+                // Helper to get or create assignment
+                const getOrCreateAssignment = (headerTitle: string, idx: number): Assignment => {
+                    const { label, maxScore } = extractHeaderMetadata(headerTitle);
+                    const existingAssign = existing.find(e => e.title === headerTitle || e.title === label);
+                    
+                    if (existingAssign) return existingAssign;
 
-                matchedHeaders.forEach((header, idx) => {
-                    // Check if assignment with this title already exists for this category/teacher
-                    if (!existing.find(e => e.title === header || e.title === extractHeaderMetadata(header).label)) {
-                        const { label, maxScore } = extractHeaderMetadata(header);
-                        const newAssign: Assignment = {
-                            id: `${category}_auto_${Date.now()}_${idx}`,
-                            title: label,
-                            category: category,
-                            maxScore: maxScore,
-                            isVisible: true,
-                            orderIndex: existing.length + idx,
-                            teacherId: currentUser.id
-                        };
-                        saveAssignment(newAssign);
-                        addedCount++;
+                    const newAssign: Assignment = {
+                        id: `${category}_auto_${Date.now()}_${idx}`,
+                        title: label,
+                        category: category,
+                        maxScore: maxScore,
+                        isVisible: true,
+                        orderIndex: existing.length + idx,
+                        teacherId: currentUser.id
+                    };
+                    saveAssignment(newAssign);
+                    existing.push(newAssign); // Add to local list to avoid duplicates in loop
+                    newAssignmentsCount++;
+                    return newAssign;
+                };
+
+                // 2. Sync Rows (Scores)
+                data.forEach(row => {
+                    // Try to find student match
+                    const studentName = row['Student Name'] || row['اسم الطالب'] || row['الاسم'] || row['Name'];
+                    const nationalId = row['National ID'] || row['رقم الهوية'] || row['السجل المدني'] || row['ID'];
+
+                    let student: Student | undefined;
+                    if (nationalId) student = students.find(s => s.nationalId === String(nationalId));
+                    if (!student && studentName) student = students.find(s => s.name.trim() === String(studentName).trim());
+
+                    if (student) {
+                        matchedHeaders.forEach((header, idx) => {
+                            const valRaw = row[header];
+                            if (valRaw !== undefined && valRaw !== null && valRaw !== '') {
+                                const val = parseFloat(valRaw);
+                                if (!isNaN(val)) {
+                                    const assignment = getOrCreateAssignment(header, idx);
+                                    
+                                    // Generate Record
+                                    recordsToSave.push({
+                                        id: `${student!.id}-${category}-${assignment.id}`, // Deterministic ID for Upsert
+                                        studentId: student!.id,
+                                        subject: selectedSubject,
+                                        title: assignment.title,
+                                        category: category,
+                                        score: val,
+                                        maxScore: assignment.maxScore,
+                                        date: today,
+                                        notes: assignment.id, // Links back to assignment
+                                        createdById: currentUser.id
+                                    });
+                                    updatedScoresCount++;
+                                }
+                            }
+                        });
                     }
                 });
 
-                if (addedCount > 0) {
-                    const updated = getAssignments(category, currentUser.id);
-                    updated.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-                    setAssignments(updated);
-                    setStatusMsg(`✅ تم إضافة ${addedCount} عمود جديد من الملف.`);
-                } else {
-                    setStatusMsg('المزامنة مكتملة. لم يتم العثور على أعمدة جديدة.');
+                // Batch Save
+                if (recordsToSave.length > 0) {
+                    onAddPerformance(recordsToSave);
                 }
+
+                // Refresh Assignments List in UI
+                const updated = getAssignments(category, currentUser.id);
+                updated.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+                setAssignments(updated);
+
+                setStatusMsg(`✅ تم: ${newAssignmentsCount} عمود جديد، ${updatedScoresCount} درجة محدثة.`);
             } else {
-                setStatusMsg('لم يتم العثور على أعمدة مطابقة في الملف.');
+                setStatusMsg('لم يتم العثور على أعمدة مطابقة في الملف (ابحث عن: واجب، نشاط، اختبار).');
             }
         } catch (e: any) {
             console.error("Auto-sync failed", e);
             setStatusMsg(`❌ فشل المزامنة: ${e.message}`);
         } finally {
             setIsGenerating(false);
-            setTimeout(() => setStatusMsg(''), 3000);
+            setTimeout(() => setStatusMsg(''), 4000);
         }
     };
 
@@ -160,9 +210,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         allAssignments.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
         setAssignments(allAssignments);
         
-        if (activeMode === 'GRADING' && masterUrl && allAssignments.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
-            handleAutoSyncForTab(activeTab);
-        }
+        // Removed Auto-Sync on mount to prevent loop/lag, users should click button
+        // if (activeMode === 'GRADING' && masterUrl && allAssignments.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
+        //    handleAutoSyncForTab(activeTab);
+        // }
     }, [activeTab, masterUrl, activeMode, currentUser]);
 
     useEffect(() => {
@@ -545,6 +596,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <div className="flex justify-between items-center w-full">
                                 <span className="text-sm text-blue-800 font-bold truncate dir-ltr">{masterUrl}</span>
                                 <div className="flex gap-2">
+                                    <button onClick={() => handleAutoSyncForTab(activeTab)} disabled={isGenerating} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold flex items-center gap-1 hover:bg-blue-700 disabled:opacity-50">
+                                        {isGenerating ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>} تحديث البيانات
+                                    </button>
                                     <button onClick={() => setIsEditingUrl(true)} className="p-1.5 text-gray-500 hover:text-blue-600"><Edit2 size={16}/></button>
                                 </div>
                             </div>
