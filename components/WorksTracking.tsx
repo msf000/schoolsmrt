@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
@@ -142,7 +141,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!selectedHeadersToImport.size) return;
         
         let newCount = 0;
-        selectedHeadersToImport.forEach((header, idx) => {
+        // FIX: Convert Set to Array to get proper numeric index
+        Array.from(selectedHeadersToImport).forEach((header, idx) => {
             const { label, maxScore } = extractHeaderMetadata(header);
             
             // Check existence
@@ -154,7 +154,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     category: activeTab,
                     maxScore: maxScore,
                     isVisible: true,
-                    orderIndex: assignments.length + idx,
+                    orderIndex: assignments.length + idx, // Now idx is a number
                     teacherId: currentUser?.id,
                     // Store the exact header name from excel to map correctly later
                     sourceMetadata: JSON.stringify({ originalHeader: header })
@@ -197,7 +197,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const { data } = getSheetHeadersAndData(workbook, currentSheetName);
             
             // Get Current Assignments to map to
-            const currentAssignments = getAssignments(category, currentUser.id);
+            const currentAssignments = getAssignments(category, currentUser?.id);
             const recordsToSave: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
             let updatedScoresCount = 0;
@@ -232,7 +232,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         }
 
                         if (valRaw !== undefined && valRaw !== null && String(valRaw).trim() !== '') {
-                            const val = parseFloat(valRaw);
+                            const val = parseFloat(String(valRaw));
                             if (!isNaN(val)) {
                                 recordsToSave.push({
                                     id: `${student!.id}-${category}-${assign.id}`,
@@ -566,8 +566,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
 
         if (activeTab === 'YEAR_WORK') {
-            // ... (Logic for year work same as before)
-            // Recalculating here for brevity
             const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
             const hwCols = getAssignments('HOMEWORK', currentUser?.id);
             const distinctHW = new Set(hwRecs.map(p => p.notes)).size;
@@ -602,6 +600,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </tr>
             );
         }
+        
         return null;
     };
 
