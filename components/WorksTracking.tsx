@@ -209,27 +209,33 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const allAssignments = getAssignments(activeTab, currentUser?.id);
         allAssignments.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
         setAssignments(allAssignments);
-        
-        // Removed Auto-Sync on mount to prevent loop/lag, users should click button
-        // if (activeMode === 'GRADING' && masterUrl && allAssignments.length === 0 && !isGenerating && activeTab !== 'YEAR_WORK') {
-        //    handleAutoSyncForTab(activeTab);
-        // }
     }, [activeTab, masterUrl, activeMode, currentUser]);
 
     useEffect(() => {
         if (activeTab === 'YEAR_WORK') return;
         const newGrid: Record<string, Record<string, string>> = {};
         
-        // Filter performance records to show only what's relevant to current view
-        // Note: performance prop is already filtered by App.tsx to include legacy data
+        // Robust Grid Population: Link by ID (Notes) OR Title fallback
         performance.forEach(p => {
-            if (p.category === activeTab && p.subject === selectedSubject && p.notes) {
-                if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
-                newGrid[p.studentId][p.notes] = p.score.toString();
+            if (p.category === activeTab && p.subject === selectedSubject) {
+                // Strategy 1: Link by ID (stored in notes)
+                const assignmentById = assignments.find(a => a.id === p.notes);
+                
+                if (assignmentById) {
+                    if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
+                    newGrid[p.studentId][assignmentById.id] = p.score.toString();
+                } else {
+                    // Strategy 2: Link by Title (Legacy/Manual Name Matching)
+                    const assignmentByTitle = assignments.find(a => a.title === p.title);
+                    if (assignmentByTitle) {
+                        if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
+                        newGrid[p.studentId][assignmentByTitle.id] = p.score.toString();
+                    }
+                }
             }
         });
         setGridData(newGrid);
-    }, [performance, activeTab, selectedSubject]);
+    }, [performance, activeTab, selectedSubject, assignments]);
 
     const handleActivityTargetChange = (val: string) => {
         const num = parseInt(val);
@@ -259,7 +265,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!assignment) return;
 
         const scoreVal = parseFloat(val);
-        if (isNaN(scoreVal) && val !== '') return; // Don't save invalid numbers, but allow saving empty as 0 if needed or logic below
+        if (isNaN(scoreVal) && val !== '') return; 
 
         const today = new Date().toISOString().split('T')[0];
         
@@ -270,7 +276,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             subject: selectedSubject,
             title: assignment.title,
             category: activeTab,
-            score: isNaN(scoreVal) ? 0 : scoreVal, // Default to 0 if empty
+            score: isNaN(scoreVal) ? 0 : scoreVal, 
             maxScore: assignment.maxScore,
             date: today,
             notes: assignment.id, 
