@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
@@ -178,7 +176,17 @@ const App: React.FC = () => {
     const handleUpdateStudent = (s: Student) => { updateStudent(s); loadData(); };
     const handleDeleteStudent = (id: string) => { deleteStudent(id); loadData(); };
     const handleSaveAttendance = (recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); };
-    const handleAddPerformance = (rec: PerformanceRecord) => { addPerformance(rec); loadData(); };
+    
+    // UPDATED: Handle both single record and array of records
+    const handleAddPerformance = (rec: PerformanceRecord | PerformanceRecord[]) => { 
+        if (Array.isArray(rec)) {
+            bulkAddPerformance(rec);
+        } else {
+            addPerformance(rec);
+        }
+        loadData(); 
+    };
+    
     const handleBulkAddPerformance = (recs: PerformanceRecord[]) => { bulkAddPerformance(recs); loadData(); };
     const handleDeletePerformance = (id: string) => { deletePerformance(id); loadData(); };
     
