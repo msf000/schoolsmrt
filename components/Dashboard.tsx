@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem } from '../types';
 import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table, XCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -54,7 +54,6 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
     useEffect(() => {
         const allTeachers = getTeachers();
         // Filter teachers belonging to this school manager's school
-        // Assuming currentUser.schoolId is set, or linking via managerNationalId
         const mySchoolTeachers = allTeachers.filter(t => t.schoolId === currentUser.schoolId || t.managerId === currentUser.nationalId);
         setTeachers(mySchoolTeachers);
     }, [currentUser]);
@@ -461,18 +460,69 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
   const topStudents = [...studentMetrics].sort((a,b) => b.leaderboardScore - a.leaderboardScore).slice(0, 5);
 
+  // --- RECENT ACTIVITY FEED (Integrated) ---
   const recentActivity = useMemo(() => {
-      // ... same as before logic for recent activity ...
-      const perfs = performance.map(p => ({
-          type: 'PERFORMANCE',
-          date: p.date,
-          studentName: students.find(s => s.id === p.studentId)?.name || 'طالب غير معروف',
-          detail: `حصل على ${p.score}/${p.maxScore} في ${p.subject}`,
-          timestamp: new Date(p.date).getTime()
-      }));
-      // (Add attendance logic similarly if needed for brevity, reusing existing structure)
-      return perfs.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+      const activities: any[] = [];
+      
+      // 1. Performance Records
+      performance.forEach(p => {
+          activities.push({
+              type: 'PERFORMANCE',
+              date: p.date,
+              studentName: students.find(s => s.id === p.studentId)?.name || 'طالب غير معروف',
+              detail: `حصل على ${p.score}/${p.maxScore} في ${p.title || p.subject}`,
+              timestamp: new Date(p.date).getTime()
+          });
+      });
+
+      // 2. Attendance/Behavior Records
+      attendance.forEach(a => {
+          if (a.status === 'ABSENT' || a.status === 'LATE') {
+              activities.push({
+                  type: 'ATTENDANCE',
+                  date: a.date,
+                  studentName: students.find(s => s.id === a.studentId)?.name || 'طالب غير معروف',
+                  detail: a.status === 'ABSENT' ? 'تم تسجيل غياب' : 'تم تسجيل تأخر',
+                  timestamp: new Date(a.date).getTime()
+              });
+          }
+          if (a.behaviorStatus && a.behaviorStatus !== 'NEUTRAL') {
+               activities.push({
+                  type: 'BEHAVIOR',
+                  date: a.date,
+                  studentName: students.find(s => s.id === a.studentId)?.name || 'طالب غير معروف',
+                  detail: a.behaviorStatus === 'POSITIVE' ? 'سلوك إيجابي 🌟' : 'ملاحظة سلوكية ⚠️',
+                  timestamp: new Date(a.date).getTime()
+              });
+          }
+      });
+
+      return activities.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
   }, [attendance, performance, students]);
+
+  // --- RISK ALERTS (New) ---
+  const riskAlerts = useMemo(() => {
+      const risks: any[] = [];
+      students.forEach(s => {
+          const sAtt = attendance.filter(a => a.studentId === s.id);
+          const absent = sAtt.filter(a => a.status === 'ABSENT').length;
+          const totalDays = sAtt.length;
+          
+          if (totalDays > 0 && (absent / totalDays) > 0.20) {
+              risks.push({ student: s, type: 'ATTENDANCE', msg: `نسبة غياب عالية (${Math.round((absent/totalDays)*100)}%)` });
+          }
+
+          const sPerf = performance.filter(p => p.studentId === s.id);
+          if (sPerf.length >= 3) {
+              const totalScore = sPerf.reduce((a,b) => a + (b.score/b.maxScore), 0);
+              const avg = totalScore / sPerf.length;
+              if (avg < 0.5) {
+                  risks.push({ student: s, type: 'ACADEMIC', msg: `مستوى متدني (${Math.round(avg*100)}%)` });
+              }
+          }
+      });
+      return risks.slice(0, 3); // Top 3 risks
+  }, [students, attendance, performance]);
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
@@ -549,33 +599,58 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Students */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col h-80">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500"/> لوحة الشرف</h3>
-                <button onClick={() => onNavigate('STUDENT_FOLLOWUP')} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
-            </div>
-            <div className="flex-1 overflow-auto space-y-3 custom-scrollbar">
-                {topStudents.map((s, idx) => (
-                    <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
-                        <div className="flex items-center gap-3">
-                            <span className="font-bold text-gray-400 w-4">{idx + 1}</span>
-                            <div className="w-8 h-8 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center font-bold text-xs">{s.name.charAt(0)}</div>
-                            <div><p className="text-sm font-bold text-gray-800">{s.name}</p><p className="text-[10px] text-gray-500">{s.grade}</p></div>
-                        </div>
-                        <span className="font-black text-yellow-600 text-sm">{s.score}%</span>
+        
+        {/* Risk Alerts & Top Students */}
+        <div className="space-y-6">
+            {/* Risk Alerts */}
+            {riskAlerts.length > 0 && (
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4 animate-bounce-in">
+                    <h3 className="text-red-800 font-bold mb-3 flex items-center gap-2 text-sm"><AlertCircle size={16}/> تنبيهات المتابعة (Risk)</h3>
+                    <div className="space-y-2">
+                        {riskAlerts.map((risk, i) => (
+                            <div key={i} className="bg-white p-2 rounded border border-red-100 flex justify-between items-center text-sm">
+                                <span className="font-bold text-gray-700">{risk.student.name}</span>
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">{risk.msg}</span>
+                            </div>
+                        ))}
                     </div>
-                ))}
+                </div>
+            )}
+
+            {/* Top Students */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col h-64">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500"/> لوحة الشرف</h3>
+                    <button onClick={() => onNavigate('STUDENT_FOLLOWUP')} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
+                </div>
+                <div className="flex-1 overflow-auto space-y-3 custom-scrollbar">
+                    {topStudents.map((s, idx) => (
+                        <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
+                            <div className="flex items-center gap-3">
+                                <span className="font-bold text-gray-400 w-4">{idx + 1}</span>
+                                <div className="w-8 h-8 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center font-bold text-xs">{s.name.charAt(0)}</div>
+                                <div><p className="text-sm font-bold text-gray-800">{s.name}</p><p className="text-[10px] text-gray-500">{s.grade}</p></div>
+                            </div>
+                            <span className="font-black text-yellow-600 text-sm">{s.score}%</span>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-80 flex flex-col">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2"><Activity size={18} className="text-purple-600"/> أحدث النشاطات</h3>
+        {/* Recent Activity Feed (Enhanced) */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full max-h-[500px] flex flex-col">
+            <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2"><Activity size={18} className="text-purple-600"/> سجل النشاطات الأخير</h3>
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
                 {recentActivity.length > 0 ? recentActivity.map((activity, idx) => (
-                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
-                        <div className="mt-1 min-w-[24px] h-6 flex items-center justify-center rounded-full bg-blue-100 text-blue-600"><Award size={14}/></div>
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors">
+                        <div className={`mt-1 min-w-[24px] h-6 flex items-center justify-center rounded-full ${
+                            activity.type === 'ATTENDANCE' ? 'bg-orange-100 text-orange-600' :
+                            activity.type === 'BEHAVIOR' ? 'bg-green-100 text-green-600' :
+                            'bg-blue-100 text-blue-600'
+                        }`}>
+                            {activity.type === 'ATTENDANCE' ? <Clock size={14}/> : activity.type === 'BEHAVIOR' ? <Smile size={14}/> : <Award size={14}/>}
+                        </div>
                         <div>
                             <p className="text-sm font-bold text-gray-800">{activity.studentName}</p>
                             <p className="text-xs text-gray-600">{activity.detail}</p>

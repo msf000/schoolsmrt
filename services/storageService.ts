@@ -44,7 +44,23 @@ export const getTableDisplayName = (key: string) => {
         schools: 'المدارس',
         attendance: 'الحضور',
         performance: 'الدرجات',
-        // Add others as needed
+        assignments: 'التعيينات',
+        schedules: 'الجدول الدراسي',
+        teacherAssignments: 'توزيع الحصص',
+        subjects: 'المواد',
+        weeklyPlans: 'الخطط الأسبوعية',
+        lessonLinks: 'روابط الدروس',
+        lessonPlans: 'تحضير الدروس',
+        customTables: 'جداول خاصة',
+        messages: 'سجل الرسائل',
+        feedback: 'التوجيهات',
+        exams: 'الاختبارات',
+        examResults: 'نتائج الاختبارات',
+        questions: 'بنك الأسئلة',
+        curriculumUnits: 'وحدات المنهج',
+        curriculumLessons: 'دروس المنهج',
+        microConcepts: 'المفاهيم الدقيقة',
+        trackingSheets: 'سجلات المتابعة'
     };
     return map[key] || key;
 };
@@ -143,6 +159,7 @@ export const initAutoSync = async () => {
     notifySyncStatus('SYNCING');
     try {
         await downloadFromSupabase();
+        // If we reach here without error, we assume online, but downloadFromSupabase handles individual table errors gracefully now
         notifySyncStatus('ONLINE');
     } catch (e) {
         console.error('Sync failed', e);
@@ -615,7 +632,7 @@ export const getStorageStatistics = () => {
     }, {} as Record<string, number>);
 };
 
-// --- Cloud Sync ---
+// --- Cloud Sync (Graceful) ---
 
 export const downloadFromSupabase = async () => {
     notifySyncStatus('SYNCING');
@@ -624,7 +641,15 @@ export const downloadFromSupabase = async () => {
         await Promise.all(keys.map(async (key) => {
             const tableName = DB_MAP[key];
             const { data, error } = await supabase.from(tableName).select('*');
-            if (!error && data) {
+            
+            // Graceful handling of errors (like 404 or missing table)
+            if (error) {
+                console.warn(`Could not sync table ${tableName}: ${error.message}`);
+                // Do NOT throw error, allow other tables or local data to persist
+                return;
+            }
+            
+            if (data) {
                 (CACHE as any)[key] = data;
                 localStorage.setItem(key, JSON.stringify(data));
             }
@@ -632,8 +657,9 @@ export const downloadFromSupabase = async () => {
         notifyDataChanges();
         notifySyncStatus('ONLINE');
     } catch (e) {
-        notifySyncStatus('ERROR');
-        throw e;
+        console.error('General Sync failed', e);
+        notifySyncStatus('OFFLINE');
+        // Do not throw, allow app to continue offline
     }
 };
 
@@ -649,14 +675,16 @@ export const uploadToSupabase = async () => {
                 const chunkSize = 100;
                 for (let i = 0; i < localData.length; i += chunkSize) {
                     const chunk = localData.slice(i, i + chunkSize);
-                    await supabase.from(tableName).upsert(chunk);
+                    const { error } = await supabase.from(tableName).upsert(chunk);
+                    if (error) console.warn(`Upload warning for ${tableName}:`, error.message);
                 }
             }
         }));
         notifySyncStatus('ONLINE');
     } catch (e) {
         notifySyncStatus('ERROR');
-        throw e;
+        console.error('Upload failed', e);
+        // Alert user if needed, but don't crash
     }
 };
 
@@ -724,18 +752,53 @@ export const restoreCloudDatabase = async (json: string) => {
 // SQL Generators
 export const getDatabaseSchemaSQL = () => {
     return `
--- Create Tables
+-- 1. Schools
 CREATE TABLE IF NOT EXISTS schools (
   id TEXT PRIMARY KEY,
   name TEXT,
   ministryCode TEXT,
   managerName TEXT,
+  managerNationalId TEXT,
   type TEXT,
   phone TEXT,
   studentCount INTEGER,
+  educationAdministration TEXT,
+  worksMasterUrl TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 2. Teachers
+CREATE TABLE IF NOT EXISTS teachers (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  nationalId TEXT,
+  email TEXT,
+  phone TEXT,
+  password TEXT,
+  subjectSpecialty TEXT,
+  schoolId TEXT,
+  managerId TEXT,
+  subscriptionStatus TEXT,
+  subscriptionEndDate TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. System Users
+CREATE TABLE IF NOT EXISTS system_users (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  email TEXT,
+  nationalId TEXT,
+  password TEXT,
+  role TEXT,
+  schoolId TEXT,
+  status TEXT,
+  isDemo BOOLEAN,
+  phone TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Students
 CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
   name TEXT,
@@ -744,17 +807,196 @@ CREATE TABLE IF NOT EXISTS students (
   className TEXT,
   schoolId TEXT,
   parentId TEXT,
+  parentName TEXT,
+  parentPhone TEXT,
+  parentEmail TEXT,
+  password TEXT,
+  seatIndex INTEGER,
+  createdById TEXT,
+  classId TEXT,
+  phone TEXT,
+  email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Add other tables similarly based on types...
-`;
-};
+-- 5. Attendance
+CREATE TABLE IF NOT EXISTS attendance (
+  id TEXT PRIMARY KEY,
+  studentId TEXT,
+  date TEXT,
+  status TEXT,
+  subject TEXT,
+  period INTEGER,
+  behaviorStatus TEXT,
+  behaviorNote TEXT,
+  excuseNote TEXT,
+  excuseFile TEXT,
+  createdById TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-export const getDatabaseUpdateSQL = () => {
-    return `
--- Updates for new features
-ALTER TABLE students ADD COLUMN IF NOT EXISTS seatIndex INTEGER;
+-- 6. Performance (Grades)
+CREATE TABLE IF NOT EXISTS performance (
+  id TEXT PRIMARY KEY,
+  studentId TEXT,
+  subject TEXT,
+  title TEXT,
+  category TEXT,
+  score NUMERIC,
+  maxScore NUMERIC,
+  date TEXT,
+  notes TEXT,
+  url TEXT,
+  createdById TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Assignments (Columns)
+CREATE TABLE IF NOT EXISTS assignments (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  category TEXT,
+  maxScore NUMERIC,
+  url TEXT,
+  isVisible BOOLEAN,
+  orderIndex INTEGER,
+  sourceMetadata TEXT,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Schedules
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY,
+  classId TEXT,
+  day TEXT,
+  period INTEGER,
+  subjectName TEXT,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. Teacher Assignments (Class-Subject Links)
+CREATE TABLE IF NOT EXISTS teacher_assignments (
+  id TEXT PRIMARY KEY,
+  classId TEXT,
+  subjectName TEXT,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 10. Subjects
+CREATE TABLE IF NOT EXISTS subjects (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. Weekly Plans
+CREATE TABLE IF NOT EXISTS weekly_plans (
+  id TEXT PRIMARY KEY,
+  teacherId TEXT,
+  classId TEXT,
+  subjectName TEXT,
+  day TEXT,
+  period INTEGER,
+  weekStartDate TEXT,
+  lessonTopic TEXT,
+  homework TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. Lesson Links
+CREATE TABLE IF NOT EXISTS lesson_links (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  url TEXT,
+  teacherId TEXT,
+  createdAt TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. Lesson Plans (Detailed)
+CREATE TABLE IF NOT EXISTS lesson_plans (
+  id TEXT PRIMARY KEY,
+  teacherId TEXT,
+  lessonId TEXT,
+  subject TEXT,
+  topic TEXT,
+  contentJson TEXT,
+  resources JSONB,
+  createdAt TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Custom Tables
+CREATE TABLE IF NOT EXISTS custom_tables (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  createdAt TEXT,
+  columns JSONB,
+  rows JSONB,
+  sourceUrl TEXT,
+  lastUpdated TEXT,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. Message Logs
+CREATE TABLE IF NOT EXISTS message_logs (
+  id TEXT PRIMARY KEY,
+  studentId TEXT,
+  studentName TEXT,
+  parentPhone TEXT,
+  type TEXT,
+  content TEXT,
+  status TEXT,
+  date TEXT,
+  sentBy TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 16. Feedback
+CREATE TABLE IF NOT EXISTS feedback (
+  id TEXT PRIMARY KEY,
+  teacherId TEXT,
+  managerId TEXT,
+  content TEXT,
+  date TEXT,
+  isRead BOOLEAN,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 17. Exams
+CREATE TABLE IF NOT EXISTS exams (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  subject TEXT,
+  gradeLevel TEXT,
+  durationMinutes INTEGER,
+  questions JSONB,
+  isActive BOOLEAN,
+  createdAt TEXT,
+  teacherId TEXT,
+  date TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 18. Exam Results
+CREATE TABLE IF NOT EXISTS exam_results (
+  id TEXT PRIMARY KEY,
+  examId TEXT,
+  studentId TEXT,
+  studentName TEXT,
+  score NUMERIC,
+  totalScore NUMERIC,
+  date TEXT,
+  answers JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 19. Questions Bank
 CREATE TABLE IF NOT EXISTS questions (
   id TEXT PRIMARY KEY,
   text TEXT,
@@ -762,8 +1004,100 @@ CREATE TABLE IF NOT EXISTS questions (
   options JSONB,
   correctAnswer TEXT,
   points INTEGER,
-  teacherId TEXT
+  subject TEXT,
+  gradeLevel TEXT,
+  topic TEXT,
+  difficulty TEXT,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- ...
+
+-- 20. Curriculum Units
+CREATE TABLE IF NOT EXISTS curriculum_units (
+  id TEXT PRIMARY KEY,
+  teacherId TEXT,
+  subject TEXT,
+  gradeLevel TEXT,
+  title TEXT,
+  orderIndex INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 21. Curriculum Lessons
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+  id TEXT PRIMARY KEY,
+  unitId TEXT,
+  title TEXT,
+  orderIndex INTEGER,
+  learningStandards JSONB,
+  microConceptIds JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 22. Micro Concepts
+CREATE TABLE IF NOT EXISTS micro_concepts (
+  id TEXT PRIMARY KEY,
+  teacherId TEXT,
+  subject TEXT,
+  name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 23. Tracking Sheets
+CREATE TABLE IF NOT EXISTS tracking_sheets (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  subject TEXT,
+  className TEXT,
+  teacherId TEXT,
+  createdAt TEXT,
+  columns JSONB,
+  scores JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+`;
+};
+
+export const getDatabaseUpdateSQL = () => {
+    return `
+-- Use this block only if you are updating an existing database to add new features
+ALTER TABLE students ADD COLUMN IF NOT EXISTS seatIndex INTEGER;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS createdById TEXT;
+
+CREATE TABLE IF NOT EXISTS questions (
+  id TEXT PRIMARY KEY,
+  text TEXT,
+  type TEXT,
+  options JSONB,
+  correctAnswer TEXT,
+  points INTEGER,
+  subject TEXT,
+  gradeLevel TEXT,
+  topic TEXT,
+  difficulty TEXT,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_units (
+  id TEXT PRIMARY KEY,
+  teacherId TEXT,
+  subject TEXT,
+  gradeLevel TEXT,
+  title TEXT,
+  orderIndex INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+  id TEXT PRIMARY KEY,
+  unitId TEXT,
+  title TEXT,
+  orderIndex INTEGER,
+  learningStandards JSONB,
+  microConceptIds JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 `;
 };
