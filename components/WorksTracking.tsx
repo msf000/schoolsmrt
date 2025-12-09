@@ -13,14 +13,16 @@ interface WorksTrackingProps {
   currentUser?: SystemUser | null;
 }
 
-// Helper to extract label and max score from header
+// Helper to extract label and max score from header ex: "Homework 1 (10)" -> maxScore: 10
 const extractHeaderMetadata = (header: string): { label: string, maxScore: number } => {
-    let maxScore = 10;
+    let maxScore = 10; // Default
     let label = header;
-    const match = header.match(/\((\d+)\)/);
+    
+    // Look for patterns like (10) or [20] in the header
+    const match = header.match(/[\(\[](\d+)[\)\]]/);
     if (match) {
         maxScore = parseInt(match[1]);
-        label = header.replace(/\(\d+\)/, '').trim();
+        label = header.replace(/[\(\[]\d+[\)\]]/, '').trim();
     }
     return { label, maxScore };
 };
@@ -66,7 +68,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        // FIX: Fetch subjects including legacy/global ones by passing ID
         const loadedSubjects = getSubjects(currentUser?.id);
         setSubjects(loadedSubjects);
         if (loadedSubjects.length > 0) setSelectedSubject(loadedSubjects[0].name);
@@ -87,9 +88,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const getKeywordsForCategory = (cat: PerformanceCategory): string[] => {
         switch (cat) {
-            case 'ACTIVITY': return ['نشاط', 'مشاركة', 'activity', 'participation'];
-            case 'HOMEWORK': return ['واجب', 'homework', 'assignment'];
-            case 'PLATFORM_EXAM': return ['اختبار', 'exam', 'quiz', 'منصة', 'platform'];
+            case 'ACTIVITY': 
+                return ['نشاط', 'مشاركة', 'تفاعل', 'شفهي', 'عملي', 'activity', 'participation', 'classwork', 'act', 'part', 'شفوى', 'سلوك'];
+            case 'HOMEWORK': 
+                return ['واجب', 'منزلي', 'مهام', 'تطبيقات', 'homework', 'assignment', 'hw', 'home', 'tasks', 'sheet'];
+            case 'PLATFORM_EXAM': 
+                return ['اختبار', 'تقييم', 'منصة', 'تحريري', 'فترى', 'exam', 'quiz', 'test', 'midterm', 'final', 'platform', 'period', 'فترة'];
             default: return [];
         }
     };
@@ -106,7 +110,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
 
             const keywords = getKeywordsForCategory(category);
-            const matchedHeaders = headers.filter(h => keywords.some(k => h.toLowerCase().includes(k)));
+            // Relaxed matching: Check if header contains any keyword (case insensitive)
+            const matchedHeaders = headers.filter(h => keywords.some(k => h.toLowerCase().includes(k.toLowerCase())));
 
             let newAssignmentsCount = 0;
             let updatedScoresCount = 0;
@@ -114,31 +119,34 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const today = new Date().toISOString().split('T')[0];
 
             // 1. Sync Columns (Assignments)
-            if (matchedHeaders.length > 0) {
-                const existing = getAssignments(category, currentUser.id);
+            // We need to fetch latest assignments inside the function to ensure we don't duplicate if called multiple times rapidly
+            let currentAssignments = getAssignments(category, currentUser.id);
+            
+            // Helper to get or create assignment
+            const getOrCreateAssignment = (headerTitle: string, idx: number): Assignment => {
+                const { label, maxScore } = extractHeaderMetadata(headerTitle);
                 
-                // Helper to get or create assignment
-                const getOrCreateAssignment = (headerTitle: string, idx: number): Assignment => {
-                    const { label, maxScore } = extractHeaderMetadata(headerTitle);
-                    const existingAssign = existing.find(e => e.title === headerTitle || e.title === label);
-                    
-                    if (existingAssign) return existingAssign;
+                // Try to find existing by Title exact match
+                let existingAssign = currentAssignments.find(e => e.title.trim() === label.trim() || e.title.trim() === headerTitle.trim());
+                
+                if (existingAssign) return existingAssign;
 
-                    const newAssign: Assignment = {
-                        id: `${category}_auto_${Date.now()}_${idx}`,
-                        title: label,
-                        category: category,
-                        maxScore: maxScore,
-                        isVisible: true,
-                        orderIndex: existing.length + idx,
-                        teacherId: currentUser.id
-                    };
-                    saveAssignment(newAssign);
-                    existing.push(newAssign); // Add to local list to avoid duplicates in loop
-                    newAssignmentsCount++;
-                    return newAssign;
+                const newAssign: Assignment = {
+                    id: `${category}_auto_${Date.now()}_${idx}`,
+                    title: label,
+                    category: category,
+                    maxScore: maxScore,
+                    isVisible: true,
+                    orderIndex: currentAssignments.length + idx,
+                    teacherId: currentUser.id
                 };
+                saveAssignment(newAssign);
+                currentAssignments.push(newAssign); // Update local ref
+                newAssignmentsCount++;
+                return newAssign;
+            };
 
+            if (matchedHeaders.length > 0) {
                 // 2. Sync Rows (Scores)
                 data.forEach(row => {
                     // Try to find student match
@@ -146,7 +154,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     const nationalId = row['National ID'] || row['رقم الهوية'] || row['السجل المدني'] || row['ID'];
 
                     let student: Student | undefined;
+                    // Match by ID first (most accurate)
                     if (nationalId) student = students.find(s => s.nationalId === String(nationalId));
+                    // Match by Name if ID failed
                     if (!student && studentName) student = students.find(s => s.name.trim() === String(studentName).trim());
 
                     if (student) {
@@ -189,14 +199,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                 setStatusMsg(`✅ تم: ${newAssignmentsCount} عمود جديد، ${updatedScoresCount} درجة محدثة.`);
             } else {
-                setStatusMsg('لم يتم العثور على أعمدة مطابقة في الملف (ابحث عن: واجب، نشاط، اختبار).');
+                setStatusMsg(`⚠️ لم يتم العثور على أعمدة. ابحث عن: ${keywords.slice(0,3).join(', ')}`);
             }
         } catch (e: any) {
             console.error("Auto-sync failed", e);
             setStatusMsg(`❌ فشل المزامنة: ${e.message}`);
         } finally {
             setIsGenerating(false);
-            setTimeout(() => setStatusMsg(''), 4000);
+            setTimeout(() => setStatusMsg(''), 6000);
         }
     };
 
