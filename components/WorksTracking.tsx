@@ -89,11 +89,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const getKeywordsForCategory = (cat: PerformanceCategory): string[] => {
         switch (cat) {
             case 'ACTIVITY': 
-                return ['نشاط', 'مشاركة', 'تفاعل', 'شفهي', 'عملي', 'activity', 'participation', 'classwork', 'act', 'part', 'شفوى', 'سلوك'];
+                return ['نشاط', 'مشاركة', 'تفاعل', 'شفهي', 'عملي', 'activity', 'participation', 'classwork', 'act', 'part', 'شفوى', 'سلوك', 'مشاركه', 'عملى'];
             case 'HOMEWORK': 
-                return ['واجب', 'منزلي', 'مهام', 'تطبيقات', 'homework', 'assignment', 'hw', 'home', 'tasks', 'sheet'];
+                return ['واجب', 'منزلي', 'مهام', 'تطبيقات', 'homework', 'assignment', 'hw', 'home', 'tasks', 'sheet', 'ورقة', 'عمل'];
             case 'PLATFORM_EXAM': 
-                return ['اختبار', 'تقييم', 'منصة', 'تحريري', 'فترى', 'exam', 'quiz', 'test', 'midterm', 'final', 'platform', 'period', 'فترة'];
+                return ['اختبار', 'تقييم', 'منصة', 'تحريري', 'فترى', 'exam', 'quiz', 'test', 'midterm', 'final', 'platform', 'period', 'فترة', 'نهائي', 'short'];
             default: return [];
         }
     };
@@ -106,33 +106,66 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
             if (sheetNames.length === 0) throw new Error("Excel file is empty");
 
-            // Assuming data is in the first sheet
-            const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            // --- 1. Smart Sheet Detection ---
+            // Iterate sheets to find one that looks like a Gradebook (has student identifiers)
+            let targetSheetName = sheetNames[0];
+            let targetHeaders: string[] = [];
+            let targetData: any[] = [];
 
+            for (const name of sheetNames) {
+                const { headers, data } = getSheetHeadersAndData(workbook, name);
+                // Keywords that identify a student list
+                const isStudentSheet = headers.some(h => 
+                    ['name', 'student', 'اسم', 'طالب', 'id', 'national', 'هوية', 'سجل'].some(k => h.toLowerCase().includes(k))
+                );
+                
+                if (isStudentSheet && data.length > 0) {
+                    targetSheetName = name;
+                    targetHeaders = headers;
+                    targetData = data;
+                    console.log(`Found student data in sheet: ${name}`);
+                    break;
+                }
+            }
+            
+            // Fallback if loop didn't find specific headers but sheets exist
+            if (targetData.length === 0) {
+                 const res = getSheetHeadersAndData(workbook, sheetNames[0]);
+                 targetHeaders = res.headers;
+                 targetData = res.data;
+            }
+
+            // --- 2. Filter Grade Columns ---
             const keywords = getKeywordsForCategory(category);
-            // Relaxed matching: Check if header contains any keyword (case insensitive)
-            const matchedHeaders = headers.filter(h => keywords.some(k => h.toLowerCase().includes(k.toLowerCase())));
+            // Match headers that contain keywords OR are generic patterns
+            const matchedHeaders = targetHeaders.filter(h => {
+                const lower = h.toLowerCase();
+                // Exclude metadata columns to prevent false positives
+                if (['name', 'id', 'mobile', 'phone', 'class', 'grade', 'section', 'email', 'اسم', 'هوية', 'جوال', 'فصل', 'صف', 'تاريخ', 'date'].some(x => lower.includes(x))) return false;
+                
+                // Check against category keywords
+                return keywords.some(k => lower.includes(k.toLowerCase()));
+            });
 
             let newAssignmentsCount = 0;
             let updatedScoresCount = 0;
             const recordsToSave: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
 
-            // 1. Sync Columns (Assignments)
-            // We need to fetch latest assignments inside the function to ensure we don't duplicate if called multiple times rapidly
+            // 3. Sync Columns (Assignments)
+            // Fetch current assignments to avoid duplicates
             let currentAssignments = getAssignments(category, currentUser.id);
             
-            // Helper to get or create assignment
             const getOrCreateAssignment = (headerTitle: string, idx: number): Assignment => {
                 const { label, maxScore } = extractHeaderMetadata(headerTitle);
                 
-                // Try to find existing by Title exact match
+                // Try to find existing by Title (fuzzy match trimmed)
                 let existingAssign = currentAssignments.find(e => e.title.trim() === label.trim() || e.title.trim() === headerTitle.trim());
                 
                 if (existingAssign) return existingAssign;
 
                 const newAssign: Assignment = {
-                    id: `${category}_auto_${Date.now()}_${idx}`,
+                    id: `${category}_auto_${Date.now()}_${idx}`, // Unique ID
                     title: label,
                     category: category,
                     maxScore: maxScore,
@@ -141,33 +174,32 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     teacherId: currentUser.id
                 };
                 saveAssignment(newAssign);
-                currentAssignments.push(newAssign); // Update local ref
+                currentAssignments.push(newAssign);
                 newAssignmentsCount++;
                 return newAssign;
             };
 
             if (matchedHeaders.length > 0) {
-                // 2. Sync Rows (Scores)
-                data.forEach(row => {
-                    // Try to find student match
-                    const studentName = row['Student Name'] || row['اسم الطالب'] || row['الاسم'] || row['Name'];
-                    const nationalId = row['National ID'] || row['رقم الهوية'] || row['السجل المدني'] || row['ID'];
+                // 4. Sync Rows (Scores)
+                targetData.forEach(row => {
+                    // Match Student (Name or ID)
+                    const studentName = row['Student Name'] || row['اسم الطالب'] || row['الاسم'] || row['Name'] || row['Student'];
+                    const nationalId = row['National ID'] || row['رقم الهوية'] || row['السجل المدني'] || row['ID'] || row['NationalID'];
 
                     let student: Student | undefined;
                     // Match by ID first (most accurate)
-                    if (nationalId) student = students.find(s => s.nationalId === String(nationalId));
+                    if (nationalId) student = students.find(s => s.nationalId === String(nationalId).trim());
                     // Match by Name if ID failed
                     if (!student && studentName) student = students.find(s => s.name.trim() === String(studentName).trim());
 
                     if (student) {
                         matchedHeaders.forEach((header, idx) => {
                             const valRaw = row[header];
-                            if (valRaw !== undefined && valRaw !== null && valRaw !== '') {
+                            if (valRaw !== undefined && valRaw !== null && String(valRaw).trim() !== '') {
                                 const val = parseFloat(valRaw);
                                 if (!isNaN(val)) {
                                     const assignment = getOrCreateAssignment(header, idx);
                                     
-                                    // Generate Record
                                     recordsToSave.push({
                                         id: `${student!.id}-${category}-${assignment.id}`, // Deterministic ID for Upsert
                                         studentId: student!.id,
@@ -177,7 +209,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         score: val,
                                         maxScore: assignment.maxScore,
                                         date: today,
-                                        notes: assignment.id, // Links back to assignment
+                                        notes: assignment.id, // Links back to assignment ID
                                         createdById: currentUser.id
                                     });
                                     updatedScoresCount++;
@@ -197,9 +229,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 updated.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
                 setAssignments(updated);
 
-                setStatusMsg(`✅ تم: ${newAssignmentsCount} عمود جديد، ${updatedScoresCount} درجة محدثة.`);
+                setStatusMsg(`✅ تم: ${newAssignmentsCount} عمود جديد، ${updatedScoresCount} درجة محدثة (من الورقة: ${targetSheetName})`);
             } else {
-                setStatusMsg(`⚠️ لم يتم العثور على أعمدة. ابحث عن: ${keywords.slice(0,3).join(', ')}`);
+                setStatusMsg(`⚠️ لم يتم العثور على أعمدة مطابقة في الورقة (${targetSheetName}). الكلمات: ${keywords.slice(0,3).join(', ')}`);
             }
         } catch (e: any) {
             console.error("Auto-sync failed", e);
