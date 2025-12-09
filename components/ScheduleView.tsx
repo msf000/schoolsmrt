@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem } from '../types';
 import { getSchedules, getTeacherAssignments, getSubjects, getCurriculumUnits, getCurriculumLessons, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem } from '../services/storageService';
@@ -46,7 +45,15 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     }, [currentUser]);
 
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-    const dayNamesAr = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+    const dayNamesAr = { 
+        'Sunday': 'الأحد', 
+        'Monday': 'الاثنين', 
+        'Tuesday': 'الثلاثاء', 
+        'Wednesday': 'الأربعاء', 
+        'Thursday': 'الخميس',
+        'Friday': 'الجمعة',
+        'Saturday': 'السبت'
+    };
     const periods = [1, 2, 3, 4, 5, 6, 7, 8];
 
     const changeWeek = (dir: number) => {

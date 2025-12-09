@@ -202,7 +202,7 @@ export interface SystemUser {
     email: string;
     nationalId?: string; // Added for linking
     password?: string; // Added: Password
-    role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT';
+    role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; // Added PARENT
     schoolId?: string; // If null, super admin. If Manager, lists owned schools logic handled elsewhere
     status: 'ACTIVE' | 'INACTIVE';
 }

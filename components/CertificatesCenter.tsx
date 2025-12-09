@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Student, SystemUser, School } from '../types';
-import { getSchools } from '../services/storageService';
-import { Award, Printer, CheckSquare, Search, Sparkles, Star, Medal, ThumbsUp, Calendar, LayoutTemplate, TrendingUp } from 'lucide-react';
+import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
+import { getSchools, saveAttendance } from '../services/storageService';
+import { Award, Printer, CheckSquare, Search, Sparkles, Star, Medal, ThumbsUp, Calendar, LayoutTemplate, TrendingUp, CheckCircle } from 'lucide-react';
 
 interface CertificatesCenterProps {
     students: Student[];
@@ -23,6 +23,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     const [searchTerm, setSearchTerm] = useState('');
     const [customText, setCustomText] = useState('نظير جهوده المتميزة ومستواه الرائع خلال الفترة الماضية، متمنين له دوام التوفيق.');
     const [printMode, setPrintMode] = useState(false);
+    const [logToHistory, setLogToHistory] = useState(true);
 
     const [schoolInfo, setSchoolInfo] = useState<School | undefined>(() => {
         const schools = getSchools();
@@ -53,6 +54,25 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     };
 
     const handlePrint = () => {
+        if (logToHistory) {
+            const records: AttendanceRecord[] = [];
+            const today = new Date().toISOString().split('T')[0];
+            
+            selectedStudents.forEach(id => {
+                records.push({
+                    id: `${id}-cert-${Date.now()}`,
+                    studentId: id,
+                    date: today,
+                    status: AttendanceStatus.PRESENT, // Assumption
+                    behaviorStatus: BehaviorStatus.POSITIVE,
+                    behaviorNote: `منح شهادة: ${selectedTemplate.title}`,
+                    createdById: currentUser?.id
+                });
+            });
+            
+            if (records.length > 0) saveAttendance(records);
+        }
+
         setPrintMode(true);
         setTimeout(() => {
             window.print();
@@ -69,7 +89,11 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                     </h2>
                     <p className="text-sm text-gray-500">إصدار شهادات جماعية للطلاب وتخصيصها.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-4 items-center">
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-600 cursor-pointer select-none bg-white px-3 py-2 rounded-lg border shadow-sm">
+                        <input type="checkbox" checked={logToHistory} onChange={e => setLogToHistory(e.target.checked)} className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" />
+                        تسجيل في سلوك الطالب
+                    </label>
                     <button onClick={handlePrint} disabled={selectedStudents.size === 0} className="bg-gray-900 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-black transition-colors disabled:opacity-50 shadow-lg">
                         <Printer size={18}/> طباعة ({selectedStudents.size})
                     </button>
