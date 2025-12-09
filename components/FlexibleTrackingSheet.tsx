@@ -24,10 +24,12 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        setSheets(getTrackingSheets(currentUser.id));
-        // Get only teacher's students or linked class students
-        setStudents(getStudents().filter(s => s.schoolId === currentUser.schoolId || s.createdById === currentUser.id));
-        setSubjects(getSubjects(currentUser.id));
+        if(currentUser?.id) {
+            setSheets(getTrackingSheets(currentUser.id));
+            // Get only teacher's students or linked class students
+            setStudents(getStudents().filter(s => s.schoolId === currentUser.schoolId || s.createdById === currentUser.id));
+            setSubjects(getSubjects(currentUser.id));
+        }
     }, [currentUser]);
 
     const uniqueClasses = useMemo<string[]>(() => {

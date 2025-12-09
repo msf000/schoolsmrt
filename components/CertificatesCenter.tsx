@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { Student, SystemUser, School } from '../types';
 import { getSchools } from '../services/storageService';
-import { Award, Printer, CheckSquare, Search, Sparkles, Star, Medal, ThumbsUp, Calendar, LayoutTemplate } from 'lucide-react';
+import { Award, Printer, CheckSquare, Search, Sparkles, Star, Medal, ThumbsUp, Calendar, LayoutTemplate, TrendingUp } from 'lucide-react';
 
 interface CertificatesCenterProps {
     students: Student[];
@@ -14,8 +15,6 @@ const TEMPLATES = [
     { id: 'BEHAVIOR', label: 'انضباط وسلوك', icon: Star, color: 'text-green-600', border: 'border-green-600', bg: 'bg-green-50', title: 'شهادة حسن سيرة وسلوك' },
     { id: 'THANKS', label: 'شكر عام', icon: ThumbsUp, color: 'text-purple-600', border: 'border-purple-600', bg: 'bg-purple-50', title: 'شهادة شكر وتقدير' },
 ];
-
-import { TrendingUp } from 'lucide-react';
 
 const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, currentUser }) => {
     const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0]);

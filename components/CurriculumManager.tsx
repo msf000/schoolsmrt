@@ -20,7 +20,7 @@ const SAUDI_GRADES = [
 ];
 
 const SAUDI_SUBJECTS = [
-    "علم الأرض والفضاء", "التقنية الرقمية", "علوم البيانات", "الذكاء الاصطناعي", "الأمن السيبراني", "الهندسة", // Tracks subjects prioritized
+    "علم الأرض والفضاء", "التقنية الرقمية", "علوم البيانات", "الذكاء الاصطناعي", "الأمن السيبراني", "الهندسة", 
     "الدراسات الإسلامية", "القرآن الكريم", "لغتي (اللغة العربية)", "الرياضيات", "العلوم", "اللغة الإنجليزية (We Can / Super Goal / Mega Goal)",
     "الدراسات الاجتماعية", "المهارات الرقمية", "التربية الفنية", "التربية البدنية والدفاع عن النفس",
     "التفكير الناقد", "أحياء", "فيزياء", "كيمياء", "علم البيئة",
@@ -56,20 +56,22 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
     const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
-        setUserSubjects(getSubjects(currentUser.id));
-        refreshData();
+        if (currentUser?.id) {
+            setUserSubjects(getSubjects(currentUser.id));
+            refreshData();
+        }
     }, [currentUser]);
 
     const refreshData = () => {
+        if (!currentUser?.id) return;
         setUnits(getCurriculumUnits(currentUser.id));
-        setLessons(getCurriculumLessons()); // Gets all, filter by unit later
+        setLessons(getCurriculumLessons()); // Lessons are global or filtered later
         setConcepts(getMicroConcepts(currentUser.id));
     };
 
     // Combine standard subjects with user custom subjects
     const allSubjectsList = useMemo(() => {
         const customNames = userSubjects.map(s => s.name);
-        // Merge and remove duplicates
         return Array.from(new Set([...SAUDI_SUBJECTS, ...customNames])).sort();
     }, [userSubjects]);
 
@@ -149,18 +151,17 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
             return;
         }
         
-        // Confirmation if data exists
         if (filteredUnits.length > 0) {
             if (!confirm('يوجد وحدات مسجلة بالفعل لهذه المادة. هل تريد الاستمرار وإضافة المزيد من الوحدات المقترحة؟')) return;
         }
 
         setIsGenerating(true);
         try {
-            // Pass Semester to ensure we get the right part of the book
+            // Use geminiService
             const structure = await generateCurriculumMap(selectedSubject, selectedGrade, selectedSemester);
             
             if (Array.isArray(structure) && structure.length > 0) {
-                let unitOrder = units.length; // Start ordering after existing
+                let unitOrder = units.length;
                 
                 for (const unitData of structure) {
                     const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
@@ -183,7 +184,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                 unitId: unitId,
                                 title: lesData.title || 'درس جديد',
                                 orderIndex: lessonOrder++,
-                                learningStandards: lesData.standards || [], // Store Ministerial Codes
+                                learningStandards: lesData.standards || [], 
                                 microConceptIds: [] 
                             };
                             saveCurriculumLesson(lesson);
@@ -220,7 +221,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                     {/* Controls */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4 flex flex-wrap gap-4 items-end">
                         
-                        {/* 1. Semester */}
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">1. الفصل الدراسي</label>
                             <select className="p-2 border rounded text-sm bg-gray-50 min-w-[140px]" value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
@@ -230,7 +230,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             </select>
                         </div>
 
-                        {/* 2. Grade (Dropdown) */}
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">2. الصف الدراسي</label>
                             <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}>
@@ -239,7 +238,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             </select>
                         </div>
 
-                        {/* 3. Subject (Dropdown) */}
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">3. المادة</label>
                             <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
@@ -248,7 +246,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             </select>
                         </div>
                         
-                        {/* Manual Add Unit */}
                         <div className="flex-1 flex gap-2">
                             <input className="flex-1 p-2 border rounded text-sm" placeholder="اسم الوحدة الجديدة (يدوي)..." value={newUnitName} onChange={e => setNewUnitName(e.target.value)}/>
                             <button onClick={handleAddUnit} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700 flex items-center gap-2 text-sm whitespace-nowrap">
@@ -256,7 +253,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             </button>
                         </div>
                         
-                        {/* AI Generate Button */}
                         <div className="w-full md:w-auto border-t md:border-t-0 md:border-r pr-0 md:pr-4 pt-4 md:pt-0">
                             <button 
                                 onClick={handleAutoGenerate} 
@@ -289,7 +285,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                     
                                     {isExpanded && (
                                         <div className="p-0 bg-white border-t border-gray-100 animate-slide-up">
-                                            {/* Lesson Header */}
                                             {unitLessons.length > 0 && (
                                                 <div className="grid grid-cols-12 bg-gray-50 text-xs font-bold text-gray-500 p-2 border-b">
                                                     <div className="col-span-5 pr-8">اسم الدرس</div>
