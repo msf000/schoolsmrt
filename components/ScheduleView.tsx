@@ -46,7 +46,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
 
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
     
-    // Fix: Add all days to match DayOfWeek type
+    // Fix: Added Friday and Saturday to fix indexing error
     const dayNamesAr: Record<string, string> = { 
         'Sunday': 'الأحد', 
         'Monday': 'الاثنين', 
