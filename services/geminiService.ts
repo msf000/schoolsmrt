@@ -29,6 +29,12 @@ async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 20
     try {
         return await operation();
     } catch (error: any) {
+        // FAIL FAST: If Permission Denied (403) or Invalid Key, do not retry.
+        if (error.status === 403 || error.code === 403 || error.message?.includes('API key') || error.message?.includes('PERMISSION_DENIED')) {
+            console.error("AI Service Error: Permission Denied / Invalid API Key.");
+            throw new Error("خدمة الذكاء الاصطناعي غير متوفرة حالياً (تأكد من مفتاح API).");
+        }
+
         // Check for 429 or Quota related messages
         const isQuotaError = error.status === 429 || 
                              error.code === 429 || 
@@ -67,6 +73,7 @@ export const checkAIConnection = async (): Promise<{ success: boolean; message: 
         console.error("AI Connection Test Error:", error);
         let msg = error.message || "فشل الاتصال بمفتاح API.";
         if (msg.includes('429') || msg.includes('quota')) msg = "تم تجاوز حد الاستخدام اليومي (Quota). يرجى المحاولة لاحقاً.";
+        if (msg.includes('403') || msg.includes('API key')) msg = "مفتاح API غير صالح أو محظور.";
         return { success: false, message: msg };
     }
 };

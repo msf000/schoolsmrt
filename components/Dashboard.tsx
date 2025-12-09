@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem } from '../types';
 import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -477,19 +477,33 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
   return (
     <div className="space-y-6 animate-fade-in p-6">
       
-      {/* Quick Actions */}
+      {/* Quick Actions - Primary Functionality Focus */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
-          <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('MESSAGE_CENTER')}> 
-              <div><h3 className="font-bold text-lg mb-1">مركز الرسائل</h3><p className="text-teal-100 text-xs">تواصل مع أولياء الأمور بذكاء</p></div>
-              <div className="bg-white/20 p-2 rounded-lg"><MessageSquare size={24}/></div>
+          {/* Attendance Action */}
+          <div 
+              className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" 
+              onClick={() => onNavigate('ATTENDANCE')}
+          > 
+              <div><h3 className="font-bold text-lg mb-1">تسجيل الحضور</h3><p className="text-green-100 text-xs">رصد الغياب والتأخر اليومي</p></div>
+              <div className="bg-white/20 p-2 rounded-lg"><CheckSquare size={24}/></div>
           </div>
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('AI_TOOLS')}>
-              <div><h3 className="font-bold text-lg mb-1">أدوات المعلم AI</h3><p className="text-purple-100 text-xs">أنشئ اختبارات وتحضير دروس</p></div>
-              <div className="bg-white/20 p-2 rounded-lg"><BrainCircuit size={24}/></div>
+
+          {/* Grades Action */}
+          <div 
+              className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" 
+              onClick={() => onNavigate('WORKS_TRACKING')}
+          >
+              <div><h3 className="font-bold text-lg mb-1">رصد الدرجات</h3><p className="text-purple-100 text-xs">سجل المتابعة والمهارات</p></div>
+              <div className="bg-white/20 p-2 rounded-lg"><Table size={24}/></div>
           </div>
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('AI_REPORTS')}>
-              <div><h3 className="font-bold text-lg mb-1">تقارير ذكية</h3><p className="text-blue-100 text-xs">تحليل أداء الطلاب</p></div>
-              <div className="bg-white/20 p-2 rounded-lg"><Sparkles size={24}/></div>
+
+          {/* Student Follow-up Action */}
+          <div 
+              className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" 
+              onClick={() => onNavigate('STUDENT_FOLLOWUP')}
+          >
+              <div><h3 className="font-bold text-lg mb-1">متابعة الطلاب</h3><p className="text-blue-100 text-xs">تقارير الأداء الفردي</p></div>
+              <div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div>
           </div>
       </div>
 
@@ -502,7 +516,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   {todaySchedule.length > 0 ? (
                       <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
                           {todaySchedule.map((session, idx) => (
-                              <div key={idx} onClick={() => onNavigate('CLASSROOM_MANAGEMENT')} className="min-w-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-colors group">
+                              <div key={idx} onClick={() => onNavigate('ATTENDANCE')} className="min-w-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-colors group">
                                   <div className="flex justify-between items-center mb-2">
                                       <span className="text-[10px] bg-white border px-2 py-0.5 rounded-full font-bold text-gray-500">حصة {session.period}</span>
                                       <ArrowRight size={14} className="text-gray-300 group-hover:text-indigo-500"/>
