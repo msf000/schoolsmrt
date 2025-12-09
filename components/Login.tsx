@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { authenticateUser, getSystemUsers, getStudents, setSystemMode, clearDatabase } from '../services/storageService';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning, Trash2 } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -9,7 +9,8 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [view, setView] = useState<'LOGIN' | 'REGISTER'>('LOGIN'); // Toggle State
+  const [view, setView] = useState<'LOGIN' | 'REGISTER'>('LOGIN'); 
+  const [roleMode, setRoleMode] = useState<'STAFF' | 'STUDENT' | 'PARENT'>('STAFF');
   const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,10 +20,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   // Auto-login handler for registration success
   const handleRegisterSuccess = (email: string, pass: string) => {
+      setRoleMode('STAFF');
       setIdentifier(email);
       setPassword(pass);
       setView('LOGIN');
-      // Auto trigger login logic
       setTimeout(() => {
           document.getElementById('login-btn')?.click();
       }, 500);
@@ -32,31 +33,49 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
-    // IMPORTANT: Ensure we are in Production Mode for normal login form
     setSystemMode(false);
 
     try {
         const cleanIdentifier = identifier.trim();
 
-        // 1. Check Hardcoded Super Admin (Backdoor)
-        if (cleanIdentifier.toLowerCase() === 'admin@school.com' && (password === 'SchoolSystem2025!' || password === '123')) {
-            onLoginSuccess({ 
-                id: 'admin', 
-                name: 'المدير العام', 
-                email: cleanIdentifier, 
-                role: 'SUPER_ADMIN' 
-            }, rememberMe);
-            return;
+        // 1. Parent Login Logic
+        if (roleMode === 'PARENT') {
+            const allStudents = getStudents();
+            // Find ANY student linked to this phone number
+            const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
+            
+            if (children.length > 0) {
+                // Parent Login Success - Create Virtual User
+                onLoginSuccess({ 
+                    id: `parent_${cleanIdentifier}`, 
+                    name: children[0].parentName || 'ولي أمر', 
+                    role: 'PARENT',
+                    email: cleanIdentifier, // Storing phone as email ID for session
+                    phone: cleanIdentifier
+                }, rememberMe);
+                setLoading(false);
+                return;
+            } else {
+                setError('رقم الجوال غير مسجل كولي أمر لأي طالب.');
+                setLoading(false);
+                return;
+            }
         }
 
-        // 2. Hybrid Authentication (Local -> Cloud)
+        // 2. Staff/Student Logic
         const user = await authenticateUser(cleanIdentifier, password);
         
         if (user) {
-            onLoginSuccess(user, rememberMe);
+            // Check Role Mismatch
+            if (roleMode === 'STUDENT' && user.role !== 'STUDENT') {
+                setError('هذا الحساب ليس حساب طالب.');
+            } else if (roleMode === 'STAFF' && user.role === 'STUDENT') {
+                setError('هذا الحساب مخصص للطلاب. الرجاء الدخول من تبويب الطالب.');
+            } else {
+                onLoginSuccess(user, rememberMe);
+            }
         } else {
-            setError('البيانات المدخلة غير صحيحة أو غير مسجلة.');
+            setError('البيانات المدخلة غير صحيحة.');
         }
     } catch (e) {
         console.error(e);
@@ -68,12 +87,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const handleDemoLogin = (role: 'MANAGER' | 'TEACHER' | 'STUDENT') => {
       setLoading(true);
-      
-      // 1. Activate Demo Mode & Auto-Seed
       setSystemMode(true);
-
       setTimeout(() => {
-          // 2. Get fake users created by storageService (now accessible due to mode switch)
           if (role === 'MANAGER') {
               const u = getSystemUsers().find(u => u.email === 'manager@demo.com');
               if(u) onLoginSuccess({ ...u, isDemo: true }, false);
@@ -95,14 +110,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }
   };
 
-  // --- RENDER REGISTRATION VIEW ---
   if (view === 'REGISTER') {
       return <TeacherRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={handleRegisterSuccess} />;
   }
 
-  // --- RENDER LOGIN VIEW ---
   return (
-    // Fixed container to handle scrolling independently from body
     <div className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto custom-scrollbar" dir="rtl">
       <div className="min-h-full w-full flex flex-col justify-center items-center p-4 py-10">
       
@@ -115,58 +127,79 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         <GraduationCap size={40} className="text-white" />
                     </div>
                     <h1 className="text-2xl font-bold text-white mb-1">نظام المدرس الذكي</h1>
-                    <p className="text-teal-100 text-sm">بوابة الدخول الموحدة (سحابية)</p>
+                    <p className="text-teal-100 text-sm">بوابة الدخول الموحدة</p>
                 </div>
+            </div>
+
+            {/* Role Switcher */}
+            <div className="flex border-b">
+                <button onClick={() => setRoleMode('STAFF')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${roleMode === 'STAFF' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-gray-500 hover:bg-gray-50'}`}>
+                    <User size={18}/> الكادر التعليمي
+                </button>
+                <button onClick={() => setRoleMode('STUDENT')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${roleMode === 'STUDENT' ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50' : 'text-gray-500 hover:bg-gray-50'}`}>
+                    <Users size={18}/> الطلاب
+                </button>
+                <button onClick={() => setRoleMode('PARENT')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${roleMode === 'PARENT' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>
+                    <Baby size={18}/> ولي الأمر
+                </button>
             </div>
 
             {/* Form */}
             <div className="p-8">
                 <div className="mb-6 text-center">
-                    <h2 className="text-xl font-bold text-gray-800">تسجيل الدخول</h2>
-                    <p className="text-gray-400 text-sm mt-1">أدخل بياناتك للدخول إلى النظام</p>
+                    <h2 className="text-xl font-bold text-gray-800">
+                        {roleMode === 'STAFF' ? 'دخول المعلمين والإداريين' : roleMode === 'STUDENT' ? 'دخول الطلاب' : 'دخول أولياء الأمور'}
+                    </h2>
+                    <p className="text-gray-400 text-sm mt-1">
+                        {roleMode === 'PARENT' ? 'أدخل رقم الجوال المسجل في النظام' : 'أدخل بياناتك للدخول إلى النظام'}
+                    </p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1.5">البريد الإلكتروني / رقم الهوية</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                            {roleMode === 'PARENT' ? 'رقم الجوال' : 'البريد الإلكتروني / الهوية'}
+                        </label>
                         <div className="relative">
                             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <User size={18} className="text-gray-400" />
+                                {roleMode === 'PARENT' ? <Phone size={18} className="text-gray-400"/> : <User size={18} className="text-gray-400" />}
                             </div>
                             <input 
-                                type="text" 
+                                type={roleMode === 'PARENT' ? "tel" : "text"}
                                 required
                                 className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dir-ltr text-right"
-                                placeholder="user@email.com OR 1012345678"
+                                placeholder={roleMode === 'PARENT' ? "05xxxxxxxx" : "user@email.com"}
                                 value={identifier}
                                 onChange={(e) => setIdentifier(e.target.value)}
                             />
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1.5">كلمة المرور</label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <Lock size={18} className="text-gray-400" />
+                    {roleMode !== 'PARENT' && (
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1.5">كلمة المرور</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <Lock size={18} className="text-gray-400" />
+                                </div>
+                                <input 
+                                    type={showPassword ? 'text' : 'password'}
+                                    required
+                                    className="w-full pr-10 pl-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dir-ltr text-right"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
-                            <input 
-                                type={showPassword ? 'text' : 'password'}
-                                required
-                                className="w-full pr-10 pl-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dir-ltr text-right"
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
-                            <button 
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
-                            >
-                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
                         </div>
-                    </div>
+                    )}
 
                     <div className="flex items-center justify-between">
                         <button 
@@ -190,20 +223,26 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         id="login-btn"
                         type="submit" 
                         disabled={loading}
-                        className="w-full bg-gray-900 hover:bg-black text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group"
+                        className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group ${
+                            roleMode === 'STUDENT' ? 'bg-purple-600 hover:bg-purple-700' :
+                            roleMode === 'PARENT' ? 'bg-green-600 hover:bg-green-700' :
+                            'bg-gray-900 hover:bg-black'
+                        }`}
                     >
                         {loading ? <Loader2 size={20} className="animate-spin" /> : <>دخول للنظام <ArrowRight size={18} className="group-hover:-translate-x-1 transition-transform"/></>}
                     </button>
                 </form>
 
-                <div className="mt-4 text-center">
-                    <button 
-                        onClick={() => setView('REGISTER')}
-                        className="text-primary font-bold text-sm hover:underline flex items-center justify-center gap-1 w-full py-2 hover:bg-teal-50 rounded-lg transition-colors"
-                    >
-                        <UserPlus size={16}/> معلم جديد؟ سجل حسابك الآن
-                    </button>
-                </div>
+                {roleMode === 'STAFF' && (
+                    <div className="mt-4 text-center">
+                        <button 
+                            onClick={() => setView('REGISTER')}
+                            className="text-primary font-bold text-sm hover:underline flex items-center justify-center gap-1 w-full py-2 hover:bg-teal-50 rounded-lg transition-colors"
+                        >
+                            <UserPlus size={16}/> معلم جديد؟ سجل حسابك الآن
+                        </button>
+                    </div>
+                )}
 
                 <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
@@ -216,13 +255,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
                 {/* Demo Access Buttons */}
                 <div className="grid grid-cols-3 gap-3">
-                    <button onClick={() => handleDemoLogin('MANAGER')} className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors text-xs font-bold text-purple-700 group">
+                    <button onClick={() => { setRoleMode('STAFF'); handleDemoLogin('MANAGER'); }} className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors text-xs font-bold text-purple-700 group">
                         <LayoutTemplate size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة مدير
                     </button>
-                    <button onClick={() => handleDemoLogin('TEACHER')} className="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors text-xs font-bold text-blue-700 group">
+                    <button onClick={() => { setRoleMode('STAFF'); handleDemoLogin('TEACHER'); }} className="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors text-xs font-bold text-blue-700 group">
                         <User size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة معلم
                     </button>
-                    <button onClick={() => handleDemoLogin('STUDENT')} className="flex flex-col items-center justify-center p-3 rounded-xl bg-green-50 hover:bg-green-100 border border-green-100 transition-colors text-xs font-bold text-green-700 group">
+                    <button onClick={() => { setRoleMode('STUDENT'); handleDemoLogin('STUDENT'); }} className="flex flex-col items-center justify-center p-3 rounded-xl bg-green-50 hover:bg-green-100 border border-green-100 transition-colors text-xs font-bold text-green-700 group">
                         <Users size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة طالب
                     </button>
                 </div>

@@ -686,7 +686,7 @@ create table if not exists curriculum_units (id text primary key, teacherId text
 create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
 create table if not exists micro_concepts (id text primary key, teacherId text, subject text, name text);
 create table if not exists question_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
-create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text);
+create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text, date text);
 create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
 create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
 `;
@@ -698,7 +698,7 @@ create table if not exists curriculum_units (id text primary key, teacherId text
 create table if not exists curriculum_lessons (id text primary key, unitId text, title text, orderIndex numeric, learningStandards jsonb, microConceptIds jsonb);
 create table if not exists micro_concepts (id text primary key, teacherId text, subject text, name text);
 create table if not exists question_bank (id text primary key, text text, type text, options jsonb, correctAnswer text, points numeric, subject text, gradeLevel text, topic text, difficulty text, teacherId text);
-create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text);
+create table if not exists exams (id text primary key, title text, subject text, gradeLevel text, durationMinutes numeric, questions jsonb, isActive boolean, createdAt text, teacherId text, date text);
 create table if not exists exam_results (id text primary key, examId text, studentId text, studentName text, score numeric, totalScore numeric, date text, answers jsonb);
 create table if not exists tracking_sheets (id text primary key, title text, subject text, className text, teacherId text, createdAt text, columns jsonb, scores jsonb);
 `;

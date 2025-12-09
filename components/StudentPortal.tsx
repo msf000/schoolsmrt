@@ -175,21 +175,35 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: { 
             .filter(s => s.classId === student.className && s.day === today)
             .sort((a,b) => a.period - b.period);
         
-        // Simple logic: Assuming 8AM start, 45min periods. Just showing first active one or next one.
-        // For simplicity, showing the first lesson of the day or "Done"
         const nextClass = mySchedule.length > 0 ? mySchedule[0] : null;
 
         // Exams
         const allExams = getExams();
         const myResults = getExamResults().filter(r => r.studentId === student.id);
+        
+        // Find Pending Exams (Not taken yet)
         const pendingExams = allExams.filter(e => 
             e.isActive && 
             (e.gradeLevel === student.gradeLevel || !e.gradeLevel || e.gradeLevel === 'عام') &&
             !myResults.find(r => r.examId === e.id)
         );
 
-        return { attRate, stars, alerts, nextClass, pendingExamsCount: pendingExams.length };
+        // Find Upcoming Scheduled Exam (Has date >= today)
+        const todayDate = new Date().toISOString().split('T')[0];
+        const upcomingExam = pendingExams
+            .filter(e => e.date && e.date >= todayDate)
+            .sort((a,b) => a.date!.localeCompare(b.date!))[0];
+
+        return { attRate, stars, alerts, nextClass, pendingExamsCount: pendingExams.length, upcomingExam };
     }, [student, attendance, performance]);
+
+    const getDaysUntil = (dateStr: string) => {
+        const diff = new Date(dateStr).getTime() - new Date().setHours(0,0,0,0);
+        const days = Math.ceil(diff / (1000 * 3600 * 24));
+        if (days === 0) return 'اليوم';
+        if (days === 1) return 'غداً';
+        return `بعد ${days} أيام`;
+    };
 
     return (
         <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
@@ -232,20 +246,34 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: { 
                     <button onClick={() => onViewChange('TIMETABLE')} className="mt-4 text-xs text-blue-600 font-bold hover:underline">عرض الجدول الكامل</button>
                 </div>
 
-                {/* Pending Exams Card */}
+                {/* Upcoming Exams Card (Enhanced) */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center relative overflow-hidden">
                     {stats.pendingExamsCount > 0 && <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full m-4 animate-ping"></div>}
                     <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-3">
                         <FileQuestion size={24}/>
                     </div>
-                    <h3 className="font-bold text-gray-800 text-lg">الواجبات والاختبارات</h3>
-                    <p className="text-3xl font-black text-purple-700 mt-2">{stats.pendingExamsCount}</p>
-                    <p className="text-xs text-gray-500 mt-1">مهام بانتظار الإنجاز</p>
+                    <h3 className="font-bold text-gray-800 text-lg">المهام والاختبارات</h3>
+                    
+                    {stats.upcomingExam ? (
+                        <div className="mt-2 text-center w-full">
+                            <span className="text-xs text-red-500 font-bold bg-red-50 px-2 py-1 rounded-full mb-1 inline-block">
+                                موعد قادم: {getDaysUntil(stats.upcomingExam.date!)}
+                            </span>
+                            <p className="text-lg font-black text-gray-800 line-clamp-1">{stats.upcomingExam.title}</p>
+                            <p className="text-xs text-gray-500 mt-1">{formatDualDate(stats.upcomingExam.date!)}</p>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-3xl font-black text-purple-700 mt-2">{stats.pendingExamsCount}</p>
+                            <p className="text-xs text-gray-500 mt-1">مهام بانتظار الإنجاز</p>
+                        </>
+                    )}
+                    
                     <button 
                         onClick={() => onViewChange('EXAMS')}
                         className="mt-4 w-full py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors shadow-sm"
                     >
-                        ابدأ الحل الآن
+                        عرض المهام
                     </button>
                 </div>
 
@@ -311,6 +339,13 @@ const StudentExamsView = ({ student }: { student: Student }) => {
         const allExams = getExams();
         // Filter exams for this student's grade
         const relevantExams = allExams.filter(e => e.isActive && (e.gradeLevel === student.gradeLevel || !e.gradeLevel || e.gradeLevel === 'عام'));
+        
+        // Sort by Date (Upcoming first)
+        relevantExams.sort((a,b) => {
+            if(a.date && b.date) return a.date.localeCompare(b.date);
+            return 0;
+        });
+
         setExams(relevantExams);
 
         const allResults = getExamResults();
@@ -344,8 +379,13 @@ const StudentExamsView = ({ student }: { student: Student }) => {
                 {exams.map(exam => {
                     const result = myResults.find(r => r.examId === exam.id);
                     return (
-                        <div key={exam.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all">
-                            <div className="flex justify-between items-start mb-4">
+                        <div key={exam.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all relative overflow-hidden">
+                            {exam.date && (
+                                <div className="absolute top-0 left-0 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-br-lg font-bold">
+                                    {formatDualDate(exam.date).split('|')[0]}
+                                </div>
+                            )}
+                            <div className="flex justify-between items-start mb-4 mt-2">
                                 <div>
                                     <h3 className="font-bold text-lg text-gray-800">{exam.title}</h3>
                                     <p className="text-sm text-gray-500">{exam.subject} - {exam.durationMinutes} دقيقة</p>

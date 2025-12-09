@@ -1,5 +1,4 @@
 
-
 export interface EducationalStage {
   id: string;
   name: string; // e.g., "المرحلة الابتدائية"
@@ -343,6 +342,7 @@ export interface Exam {
     isActive: boolean;
     createdAt: string;
     teacherId?: string;
+    date?: string; // Scheduled Date
 }
 
 export interface ExamResult {

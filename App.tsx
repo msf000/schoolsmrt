@@ -39,10 +39,11 @@ import CurriculumManager from './components/CurriculumManager';
 import ResourcesView from './components/ResourcesView';
 import ScheduleView from './components/ScheduleView';
 import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
+import ParentPortal from './components/ParentPortal';
+import CertificatesCenter from './components/CertificatesCenter';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby } from 'lucide-react';
 
-// FIX: Import SchoolManagement as named export since we changed it
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
 const App: React.FC = () => {
@@ -75,7 +76,6 @@ const App: React.FC = () => {
             const startUp = async () => {
                 setIsLoading(true);
                 try {
-                    // Trigger sync immediately on mount/login
                     await initAutoSync();
                 } catch (e) {
                     console.error("Initialization Sync Failed:", e);
@@ -86,9 +86,8 @@ const App: React.FC = () => {
             };
             startUp();
             
-            // Check AI Connection once on startup
             const checkAI = async () => {
-                if (currentUser.role !== 'STUDENT') { // Don't check for students
+                if (currentUser.role !== 'STUDENT' && currentUser.role !== 'PARENT') {
                     setAiStatus('CHECKING');
                     const res = await checkAIConnection();
                     setAiStatus(res.success ? 'CONNECTED' : 'ERROR');
@@ -111,32 +110,31 @@ const App: React.FC = () => {
         let allAttendance = getAttendance();
         let allPerformance = getPerformance();
         
-        // --- DATA ISOLATION (Security) ---
-        // Filter visible data based on current user context
+        // --- DATA ISOLATION ---
         if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
              if (currentUser.role === 'STUDENT') {
-                 // Student Context - Strict Isolation
                  allStudents = allStudents.filter(s => s.id === currentUser.id);
                  allAttendance = allAttendance.filter(a => a.studentId === currentUser.id);
                  allPerformance = allPerformance.filter(p => p.studentId === currentUser.id);
+             } else if (currentUser.role === 'PARENT') {
+                 // Parents see only linked children
+                 // (Handled inside ParentPortal, but for safety we could filter here too)
+                 // Keeping it open for ParentPortal to do aggregation
              } else if (currentUser.schoolId) {
-                 // School Context
-                 // FIX: Show students in the school OR orphaned students OR students created by this user (legacy/personal)
                  allStudents = allStudents.filter(s => 
                     s.schoolId === currentUser.schoolId || 
                     s.createdById === currentUser.id || 
                     !s.schoolId
                  );
              } else if (currentUser.role === 'TEACHER') {
-                 // Independent Teacher Context
-                 // FIX: Show students created by me OR students without an owner (Legacy Data)
                  allStudents = allStudents.filter(s => s.createdById === currentUser.id || !s.createdById);
              }
              
-             // Filter related records based on visible students (General Rule)
-             const visibleStudentIds = new Set(allStudents.map(s => s.id));
-             allAttendance = allAttendance.filter(a => visibleStudentIds.has(a.studentId));
-             allPerformance = allPerformance.filter(p => visibleStudentIds.has(p.studentId));
+             if (currentUser.role !== 'PARENT') {
+                 const visibleStudentIds = new Set(allStudents.map(s => s.id));
+                 allAttendance = allAttendance.filter(a => visibleStudentIds.has(a.studentId));
+                 allPerformance = allPerformance.filter(p => visibleStudentIds.has(p.studentId));
+             }
         }
 
         setStudents(allStudents);
@@ -148,13 +146,12 @@ const App: React.FC = () => {
     const handleLoginSuccess = (user: any, remember: boolean) => {
         setCurrentUser(user);
         if (remember) localStorage.setItem('current_user', JSON.stringify(user));
-        // loadData called in useEffect
     };
 
     const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
-        setSystemMode(false); // Reset demo mode
+        setSystemMode(false);
         setShowClassroomScreen(false);
         setCurrentView('DASHBOARD');
     };
@@ -177,7 +174,6 @@ const App: React.FC = () => {
     const handleDeleteStudent = (id: string) => { deleteStudent(id); loadData(); };
     const handleSaveAttendance = (recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); };
     
-    // UPDATED: Handle both single record and array of records
     const handleAddPerformance = (rec: PerformanceRecord | PerformanceRecord[]) => { 
         if (Array.isArray(rec)) {
             bulkAddPerformance(rec);
@@ -218,6 +214,24 @@ const App: React.FC = () => {
                 currentUser={currentUser as any}
                 attendance={attendance} 
                 performance={performance} 
+                onLogout={handleLogout} 
+            />
+        );
+    }
+
+    // --- PARENT PORTAL ---
+    if (currentUser && currentUser.role === 'PARENT') {
+        // Fetch ALL data for parent so portal can filter
+        const allStds = getStudents(); 
+        const allAtt = getAttendance();
+        const allPerf = getPerformance();
+        
+        return (
+            <ParentPortal 
+                parentPhone={currentUser.email} // Stored phone in email field
+                allStudents={allStds}
+                attendance={allAtt}
+                performance={allPerf}
                 onLogout={handleLogout} 
             />
         );
@@ -306,7 +320,7 @@ const App: React.FC = () => {
                     
                     {currentUser.role === 'SUPER_ADMIN' && <NavItem view="ADMIN_DASHBOARD" label="إدارة النظام" icon={Settings} />}
                     
-                    {/* Basic Tools: Students, Attendance, etc. (Manager & Teacher Only) */}
+                    {/* Basic Tools */}
                     {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER') && (
                         <>
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
@@ -316,7 +330,7 @@ const App: React.FC = () => {
                         </>
                     )}
                     
-                    {/* Planning & Curriculum: Available for Admin, Manager, Teacher */}
+                    {/* Planning & Curriculum */}
                     {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER' || currentUser.role === 'SUPER_ADMIN') && (
                         <div className="pt-4 mt-4 border-t border-gray-100">
                             <label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط والمناهج</label>
@@ -327,7 +341,7 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Advanced Tools & Exams (Manager & Teacher Only) */}
+                    {/* Advanced Tools */}
                     {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER') && (
                         <>
                             <div className="pt-4 mt-4 border-t border-gray-100">
@@ -341,6 +355,7 @@ const App: React.FC = () => {
                             <div className="pt-4 mt-4 border-t border-gray-100">
                                 <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الأدوات والتقارير</label>
                                 <NavItem view="STUDENT_FOLLOWUP" label="تقارير الطلاب" icon={BookOpen} />
+                                <NavItem view="CERTIFICATES" label="مركز الشهادات" icon={Award} />
                                 <NavItem view="MONTHLY_REPORT" label="التقرير الشامل" icon={Printer} />
                                 <NavItem view="MESSAGE_CENTER" label="مركز الرسائل" icon={Mail} />
                                 <NavItem view="AI_TOOLS" label="أدوات المعلم AI" icon={BrainCircuit} />
@@ -468,7 +483,6 @@ const App: React.FC = () => {
                     {currentView === 'AUTO_GRADING' && <AutoGrading />}
                     {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
                     
-                    {/* NEW ROUTES */}
                     {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser} />}
                     {currentView === 'SCHEDULE_VIEW' && (
                         <ScheduleView 
@@ -479,6 +493,7 @@ const App: React.FC = () => {
                     )}
                     {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser} />}
                     {currentView === 'FLEXIBLE_TRACKING' && <FlexibleTrackingSheet currentUser={currentUser} />}
+                    {currentView === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} />}
                 </div>
             </main>
         </div>

@@ -1,9 +1,10 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Exam, Question, SystemUser, ExamResult, Subject, CurriculumUnit, CurriculumLesson } from '../types';
 import { getExams, saveExam, deleteExam, getExamResults, getSubjects, getStudents, getQuestionBank, getCurriculumUnits, getCurriculumLessons } from '../services/storageService';
 import { generateStructuredQuiz } from '../services/geminiService';
-import { FileQuestion, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Clock, BookOpen, ListChecks, PlayCircle, StopCircle, ArrowLeft, BarChart2, Sparkles, Filter, Loader2, Check, Download, Search, ListTree } from 'lucide-react';
+import { FileQuestion, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Clock, BookOpen, ListChecks, PlayCircle, StopCircle, ArrowLeft, BarChart2, Sparkles, Filter, Loader2, Check, Download, Search, ListTree, Calendar } from 'lucide-react';
 
 interface ExamsManagerProps {
     currentUser: SystemUser;
@@ -73,7 +74,8 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             questions: [],
             isActive: false,
             createdAt: new Date().toISOString(),
-            teacherId: currentUser.id
+            teacherId: currentUser.id,
+            date: new Date().toISOString().split('T')[0] // Default to today
         });
         setView('CREATION_SELECTION');
     };
@@ -233,7 +235,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                             <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                 <FileQuestion className="text-purple-600"/> الاختبارات الإلكترونية
                             </h2>
-                            <p className="text-sm text-gray-500">إنشاء وإدارة الاختبارات القصيرة والنهائية.</p>
+                            <p className="text-sm text-gray-500">إنشاء وإدارة الاختبارات القصيرة والنهائية وجدولتها.</p>
                         </div>
                         <div className="flex gap-2 w-full md:w-auto">
                             <div className="flex items-center gap-2 bg-white border p-1 rounded-lg shadow-sm flex-1">
@@ -277,6 +279,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                         <div className="flex items-center gap-2"><BookOpen size={14}/> {exam.subject} - {exam.gradeLevel}</div>
                                         <div className="flex items-center gap-2"><Clock size={14}/> {exam.durationMinutes} دقيقة</div>
                                         <div className="flex items-center gap-2"><ListChecks size={14}/> {exam.questions.length} أسئلة</div>
+                                        {exam.date && <div className="flex items-center gap-2 text-purple-600 font-bold"><Calendar size={14}/> موعد: {exam.date}</div>}
                                     </div>
                                 </div>
                                 <div className="bg-gray-50 p-3 flex justify-between border-t">
@@ -402,10 +405,16 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                     </select>
                                     <input className="w-full p-2 border rounded text-sm" placeholder="الصف" value={editingExam.gradeLevel} onChange={e => setEditingExam({...editingExam, gradeLevel: e.target.value})}/>
                                 </div>
-                                <div className="flex items-center gap-2 bg-gray-50 p-2 rounded border">
-                                    <Clock size={14} className="text-gray-500"/>
-                                    <label className="text-xs font-bold text-gray-600">المدة (دقيقة):</label>
-                                    <input type="number" className="w-16 p-1 border rounded text-center text-sm font-bold outline-none" value={editingExam.durationMinutes} onChange={e => setEditingExam({...editingExam, durationMinutes: parseInt(e.target.value) || 0})}/>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded border">
+                                        <Clock size={14} className="text-gray-500"/>
+                                        <label className="text-xs font-bold text-gray-600">المدة:</label>
+                                        <input type="number" className="w-12 p-1 border rounded text-center text-sm font-bold outline-none" value={editingExam.durationMinutes} onChange={e => setEditingExam({...editingExam, durationMinutes: parseInt(e.target.value) || 0})}/>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-purple-50 p-2 rounded border border-purple-200">
+                                        <Calendar size={14} className="text-purple-600"/>
+                                        <input type="date" className="w-full p-1 bg-transparent text-xs font-bold outline-none" value={editingExam.date || ''} onChange={e => setEditingExam({...editingExam, date: e.target.value})}/>
+                                    </div>
                                 </div>
                             </div>
 
