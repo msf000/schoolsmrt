@@ -202,9 +202,12 @@ export interface SystemUser {
     email: string;
     nationalId?: string; // Added for linking
     password?: string; // Added: Password
-    role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; // Added PARENT
+    // Updated Role to explicitly include PARENT
+    role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; 
     schoolId?: string; // If null, super admin. If Manager, lists owned schools logic handled elsewhere
     status: 'ACTIVE' | 'INACTIVE';
+    isDemo?: boolean; // For demo accounts
+    phone?: string; // For parents
 }
 
 export interface SubscriptionPlan {

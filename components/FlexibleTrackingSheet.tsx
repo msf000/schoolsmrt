@@ -26,7 +26,6 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
     useEffect(() => {
         if(currentUser?.id) {
             setSheets(getTrackingSheets(currentUser.id));
-            // Get only teacher's students or linked class students
             setStudents(getStudents().filter(s => s.schoolId === currentUser.schoolId || s.createdById === currentUser.id));
             setSubjects(getSubjects(currentUser.id));
         }
@@ -120,7 +119,6 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         XLSX.writeFile(wb, `${tempTitle || 'Tracking_Sheet'}.xlsx`);
     };
 
-    // --- EDITOR LOGIC ---
     const addColumn = () => {
         if (!activeSheet) return;
         const newCol: TrackingColumn = {
@@ -226,7 +224,6 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                             <button onClick={() => setView('LIST')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
                             <input className="font-bold text-lg text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-purple-500 outline-none w-48 md:w-64" value={tempTitle} onChange={e => setTempTitle(e.target.value)} />
                         </div>
-                        
                         <div className="flex flex-wrap items-center gap-2">
                             <div className="relative">
                                 <Search size={14} className="absolute top-2.5 right-2 text-gray-400"/>

@@ -101,7 +101,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden print:hidden">
-                {/* Left: Controls & Selection */}
                 <div className="w-full lg:w-1/3 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
                     
                     {/* Templates */}
@@ -164,7 +163,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
 
                 {/* Right: Preview */}
                 <div className="flex-1 bg-gray-200 rounded-xl overflow-y-auto p-8 flex items-start justify-center custom-scrollbar">
-                    {/* SINGLE CERTIFICATE PREVIEW (Scaled Down) */}
                     <div className="scale-[0.8] origin-top shadow-2xl">
                         <CertificateView 
                             student={{ name: 'اسم الطالب (مثال)', className: 'الفصل' } as Student} 
@@ -178,7 +176,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                 </div>
             </div>
 
-            {/* PRINT AREA (Hidden until print) */}
+            {/* PRINT AREA */}
             <div className="hidden print:block">
                 {students.filter(s => selectedStudents.has(s.id)).map(student => (
                     <div key={student.id} className="break-after-page w-full h-screen flex items-center justify-center">

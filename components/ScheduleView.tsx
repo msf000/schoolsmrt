@@ -45,7 +45,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     }, [currentUser]);
 
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-    const dayNamesAr = { 
+    
+    // Fix: Add all days to match DayOfWeek type
+    const dayNamesAr: Record<string, string> = { 
         'Sunday': 'الأحد', 
         'Monday': 'الاثنين', 
         'Tuesday': 'الثلاثاء', 
@@ -54,6 +56,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
         'Friday': 'الجمعة',
         'Saturday': 'السبت'
     };
+    
     const periods = [1, 2, 3, 4, 5, 6, 7, 8];
 
     const changeWeek = (dir: number) => {
@@ -193,7 +196,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                                 return (
                                     <tr key={day} className={`${isToday && viewMode === 'SCHEDULE' ? 'bg-yellow-50' : 'hover:bg-gray-50'} border-b transition-colors`}>
                                         <td className={`p-4 border-l font-bold text-gray-800 ${isToday && viewMode === 'SCHEDULE' ? 'text-teal-700 bg-yellow-100' : 'bg-gray-50'}`}>
-                                            {dayNamesAr[day as keyof typeof dayNamesAr]}
+                                            {dayNamesAr[day]}
                                         </td>
                                         {periods.map(period => {
                                             const session = mySchedules.find(s => s.day === day && s.period === period);

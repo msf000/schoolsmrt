@@ -8,7 +8,7 @@ import {
     getSubjects
 } from '../services/storageService';
 import { generateCurriculumMap } from '../services/geminiService';
-import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, Tag, BrainCircuit, Plus, List, Sparkles, Loader2, RefreshCw } from 'lucide-react';
+import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, BrainCircuit, Plus, List, Sparkles, Loader2 } from 'lucide-react';
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
@@ -65,11 +65,10 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
     const refreshData = () => {
         if (!currentUser?.id) return;
         setUnits(getCurriculumUnits(currentUser.id));
-        setLessons(getCurriculumLessons()); // Lessons are global or filtered later
+        setLessons(getCurriculumLessons()); 
         setConcepts(getMicroConcepts(currentUser.id));
     };
 
-    // Combine standard subjects with user custom subjects
     const allSubjectsList = useMemo(() => {
         const customNames = userSubjects.map(s => s.name);
         return Array.from(new Set([...SAUDI_SUBJECTS, ...customNames])).sort();
@@ -100,7 +99,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
     const handleDeleteUnit = (id: string) => {
         if (confirm('حذف الوحدة؟ سيتم حذف جميع الدروس داخلها.')) {
             deleteCurriculumUnit(id);
-            // Also delete lessons
             const unitLessons = lessons.filter(l => l.unitId === id);
             unitLessons.forEach(l => deleteCurriculumLesson(l.id));
             refreshData();
@@ -144,7 +142,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
         }
     };
 
-    // --- AI Generation Logic ---
     const handleAutoGenerate = async () => {
         if (!selectedSubject || !selectedGrade) {
             alert('يرجى تحديد المادة والصف أولاً لتوليد المنهج.');
@@ -157,7 +154,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
 
         setIsGenerating(true);
         try {
-            // Use geminiService
             const structure = await generateCurriculumMap(selectedSubject, selectedGrade, selectedSemester);
             
             if (Array.isArray(structure) && structure.length > 0) {
@@ -218,9 +214,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
 
             {view === 'MAP' && (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Controls */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4 flex flex-wrap gap-4 items-end">
-                        
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">1. الفصل الدراسي</label>
                             <select className="p-2 border rounded text-sm bg-gray-50 min-w-[140px]" value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
@@ -229,7 +223,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                 <option value="الفصل الدراسي الثالث">الفصل الثالث</option>
                             </select>
                         </div>
-
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">2. الصف الدراسي</label>
                             <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}>
@@ -237,7 +230,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                 {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                             </select>
                         </div>
-
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">3. المادة</label>
                             <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
@@ -245,14 +237,12 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                 {allSubjectsList.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
-                        
                         <div className="flex-1 flex gap-2">
                             <input className="flex-1 p-2 border rounded text-sm" placeholder="اسم الوحدة الجديدة (يدوي)..." value={newUnitName} onChange={e => setNewUnitName(e.target.value)}/>
                             <button onClick={handleAddUnit} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700 flex items-center gap-2 text-sm whitespace-nowrap">
                                 <FolderPlus size={16}/> إضافة
                             </button>
                         </div>
-                        
                         <div className="w-full md:w-auto border-t md:border-t-0 md:border-r pr-0 md:pr-4 pt-4 md:pt-0">
                             <button 
                                 onClick={handleAutoGenerate} 
@@ -265,12 +255,10 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                         </div>
                     </div>
 
-                    {/* Tree View */}
                     <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
                         {filteredUnits.length > 0 ? filteredUnits.map(unit => {
                             const unitLessons = lessons.filter(l => l.unitId === unit.id).sort((a,b) => a.orderIndex - b.orderIndex);
                             const isExpanded = expandedUnits.has(unit.id);
-                            
                             return (
                                 <div key={unit.id} className="border border-gray-200 rounded-lg overflow-hidden">
                                     <div className="bg-gray-50 p-3 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => toggleUnit(unit.id)}>
@@ -282,7 +270,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                         </div>
                                         <button onClick={(e) => { e.stopPropagation(); handleDeleteUnit(unit.id); }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
                                     </div>
-                                    
                                     {isExpanded && (
                                         <div className="p-0 bg-white border-t border-gray-100 animate-slide-up">
                                             {unitLessons.length > 0 && (
@@ -292,14 +279,12 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                                     <div className="col-span-3 text-center">إجراءات</div>
                                                 </div>
                                             )}
-
                                             {unitLessons.map(lesson => (
                                                 <div key={lesson.id} className="grid grid-cols-12 items-center p-2 hover:bg-purple-50 group border-b border-gray-50 last:border-0">
                                                     <div className="col-span-5 flex items-center gap-2 font-medium text-gray-700 pr-6">
                                                         <FilePlus size={16} className="text-gray-400 shrink-0"/>
                                                         <span className="truncate" title={lesson.title}>{lesson.title}</span>
                                                     </div>
-                                                    
                                                     <div className="col-span-4 flex flex-wrap gap-1">
                                                         {lesson.learningStandards && lesson.learningStandards.length > 0 ? (
                                                             lesson.learningStandards.map((std, i) => (
@@ -311,7 +296,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                                             <span className="text-xs text-gray-300">-</span>
                                                         )}
                                                     </div>
-
                                                     <div className="col-span-3 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 hover:bg-blue-100 p-1.5 rounded"><Edit2 size={14}/></button>
                                                         <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/></button>
@@ -336,7 +320,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                 </div>
             )}
 
-            {/* Lesson Modal */}
             {isLessonModalOpen && editingLesson && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
@@ -404,7 +387,6 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             <Plus size={16}/> مفهوم جديد
                         </button>
                     </div>
-                    
                     <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
                         {concepts.map(c => (
                             <div key={c.id} className="border p-3 rounded-lg flex justify-between items-center bg-gray-50 hover:border-purple-300 transition-colors">

@@ -66,7 +66,6 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                 </button>
             </div>
 
-            {/* Official Platforms Dashboard (New) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <a href="https://schools.madrasati.sa" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-blue-100 hover:border-blue-400 hover:shadow-md transition-all group">
                     <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -102,7 +101,6 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                 </a>
             </div>
 
-            {/* Search */}
             <div className="bg-white p-4 rounded-xl border shadow-sm mb-4">
                 <div className="relative">
                     <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
@@ -115,7 +113,6 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                 </div>
             </div>
 
-            {/* List */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-10 custom-scrollbar">
                 {filteredLinks.map(link => (
                     <div key={link.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative">
@@ -143,7 +140,6 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                 )}
             </div>
 
-            {/* Add Modal */}
             {isFormOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-bounce-in">
