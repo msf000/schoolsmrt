@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, AlertTriangle, Zap, Check, DownloadCloud, FileSpreadsheet } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, AlertTriangle, Zap, Check, DownloadCloud, FileSpreadsheet, Calendar, Filter } from 'lucide-react';
 
 interface WorksTrackingProps {
   students: Student[];
@@ -50,6 +51,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); 
     const [activityTarget, setActivityTarget] = useState<number>(13); 
     
+    // --- PERIODS STATE ---
+    const [periods, setPeriods] = useState<string[]>(() => {
+        const saved = localStorage.getItem('works_periods');
+        return saved ? JSON.parse(saved) : ['الفترة الأولى', 'الفترة الثانية', 'الفترة الثالثة'];
+    });
+    const [selectedPeriod, setSelectedPeriod] = useState<string>(periods[0]);
+    const [newPeriodName, setNewPeriodName] = useState('');
+
     // Status States
     const [savedSuccess, setSavedSuccess] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -92,6 +101,50 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (savedTarget) setActivityTarget(parseInt(savedTarget));
     }, [currentUser]);
 
+    // Save Periods
+    useEffect(() => {
+        localStorage.setItem('works_periods', JSON.stringify(periods));
+    }, [periods]);
+
+    // Helper to get period from assignment metadata
+    const getAssignmentPeriod = (assignment: Assignment): string => {
+        try {
+            if (assignment.sourceMetadata) {
+                const meta = JSON.parse(assignment.sourceMetadata);
+                return meta.period || periods[0];
+            }
+        } catch {}
+        return periods[0];
+    };
+
+    // Helper to set period
+    const setAssignmentPeriod = (assignment: Assignment, period: string) => {
+        let meta = {};
+        try { meta = JSON.parse(assignment.sourceMetadata || '{}'); } catch {}
+        const newMeta = { ...meta, period };
+        
+        const updated = { ...assignment, sourceMetadata: JSON.stringify(newMeta) };
+        saveAssignment(updated); // Save to DB
+        
+        // Update local state
+        setAssignments(prev => prev.map(a => a.id === assignment.id ? updated : a));
+    };
+
+    // --- PERIOD MANAGEMENT ---
+    const handleAddPeriod = () => {
+        if (newPeriodName && !periods.includes(newPeriodName)) {
+            setPeriods([...periods, newPeriodName]);
+            setNewPeriodName('');
+        }
+    };
+
+    const handleDeletePeriod = (p: string) => {
+        if (confirm(`حذف الفترة "${p}"؟`)) {
+            setPeriods(periods.filter(period => period !== p));
+            if (selectedPeriod === p) setSelectedPeriod(periods[0] || '');
+        }
+    };
+
     // Save target sheet preference
     const handleSetTargetSheet = (name: string) => {
         setTargetSheetName(name);
@@ -99,7 +152,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         // If workbook cached, load headers immediately
         if (workbookCache) {
             const { headers } = getSheetHeadersAndData(workbookCache, name);
-            setFoundHeaders(headers);
+            setFoundHeaders(headers as string[]);
             setSelectedHeadersToImport(new Set());
         }
     };
@@ -115,16 +168,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             // If current target sheet is valid, load its headers
             if (targetSheetName && sheetNames.includes(targetSheetName)) {
                 const { headers } = getSheetHeadersAndData(workbook, targetSheetName);
-                setFoundHeaders(headers);
+                setFoundHeaders(headers as string[]);
             } else if (sheetNames.length > 0) {
                 // Auto-select first if none selected
-                handleSetTargetSheet(sheetNames[0]);
-                const { headers } = getSheetHeadersAndData(workbook, sheetNames[0]);
-                setFoundHeaders(headers);
+                const firstSheet = String(sheetNames[0]);
+                handleSetTargetSheet(firstSheet);
+                const { headers } = getSheetHeadersAndData(workbook, firstSheet);
+                setFoundHeaders(headers as string[]);
             }
             setStatusMsg('✅ تم الاتصال بالملف بنجاح');
         } catch (e: any) {
-            setStatusMsg('❌ فشل الاتصال: ' + e.message);
+            setStatusMsg('❌ فشل الاتصال: ' + (e?.message || String(e)));
         } finally {
             setIsGenerating(false);
         }
@@ -157,7 +211,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     orderIndex: assignments.length + idx, // Now idx is a number
                     teacherId: currentUser?.id,
                     // Store the exact header name from excel to map correctly later
-                    sourceMetadata: JSON.stringify({ originalHeader: header })
+                    // Also Default to current selected period
+                    sourceMetadata: JSON.stringify({ originalHeader: header, period: selectedPeriod })
                 };
                 saveAssignment(newAssign);
                 newCount++;
@@ -450,7 +505,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             isVisible: true,
             url: '',
             orderIndex: assignments.length,
-            teacherId: currentUser.id
+            teacherId: currentUser.id,
+            // Tag with current selected Period
+            sourceMetadata: JSON.stringify({ period: selectedPeriod })
         };
         saveAssignment(newAssign);
         setAssignments([...assignments, newAssign]);
@@ -460,6 +517,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const updated = [...assignments];
         updated[index] = { ...updated[index], [field]: value };
         setAssignments(updated);
+        // Also save to DB immediately for things like visibility toggles
+        saveAssignment(updated[index]);
     };
 
     const handleDeleteColumn = (index: number) => {
@@ -480,6 +539,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [students]);
 
+    // --- FILTERED ASSIGNMENTS BY PERIOD ---
+    const visibleAssignments = useMemo(() => {
+        // Show assignments matching selected period
+        return assignments.filter(a => {
+            if (!a.isVisible) return false;
+            // Get period from metadata
+            const period = getAssignmentPeriod(a);
+            return selectedPeriod === 'ALL' || period === selectedPeriod;
+        });
+    }, [assignments, selectedPeriod]);
+
     const renderStudentRow = (student: Student, i: number) => {
         const myAtt = attendance.filter(a => a.studentId === student.id);
         const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
@@ -498,7 +568,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
         if (activeTab === 'ACTIVITY') {
             let actSum = 0;
-            assignments.filter(c => c.isVisible).forEach(col => {
+            visibleAssignments.forEach(col => {
                 const val = parseFloat(gridData[student.id]?.[col.id] || '0');
                 if(!col.title.includes('حضور') && !isNaN(val)) actSum += val;
             });
@@ -508,7 +578,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 <tr key={student.id} className="hover:bg-gray-50 border-b group">
                     <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
                     {nameCell}
-                    {assignments.filter(c => c.isVisible).map(col => (
+                    {visibleAssignments.map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
                             <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
                             {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
@@ -521,15 +591,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
 
         if (activeTab === 'HOMEWORK') {
-            const total = assignments.filter(c => c.isVisible).length;
-            const completed = assignments.filter(c => c.isVisible && gridData[student.id]?.[c.id]).length;
+            const total = visibleAssignments.length;
+            const completed = visibleAssignments.filter(c => gridData[student.id]?.[c.id]).length;
             const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
             
             return (
                 <tr key={student.id} className="hover:bg-gray-50 border-b group">
                     <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
                     {nameCell}
-                    {assignments.filter(c => c.isVisible).map(col => (
+                    {visibleAssignments.map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
                             <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
                             {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
@@ -542,7 +612,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
 
         if (activeTab === 'PLATFORM_EXAM') {
-            const scores = assignments.filter(c => c.isVisible).map(c => ({
+            const scores = visibleAssignments.map(c => ({
                 val: parseFloat(gridData[student.id]?.[c.id] || '0'),
                 max: c.maxScore || 20
             }));
@@ -554,7 +624,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 <tr key={student.id} className="hover:bg-gray-50 border-b group">
                     <td className="p-3 border-l text-center bg-gray-50 text-gray-500">{i + 1}</td>
                     {nameCell}
-                    {assignments.filter(c => c.isVisible).map(col => (
+                    {visibleAssignments.map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
                             <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
                             {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
@@ -600,7 +670,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </tr>
             );
         }
-        
         return null;
     };
 
@@ -620,7 +689,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         {activeMode === 'GRADING' ? <List className="text-primary"/> : <PenTool className="text-purple-600"/>}
-                        {activeMode === 'GRADING' ? 'سجل الرصد والمتابعة' : 'تخصيص الأعمدة والروابط'}
+                        {activeMode === 'GRADING' ? 'سجل الرصد والمتابعة' : 'تخصيص الأعمدة والفترات'}
                     </h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -637,6 +706,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </div>
                     )}
 
+                    {/* PERIOD SELECTOR (GRADING MODE) */}
+                    {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && (
+                        <div className="flex items-center gap-2 bg-white p-1 rounded-lg border">
+                            <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Calendar size={14}/> الفترة:</span>
+                            <select 
+                                value={selectedPeriod} 
+                                onChange={(e) => setSelectedPeriod(e.target.value)} 
+                                className="bg-transparent text-sm font-bold outline-none text-purple-700 min-w-[120px]"
+                            >
+                                {periods.map(p => <option key={p} value={p}>{p}</option>)}
+                                <option value="ALL">الكل</option>
+                            </select>
+                        </div>
+                    )}
+
                     <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none text-sm">
                         {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
                     </select>
@@ -648,75 +732,110 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             </div>
 
-            {/* --- Management Mode: Connection Settings --- */}
+            {/* --- Management Mode: Connection Settings & Periods --- */}
             {activeMode === 'MANAGEMENT' && (
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6 space-y-6 animate-fade-in">
-                    
-                    {/* 1. Connection Section */}
-                    <div>
-                        <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><LinkIcon size={18} className="text-blue-600"/> ربط ملف Excel</h3>
-                        <div className="flex gap-2">
+                <div className="space-y-6">
+                    {/* Period Management */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
+                        <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><Calendar size={18} className="text-orange-600"/> إدارة الفترات</h3>
+                        <div className="flex gap-2 mb-4">
                             <input 
-                                className="flex-1 p-2 bg-gray-50 border rounded text-sm dir-ltr" 
-                                placeholder="https://docs.google.com/spreadsheets/d/..." 
-                                value={masterUrl} 
-                                onChange={e => setMasterUrl(e.target.value)} 
+                                className="flex-1 p-2 bg-gray-50 border rounded text-sm" 
+                                placeholder="اسم الفترة الجديدة (مثال: الفترة الثالثة)..." 
+                                value={newPeriodName}
+                                onChange={e => setNewPeriodName(e.target.value)}
                             />
-                            <button onClick={fetchSheetStructure} disabled={isGenerating} className="bg-blue-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-                                {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>} جلب الأوراق
+                            <button onClick={handleAddPeriod} disabled={!newPeriodName} className="bg-orange-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-orange-700 disabled:opacity-50 flex items-center gap-2">
+                                <Plus size={16}/> إضافة فترة
                             </button>
                         </div>
-                        {statusMsg && <p className="text-xs mt-2 font-bold text-gray-600">{statusMsg}</p>}
+                        <div className="flex flex-wrap gap-2">
+                            {periods.map(p => (
+                                <div key={p} className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
+                                    <span className="text-sm font-bold text-gray-700">{p}</span>
+                                    <button onClick={() => handleDeletePeriod(p)} className="text-gray-400 hover:text-red-500"><Trash2 size={14}/></button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
-                    {/* 2. Sheet Selection (NEW) */}
-                    {availableSheets.length > 0 && (
-                        <div className="animate-fade-in">
-                            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><FileSpreadsheet size={18} className="text-green-600"/> اختيار ورقة العمل (Sheet)</h3>
-                            <div className="flex gap-2 items-center mb-4">
-                                <span className="text-sm text-gray-500">الورقة المستهدفة:</span>
-                                <select 
-                                    className="p-2 border rounded bg-gray-50 font-bold text-gray-800 text-sm min-w-[200px]"
-                                    value={targetSheetName}
-                                    onChange={(e) => handleSetTargetSheet(e.target.value)}
-                                >
-                                    {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 3. Column Picker (NEW) */}
-                    {foundHeaders.length > 0 && (
-                        <div className="animate-fade-in">
-                            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><DownloadCloud size={18} className="text-purple-600"/> استيراد الأعمدة</h3>
-                            <p className="text-xs text-gray-500 mb-3">اختر الأعمدة التي تريد إظهارها في الكشف من الملف:</p>
-                            
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-60 overflow-y-auto p-2 bg-gray-50 rounded-lg border">
-                                {foundHeaders.map(header => (
-                                    <label key={header} className={`flex items-center gap-2 p-2 rounded cursor-pointer border text-xs ${selectedHeadersToImport.has(header) ? 'bg-purple-100 border-purple-300 text-purple-800 font-bold' : 'bg-white border-gray-200 text-gray-600'}`}>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedHeadersToImport.has(header)} 
-                                            onChange={() => toggleHeaderSelection(header)}
-                                            className="rounded text-purple-600 focus:ring-purple-500"
-                                        />
-                                        <span className="truncate" title={header}>{header}</span>
-                                    </label>
-                                ))}
-                            </div>
-                            
-                            <div className="mt-4 flex justify-end">
-                                <button 
-                                    onClick={handleImportSelectedColumns}
-                                    disabled={selectedHeadersToImport.size === 0}
-                                    className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 disabled:opacity-50 shadow-md flex items-center gap-2"
-                                >
-                                    <Plus size={16}/> إضافة الأعمدة المحددة ({selectedHeadersToImport.size})
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
+                        {/* 1. Connection Section */}
+                        <div className="mb-6">
+                            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><LinkIcon size={18} className="text-blue-600"/> ربط ملف Excel</h3>
+                            <div className="flex gap-2">
+                                <input 
+                                    className="flex-1 p-2 bg-gray-50 border rounded text-sm dir-ltr" 
+                                    placeholder="https://docs.google.com/spreadsheets/d/..." 
+                                    value={masterUrl} 
+                                    onChange={e => setMasterUrl(e.target.value)} 
+                                />
+                                <button onClick={fetchSheetStructure} disabled={isGenerating} className="bg-blue-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                                    {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>} جلب الأوراق
                                 </button>
                             </div>
+                            {statusMsg && <p className="text-xs mt-2 font-bold text-gray-600">{statusMsg}</p>}
                         </div>
-                    )}
+
+                        {/* 2. Sheet Selection (NEW) */}
+                        {availableSheets.length > 0 && (
+                            <div className="mb-6 animate-fade-in">
+                                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><FileSpreadsheet size={18} className="text-green-600"/> اختيار ورقة العمل (Sheet)</h3>
+                                <div className="flex gap-2 items-center">
+                                    <span className="text-sm text-gray-500">الورقة المستهدفة:</span>
+                                    <select 
+                                        className="p-2 border rounded bg-gray-50 font-bold text-gray-800 text-sm min-w-[200px]"
+                                        value={targetSheetName}
+                                        onChange={(e) => handleSetTargetSheet(e.target.value)}
+                                    >
+                                        {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. Column Picker (NEW) */}
+                        {foundHeaders.length > 0 && (
+                            <div className="animate-fade-in">
+                                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><DownloadCloud size={18} className="text-purple-600"/> استيراد الأعمدة</h3>
+                                <p className="text-xs text-gray-500 mb-3">اختر الأعمدة التي تريد إظهارها في الكشف من الملف:</p>
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-60 overflow-y-auto p-2 bg-gray-50 rounded-lg border mb-4">
+                                    {foundHeaders.map(header => (
+                                        <label key={header} className={`flex items-center gap-2 p-2 rounded cursor-pointer border text-xs ${selectedHeadersToImport.has(header) ? 'bg-purple-100 border-purple-300 text-purple-800 font-bold' : 'bg-white border-gray-200 text-gray-600'}`}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedHeadersToImport.has(header)} 
+                                                onChange={() => toggleHeaderSelection(header)}
+                                                className="rounded text-purple-600 focus:ring-purple-500"
+                                            />
+                                            <span className="truncate" title={header}>{header}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                
+                                <div className="flex justify-between items-center bg-gray-50 p-2 rounded border">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-gray-600">تعيين للفترة:</span>
+                                        <select 
+                                            className="p-1 border rounded text-xs font-bold"
+                                            value={selectedPeriod}
+                                            onChange={e => setSelectedPeriod(e.target.value)}
+                                        >
+                                            {periods.map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                    </div>
+                                    <button 
+                                        onClick={handleImportSelectedColumns}
+                                        disabled={selectedHeadersToImport.size === 0}
+                                        className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 disabled:opacity-50 shadow-md flex items-center gap-2"
+                                    >
+                                        <Plus size={16}/> إضافة الأعمدة المحددة ({selectedHeadersToImport.size})
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -764,6 +883,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <tr>
                                     <th className="p-3 w-12 text-center">#</th>
                                     <th className="p-3">العنوان</th>
+                                    <th className="p-3 w-32">الفترة</th>
                                     <th className="p-3 w-24">الدرجة</th>
                                     <th className="p-3">الرابط (URL)</th>
                                     <th className="p-3 w-20 text-center">عرض</th>
@@ -775,6 +895,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     <tr key={col.id} className="hover:bg-gray-50">
                                         <td className="p-3 text-center text-gray-400">{index + 1}</td>
                                         <td className="p-3"><input className="w-full p-2 border rounded font-bold" value={col.title} onChange={(e) => handleUpdateColumn(index, 'title', e.target.value)} /></td>
+                                        <td className="p-3">
+                                            <select 
+                                                className="w-full p-2 border rounded text-xs bg-white"
+                                                value={getAssignmentPeriod(col)}
+                                                onChange={(e) => setAssignmentPeriod(col, e.target.value)}
+                                            >
+                                                {periods.map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                        </td>
                                         <td className="p-3"><input type="number" className="w-full p-2 border rounded text-center" value={col.maxScore} onChange={(e) => handleUpdateColumn(index, 'maxScore', e.target.value)} /></td>
                                         <td className="p-3 relative">
                                             <input className="w-full p-2 border rounded dir-ltr text-left pl-8 text-blue-600" value={col.url || ''} onChange={(e) => handleUpdateColumn(index, 'url', e.target.value)} placeholder="https://..." />
@@ -805,7 +934,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <tr>
                                     <th className="p-3 border-b border-l w-12 text-center bg-gray-100">#</th>
                                     <th className="p-3 border-b border-l min-w-[200px] sticky right-0 z-20 bg-gray-100 shadow-md">اسم الطالب</th>
-                                    {activeTab !== 'YEAR_WORK' && assignments.filter(c => c.isVisible).map(col => (
+                                    {activeTab !== 'YEAR_WORK' && visibleAssignments.map(col => (
                                         <th key={col.id} className="p-2 border-b border-l min-w-[100px] text-center relative group bg-white hover:bg-gray-50 transition-colors">
                                             <div className="flex flex-col items-center">
                                                 <div className="text-xs mb-1 truncate max-w-[120px]" title={col.title}>{col.title}</div>
