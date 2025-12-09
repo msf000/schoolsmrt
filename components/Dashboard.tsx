@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -6,7 +5,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School } from '../types';
 import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin, Mail, Server, Database, ShieldCheck, Building2, CreditCard, Loader2 } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, AlertTriangle, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, ChevronLeft, BookOpen, MapPin, Mail, Server, Database, ShieldCheck, Building2, CreditCard, Loader2, ArrowRight } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -153,6 +152,17 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       }
   }, [currentUser]);
 
+  // --- Today's Schedule Logic ---
+  const todaySchedule = useMemo(() => {
+      if (!currentUser) return [];
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const today = days[new Date().getDay()]; // Get current day name
+      
+      return schedules
+          .filter(s => s.day === today && (s.teacherId === currentUser.id || !s.teacherId))
+          .sort((a,b) => a.period - b.period);
+  }, [schedules, currentUser]);
+
   const stats = useMemo(() => {
     const totalStudents = students.length;
     const todaysAttendance = attendance.filter(a => a.date === selectedDate);
@@ -274,7 +284,8 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
   return (
     <div className="space-y-6 animate-fade-in p-6">
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
           <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('MESSAGE_CENTER')}> 
               <div>
                   <h3 className="font-bold text-lg mb-1">مركز الرسائل</h3>
@@ -302,6 +313,31 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   <Sparkles size={24}/>
               </div>
           </div>
+      </div>
+
+      {/* Today's Schedule (New Widget) */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <Calendar size={18} className="text-primary"/> جدول اليوم
+          </h3>
+          {todaySchedule.length > 0 ? (
+              <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                  {todaySchedule.map((session, idx) => (
+                      <div key={idx} onClick={() => onNavigate('CLASSROOM_MANAGEMENT')} className="min-w-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-colors group">
+                          <div className="flex justify-between items-center mb-2">
+                              <span className="text-[10px] bg-white border px-2 py-0.5 rounded-full font-bold text-gray-500">حصة {session.period}</span>
+                              <ArrowRight size={14} className="text-gray-300 group-hover:text-indigo-500"/>
+                          </div>
+                          <h4 className="font-bold text-gray-800 text-sm mb-1">{session.subjectName}</h4>
+                          <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded">{session.classId}</span>
+                      </div>
+                  ))}
+              </div>
+          ) : (
+              <div className="text-center text-gray-400 py-4 text-sm bg-gray-50 rounded-lg border border-dashed">
+                  لا توجد حصص مسجلة لهذا اليوم
+              </div>
+          )}
       </div>
 
       {myFeedback.length > 0 && (
