@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, MessageLog, SystemUser, Exam, WeeklyPlanItem } from '../types';
-import { getMessages, getExams, getWeeklyPlans } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, MessageLog, SystemUser, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
+import { getMessages, getExams, getWeeklyPlans, getAcademicTerms } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface ParentPortalProps {
@@ -24,6 +24,20 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     const [messages, setMessages] = useState<MessageLog[]>([]);
     const [exams, setExams] = useState<Exam[]>([]);
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'WEEKLY_PLAN' | 'MESSAGES' | 'CALENDAR'>('OVERVIEW');
+    
+    // Terms Logic
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
+
+    useEffect(() => {
+        const loadedTerms = getAcademicTerms();
+        setTerms(loadedTerms);
+        const current = loadedTerms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+    }, []);
+
+    const activeTerm = terms.find(t => t.id === selectedTermId);
 
     useEffect(() => {
         if (activeChild) {
@@ -40,8 +54,14 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     const stats = useMemo(() => {
         if (!activeChild) return null;
         
-        const childAtt = attendance.filter(a => a.studentId === activeChild.id);
-        const childPerf = performance.filter(p => p.studentId === activeChild.id);
+        let childAtt = attendance.filter(a => a.studentId === activeChild.id);
+        let childPerf = performance.filter(p => p.studentId === activeChild.id);
+
+        // Filter by Term
+        if (activeTerm) {
+            childAtt = childAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+            childPerf = childPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+        }
 
         // Attendance Stats
         const absent = childAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
@@ -57,12 +77,12 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         const totalScore = childPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
         const avgScore = childPerf.length > 0 ? Math.round((totalScore / childPerf.length) * 100) : 0;
 
-        // Recent Activity
+        // Recent Activity (Visual display can show up to 5, regardless of term, or strictly term based. Let's stick to term based)
         const recentAtt = [...childAtt].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
         const recentPerf = [...childPerf].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
         return { absent, late, attendanceRate, positive, negative, avgScore, recentAtt, recentPerf };
-    }, [activeChild, attendance, performance]);
+    }, [activeChild, attendance, performance, activeTerm]);
 
     if (!activeChild) {
         return (
@@ -132,7 +152,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             {/* Main Content */}
             <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 animate-fade-in pb-20">
                 
-                {/* Student Info Card */}
+                {/* Student Info Card & Filter */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row gap-6 items-center">
                     <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg border-4 border-white">
                         {activeChild.name.charAt(0)}
@@ -145,6 +165,20 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                             {activeChild.schoolId && <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded flex items-center gap-1">مدرسة مسجلة</span>}
                         </div>
                     </div>
+                    
+                    {/* Term Selector for Parents */}
+                    <div className="w-full md:w-auto">
+                        <label className="block text-xs font-bold text-gray-500 mb-1">الفترة الزمنية</label>
+                        <select 
+                            value={selectedTermId} 
+                            onChange={(e) => setSelectedTermId(e.target.value)}
+                            className="w-full md:w-40 p-2 border rounded-lg bg-gray-50 font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            <option value="">كل الفترات</option>
+                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+
                     {stats && (
                         <div className="flex gap-4">
                             <div className="text-center">
@@ -168,7 +202,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                         {/* Attendance Section */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="p-4 bg-teal-50 border-b border-teal-100 flex justify-between items-center">
-                                <h3 className="font-bold text-teal-800 flex items-center gap-2"><Calendar size={18}/> سجل الحضور</h3>
+                                <h3 className="font-bold text-teal-800 flex items-center gap-2"><Calendar size={18}/> سجل الحضور ({activeTerm ? activeTerm.name : 'عام'})</h3>
                                 <span className="text-xs bg-white px-2 py-1 rounded text-teal-600 font-bold">{stats.absent} غياب</span>
                             </div>
                             <div className="p-4">
@@ -200,7 +234,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-center text-gray-400 text-sm py-4">لا توجد سجلات حديثة</p>
+                                    <p className="text-center text-gray-400 text-sm py-4">لا توجد سجلات حديثة في هذه الفترة</p>
                                 )}
                             </div>
                         </div>
@@ -208,7 +242,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                         {/* Performance Section */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="p-4 bg-purple-50 border-b border-purple-100 flex justify-between items-center">
-                                <h3 className="font-bold text-purple-800 flex items-center gap-2"><Award size={18}/> آخر الدرجات</h3>
+                                <h3 className="font-bold text-purple-800 flex items-center gap-2"><Award size={18}/> آخر الدرجات ({activeTerm ? activeTerm.name : 'عام'})</h3>
                                 <span className="text-xs bg-white px-2 py-1 rounded text-purple-600 font-bold">المتوسط: {stats.avgScore}%</span>
                             </div>
                             <div className="p-4">
@@ -228,7 +262,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-center text-gray-400 text-sm py-4">لا توجد درجات حديثة</p>
+                                    <p className="text-center text-gray-400 text-sm py-4">لا توجد درجات حديثة في هذه الفترة</p>
                                 )}
                             </div>
                         </div>
@@ -287,7 +321,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     );
 };
 
-// --- Weekly Plan Component for Parents ---
+// ... (Rest of sub-components ParentWeeklyPlan and ParentCalendar remain identical as they don't depend on term filter heavily or handle it internally if needed) ...
 const ParentWeeklyPlan = ({ student }: { student: Student }) => {
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();
@@ -365,7 +399,6 @@ const ParentWeeklyPlan = ({ student }: { student: Student }) => {
     );
 };
 
-// --- Calendar Component ---
 const ParentCalendar: React.FC<{ attendance: AttendanceRecord[], exams: Exam[], studentId: string }> = ({ attendance, exams, studentId }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 

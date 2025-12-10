@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm } from '../types';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 
@@ -22,17 +22,20 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
 
     useEffect(() => {
         sessionStorage.setItem('student_last_view', view);
     }, [view]);
 
+    useEffect(() => {
+        setTerms(getAcademicTerms());
+    }, []);
+
     const handleRefresh = async () => {
         setIsSyncing(true);
-        // Student Download Logic is handled in downloadFromSupabase
         await downloadFromSupabase();
         setIsSyncing(false);
-        // Page reload to reflect changes in Props passed from App
         window.location.reload();
     };
 
@@ -143,11 +146,11 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 </header>
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-50 custom-scrollbar w-full">
-                    {view === 'DASHBOARD' && <StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={setView} />}
+                    {view === 'DASHBOARD' && <StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={setView} terms={terms} />}
                     {view === 'WEEKLY_PLAN' && <StudentWeeklyPlan student={currentUser} />}
                     {view === 'PROFILE' && <StudentProfile student={currentUser} />}
-                    {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} />}
-                    {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} />}
+                    {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} terms={terms} />}
+                    {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} terms={terms} />}
                     {view === 'TIMETABLE' && <StudentTimetable student={currentUser} />}
                     {view === 'CUSTOM_RECORDS' && <StudentCustomRecords student={currentUser} />}
                     {view === 'EXAMS' && <StudentExamsView student={currentUser} />}
@@ -159,13 +162,35 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
 // --- SUB-COMPONENTS ---
 
-const StudentDashboard = ({ student, attendance, performance, onViewChange }: any) => {
-    // Stats
-    const totalScore = performance.reduce((acc: number, curr: PerformanceRecord) => acc + (curr.score / curr.maxScore), 0);
-    const avgScore = performance.length > 0 ? Math.round((totalScore / performance.length) * 100) : 0;
+const StudentDashboard = ({ student, attendance, performance, onViewChange, terms }: any) => {
+    // Term Logic
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
     
-    const totalAtt = attendance.length;
-    const present = attendance.filter((a: AttendanceRecord) => a.status === 'PRESENT' || a.status === 'LATE').length;
+    useEffect(() => {
+        const current = terms.find((t: AcademicTerm) => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (terms.length > 0) setSelectedTermId(terms[0].id);
+    }, [terms]);
+
+    const activeTerm = terms.find((t: AcademicTerm) => t.id === selectedTermId);
+
+    // Filter Data by Term
+    const filteredPerf = useMemo(() => {
+        if (!activeTerm) return performance;
+        return performance.filter((p: PerformanceRecord) => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+    }, [performance, activeTerm]);
+
+    const filteredAtt = useMemo(() => {
+        if (!activeTerm) return attendance;
+        return attendance.filter((a: AttendanceRecord) => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+    }, [attendance, activeTerm]);
+
+    // Stats
+    const totalScore = filteredPerf.reduce((acc: number, curr: PerformanceRecord) => acc + (curr.score / curr.maxScore), 0);
+    const avgScore = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
+    
+    const totalAtt = filteredAtt.length;
+    const present = filteredAtt.filter((a: AttendanceRecord) => a.status === 'PRESENT' || a.status === 'LATE').length;
     const attRate = totalAtt > 0 ? Math.round((present / totalAtt) * 100) : 100;
 
     // Next Class Logic
@@ -175,30 +200,55 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: an
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const today = days[new Date().getDay()];
         const mySchedule = schedules.filter(s => s.classId === student.className && s.day === today);
-        // Simple logic: assume current hour determines period (mock: period 1 at 7am)
         const currentHour = new Date().getHours();
-        const currentPeriod = currentHour - 6; // 7am -> 1, 8am -> 2...
-        const next = mySchedule.find(s => s.period >= currentPeriod) || mySchedule[0]; // Or first of day if early
+        const currentPeriod = currentHour - 6; 
+        const next = mySchedule.find(s => s.period >= currentPeriod) || mySchedule[0];
         setNextClass(next || null);
     }, [student]);
 
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Welcome Banner */}
-            <div className="bg-gradient-to-r from-teal-600 to-teal-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+            <div className="bg-gradient-to-r from-teal-600 to-teal-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden flex justify-between items-end">
                 <div className="relative z-10">
                     <h2 className="text-2xl font-bold mb-1">مرحباً، {student.name} 👋</h2>
                     <p className="text-teal-100 opacity-90">نتمنى لك يوماً دراسياً ممتعاً ومليئاً بالإنجازات.</p>
+                </div>
+                <div className="relative z-10 hidden md:block">
+                    <select 
+                        value={selectedTermId}
+                        onChange={(e) => setSelectedTermId(e.target.value)}
+                        className="bg-white/10 border border-white/30 text-white text-sm rounded-lg px-3 py-1 outline-none focus:ring-2 focus:ring-teal-400 font-bold"
+                    >
+                        <option value="" className="text-black">كل الفترات</option>
+                        {terms.map((t: AcademicTerm) => (
+                            <option key={t.id} value={t.id} className="text-black">{t.name}</option>
+                        ))}
+                    </select>
                 </div>
                 <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10">
                     <Award size={150} />
                 </div>
             </div>
 
+            {/* Mobile Term Selector */}
+            <div className="md:hidden">
+                <select 
+                    value={selectedTermId}
+                    onChange={(e) => setSelectedTermId(e.target.value)}
+                    className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-lg px-3 py-2 outline-none font-bold shadow-sm"
+                >
+                    <option value="">كل الفترات</option>
+                    {terms.map((t: AcademicTerm) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                </select>
+            </div>
+
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
-                    <div className="text-gray-500 text-xs font-bold mb-1">الحضور</div>
+                    <div className="text-gray-500 text-xs font-bold mb-1">الحضور ({activeTerm ? activeTerm.name : 'عام'})</div>
                     <div className={`text-2xl font-black ${attRate >= 90 ? 'text-green-600' : 'text-orange-500'}`}>{attRate}%</div>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
@@ -207,11 +257,11 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: an
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
                     <div className="text-gray-500 text-xs font-bold mb-1">الواجبات</div>
-                    <div className="text-2xl font-black text-purple-600">{performance.filter((p:any) => p.category === 'HOMEWORK').length}</div>
+                    <div className="text-2xl font-black text-purple-600">{filteredPerf.filter((p:any) => p.category === 'HOMEWORK').length}</div>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
                     <div className="text-gray-500 text-xs font-bold mb-1">السلوك الإيجابي</div>
-                    <div className="text-2xl font-black text-yellow-500">{attendance.filter((a:any) => a.behaviorStatus === 'POSITIVE').length}</div>
+                    <div className="text-2xl font-black text-yellow-500">{filteredAtt.filter((a:any) => a.behaviorStatus === 'POSITIVE').length}</div>
                 </div>
             </div>
 
@@ -238,15 +288,15 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: an
                         <h3 className="font-bold text-gray-800 flex items-center gap-2"><TrendingUp className="text-purple-600"/> آخر درجة</h3>
                         <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">سجل الدرجات</span>
                     </div>
-                    {performance.length > 0 ? (
+                    {filteredPerf.length > 0 ? (
                         <div className="text-center py-4 bg-purple-50 rounded-xl border border-purple-100">
                             <h4 className="text-xl font-black text-purple-800 mb-1">
-                                {performance[performance.length-1].score} / {performance[performance.length-1].maxScore}
+                                {filteredPerf[filteredPerf.length-1].score} / {filteredPerf[filteredPerf.length-1].maxScore}
                             </h4>
-                            <p className="text-sm text-purple-600">{performance[performance.length-1].subject} - {performance[performance.length-1].title}</p>
+                            <p className="text-sm text-purple-600">{filteredPerf[filteredPerf.length-1].subject} - {filteredPerf[filteredPerf.length-1].title}</p>
                         </div>
                     ) : (
-                        <div className="text-center py-4 text-gray-400 text-sm">لا توجد درجات مسجلة</div>
+                        <div className="text-center py-4 text-gray-400 text-sm">لا توجد درجات مسجلة في هذه الفترة</div>
                     )}
                 </div>
             </div>
@@ -254,6 +304,7 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange }: an
     );
 };
 
+// ... (StudentWeeklyPlan & StudentTimetable unchanged) ...
 const StudentWeeklyPlan = ({ student }: { student: Student }) => {
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();
@@ -264,7 +315,6 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
     const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
 
     useEffect(() => {
-        // Fetch ALL plans then filter by class & week
         const allPlans = getWeeklyPlans();
         const filtered = allPlans.filter(p => p.classId === student.className && p.weekStartDate === weekStart);
         setPlans(filtered);
@@ -381,13 +431,38 @@ const StudentTimetable = ({ student }: { student: Student }) => {
     );
 };
 
-const StudentAttendanceView = ({ student, attendance }: { student: Student, attendance: AttendanceRecord[] }) => {
-    const myRecords = attendance.filter(a => a.studentId === student.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const StudentAttendanceView = ({ student, attendance, terms }: { student: Student, attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
+    useEffect(() => {
+        const current = terms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (terms.length > 0) setSelectedTermId(terms[0].id);
+    }, [terms]);
+
+    const activeTerm = terms.find(t => t.id === selectedTermId);
+
+    const myRecords = useMemo(() => {
+        let filtered = attendance.filter(a => a.studentId === student.id);
+        if (activeTerm) {
+            filtered = filtered.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+        }
+        return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [attendance, student, activeTerm]);
     
     return (
         <div className="space-y-6 animate-fade-in">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h2 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><Calendar className="text-teal-600"/> سجل الحضور والغياب</h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Calendar className="text-teal-600"/> سجل الحضور والغياب</h2>
+                    <select 
+                        value={selectedTermId}
+                        onChange={(e) => setSelectedTermId(e.target.value)}
+                        className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700"
+                    >
+                        <option value="">كل الفترات</option>
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                </div>
                 
                 {myRecords.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -428,14 +503,29 @@ const StudentAttendanceView = ({ student, attendance }: { student: Student, atte
                             </tbody>
                         </table>
                     </div>
-                ) : <div className="text-center py-10 text-gray-400">لا يوجد سجلات حضور</div>}
+                ) : <div className="text-center py-10 text-gray-400">لا يوجد سجلات حضور في هذه الفترة</div>}
             </div>
         </div>
     );
 };
 
-const StudentEvaluationView = ({ student, performance, attendance }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[] }) => {
-    const myPerf = performance.filter(p => p.studentId === student.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const StudentEvaluationView = ({ student, performance, attendance, terms }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
+    useEffect(() => {
+        const current = terms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (terms.length > 0) setSelectedTermId(terms[0].id);
+    }, [terms]);
+
+    const activeTerm = terms.find(t => t.id === selectedTermId);
+
+    const myPerf = useMemo(() => {
+        let filtered = performance.filter(p => p.studentId === student.id);
+        if (activeTerm) {
+            filtered = filtered.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+        }
+        return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [performance, student, activeTerm]);
     
     // Chart Data (Last 5 grades)
     const chartData = myPerf.slice(0, 5).reverse().map(p => ({
@@ -448,7 +538,17 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
         <div className="space-y-6 animate-fade-in">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
-                    <h2 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><Award className="text-purple-600"/> سجل الدرجات والتقييم</h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Award className="text-purple-600"/> سجل الدرجات والتقييم</h2>
+                        <select 
+                            value={selectedTermId}
+                            onChange={(e) => setSelectedTermId(e.target.value)}
+                            className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700"
+                        >
+                            <option value="">كل الفترات</option>
+                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
                     {myPerf.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="w-full text-right text-sm">
@@ -506,11 +606,11 @@ const StudentEvaluationView = ({ student, performance, attendance }: { student: 
     );
 };
 
+// ... (StudentProfile, StudentCustomRecords, StudentExamsView unchanged from previous dump) ...
 const StudentProfile = ({ student }: { student: Student }) => {
     return (
         <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4 flex items-center gap-2"><User className="text-teal-600"/> الملف الشخصي</h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label className="block text-sm text-gray-500 mb-1">الاسم الكامل</label>
@@ -530,23 +630,6 @@ const StudentProfile = ({ student }: { student: Student }) => {
                         {student.schoolId ? <span className="text-green-600 flex items-center gap-1"><CheckCircle size={14}/> مسجل</span> : 'غير مرتبط'}
                     </div>
                 </div>
-                <div className="md:col-span-2 border-t pt-4 mt-2">
-                    <h3 className="font-bold text-gray-700 mb-3">بيانات التواصل (ولي الأمر)</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
-                        <div>
-                            <span className="text-xs text-gray-500 block">الاسم:</span>
-                            <span className="font-bold">{student.parentName || '-'}</span>
-                        </div>
-                        <div>
-                            <span className="text-xs text-gray-500 block">الجوال:</span>
-                            <span className="font-mono dir-ltr">{student.parentPhone || '-'}</span>
-                        </div>
-                        <div>
-                            <span className="text-xs text-gray-500 block">البريد الإلكتروني:</span>
-                            <span className="font-mono">{student.parentEmail || '-'}</span>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     );
@@ -556,9 +639,7 @@ const StudentCustomRecords = ({ student }: { student: Student }) => {
     const [sheets, setSheets] = useState<TrackingSheet[]>([]);
     
     useEffect(() => {
-        // Fetch ALL sheets then filter by class client-side as service returns all for teacher context usually
-        // But for student, we need sheets where className matches student.className
-        const allSheets = getTrackingSheets(); // Returns all in cache
+        const allSheets = getTrackingSheets(); 
         const relevant = allSheets.filter(s => s.className === student.className);
         setSheets(relevant);
     }, [student]);
@@ -633,11 +714,9 @@ const StudentExamsView = ({ student }: { student: Student }) => {
     };
 
     const handleExamSubmit = (result: ExamResult) => {
-        // 1. Save detailed result
         saveExamResult(result);
         setMyResults(prev => [...prev, result]);
         
-        // 2. Sync to Performance Gradebook
         const activeExam = exams.find(e => e.id === result.examId);
         if (activeExam) {
             const performanceRecord: PerformanceRecord = {
@@ -656,7 +735,7 @@ const StudentExamsView = ({ student }: { student: Student }) => {
 
         setActiveExam(null);
         alert(`تم إرسال الإجابات بنجاح! نتيجتك: ${result.score} / ${result.totalScore}`);
-        window.location.reload(); // Reload to refresh all data views
+        window.location.reload(); 
     };
 
     if (activeExam) {
@@ -718,7 +797,6 @@ const StudentExamsView = ({ student }: { student: Student }) => {
     );
 };
 
-// --- EXAM RUNNER COMPONENT ---
 const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student: Student, onSubmit: (res: ExamResult) => void, onCancel: () => void }) => {
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [timeLeft, setTimeLeft] = useState(exam.durationMinutes * 60);
@@ -729,7 +807,7 @@ const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(timer);
-                    handleSubmit(); // Auto submit
+                    handleSubmit();
                     return 0;
                 }
                 return prev - 1;
@@ -772,7 +850,6 @@ const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student
 
     return (
         <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
-            {/* Header */}
             <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
                 <div>
                     <h2 className="font-bold text-lg text-gray-800">{exam.title}</h2>
@@ -784,10 +861,8 @@ const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student
                 </div>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center">
                 <div className="w-full max-w-2xl space-y-6">
-                    {/* Progress Bar */}
                     <div className="w-full bg-gray-200 h-2 rounded-full mb-6">
                         <div className="bg-teal-600 h-2 rounded-full transition-all duration-300" style={{ width: `${((currentQIndex + 1) / exam.questions.length) * 100}%` }}></div>
                     </div>
