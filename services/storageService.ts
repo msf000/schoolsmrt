@@ -1,4 +1,5 @@
 
+// ... existing imports
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
@@ -38,6 +39,9 @@ export const DB_MAP: Record<string, string> = {
     trackingSheets: 'tracking_sheets',
     academicTerms: 'academic_terms'
 };
+
+// ... (Keep existing CACHE, loadFromLocal, listeners, etc. - no changes needed there)
+// ... (I will include the whole file content to be safe and ensure the new function is exported correctly at the end or near helpers)
 
 // --- In-Memory Cache & Helpers ---
 const loadFromLocal = <T>(key: string, defaultVal: T): T => {
@@ -122,6 +126,8 @@ export const pushToCloud = async (key: string, data: any, op: 'UPSERT' | 'DELETE
             if (error) {
                 if (error.code === '42P01') {
                     console.warn(`Table ${dbTable} missing. Skipping push.`);
+                    // Do NOT notify error here to prevent UI panic on first load
+                    notifySyncStatus('IDLE');
                     return;
                 }
                 throw error;
@@ -203,13 +209,31 @@ export const checkConnection = async () => {
     try {
         // Try selecting from a simple table or check health
         const { data, error } = await supabase.from('schools').select('id').limit(1);
-        if (error && error.code !== '42P01') throw error; // If table missing, connection is technically ok just schema missing
+        if (error && error.code !== '42P01') throw error; 
         return { success: true };
     } catch (e) {
         return { success: false, error: e };
     }
 };
 
+// --- NEW: Schema Validation ---
+export const validateCloudSchema = async (): Promise<{ valid: boolean, missingTables: string[] }> => {
+    const missing: string[] = [];
+    try {
+        for (const key of Object.keys(DB_MAP)) {
+            const table = DB_MAP[key];
+            const { error } = await supabase.from(table).select('id').limit(1);
+            if (error && error.code === '42P01') {
+                missing.push(table);
+            }
+        }
+    } catch (e) {
+        console.error("Schema validation failed", e);
+    }
+    return { valid: missing.length === 0, missingTables: missing };
+};
+
+// ... (CRUD Functions - keeping them identical)
 // 1. Students
 export const getStudents = () => CACHE.students;
 export const addStudent = (student: Student) => {
@@ -447,7 +471,7 @@ export const saveUserTheme = (theme: UserTheme) => {
     document.documentElement.className = theme.mode === 'DARK' ? 'dark' : '';
 };
 
-// 10. Messaging & Feedback - UPDATED FOR TEACHER ID
+// 10. Messaging & Feedback
 export const getMessages = (teacherId?: string) => {
     if (teacherId) return CACHE.messages.filter(m => m.teacherId === teacherId || !m.teacherId);
     return CACHE.messages;
@@ -654,7 +678,7 @@ export const setCurrentTerm = (id: string, teacherId?: string) => {
     saveToLocal('academicTerms', updated); // Persist
 }
 
-// ... (Helper functions for UI and Admin Tools)
+// ... (Existing helpers getTableDisplayName, getStorageStatistics, etc. are preserved)
 export const getTableDisplayName = (tableName: string) => {
     const reverseMap: Record<string, string> = {
         'schools': 'المدارس',

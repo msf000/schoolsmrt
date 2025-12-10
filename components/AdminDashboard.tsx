@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     getSchools, addSchool, deleteSchool, updateSchool,
@@ -11,7 +10,8 @@ import {
     clearCloudTable, resetCloudDatabase,
     getAISettings, saveAISettings,
     backupCloudDatabase, restoreCloudDatabase,
-    getTeachers, updateTeacher
+    getTeachers, updateTeacher,
+    validateCloudSchema // NEW
 } from '../services/storageService';
 import { updateSupabaseConfig } from '../services/supabaseClient';
 import { checkAIConnection } from '../services/geminiService';
@@ -21,10 +21,10 @@ import {
     Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
     CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
     Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson, Crown, Star,
-    Zap, ZapOff
+    Zap, ZapOff, AlertCircle
 } from 'lucide-react';
 
-// ... (SchoolsManager component code - no changes) ...
+// ... (SchoolsManager component code - no changes)
 const SchoolsManager = () => {
     const [schools, setSchools] = useState<School[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -199,7 +199,7 @@ const SchoolsManager = () => {
     );
 };
 
-// ... (UsersManager component code - no changes) ...
+// ... (UsersManager and SubscriptionsManager component code - no changes)
 const UsersManager = () => {
     const [users, setUsers] = useState<SystemUser[]>([]);
     const [schools, setSchools] = useState<School[]>([]);
@@ -391,7 +391,6 @@ const UsersManager = () => {
     );
 };
 
-// ... (SubscriptionsManager and AISettingsView component code - no changes) ...
 const SubscriptionsManager = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -480,6 +479,7 @@ const SubscriptionsManager = () => {
     );
 };
 
+// ... (AISettingsView - no changes)
 const AISettingsView = () => {
     const [aiConfig, setAiConfig] = useState<AISettings>({ modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' });
     const [connectionStatus, setConnectionStatus] = useState<{status: 'IDLE' | 'TESTING' | 'SUCCESS' | 'ERROR', msg: string}>({status: 'IDLE', msg: ''});
@@ -595,11 +595,12 @@ const AISettingsView = () => {
     );
 };
 
-// ... (DatabaseSettings component and main AdminDashboard wrapper - no changes) ...
+// ... (DatabaseSettings component and main AdminDashboard wrapper)
 const DatabaseSettings = () => {
     const [dbTab, setDbTab] = useState<'CONFIG' | 'CLOUD' | 'MAINTENANCE'>('CONFIG');
     const [connectionStatus, setConnectionStatus] = useState<'CHECKING' | 'CONNECTED' | 'ERROR' | 'IDLE'>('IDLE');
     const [latency, setLatency] = useState(0);
+    const [missingTables, setMissingTables] = useState<string[]>([]);
     
     // Config State
     const [supaUrl, setSupaUrl] = useState('');
@@ -625,6 +626,9 @@ const DatabaseSettings = () => {
         if (res.success) {
             setConnectionStatus('CONNECTED');
             setLatency(end - start);
+            // After connection, check schema validity
+            const validation = await validateCloudSchema();
+            setMissingTables(validation.missingTables);
         } else {
             setConnectionStatus('ERROR');
         }
@@ -796,6 +800,27 @@ const DatabaseSettings = () => {
                             <button onClick={handleCheckConnection} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1"><RefreshCw size={14}/> فحص</button>
                         </div>
                     </div>
+
+                    {/* --- NEW: Missing Tables Warning --- */}
+                    {missingTables.length > 0 && (
+                        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r shadow-md animate-pulse">
+                            <div className="flex items-start gap-3">
+                                <AlertCircle size={24} className="text-red-500 mt-1"/>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-red-800 text-lg mb-1">تنبيه: قاعدة البيانات غير مكتملة!</h4>
+                                    <p className="text-sm text-red-700 mb-2">تم اكتشاف أن الجداول التالية مفقودة في Supabase: <b>{missingTables.join(', ')}</b>.</p>
+                                    <p className="text-xs text-red-600 mb-4">هذا سيسبب أخطاء في المزامنة (42P01). يرجى نسخ كود الإنشاء أدناه وتشغيله في SQL Editor في Supabase.</p>
+                                    
+                                    <div className="bg-white border border-red-200 rounded p-2 mb-3 max-h-32 overflow-y-auto">
+                                        <pre className="text-[10px] font-mono text-gray-700">{getDatabaseSchemaSQL()}</pre>
+                                    </div>
+                                    <button onClick={handleCopySQL} className="bg-red-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-red-700 flex items-center gap-2 w-fit">
+                                        <Copy size={16}/> نسخ الكود الكامل للإصلاح
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Credentials Form */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
@@ -985,29 +1010,39 @@ const DatabaseSettings = () => {
 };
 
 const AdminDashboard = () => {
-    const [activeTab, setActiveTab] = useState<'SCHOOLS' | 'USERS' | 'SUBSCRIPTIONS' | 'AI' | 'DATABASE'>('SCHOOLS');
+    const [view, setView] = useState<'SCHOOLS' | 'USERS' | 'SUBSCRIPTIONS' | 'AI' | 'DATABASE'>('SCHOOLS');
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
-            <div className="mb-6 flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <Shield size={24} className="text-gray-900"/> لوحة تحكم النظام (Super Admin)
-                </h1>
-                <div className="flex bg-white p-1 rounded-lg border shadow-sm overflow-x-auto">
-                    <button onClick={() => setActiveTab('SCHOOLS')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'SCHOOLS' ? 'bg-blue-50 text-blue-700' : 'text-gray-500'}`}>المدارس</button>
-                    <button onClick={() => setActiveTab('USERS')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'USERS' ? 'bg-purple-50 text-purple-700' : 'text-gray-500'}`}>المستخدمين</button>
-                    <button onClick={() => setActiveTab('SUBSCRIPTIONS')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'SUBSCRIPTIONS' ? 'bg-green-50 text-green-700' : 'text-gray-500'}`}>الاشتراكات</button>
-                    <button onClick={() => setActiveTab('AI')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'AI' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500'}`}>AI</button>
-                    <button onClick={() => setActiveTab('DATABASE')} className={`px-4 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'DATABASE' ? 'bg-red-50 text-red-700' : 'text-gray-500'}`}>قاعدة البيانات</button>
+        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
+            <div className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Shield className="text-purple-600"/> لوحة تحكم المسؤول (Super Admin)
+                </h2>
+                <div className="flex bg-white p-1 rounded-lg border shadow-sm overflow-x-auto max-w-full">
+                    <button onClick={() => setView('SCHOOLS')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap ${view === 'SCHOOLS' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        <Building size={16}/> المدارس
+                    </button>
+                    <button onClick={() => setView('USERS')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap ${view === 'USERS' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        <Users size={16}/> المستخدمين
+                    </button>
+                    <button onClick={() => setView('SUBSCRIPTIONS')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap ${view === 'SUBSCRIPTIONS' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        <CreditCard size={16}/> الاشتراكات
+                    </button>
+                    <button onClick={() => setView('AI')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap ${view === 'AI' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        <BrainCircuit size={16}/> إعدادات AI
+                    </button>
+                    <button onClick={() => setView('DATABASE')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap ${view === 'DATABASE' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        <Database size={16}/> قاعدة البيانات
+                    </button>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {activeTab === 'SCHOOLS' && <SchoolsManager />}
-                {activeTab === 'USERS' && <UsersManager />}
-                {activeTab === 'SUBSCRIPTIONS' && <SubscriptionsManager />}
-                {activeTab === 'AI' && <AISettingsView />}
-                {activeTab === 'DATABASE' && <DatabaseSettings />}
+                {view === 'SCHOOLS' && <SchoolsManager />}
+                {view === 'USERS' && <UsersManager />}
+                {view === 'SUBSCRIPTIONS' && <SubscriptionsManager />}
+                {view === 'AI' && <AISettingsView />}
+                {view === 'DATABASE' && <DatabaseSettings />}
             </div>
         </div>
     );
