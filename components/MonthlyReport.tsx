@@ -246,9 +246,13 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
         setAiSummary('');
         
         try {
+            // Find selected term name
+            const activeTerm = terms.find(t => t.id === selectedTermId);
+            const termName = activeTerm ? activeTerm.name : (headerConfig.term || 'الفترة الحالية');
+
             const summary = await generateClassReport(
                 selectedClass, 
-                headerConfig.term || 'الفترة الحالية',
+                termName,
                 {
                     attendanceRate: classSummary.attendanceRate,
                     avgScore: classSummary.classAvg,
@@ -364,7 +368,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                         className="bg-transparent w-full text-sm font-bold outline-none"
                     >
                         <option value="">-- جميع المواد --</option>
-                        {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                        {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
                 </div>
 

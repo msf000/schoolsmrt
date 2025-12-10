@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -417,12 +418,22 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
   const studentMetrics = useMemo(() => {
     return students.map(student => {
-        const studentAttendance = attendance.filter(a => a.studentId === student.id);
+        // Filter attendance by Current Term if available
+        let studentAttendance = attendance.filter(a => a.studentId === student.id);
+        if (currentTerm) {
+             studentAttendance = studentAttendance.filter(a => a.date >= currentTerm.startDate && a.date <= currentTerm.endDate);
+        }
+
         const totalDays = studentAttendance.length;
         const creditDays = studentAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
         const attendanceRate = totalDays > 0 ? (creditDays / totalDays) * 100 : 100;
 
-        const studentPerformance = performance.filter(p => p.studentId === student.id);
+        // Filter Performance by Current Term if available
+        let studentPerformance = performance.filter(p => p.studentId === student.id);
+        if (currentTerm) {
+             studentPerformance = studentPerformance.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+        }
+
         const totalScore = studentPerformance.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
         const avgScore = studentPerformance.length > 0 ? (totalScore / studentPerformance.length) * 100 : 0;
 
@@ -433,7 +444,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
         return { id: student.id, name: student.name, grade: student.gradeLevel, attendance: Math.round(attendanceRate), score: Math.round(avgScore), leaderboardScore: Math.round(leaderboardScore) };
     });
-  }, [students, attendance, performance]);
+  }, [students, attendance, performance, currentTerm]);
 
   const topStudents = [...studentMetrics].sort((a,b) => b.leaderboardScore - a.leaderboardScore).slice(0, 5);
 
@@ -474,13 +485,21 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
   const riskAlerts = useMemo(() => {
       const risks: any[] = [];
       students.forEach(s => {
-          const sAtt = attendance.filter(a => a.studentId === s.id);
+          // Filter data for Risk Analysis by Current Term
+          let sAtt = attendance.filter(a => a.studentId === s.id);
+          let sPerf = performance.filter(p => p.studentId === s.id);
+          
+          if (currentTerm) {
+              sAtt = sAtt.filter(a => a.date >= currentTerm.startDate && a.date <= currentTerm.endDate);
+              sPerf = sPerf.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+          }
+
           const absent = sAtt.filter(a => a.status === 'ABSENT').length;
           const totalDays = sAtt.length;
           if (totalDays > 0 && (absent / totalDays) > 0.20) {
               risks.push({ student: s, type: 'ATTENDANCE', msg: `نسبة غياب عالية (${Math.round((absent/totalDays)*100)}%)` });
           }
-          const sPerf = performance.filter(p => p.studentId === s.id);
+          
           if (sPerf.length >= 3) {
               const totalScore = sPerf.reduce((a,b) => a + (b.score/b.maxScore), 0);
               const avg = totalScore / sPerf.length;
@@ -490,7 +509,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
           }
       });
       return risks.slice(0, 3);
-  }, [students, attendance, performance]);
+  }, [students, attendance, performance, currentTerm]);
 
   return (
     <div className="space-y-6 animate-fade-in p-6">

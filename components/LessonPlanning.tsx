@@ -1,16 +1,17 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
 import { 
     saveLessonPlan, getLessonPlans, deleteLessonPlan, 
-    getCurriculumUnits, getCurriculumLessons, getMicroConcepts, getSubjects
+    getCurriculumUnits, getCurriculumLessons, getMicroConcepts, getSubjects, getAcademicTerms
 } from '../services/storageService';
-import { StoredLessonPlan, CurriculumUnit, CurriculumLesson, LessonBlock } from '../types';
+import { StoredLessonPlan, CurriculumUnit, CurriculumLesson, LessonBlock, AcademicTerm } from '../types';
 import { 
     BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, 
     Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, 
     AlertTriangle, Calendar, Target, ListTree, BookOpenCheck, Save, Trash2, 
     Link, Video, Image as ImageIcon, MoveUp, MoveDown, Plus, Search, Grid,
-    ToggleLeft, ToggleRight, MoreVertical, X, RefreshCw, Hash, FileQuestion, Globe, Youtube, ExternalLink
+    ToggleLeft, ToggleRight, MoreVertical, X, RefreshCw, Hash, FileQuestion, Globe, Youtube, ExternalLink, Filter
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -34,6 +35,10 @@ const LessonPlanning: React.FC = () => {
     const [curriculumLessons, setCurriculumLessons] = useState<CurriculumLesson[]>([]);
     const [myPlans, setMyPlans] = useState<StoredLessonPlan[]>([]);
     const [subjects, setSubjects] = useState<any[]>([]);
+
+    // Terms State
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState('');
 
     // Studio Settings (Right Column)
     const [selectedSubject, setSelectedSubject] = useState('');
@@ -70,6 +75,12 @@ const LessonPlanning: React.FC = () => {
             setCurriculumLessons(getCurriculumLessons());
             setMyPlans(getLessonPlans(currentUser.id));
             setSubjects(getSubjects(currentUser.id));
+            
+            const loadedTerms = getAcademicTerms(currentUser.id);
+            setTerms(loadedTerms);
+            const current = loadedTerms.find(t => t.isCurrent);
+            if (current) setSelectedTermId(current.id);
+            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
         }
     }, [currentUser?.id, activeTab]);
 
@@ -97,6 +108,17 @@ const LessonPlanning: React.FC = () => {
         return curriculumLessons.filter(l => l.unitId === selectedUnitId).sort((a,b) => a.orderIndex - b.orderIndex);
     }, [curriculumLessons, selectedUnitId]);
 
+    // Filter Plans by Term
+    const filteredMyPlans = useMemo(() => {
+        const activeTerm = terms.find(t => t.id === selectedTermId);
+        if (!activeTerm) return myPlans;
+        
+        return myPlans.filter(p => {
+            const date = p.createdAt.split('T')[0];
+            return date >= activeTerm.startDate && date <= activeTerm.endDate;
+        });
+    }, [myPlans, selectedTermId, terms]);
+
     // Update Topic when Lesson Selected & Auto-Search Media
     useEffect(() => {
         const lesson = curriculumLessons.find(l => l.id === selectedLessonId);
@@ -117,7 +139,6 @@ const LessonPlanning: React.FC = () => {
         setIsMediaLoading(true);
         
         // Simulate "Searching" by generating relevant dynamic URLs
-        // We use Pollinations.ai for instant image generation based on prompts, which acts like a search result
         setTimeout(() => {
             const results = [
                 // 1. Dynamic AI Generated Images (act as search results)
@@ -354,8 +375,23 @@ const LessonPlanning: React.FC = () => {
 
             {activeTab === 'MY_PLANS' ? (
                 <div className="p-8 overflow-y-auto print:hidden">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-gray-700">الخطط المحفوظة ({filteredMyPlans.length})</h3>
+                        <div className="flex items-center gap-2 bg-white border p-1 rounded-lg">
+                            <Filter size={16} className="text-gray-400 ml-1"/>
+                            <select 
+                                className="bg-transparent text-sm font-bold text-purple-700 outline-none min-w-[120px]"
+                                value={selectedTermId}
+                                onChange={(e) => setSelectedTermId(e.target.value)}
+                            >
+                                <option value="">كل الفترات</option>
+                                {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {myPlans.map(plan => (
+                        {filteredMyPlans.map(plan => (
                             <div key={plan.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative group">
                                 <div className="flex justify-between items-start mb-3">
                                     <h4 className="font-bold text-lg text-gray-800 line-clamp-1">{plan.topic}</h4>
@@ -370,7 +406,7 @@ const LessonPlanning: React.FC = () => {
                                 </div>
                             </div>
                         ))}
-                        {myPlans.length === 0 && <div className="col-span-full text-center text-gray-400 py-20">لا توجد خطط محفوظة.</div>}
+                        {filteredMyPlans.length === 0 && <div className="col-span-full text-center text-gray-400 py-20">لا توجد خطط محفوظة لهذه الفترة.</div>}
                     </div>
                 </div>
             ) : (

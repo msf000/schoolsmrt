@@ -100,10 +100,22 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     // Determine active term for filtering
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
 
-    const rawActivityCols = getAssignments('ACTIVITY', currentUser?.id).filter(c => c.isVisible);
-    const activityCols = rawActivityCols.filter(c => !c.title.includes('حضور') && !c.title.toLowerCase().includes('attendance') && !c.title.includes('غياب'));
-    const homeworkCols = getAssignments('HOMEWORK', currentUser?.id).filter(c => c.isVisible);
-    const examCols = getAssignments('PLATFORM_EXAM', currentUser?.id).filter(c => c.isVisible);
+    // Fetch assignments and filter by visibility and term
+    const rawActivityCols = useMemo(() => {
+        return getAssignments('ACTIVITY', currentUser?.id).filter(c => c.isVisible && (!activeTerm || !c.termId || c.termId === activeTerm.id));
+    }, [currentUser, activeTerm]);
+
+    const activityCols = useMemo(() => {
+        return rawActivityCols.filter(c => !c.title.includes('حضور') && !c.title.toLowerCase().includes('attendance') && !c.title.includes('غياب'));
+    }, [rawActivityCols]);
+
+    const homeworkCols = useMemo(() => {
+        return getAssignments('HOMEWORK', currentUser?.id).filter(c => c.isVisible && (!activeTerm || !c.termId || c.termId === activeTerm.id));
+    }, [currentUser, activeTerm]);
+
+    const examCols = useMemo(() => {
+        return getAssignments('PLATFORM_EXAM', currentUser?.id).filter(c => c.isVisible && (!activeTerm || !c.termId || c.termId === activeTerm.id));
+    }, [currentUser, activeTerm]);
 
     const calculateStats = () => {
         if (!student) return null;
@@ -126,20 +138,31 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         }
 
         const studentHWs = myPerformance.filter(p => p.category === 'HOMEWORK');
-        const totalHWCount = homeworkCols.length; // Note: Columns might need term filtering too if strictly enforced, but usually total cols is static for the semester
-        // Better approximation: Distinct HWs submitted
+        const totalHWCount = homeworkCols.length; 
+        
+        // Count HWs that match the current columns (to align with term filtering)
         const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
-        // HW Percent based on available records vs total potential is hard, lets simplify to: Submitted / Total cols * 100
-        // Or better: Use average score % if cols vary.
-        // Let's stick to submission rate if cols > 0
+        
         const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 
                           studentHWs.length > 0 ? 100 : 0; // Fallback
         const gradeHW = (hwPercent / 100) * 10;
 
         const studentActs = myPerformance.filter(p => p.category === 'ACTIVITY');
         let actSum = 0;
+        // Only sum activities that match current valid columns
         const validColKeys = new Set(activityCols.map(c => c.id));
-        studentActs.forEach(p => { if (p.notes && validColKeys.has(p.notes)) actSum += p.score; });
+        
+        studentActs.forEach(p => { 
+            // If we have column keys, validate. If p.notes matches an ID or p.title matches a title.
+            // Simplified: If notes is ID, check ID. Else accept.
+            if (p.notes && validColKeys.has(p.notes)) {
+                actSum += p.score; 
+            } else if (!p.notes) {
+                // Fallback for manual entries without column link
+                actSum += p.score;
+            }
+        });
+
         const activityRatio = activityTarget > 0 ? (actSum / activityTarget) : 0;
         const gradeAct = Math.min(activityRatio * 15, 15);
         const actPercent = Math.min(activityRatio * 100, 100);

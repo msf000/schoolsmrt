@@ -11,7 +11,7 @@ import {
     getUserTheme, saveUserTheme,
     getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -700,7 +700,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     onChange={e => setNewClassName(e.target.value)}
                                 />
                                 <button onClick={handleAddQuickClass} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 flex items-center gap-1">
-                                    <PlusCircle size={16}/> إسناد
+                                    <Plus size={16}/> إسناد
                                 </button>
                             </div>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -727,7 +727,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 onChange={e => setNewSubject(e.target.value)}
                             />
                             <button onClick={handleAddSubject} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center gap-1">
-                                <PlusCircle size={16}/> إضافة
+                                <Plus size={16}/> إضافة
                             </button>
                         </div>
                         <div className="space-y-2 max-h-60 overflow-y-auto">

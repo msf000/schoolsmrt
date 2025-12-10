@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus } from '../types';
-import { getMessages, saveMessage } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm } from '../types';
+import { getMessages, saveMessage, getAcademicTerms } from '../services/storageService';
 import { generateParentMessage } from '../services/geminiService';
-import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot } from 'lucide-react';
+import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface MessageCenterProps {
@@ -49,9 +49,17 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
 
     // Smart Triggers State
     const [triggerType, setTriggerType] = useState<'ABSENT_TODAY' | 'LOW_ATTENDANCE' | 'HIGH_PERFORMANCE'>('ABSENT_TODAY');
+    
+    // Terms State
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
 
     useEffect(() => {
         setHistory(getMessages());
+        const loadedTerms = getAcademicTerms();
+        setTerms(loadedTerms);
+        const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
+        setCurrentTerm(active);
     }, []);
 
     // Unique Classes
@@ -80,19 +88,28 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         
         if (triggerType === 'LOW_ATTENDANCE') {
             return students.filter(s => {
-                const myAtt = attendance.filter(a => a.studentId === s.id);
+                // Filter attendance by Current Term
+                let myAtt = attendance.filter(a => a.studentId === s.id);
+                if (currentTerm) {
+                    myAtt = myAtt.filter(a => a.date >= currentTerm.startDate && a.date <= currentTerm.endDate);
+                }
+                
                 const total = myAtt.length;
-                if (total < 5) return false;
+                if (total < 5) return false; // Need minimum data
                 const absent = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
                 return (absent / total) > 0.15; // More than 15% absent
             }).map(s => ({ ...s, reason: 'نسبة الغياب تجاوزت 15%' }));
         }
 
         if (triggerType === 'HIGH_PERFORMANCE') {
-             // Mock logic: Avg score > 90%
              return students.filter(s => {
-                 const myPerf = performance.filter(p => p.studentId === s.id);
-                 if (myPerf.length < 3) return false;
+                 // Filter performance by Current Term
+                 let myPerf = performance.filter(p => p.studentId === s.id);
+                 if (currentTerm) {
+                     myPerf = myPerf.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+                 }
+
+                 if (myPerf.length < 3) return false; // Need minimum data
                  const totalScore = myPerf.reduce((a,b) => a + (b.score/b.maxScore), 0);
                  const avg = totalScore / myPerf.length;
                  return avg >= 0.9;
@@ -100,7 +117,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         }
 
         return [];
-    }, [triggerType, students, attendance, performance]);
+    }, [triggerType, students, attendance, performance, currentTerm]);
 
     const handleSelectTemplate = (text: string) => {
         setMessageText(text);
@@ -224,7 +241,11 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                 {activeTab === 'SMART' && (
                     <div className="flex flex-col h-full">
                         <div className="p-6 border-b bg-teal-50/30">
-                            <h3 className="font-bold text-gray-800 mb-4">اقتراحات النظام (بناءً على البيانات)</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-gray-800">اقتراحات النظام (بناءً على البيانات)</h3>
+                                {currentTerm && <span className="text-xs bg-white px-2 py-1 rounded border text-gray-500 flex items-center gap-1"><Calendar size={12}/> {currentTerm.name}</span>}
+                            </div>
+                            
                             <div className="flex gap-4">
                                 <button onClick={() => setTriggerType('ABSENT_TODAY')} className={`p-4 rounded-xl border flex-1 text-center transition-all ${triggerType === 'ABSENT_TODAY' ? 'bg-red-50 border-red-200 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
                                     <div className="text-red-500 mb-2 mx-auto w-fit"><AlertTriangle/></div>
@@ -234,12 +255,12 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                 <button onClick={() => setTriggerType('LOW_ATTENDANCE')} className={`p-4 rounded-xl border flex-1 text-center transition-all ${triggerType === 'LOW_ATTENDANCE' ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
                                     <div className="text-orange-500 mb-2 mx-auto w-fit"><Clock/></div>
                                     <div className="font-bold text-gray-800">إنذار الحضور</div>
-                                    <div className="text-xs text-gray-500 mt-1">تجاوزوا نسبة الغياب المسموحة</div>
+                                    <div className="text-xs text-gray-500 mt-1">تجاوزوا 15% غياب (الفصل الحالي)</div>
                                 </button>
                                 <button onClick={() => setTriggerType('HIGH_PERFORMANCE')} className={`p-4 rounded-xl border flex-1 text-center transition-all ${triggerType === 'HIGH_PERFORMANCE' ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
                                     <div className="text-green-500 mb-2 mx-auto w-fit"><CheckCircle/></div>
                                     <div className="font-bold text-gray-800">المتفوقون</div>
-                                    <div className="text-xs text-gray-500 mt-1">إرسال تهنئة وشكر</div>
+                                    <div className="text-xs text-gray-500 mt-1">تهنئة (الفصل الحالي)</div>
                                 </button>
                             </div>
                         </div>
@@ -275,7 +296,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                             ) : (
                                 <div className="text-center py-20 text-gray-400">
                                     <CheckCircle size={48} className="mx-auto mb-4 opacity-20"/>
-                                    <p>لا يوجد طلاب يطابقون هذا المعيار حالياً.</p>
+                                    <p>لا يوجد طلاب يطابقون هذا المعيار في الفصل الدراسي الحالي.</p>
                                 </div>
                             )}
                         </div>

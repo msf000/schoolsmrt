@@ -65,8 +65,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [analyticsExam, setAnalyticsExam] = useState('');
 
   useEffect(() => {
-      setTerms(getAcademicTerms());
-  }, []);
+      setTerms(getAcademicTerms(currentUser?.id));
+  }, [currentUser]);
 
   const uniqueGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
   
@@ -102,13 +102,12 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       if (!analyticsExam) return null;
       
       // Find all records for this specific exam title
-      // Note: This matches by Title + Subject string. Ideally use an ID if available, but legacy data uses strings.
       const relevantRecords = performance.filter(p => p.title === analyticsExam && (!analyticsSubject || p.subject === analyticsSubject));
       
       if (relevantRecords.length === 0) return null;
 
       const scores = relevantRecords.map(r => ({ score: r.score, max: r.maxScore, studentId: r.studentId }));
-      const totalPossible = scores[0].max; // Assume same max for all
+      const totalPossible = scores[0].max; 
       
       const avgScore = scores.reduce((a, b) => a + b.score, 0) / scores.length;
       const maxAchieved = Math.max(...scores.map(s => s.score));
@@ -745,44 +744,31 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                           <Filter size={14} className="text-gray-400"/>
                           <select value={logSubject} onChange={e => setLogSubject(e.target.value)} className="bg-transparent outline-none font-bold text-gray-700 min-w-[100px]">
                               <option value="">جميع المواد</option>
-                              {uniqueSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                              {uniqueSubjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                           </select>
                       </div>
                       {!selectedTermId && (
                           <>
-                            <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
-                                <span className="text-xs text-gray-400">من:</span>
-                                <input type="date" value={logDateStart} onChange={e => setLogDateStart(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
-                            </div>
-                            <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
-                                <span className="text-xs text-gray-400">إلى:</span>
-                                <input type="date" value={logDateEnd} onChange={e => setLogDateEnd(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
-                            </div>
+                              <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                                  <span className="text-xs text-gray-400">من:</span>
+                                  <input type="date" value={logDateStart} onChange={e => setLogDateStart(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
+                              </div>
+                              <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                                  <span className="text-xs text-gray-400">إلى:</span>
+                                  <input type="date" value={logDateEnd} onChange={e => setLogDateEnd(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
+                              </div>
                           </>
                       )}
                       <div className="relative">
                           <Search size={14} className="absolute right-2 top-2 text-gray-400"/>
                           <input type="text" placeholder="بحث..." value={logSearch} onChange={e => setLogSearch(e.target.value)} className="pl-2 pr-7 py-1 border rounded-lg outline-none text-sm w-32 focus:ring-1 focus:ring-purple-300"/>
                       </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                      <button 
-                          onClick={handleExportExcel}
-                          className="bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-green-700 transition-colors shadow-sm"
-                      >
-                          <Download size={14}/> إكسل
-                      </button>
-                      <button 
-                          onClick={handlePrint}
-                          className="bg-gray-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-black transition-colors shadow-sm"
-                      >
-                          <Printer size={14}/> طباعة
-                      </button>
+                      <button onClick={handleExportExcel} className="bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-green-700 transition-colors shadow-sm"><Download size={14}/> إكسل</button>
+                      <button onClick={handlePrint} className="bg-gray-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-black transition-colors shadow-sm"><Printer size={14}/> طباعة</button>
                   </div>
               </div>
 
-              <div className="flex-1 overflow-auto bg-white">
+              <div className="flex-1 overflow-auto">
                   <table className="w-full text-right text-sm">
                       <thead className="bg-gray-100 text-gray-600 font-bold sticky top-0 shadow-sm">
                           <tr>
@@ -790,65 +776,37 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                               <th className="p-3">الطالب</th>
                               <th className="p-3">الفصل</th>
                               <th className="p-3">المادة</th>
-                              <th className="p-3">عنوان التقييم</th>
+                              <th className="p-3">التقييم</th>
                               <th className="p-3 text-center">الدرجة</th>
-                              <th className="p-3 text-center">التصنيف</th>
+                              <th className="p-3">التصنيف</th>
                               <th className="p-3">ملاحظات</th>
-                              <th className="p-3 w-10 text-center print:hidden">حذف</th>
+                              <th className="p-3 text-center">إجراءات</th>
                           </tr>
                       </thead>
                       <tbody className="divide-y">
-                          {filteredHistory.map((p) => {
-                              const student = students.find(s => s.id === p.studentId);
+                          {filteredHistory.length > 0 ? filteredHistory.map((rec) => {
+                              const student = students.find(s => s.id === rec.studentId);
                               return (
-                                  <tr key={p.id} className="hover:bg-gray-50">
-                                      <td className="p-3 font-mono text-xs text-gray-500">{p.date}</td>
+                                  <tr key={rec.id} className="hover:bg-gray-50">
+                                      <td className="p-3 font-mono text-xs text-gray-500">{rec.date}</td>
                                       <td className="p-3 font-bold text-gray-800">{student?.name}</td>
-                                      <td className="p-3 text-gray-600 text-xs">{student?.className}</td>
-                                      <td className="p-3 text-gray-600 text-xs">{p.subject}</td>
-                                      <td className="p-3 text-gray-800 font-medium">{p.title}</td>
+                                      <td className="p-3 text-gray-600">{student?.className}</td>
+                                      <td className="p-3 text-xs text-gray-500">{rec.subject}</td>
+                                      <td className="p-3 font-bold">{rec.title}</td>
+                                      <td className="p-3 text-center"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-100">{rec.score} / {rec.maxScore}</span></td>
+                                      <td className="p-3">{getCategoryBadge(rec.category)}</td>
+                                      <td className="p-3 text-xs text-gray-500 max-w-xs truncate">{rec.notes}</td>
                                       <td className="p-3 text-center">
-                                          <span className="font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100 dir-ltr inline-block">
-                                              {p.score} / {p.maxScore}
-                                          </span>
-                                      </td>
-                                      <td className="p-3 text-center">
-                                          {getCategoryBadge(p.category)}
-                                      </td>
-                                      <td className="p-3 text-xs text-gray-500 max-w-xs truncate" title={p.notes}>{p.notes}</td>
-                                      <td className="p-3 text-center print:hidden">
-                                          <button onClick={() => handleDelete(p.id)} className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors">
-                                              <Trash2 size={16}/>
-                                          </button>
+                                          <button onClick={() => handleDelete(rec.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
                                       </td>
                                   </tr>
                               );
-                          })}
-                          {filteredHistory.length === 0 && (
-                              <tr><td colSpan={9} className="p-12 text-center text-gray-400 font-medium">لا توجد سجلات مطابقة للفلتر</td></tr>
+                          }) : (
+                              <tr><td colSpan={9} className="p-10 text-center text-gray-400">لا توجد سجلات مطابقة للفلتر</td></tr>
                           )}
                       </tbody>
                   </table>
               </div>
-              <div className="p-3 bg-gray-50 border-t text-xs text-gray-500 flex justify-between font-bold print:hidden">
-                  <span>عدد السجلات: {filteredHistory.length}</span>
-              </div>
-          </div>
-      )}
-
-       {isImportModalOpen && (
-          <div className="fixed inset-0 z-[100] bg-white">
-              <DataImport 
-                  existingStudents={students}
-                  onImportStudents={() => {}} 
-                  onImportPerformance={(records) => {
-                      onImportPerformance(records);
-                      setIsImportModalOpen(false);
-                  }}
-                  onImportAttendance={() => {}}
-                  forcedType="PERFORMANCE"
-                  onClose={() => setIsImportModalOpen(false)}
-              />
           </div>
       )}
     </div>

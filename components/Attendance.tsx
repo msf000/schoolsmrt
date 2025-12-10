@@ -540,7 +540,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                <select className="p-2 border rounded text-sm w-40 bg-gray-50" value={manualClass} onChange={e => setManualClass(e.target.value)}>
                                    <option value="">-- اختر --</option>
                                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                               </select>
+                                </select>
                            </div>
                            <div className="flex flex-col">
                                <label className="block text-xs font-bold text-gray-500 mb-1">مادة</label>

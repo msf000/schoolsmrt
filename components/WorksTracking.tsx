@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser, AcademicTerm, TermPeriod } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, getAcademicTerms } from '../services/storageService';
@@ -55,6 +56,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [selectedTermId, setSelectedTermId] = useState<string>('');
     const [selectedPeriodId, setSelectedPeriodId] = useState<string>(''); // For sub-periods
+
+    // --- ACTIVE TERM DATA (Moved Up) ---
+    const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
+    const activePeriod = useMemo(() => activeTerm?.periods?.find(p => p.id === selectedPeriodId), [activeTerm, selectedPeriodId]);
     
     // Activity Target (Linked to Term/Period)
     const [activityTarget, setActivityTarget] = useState<number>(13); 
@@ -331,8 +336,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return;
         const newGrid: Record<string, Record<string, string>> = {};
         
+        // Filter performance records based on Term/Period AND Subject
+        // This ensures the grid only shows relevant data
         performance.forEach(p => {
             if (p.category === activeTab && p.subject === selectedSubject) {
+                // Apply Date Filtering for Term
+                if (activeTerm) {
+                    if (p.date < activeTerm.startDate || p.date > activeTerm.endDate) return;
+                }
+                
                 const assignmentById = assignments.find(a => a.id === p.notes);
                 if (assignmentById) {
                     if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
@@ -347,7 +359,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
         });
         setGridData(newGrid);
-    }, [performance, activeTab, selectedSubject, assignments]);
+    }, [performance, activeTab, selectedSubject, assignments, activeTerm]); // Re-run when activeTerm changes
 
     const handleScoreChange = (studentId: string, assignId: string, val: string) => {
         setGridData(prev => ({
@@ -542,10 +554,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
     }, [assignments, selectedTermId, selectedPeriodId]);
 
-    // --- ACTIVE TERM DATA ---
-    const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
-    const activePeriod = useMemo(() => activeTerm?.periods?.find(p => p.id === selectedPeriodId), [activeTerm, selectedPeriodId]);
-
     const renderStudentRow = (student: Student, i: number) => {
         // Calculate Attendance based on selected Date Range (Term or Sub-Period)
         const myAtt = attendance.filter(a => a.studentId === student.id);
@@ -642,21 +650,29 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
 
         if (activeTab === 'YEAR_WORK') {
-            const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
-            const hwCols = getAssignments('HOMEWORK', currentUser?.id);
+            // Apply Date Filter based on Active Term for correct calculations
+            const filterByTerm = (p: PerformanceRecord) => {
+                if (!activeTerm) return true;
+                return p.date >= activeTerm.startDate && p.date <= activeTerm.endDate;
+            };
+
+            const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject && filterByTerm(p));
+            // Get Homework Assignments relevant to the term for denominator
+            const hwCols = getAssignments('HOMEWORK', currentUser?.id).filter(a => !activeTerm || !a.termId || a.termId === activeTerm.id);
             const distinctHW = new Set(hwRecs.map(p => p.notes)).size;
             const hwGrade = hwCols.length > 0 ? (distinctHW / hwCols.length) * 10 : 0;
 
-            const actRecs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
+            const actRecs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject && filterByTerm(p));
             let actSumVal = 0;
             actRecs.forEach(p => { if (!p.title.includes('حضور')) actSumVal += p.score; });
             const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * 15, 15) : 0;
 
-            // Attendance based on Term/Period
+            // Attendance based on Term/Period (already filtered above in termAtt)
             const present = termAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
+            // Denominator is either total scheduled days or recorded days. Using recorded days for fairness.
             const attGrade = termAtt.length > 0 ? (present / termAtt.length) * 15 : 15; // Defaults to full if no records
 
-            const examRecs = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject);
+            const examRecs = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject && filterByTerm(p));
             let examScoreTotal = 0;
             let examMaxTotal = 0;
             examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
@@ -713,7 +729,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     )}
 
                     {/* PERIOD/TERM SELECTOR (GRADING MODE) */}
-                    {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && (
+                    {activeMode === 'GRADING' && (
                         <>
                             <div className="flex items-center gap-2 bg-white p-1 rounded-lg border">
                                 <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Calendar size={14}/> الفصل:</span>
@@ -728,7 +744,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             </div>
                             
                             {/* Sub-Period Selector (Only if Term selected) */}
-                            {activeTerm && activeTerm.periods && activeTerm.periods.length > 0 && (
+                            {activeTerm && activeTerm.periods && activeTerm.periods.length > 0 && activeTab !== 'YEAR_WORK' && (
                                 <div className="flex items-center gap-2 bg-white p-1 rounded-lg border">
                                     <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Clock size={14}/> الفترة:</span>
                                     <select 

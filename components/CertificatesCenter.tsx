@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { getSchools } from '../services/storageService';
+import { getSchools, getAcademicTerms } from '../services/storageService';
 import { Award, Printer, CheckSquare, Search, LayoutTemplate, TrendingUp, Medal, Star, ThumbsUp } from 'lucide-react';
 
 interface CertificatesCenterProps {
@@ -30,6 +30,14 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
         if (currentUser?.schoolId) return schools.find(s => s.id === currentUser.schoolId);
         return undefined;
     });
+
+    useEffect(() => {
+        const terms = getAcademicTerms(currentUser?.id);
+        const currentTerm = terms.find(t => t.isCurrent);
+        if (currentTerm) {
+            setCustomText(`نظير جهوده المتميزة ومستواه الرائع خلال ${currentTerm.name}، متمنين له دوام التوفيق.`);
+        }
+    }, [currentUser]);
 
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
 

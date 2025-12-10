@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { deleteAllStudents } from '../services/storageService';
+import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm } from '../types';
+import { deleteAllStudents, getAcademicTerms } from '../services/storageService';
 import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award } from 'lucide-react';
 import DataImport from './DataImport';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
@@ -36,6 +36,18 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
 
+  // --- Terms State ---
+  const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<string>('');
+
+  useEffect(() => {
+      const loadedTerms = getAcademicTerms(currentUser?.id);
+      setTerms(loadedTerms);
+      const current = loadedTerms.find(t => t.isCurrent);
+      if (current) setSelectedTermId(current.id);
+      else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+  }, [currentUser]);
+
   // --- Derived Data for Filters ---
   const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))).sort(), [students]);
   const existingClasses = useMemo(() => {
@@ -60,8 +72,16 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   const studentStats = useMemo(() => {
       if (!viewStudent) return null;
       
-      const sAtt = attendance.filter(a => a.studentId === viewStudent.id);
-      const sPerf = performance.filter(p => p.studentId === viewStudent.id);
+      const activeTerm = terms.find(t => t.id === selectedTermId);
+
+      let sAtt = attendance.filter(a => a.studentId === viewStudent.id);
+      let sPerf = performance.filter(p => p.studentId === viewStudent.id);
+
+      // Apply Term Filter if selected
+      if (activeTerm) {
+          sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+          sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+      }
 
       // 1. Attendance
       const totalDays = sAtt.length;
@@ -91,7 +111,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       // Line Chart: Last 5 Grades
       const recentGrades = sPerf
         .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        .slice(-5)
+        .slice(0, 5).reverse()
         .map(p => ({
             name: p.title || p.subject,
             score: Math.round((p.score / p.maxScore) * 100),
@@ -122,7 +142,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
           avgScore, recentGrades, radarData,
           homeworks, activities, exams
       };
-  }, [viewStudent, attendance, performance]);
+  }, [viewStudent, attendance, performance, selectedTermId, terms]);
 
   // --- Form Handling ---
   const initialFormState = {
@@ -347,7 +367,20 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                               </div>
                           </div>
                       </div>
-                      <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-white bg-white/10 p-2 rounded-full hover:bg-white/20 transition-colors"><X size={20}/></button>
+                      <div className="flex items-center gap-3">
+                          {/* TERM SELECTOR INSIDE MODAL */}
+                          <select 
+                              value={selectedTermId}
+                              onChange={(e) => setSelectedTermId(e.target.value)}
+                              className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-purple-500 font-bold"
+                          >
+                              <option value="" className="text-black">كل الفترات (تراكمي)</option>
+                              {terms.map(t => (
+                                  <option key={t.id} value={t.id} className="text-black">{t.name}</option>
+                              ))}
+                          </select>
+                          <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-white bg-white/10 p-2 rounded-full hover:bg-white/20 transition-colors"><X size={20}/></button>
+                      </div>
                   </div>
 
                   {/* Navigation Tabs */}

@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Exam, Question, SystemUser, ExamResult, Subject, CurriculumUnit, CurriculumLesson } from '../types';
-import { getExams, saveExam, deleteExam, getExamResults, getSubjects, getStudents, getQuestionBank, getCurriculumUnits, getCurriculumLessons } from '../services/storageService';
+import { Exam, Question, SystemUser, ExamResult, Subject, CurriculumUnit, CurriculumLesson, AcademicTerm } from '../types';
+import { getExams, saveExam, deleteExam, getExamResults, getSubjects, getStudents, getQuestionBank, getCurriculumUnits, getCurriculumLessons, getAcademicTerms } from '../services/storageService';
 import { generateStructuredQuiz } from '../services/geminiService';
 import { FileQuestion, Plus, Trash2, Edit, Save, CheckCircle, XCircle, Clock, BookOpen, ListChecks, PlayCircle, StopCircle, ArrowLeft, BarChart2, Sparkles, Filter, Loader2, Check, Download, Search, ListTree, Calendar } from 'lucide-react';
 
@@ -26,6 +25,10 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     // Filters
     const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('');
     const [selectedGradeFilter, setSelectedGradeFilter] = useState('');
+    
+    // Terms State
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState('');
 
     // AI Generation State
     const [aiConfig, setAiConfig] = useState({ topic: '', count: 5, difficulty: 'MEDIUM' as 'EASY' | 'MEDIUM' | 'HARD' });
@@ -51,17 +54,31 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
         const allStudents = getStudents();
         const grades = Array.from(new Set(allStudents.map(s => s.gradeLevel).filter((g): g is string => !!g))).sort();
         setAvailableGrades(grades);
+
+        const loadedTerms = getAcademicTerms(currentUser.id);
+        setTerms(loadedTerms);
+        const current = loadedTerms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
     };
 
     const uniqueGrades = useMemo(() => Array.from(new Set(exams.map(e => e.gradeLevel))).sort(), [exams]);
 
     const filteredExams = useMemo(() => {
+        const activeTerm = terms.find(t => t.id === selectedTermId);
+        
         return exams.filter(e => {
             if (selectedSubjectFilter && e.subject !== selectedSubjectFilter) return false;
             if (selectedGradeFilter && e.gradeLevel !== selectedGradeFilter) return false;
+            
+            // Term Filter
+            if (activeTerm && e.date) {
+                if (e.date < activeTerm.startDate || e.date > activeTerm.endDate) return false;
+            }
+
             return true;
         });
-    }, [exams, selectedSubjectFilter, selectedGradeFilter]);
+    }, [exams, selectedSubjectFilter, selectedGradeFilter, selectedTermId, terms]);
 
     // --- CREATION FLOW ---
     const startCreation = () => {
@@ -240,6 +257,18 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                         <div className="flex gap-2 w-full md:w-auto">
                             <div className="flex items-center gap-2 bg-white border p-1 rounded-lg shadow-sm flex-1">
                                 <Filter size={16} className="text-gray-400 ml-1"/>
+                                
+                                {/* Term Selector */}
+                                <select 
+                                    className="text-sm outline-none bg-transparent font-bold text-purple-700 w-full min-w-[100px]"
+                                    value={selectedTermId}
+                                    onChange={e => setSelectedTermId(e.target.value)}
+                                >
+                                    <option value="">كل الفترات</option>
+                                    {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                                <div className="w-[1px] h-4 bg-gray-300 mx-1"></div>
+
                                 <select 
                                     className="text-sm outline-none bg-transparent font-bold text-gray-700 w-full"
                                     value={selectedSubjectFilter}

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject } from '../types';
-import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects } from '../services/storageService';
-import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search } from 'lucide-react';
+import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject, AcademicTerm } from '../types';
+import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects, getAcademicTerms } from '../services/storageService';
+import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search, Filter } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
 
@@ -16,6 +16,10 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
     const [students, setStudents] = useState<Student[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     
+    // Terms State
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState('');
+
     // Editor State
     const [activeSheet, setActiveSheet] = useState<TrackingSheet | null>(null);
     const [tempTitle, setTempTitle] = useState('');
@@ -28,6 +32,12 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
             setSheets(getTrackingSheets(currentUser.id));
             setStudents(getStudents().filter(s => s.schoolId === currentUser.schoolId || s.createdById === currentUser.id));
             setSubjects(getSubjects(currentUser.id));
+            
+            const loadedTerms = getAcademicTerms(currentUser.id);
+            setTerms(loadedTerms);
+            const current = loadedTerms.find(t => t.isCurrent);
+            if (current) setSelectedTermId(current.id);
+            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
         }
     }, [currentUser]);
 
@@ -38,6 +48,17 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         });
         return Array.from(classes).sort();
     }, [students]);
+
+    // Filter Sheets by Term
+    const filteredSheets = useMemo(() => {
+        const activeTerm = terms.find(t => t.id === selectedTermId);
+        if (!activeTerm) return sheets;
+        
+        return sheets.filter(s => {
+            const date = s.createdAt.split('T')[0];
+            return date >= activeTerm.startDate && date <= activeTerm.endDate;
+        });
+    }, [sheets, selectedTermId, terms]);
 
     const createNewSheet = () => {
         const defaultClass = uniqueClasses.length > 0 ? (uniqueClasses[0] || '') : '';
@@ -184,13 +205,26 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                             </h2>
                             <p className="text-sm text-gray-500">سجلات خاصة منفصلة عن النظام الرئيسي (مثل: سجل القرآن، متابعة المشاريع...)</p>
                         </div>
-                        <button onClick={createNewSheet} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md">
-                            <Plus size={18}/> سجل جديد
-                        </button>
+                        <div className="flex gap-2">
+                            <div className="flex items-center bg-white border rounded-lg px-3 py-2 shadow-sm">
+                                <Filter size={16} className="text-gray-400 ml-1"/>
+                                <select 
+                                    className="bg-transparent text-sm font-bold text-gray-700 outline-none min-w-[120px]"
+                                    value={selectedTermId}
+                                    onChange={(e) => setSelectedTermId(e.target.value)}
+                                >
+                                    <option value="">كل الفترات</option>
+                                    {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                            </div>
+                            <button onClick={createNewSheet} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md">
+                                <Plus size={18}/> سجل جديد
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
-                        {sheets.map(sheet => (
+                        {filteredSheets.map(sheet => (
                             <div key={sheet.id} onClick={() => handleEditSheet(sheet)} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group relative">
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="bg-purple-50 p-2 rounded-lg text-purple-600">
@@ -208,9 +242,9 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                                 </div>
                             </div>
                         ))}
-                        {sheets.length === 0 && (
+                        {filteredSheets.length === 0 && (
                             <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-                                <p>لا توجد سجلات خاصة. ابدأ بإنشاء واحد.</p>
+                                <p>لا توجد سجلات خاصة لهذه الفترة. ابدأ بإنشاء واحد.</p>
                             </div>
                         )}
                     </div>

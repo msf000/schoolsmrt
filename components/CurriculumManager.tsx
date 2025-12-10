@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { CurriculumUnit, CurriculumLesson, MicroConcept, SystemUser, Subject } from '../types';
+import { CurriculumUnit, CurriculumLesson, MicroConcept, SystemUser, Subject, AcademicTerm } from '../types';
 import { 
     getCurriculumUnits, saveCurriculumUnit, deleteCurriculumUnit,
     getCurriculumLessons, saveCurriculumLesson, deleteCurriculumLesson,
     getMicroConcepts, saveMicroConcept, deleteMicroConcept,
-    getSubjects
+    getSubjects, getAcademicTerms
 } from '../services/storageService';
 import { generateCurriculumMap } from '../services/geminiService';
 import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, BrainCircuit, Plus, List, Sparkles, Loader2 } from 'lucide-react';
@@ -37,9 +37,12 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
     const [userSubjects, setUserSubjects] = useState<Subject[]>([]);
     
     // Selection State
-    const [selectedSemester, setSelectedSemester] = useState('الفصل الدراسي الأول');
     const [selectedGrade, setSelectedGrade] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
+    
+    // Terms State
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState('');
 
     // Data State
     const [units, setUnits] = useState<CurriculumUnit[]>([]);
@@ -58,6 +61,11 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
     useEffect(() => {
         if (currentUser?.id) {
             setUserSubjects(getSubjects(currentUser.id));
+            const loadedTerms = getAcademicTerms(currentUser.id);
+            setTerms(loadedTerms);
+            const current = loadedTerms.find(t => t.isCurrent);
+            if (current) setSelectedTermId(current.id);
+            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
             refreshData();
         }
     }, [currentUser]);
@@ -154,7 +162,11 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
 
         setIsGenerating(true);
         try {
-            const structure = await generateCurriculumMap(selectedSubject, selectedGrade, selectedSemester);
+            // Find term name or fallback
+            const term = terms.find(t => t.id === selectedTermId);
+            const termName = term ? term.name : 'الفصل الدراسي الأول';
+
+            const structure = await generateCurriculumMap(selectedSubject, selectedGrade, termName);
             
             if (Array.isArray(structure) && structure.length > 0) {
                 let unitOrder = units.length;
@@ -188,7 +200,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                     }
                 }
                 refreshData();
-                alert(`تم استيراد منهج ${selectedSemester} بنجاح!`);
+                alert(`تم استيراد منهج ${termName} بنجاح!`);
             } else {
                 alert('لم يتمكن النظام من استخراج المنهج. تأكد من اسم المادة والصف.');
             }
@@ -217,10 +229,13 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4 flex flex-wrap gap-4 items-end">
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">1. الفصل الدراسي</label>
-                            <select className="p-2 border rounded text-sm bg-gray-50 min-w-[140px]" value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
-                                <option value="الفصل الدراسي الأول">الفصل الأول</option>
-                                <option value="الفصل الدراسي الثاني">الفصل الثاني</option>
-                                <option value="الفصل الدراسي الثالث">الفصل الثالث</option>
+                            <select 
+                                className="p-2 border rounded text-sm bg-gray-50 min-w-[140px] font-bold text-purple-700"
+                                value={selectedTermId}
+                                onChange={e => setSelectedTermId(e.target.value)}
+                            >
+                                <option value="">اختر الفصل...</option>
+                                {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
                         </div>
                         <div>
@@ -246,11 +261,11 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                         <div className="w-full md:w-auto border-t md:border-t-0 md:border-r pr-0 md:pr-4 pt-4 md:pt-0">
                             <button 
                                 onClick={handleAutoGenerate} 
-                                disabled={isGenerating || !selectedSubject || !selectedGrade}
+                                disabled={isGenerating || !selectedSubject || !selectedGrade || !selectedTermId}
                                 className="bg-gradient-to-r from-teal-500 to-green-600 text-white px-4 py-2 rounded font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap shadow-md w-full justify-center"
                             >
                                 {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
-                                {isGenerating ? 'جاري سحب المنهج...' : `استيراد ${selectedSemester} (AI)`}
+                                {isGenerating ? 'جاري سحب المنهج...' : `استيراد المنهج (AI)`}
                             </button>
                         </div>
                     </div>
@@ -313,7 +328,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                             <div className="text-center py-20 text-gray-400">
                                 <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
                                 <p className="text-lg font-bold">لا يوجد منهج مسجل</p>
-                                <p className="text-sm">ابدأ باختيار الفصل والصف والمادة ثم اضغط على زر الاستيراد.</p>
+                                <p className="text-sm">ابدأ باختيار الفصل الدراسي والصف والمادة ثم اضغط على زر الاستيراد.</p>
                             </div>
                         )}
                     </div>
