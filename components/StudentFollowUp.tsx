@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser } from '../types';
-import { getSubjects, getAssignments } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon } from 'lucide-react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm } from '../types';
+import { getSubjects, getAssignments, getAcademicTerms } from '../services/storageService';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 
@@ -11,7 +11,7 @@ interface StudentFollowUpProps {
   performance: PerformanceRecord[];
   attendance: AttendanceRecord[];
   currentUser?: SystemUser | null;
-  onSaveAttendance?: (records: AttendanceRecord[]) => void; // Added prop
+  onSaveAttendance?: (records: AttendanceRecord[]) => void;
 }
 
 const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance, currentUser, onSaveAttendance }) => {
@@ -29,6 +29,10 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // Terms State
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
+
     // Certificate State
     const [isCertModalOpen, setIsCertModalOpen] = useState(false);
     const [certType, setCertType] = useState<'EXCELLENCE' | 'ATTENDANCE' | 'BEHAVIOR' | 'THANKS'>('EXCELLENCE');
@@ -41,6 +45,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
         const savedTarget = localStorage.getItem('works_activity_target');
         if (savedTarget) setActivityTarget(parseInt(savedTarget));
+
+        // Load Terms
+        const loadedTerms = getAcademicTerms(currentUser?.id);
+        setTerms(loadedTerms);
+        // Set default to current term if available
+        const current = loadedTerms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
 
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -85,6 +96,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     };
 
     const student = students.find(s => s.id === selectedStudentId);
+    
+    // Determine active term for filtering
+    const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
 
     const rawActivityCols = getAssignments('ACTIVITY', currentUser?.id).filter(c => c.isVisible);
     const activityCols = rawActivityCols.filter(c => !c.title.includes('حضور') && !c.title.toLowerCase().includes('attendance') && !c.title.includes('غياب'));
@@ -93,19 +107,36 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
     const calculateStats = () => {
         if (!student) return null;
-        const studentAtt = attendance.filter(a => a.studentId === student.id);
+        
+        // Filter attendance by Term if selected
+        let studentAtt = attendance.filter(a => a.studentId === student.id);
+        if (activeTerm) {
+            studentAtt = studentAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+        }
+
         const creditCount = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
         const totalDays = studentAtt.length;
         const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
         const gradePart = (attPercent / 100) * 15;
 
-        const studentHWs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject);
-        const totalHWCount = homeworkCols.length;
+        // Filter Performance by Term if selected
+        let myPerformance = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject);
+        if (activeTerm) {
+            myPerformance = myPerformance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+        }
+
+        const studentHWs = myPerformance.filter(p => p.category === 'HOMEWORK');
+        const totalHWCount = homeworkCols.length; // Note: Columns might need term filtering too if strictly enforced, but usually total cols is static for the semester
+        // Better approximation: Distinct HWs submitted
         const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
-        const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 0;
+        // HW Percent based on available records vs total potential is hard, lets simplify to: Submitted / Total cols * 100
+        // Or better: Use average score % if cols vary.
+        // Let's stick to submission rate if cols > 0
+        const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 
+                          studentHWs.length > 0 ? 100 : 0; // Fallback
         const gradeHW = (hwPercent / 100) * 10;
 
-        const studentActs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject);
+        const studentActs = myPerformance.filter(p => p.category === 'ACTIVITY');
         let actSum = 0;
         const validColKeys = new Set(activityCols.map(c => c.id));
         studentActs.forEach(p => { if (p.notes && validColKeys.has(p.notes)) actSum += p.score; });
@@ -113,7 +144,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const gradeAct = Math.min(activityRatio * 15, 15);
         const actPercent = Math.min(activityRatio * 100, 100);
 
-        const studentExams = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject);
+        const studentExams = myPerformance.filter(p => p.category === 'PLATFORM_EXAM');
         let examScoreSum = 0; let examMaxSum = 0;
         studentExams.forEach(p => { examScoreSum += p.score; examMaxSum += p.maxScore > 0 ? p.maxScore : 20; });
         const examWeightedRaw = examMaxSum > 0 ? (examScoreSum / examMaxSum) * 20 : 0;
@@ -126,7 +157,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
         let behScore = 0;
         const behaviorTrendData = studentAtt.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(a => { if(a.behaviorStatus === 'POSITIVE') behScore += 1; if(a.behaviorStatus === 'NEGATIVE') behScore -= 1; return { date: a.date.slice(5), score: behScore }; }).filter((_, i) => i % 2 === 0 || i === studentAtt.length - 1);
-        const academicTrendData = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(p => ({ name: p.title, grade: Math.round((p.score / p.maxScore) * 100), full: 100 }));
+        
+        const academicTrendData = myPerformance.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(p => ({ name: p.title, grade: Math.round((p.score / p.maxScore) * 100), full: 100 }));
+        
         const chartData = [{ name: 'الحضور', value: Math.round(attPercent), full: 100, fill: '#10b981' }, { name: 'الواجبات', value: Math.round(hwPercent), full: 100, fill: '#3b82f6' }, { name: 'الأنشطة', value: Math.round(actPercent), full: 100, fill: '#f59e0b' }, { name: 'الاختبارات', value: Math.round((examWeighted / 20) * 100), full: 100, fill: '#8b5cf6' }];
 
         return { attPercent, gradePart, hwPercent, distinctHWs, totalHWCount, gradeHW, actSum, gradeAct, actPercent, examWeighted, totalTasks, totalPeriod, studentActs, studentHWs, studentExams, behaviorLogs, chartData, behaviorTrendData, academicTrendData };
@@ -158,6 +191,19 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                 </div>
                 
                 <div className="flex flex-wrap gap-3 items-center">
+                    {/* Term Selector */}
+                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                        <Calendar size={16} className="text-gray-500"/>
+                        <select 
+                            className="bg-transparent text-sm font-bold text-gray-700 outline-none w-32"
+                            value={selectedTermId}
+                            onChange={(e) => setSelectedTermId(e.target.value)}
+                        >
+                            <option value="">كل الفترات</option>
+                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+
                     <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
                         <Target size={16} className="text-amber-600"/><span className="text-xs font-bold text-amber-800">هدف الأنشطة:</span>
                         <input type="number" min="1" value={activityTarget} onChange={(e) => handleTargetChange(e.target.value)} className="w-16 p-1 text-center border rounded text-sm font-bold bg-white focus:ring-1 focus:ring-amber-500"/>
@@ -198,7 +244,10 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
             {student && stats ? (
                 <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto z-0">
-                    <div className="text-center mb-8"><h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject}</h1></div>
+                    <div className="text-center mb-8">
+                        <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject}</h1>
+                        {activeTerm && <p className="text-sm text-gray-500 mt-1">({activeTerm.name})</p>}
+                    </div>
                     <div className="overflow-x-auto mb-8">
                         <table className="w-full text-center border-collapse text-sm">
                             <thead>
@@ -231,7 +280,48 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                             </thead>
                         </table>
                     </div>
-                    {/* ... (Charts & Behavior Log omitted for brevity, assume present from previous version) ... */}
+                    {/* Charts & Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 print:hidden">
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h4 className="font-bold text-gray-700 mb-4 text-center">تحليل الأداء</h4>
+                            <div className="h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={stats.chartData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="name" tick={{fontSize: 10}} />
+                                        <YAxis domain={[0, 100]} />
+                                        <Tooltip />
+                                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                            {stats.chartData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex flex-col">
+                            <h4 className="font-bold text-gray-700 mb-4 text-center">سجل الملاحظات السلوكية</h4>
+                            <div className="flex-1 overflow-auto max-h-60 pr-2 custom-scrollbar">
+                                {stats.behaviorLogs.length > 0 ? (
+                                    <ul className="space-y-2">
+                                        {stats.behaviorLogs.map((log, i) => (
+                                            <li key={i} className="text-xs p-2 bg-white rounded border border-gray-200 shadow-sm flex justify-between items-start">
+                                                <div>
+                                                    <span className="font-bold block text-gray-800">{log.behaviorNote || 'بدون ملاحظة'}</span>
+                                                    <span className="text-gray-400">{formatDualDate(log.date).split('|')[0]}</span>
+                                                </div>
+                                                {log.behaviorStatus === 'POSITIVE' && <Smile size={16} className="text-green-500"/>}
+                                                {log.behaviorStatus === 'NEGATIVE' && <Frown size={16} className="text-red-500"/>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-center text-gray-400 text-xs py-10">لا توجد ملاحظات سلوكية مسجلة.</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">

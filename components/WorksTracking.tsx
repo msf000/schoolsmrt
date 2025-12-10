@@ -188,7 +188,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         
         let newCount = 0;
         Array.from(selectedHeadersToImport).forEach((header, idx) => {
-            const { label, maxScore } = extractHeaderMetadata(header);
+            const { label, maxScore } = extractHeaderMetadata(header as string);
             
             // Check existence
             const exists = assignments.some(a => a.title === label || a.title === header);

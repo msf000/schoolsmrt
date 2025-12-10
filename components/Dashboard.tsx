@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -19,6 +18,151 @@ interface DashboardProps {
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+// --- Widgets Definitions ---
+
+const TodoWidget: React.FC = () => {
+    const [todos, setTodos] = useState<{id: string, text: string, done: boolean}[]>(() => {
+        try {
+            const saved = localStorage.getItem('dashboard_todos');
+            return saved ? JSON.parse(saved) : [
+                { id: '1', text: 'مراجعة تحضير الغد', done: false },
+                { id: '2', text: 'إدخال درجات الاختبار', done: false }
+            ];
+        } catch { return []; }
+    });
+    const [newTodo, setNewTodo] = useState('');
+
+    useEffect(() => {
+        localStorage.setItem('dashboard_todos', JSON.stringify(todos));
+    }, [todos]);
+
+    const addTodo = () => {
+        if (!newTodo.trim()) return;
+        setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]);
+        setNewTodo('');
+    };
+
+    const toggleTodo = (id: string) => {
+        setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    };
+
+    const deleteTodo = (id: string) => {
+        setTodos(todos.filter(t => t.id !== id));
+    };
+
+    return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <CheckSquare size={18} className="text-green-600"/> مهامي
+            </h3>
+            <div className="flex gap-2 mb-3">
+                <input 
+                    className="flex-1 border rounded px-2 py-1 text-sm outline-none focus:border-blue-500"
+                    placeholder="مهمة جديدة..."
+                    value={newTodo}
+                    onChange={(e) => setNewTodo(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addTodo()}
+                />
+                <button onClick={addTodo} className="bg-blue-600 text-white p-1 rounded hover:bg-blue-700"><Plus size={16}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar max-h-40">
+                {todos.map(todo => (
+                    <div key={todo.id} className="flex items-center justify-between group">
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => toggleTodo(todo.id)} className={`text-gray-400 hover:text-green-600 ${todo.done ? 'text-green-600' : ''}`}>
+                                {todo.done ? <CheckCircle size={16}/> : <div className="w-4 h-4 border rounded hover:border-green-600"></div>}
+                            </button>
+                            <span className={`text-sm ${todo.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{todo.text}</span>
+                        </div>
+                        <button onClick={() => deleteTodo(todo.id)} className="text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600"><Trash2 size={14}/></button>
+                    </div>
+                ))}
+                {todos.length === 0 && <p className="text-center text-xs text-gray-400 mt-4">لا توجد مهام</p>}
+            </div>
+        </div>
+    );
+};
+
+const WeeklyPlanWidget: React.FC<{ teacherId: string, onNavigate: (view: string) => void }> = ({ teacherId, onNavigate }) => {
+    const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
+    
+    useEffect(() => {
+        const allPlans = getWeeklyPlans(teacherId);
+        const d = new Date();
+        const day = d.getDay(); // 0-6
+        const diff = d.getDate() - day; 
+        const sunday = new Date(d.setDate(diff));
+        const weekStart = sunday.toISOString().split('T')[0];
+        
+        setPlans(allPlans.filter(p => p.weekStartDate === weekStart).sort((a,b) => {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            return days.indexOf(a.day) - days.indexOf(b.day);
+        }));
+    }, [teacherId]);
+
+    const todayDay = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const todaysPlans = plans.filter(p => p.day === todayDay);
+
+    return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <CalendarDays size={18} className="text-purple-600"/> خطة اليوم
+                </h3>
+                <button onClick={() => onNavigate('SCHEDULE_VIEW')} className="text-xs text-blue-600 hover:underline">الجدول الكامل</button>
+            </div>
+            <div className="space-y-3">
+                {todaysPlans.length > 0 ? todaysPlans.map(plan => (
+                    <div key={plan.id} className="p-2 bg-purple-50 rounded-lg border border-purple-100">
+                        <div className="flex justify-between items-start">
+                            <span className="text-xs font-bold text-purple-800 bg-white px-2 py-0.5 rounded border border-purple-200">حصة {plan.period}</span>
+                            <span className="text-xs text-gray-500 font-bold">{plan.subjectName}</span>
+                        </div>
+                        <p className="text-xs text-gray-700 mt-1 line-clamp-2">{plan.lessonTopic}</p>
+                    </div>
+                )) : <p className="text-center text-xs text-gray-400 py-4">لا توجد خطط مسجلة لليوم</p>}
+            </div>
+        </div>
+    );
+};
+
+const UpcomingExamsWidget: React.FC<{ teacherId: string, onNavigate: (view: string) => void }> = ({ teacherId, onNavigate }) => {
+    const [exams, setExams] = useState<Exam[]>([]);
+
+    useEffect(() => {
+        const allExams = getExams(teacherId);
+        const today = new Date().toISOString().split('T')[0];
+        const upcoming = allExams.filter(e => e.date && e.date >= today).sort((a,b) => a.date!.localeCompare(b.date!)).slice(0, 3);
+        setExams(upcoming);
+    }, [teacherId]);
+
+    return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <FileQuestion size={18} className="text-orange-600"/> اختبارات قادمة
+                </h3>
+                <button onClick={() => onNavigate('EXAMS_MANAGER')} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
+            </div>
+            <div className="space-y-2">
+                {exams.length > 0 ? exams.map(exam => (
+                    <div key={exam.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-200 transition-colors cursor-pointer" onClick={() => onNavigate('EXAMS_MANAGER')}>
+                        <div>
+                            <p className="text-sm font-bold text-gray-800">{exam.title}</p>
+                            <p className="text-xs text-gray-500">{exam.subject} - {exam.gradeLevel}</p>
+                        </div>
+                        <div className="text-center bg-orange-50 px-2 py-1 rounded border border-orange-100">
+                            <span className="block text-xs font-bold text-orange-700">{formatDualDate(exam.date!).split('|')[0]}</span>
+                        </div>
+                    </div>
+                )) : <p className="text-center text-xs text-gray-400 py-4">لا توجد اختبارات قادمة</p>}
+            </div>
+        </div>
+    );
+};
+
+// --- End Widgets Definitions ---
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   // Safety Check
@@ -85,13 +229,19 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
         return { totalStudents, totalTeachers, attendanceRate, absentToday, avgPerformance, presentToday };
     }, [students, attendance, performance, teachers, currentTerm]);
 
-    // Chart Data: Attendance by Grade
+    // Chart Data: Attendance by Grade (FILTERED BY CURRENT TERM)
     const attendanceByGrade = useMemo(() => {
         const grades = Array.from(new Set(students.map((s: any) => s.gradeLevel))).filter(Boolean);
         return grades.map(grade => {
             const gradeStudents = students.filter((s: any) => s.gradeLevel === grade);
             const studentIds = new Set(gradeStudents.map((s: any) => s.id));
-            const gradeAtt = attendance.filter((a: any) => studentIds.has(a.studentId));
+            
+            // Filter attendance by current term dates if available
+            let gradeAtt = attendance.filter((a: any) => studentIds.has(a.studentId));
+            if (currentTerm) {
+                gradeAtt = gradeAtt.filter((a: any) => a.date >= currentTerm.startDate && a.date <= currentTerm.endDate);
+            }
+
             const present = gradeAtt.filter((a: any) => a.status === 'PRESENT').length;
             const total = gradeAtt.length;
             return {
@@ -99,7 +249,7 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
                 rate: total > 0 ? Math.round((present / total) * 100) : 0
             };
         });
-    }, [students, attendance]);
+    }, [students, attendance, currentTerm]);
 
     return (
         <div className="p-6 space-y-6 animate-fade-in">
@@ -139,7 +289,10 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Chart 1: Attendance by Grade */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
-                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-blue-500"/> نسبة الحضور حسب الصف</h3>
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <TrendingUp size={18} className="text-blue-500"/> 
+                        نسبة الحضور حسب الصف {currentTerm ? <span className="text-xs font-normal text-gray-500">({currentTerm.name})</span> : ''}
+                    </h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={attendanceByGrade}>
@@ -205,199 +358,6 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
     );
 };
 
-// ... (TodoWidget, UpcomingExamsWidget, WeeklyPlanWidget components - NO CHANGES) ...
-const TodoWidget = () => {
-    const [tasks, setTasks] = useState<{id: string, text: string, done: boolean}[]>(() => {
-        const saved = localStorage.getItem('teacher_todo_list');
-        return saved ? JSON.parse(saved) : [
-            { id: '1', text: 'طباعة كشف الدرجات', done: false },
-            { id: '2', text: 'تحضير درس الغد', done: false }
-        ];
-    });
-    const [newTask, setNewTask] = useState('');
-
-    useEffect(() => {
-        localStorage.setItem('teacher_todo_list', JSON.stringify(tasks));
-    }, [tasks]);
-
-    const addTask = (e: React.FormEvent) => {
-        e.preventDefault();
-        if(!newTask.trim()) return;
-        setTasks([...tasks, { id: Date.now().toString(), text: newTask, done: false }]);
-        setNewTask('');
-    };
-
-    const toggleTask = (id: string) => {
-        setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
-    };
-
-    const removeTask = (id: string) => {
-        setTasks(tasks.filter(t => t.id !== id));
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-80 overflow-hidden">
-            <div className="p-4 border-b bg-indigo-50 flex justify-between items-center">
-                <h3 className="font-bold text-indigo-800 flex items-center gap-2 text-sm"><CheckSquare size={16}/> مهامي اليوم</h3>
-                <span className="text-xs bg-white px-2 py-0.5 rounded text-indigo-600 font-bold">{tasks.filter(t=>!t.done).length} متبقي</span>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                {tasks.map(task => (
-                    <div key={task.id} className="group flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
-                        <button onClick={() => toggleTask(task.id)} className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${task.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-transparent'}`}>
-                            <CheckSquare size={12}/>
-                        </button>
-                        <span className={`flex-1 text-sm ${task.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{task.text}</span>
-                        <button onClick={() => removeTask(task.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"><Trash2 size={14}/></button>
-                    </div>
-                ))}
-                {tasks.length === 0 && <p className="text-center text-gray-400 text-xs py-10">لا توجد مهام! استمتع بوقتك 🎉</p>}
-            </div>
-
-            <form onSubmit={addTask} className="p-2 border-t bg-gray-50 flex gap-2">
-                <input 
-                    className="flex-1 p-2 text-xs border rounded outline-none" 
-                    placeholder="مهمة جديدة..." 
-                    value={newTask} 
-                    onChange={e => setNewTask(e.target.value)}
-                />
-                <button type="submit" className="p-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Plus size={16}/></button>
-            </form>
-        </div>
-    );
-};
-
-const UpcomingExamsWidget = ({ teacherId, onNavigate }: { teacherId: string, onNavigate?: (view: string) => void }) => {
-    const [upcomingExams, setUpcomingExams] = useState<Exam[]>([]);
-
-    useEffect(() => {
-        if(teacherId) {
-            const allExams = getExams(teacherId);
-            const today = new Date().toISOString().split('T')[0];
-            const future = allExams
-                .filter(e => e.date && e.date >= today)
-                .sort((a,b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
-                .slice(0, 3);
-            setUpcomingExams(future);
-        }
-    }, [teacherId]);
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-80 overflow-hidden">
-            <div className="p-4 border-b bg-purple-50 flex justify-between items-center">
-                <h3 className="font-bold text-purple-800 flex items-center gap-2 text-sm"><FileQuestion size={16}/> اختبارات قادمة</h3>
-                {onNavigate && (
-                    <button onClick={() => onNavigate('EXAMS_MANAGER')} className="text-xs text-purple-600 hover:underline">
-                        عرض الكل
-                    </button>
-                )}
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
-                {upcomingExams.length > 0 ? upcomingExams.map(exam => (
-                    <div 
-                        key={exam.id} 
-                        onClick={() => onNavigate && onNavigate('EXAMS_MANAGER')}
-                        className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-200 transition-colors cursor-pointer group"
-                    >
-                        <div className="flex justify-between items-start mb-1">
-                            <h4 className="font-bold text-gray-800 text-sm truncate w-full group-hover:text-purple-700 transition-colors">{exam.title}</h4>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${exam.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                                {exam.isActive ? 'نشط' : 'مسودة'}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <span className="flex items-center gap-1"><CalendarDays size={12}/> {formatDualDate(exam.date!).split('|')[0]}</span>
-                            <span>•</span>
-                            <span>{exam.gradeLevel}</span>
-                        </div>
-                    </div>
-                )) : (
-                    <div className="text-center text-gray-400 text-xs py-10 flex flex-col items-center justify-center h-full">
-                        <Calendar size={32} className="mb-2 opacity-20"/>
-                        <p>لا توجد اختبارات مجدولة قريباً.</p>
-                        {onNavigate && <button onClick={() => onNavigate('EXAMS_MANAGER')} className="mt-2 text-purple-600 hover:underline">جدولة اختبار</button>}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const WeeklyPlanWidget = ({ teacherId, onNavigate }: { teacherId: string, onNavigate?: (view: string) => void }) => {
-    const [progress, setProgress] = useState({ totalSlots: 0, filledSlots: 0 });
-    const [currentWeekStart, setCurrentWeekStart] = useState('');
-
-    useEffect(() => {
-        if (!teacherId) return;
-        const d = new Date();
-        const day = d.getDay();
-        d.setDate(d.getDate() - day);
-        const weekStart = d.toISOString().split('T')[0];
-        setCurrentWeekStart(weekStart);
-
-        const schedules = getSchedules();
-        const plans = getWeeklyPlans(teacherId);
-
-        // Get Teacher Schedules
-        const mySchedule = schedules.filter(s => s.teacherId === teacherId || !s.teacherId); // Include loose schedules
-        const totalSlots = mySchedule.length;
-
-        // Get Filled Plans for this week
-        const filled = plans.filter(p => p.weekStartDate === weekStart && p.lessonTopic).length;
-
-        setProgress({ totalSlots, filledSlots: filled });
-    }, [teacherId]);
-
-    const percentage = progress.totalSlots > 0 ? Math.round((progress.filledSlots / progress.totalSlots) * 100) : 0;
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-80 overflow-hidden">
-            <div className="p-4 border-b bg-teal-50 flex justify-between items-center">
-                <h3 className="font-bold text-teal-800 flex items-center gap-2 text-sm"><PenTool size={16}/> الخطة الأسبوعية</h3>
-                <span className="text-[10px] bg-white text-teal-700 px-2 py-0.5 rounded border border-teal-200">{percentage}% مكتمل</span>
-            </div>
-            
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-                <div className="relative w-32 h-32 mb-4">
-                    <svg className="w-full h-full transform -rotate-90">
-                        <circle cx="50%" cy="50%" r="45%" stroke="#e2e8f0" strokeWidth="10" fill="transparent" />
-                        <circle 
-                            cx="50%" cy="50%" r="45%" 
-                            stroke="#0f766e" strokeWidth="10" 
-                            fill="transparent" 
-                            strokeDasharray={2 * Math.PI * 45} 
-                            strokeDashoffset={2 * Math.PI * 45 * (1 - percentage / 100)} 
-                            strokeLinecap="round"
-                            className="transition-all duration-1000 ease-out"
-                        />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-2xl font-black text-teal-800">{progress.filledSlots}</span>
-                        <span className="text-xs text-gray-400">من {progress.totalSlots}</span>
-                    </div>
-                </div>
-                
-                {percentage < 100 ? (
-                    <>
-                        <p className="text-xs text-gray-500 mb-3">لديك حصص لم يتم تخطيطها لهذا الأسبوع.</p>
-                        {onNavigate && (
-                            <button onClick={() => onNavigate('SCHEDULE_VIEW')} className="text-xs bg-teal-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-teal-700 shadow-sm transition-colors w-full">
-                                إكمال الخطة الآن
-                            </button>
-                        )}
-                    </>
-                ) : (
-                    <div className="text-green-600 font-bold flex items-center gap-2 animate-bounce">
-                        <CheckCircle size={18}/> خطة الأسبوع مكتملة!
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
 const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
@@ -427,7 +387,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
   const todaySchedule = useMemo(() => {
       if (!currentUser) return [];
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const today = days[new Date().getDay()]; // Get current day name
+      const today = days[new Date().getDay()]; 
       
       return schedules
           .filter(s => s.day === today && (s.teacherId === currentUser.id || !s.teacherId))
@@ -443,7 +403,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
     
     const attendanceRate = totalStudents > 0 ? Math.round((present / totalStudents) * 100) : 0;
 
-    // Filter Performance by Current Term if available
+    // Filter Performance by Current Term
     let filteredPerf = performance;
     if (currentTerm) {
         filteredPerf = performance.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
@@ -469,7 +429,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
         const negativeBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
         const positiveBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
 
-        // Calculate a meta-score for leaderboard
         const leaderboardScore = (attendanceRate * 0.4) + (avgScore * 0.4) + ((positiveBehaviors - negativeBehaviors) * 5);
 
         return { id: student.id, name: student.name, grade: student.gradeLevel, attendance: Math.round(attendanceRate), score: Math.round(avgScore), leaderboardScore: Math.round(leaderboardScore) };
@@ -478,11 +437,8 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
   const topStudents = [...studentMetrics].sort((a,b) => b.leaderboardScore - a.leaderboardScore).slice(0, 5);
 
-  // --- RECENT ACTIVITY FEED (Integrated) ---
   const recentActivity = useMemo(() => {
       const activities: any[] = [];
-      
-      // 1. Performance Records
       performance.forEach(p => {
           activities.push({
               type: 'PERFORMANCE',
@@ -492,8 +448,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
               timestamp: new Date(p.date).getTime()
           });
       });
-
-      // 2. Attendance/Behavior Records
       attendance.forEach(a => {
           if (a.status === 'ABSENT' || a.status === 'LATE') {
               activities.push({
@@ -514,22 +468,18 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
               });
           }
       });
-
       return activities.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
   }, [attendance, performance, students]);
 
-  // --- RISK ALERTS (New) ---
   const riskAlerts = useMemo(() => {
       const risks: any[] = [];
       students.forEach(s => {
           const sAtt = attendance.filter(a => a.studentId === s.id);
           const absent = sAtt.filter(a => a.status === 'ABSENT').length;
           const totalDays = sAtt.length;
-          
           if (totalDays > 0 && (absent / totalDays) > 0.20) {
               risks.push({ student: s, type: 'ATTENDANCE', msg: `نسبة غياب عالية (${Math.round((absent/totalDays)*100)}%)` });
           }
-
           const sPerf = performance.filter(p => p.studentId === s.id);
           if (sPerf.length >= 3) {
               const totalScore = sPerf.reduce((a,b) => a + (b.score/b.maxScore), 0);
@@ -539,46 +489,31 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
               }
           }
       });
-      return risks.slice(0, 3); // Top 3 risks
+      return risks.slice(0, 3);
   }, [students, attendance, performance]);
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
       
-      {/* Quick Actions - Primary Functionality Focus */}
+      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
-          {/* Attendance Action */}
-          <div 
-              className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" 
-              onClick={() => onNavigate('ATTENDANCE')}
-          > 
+          <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('ATTENDANCE')}> 
               <div><h3 className="font-bold text-lg mb-1">تسجيل الحضور</h3><p className="text-green-100 text-xs">رصد الغياب والتأخر اليومي</p></div>
               <div className="bg-white/20 p-2 rounded-lg"><CheckSquare size={24}/></div>
           </div>
-
-          {/* Grades Action */}
-          <div 
-              className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" 
-              onClick={() => onNavigate('WORKS_TRACKING')}
-          >
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('WORKS_TRACKING')}>
               <div><h3 className="font-bold text-lg mb-1">رصد الدرجات</h3><p className="text-purple-100 text-xs">سجل المتابعة والمهارات</p></div>
               <div className="bg-white/20 p-2 rounded-lg"><Table size={24}/></div>
           </div>
-
-          {/* Student Follow-up Action */}
-          <div 
-              className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" 
-              onClick={() => onNavigate('STUDENT_FOLLOWUP')}
-          >
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('STUDENT_FOLLOWUP')}>
               <div><h3 className="font-bold text-lg mb-1">متابعة الطلاب</h3><p className="text-blue-100 text-xs">تقارير الأداء الفردي</p></div>
               <div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div>
           </div>
       </div>
 
-      {/* Today's Schedule & Feedback */}
+      {/* Today's Schedule & Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-2 space-y-6">
-              {/* Schedule Widget */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                   <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Calendar size={18} className="text-primary"/> جدول اليوم</h3>
                   {todaySchedule.length > 0 ? (
@@ -597,7 +532,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   ) : <div className="text-center text-gray-400 py-4 text-sm bg-gray-50 rounded-lg border border-dashed">لا توجد حصص مسجلة اليوم</div>}
               </div>
 
-              {/* Stats Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الطلاب</p><p className="text-2xl font-black text-gray-800">{stats.totalStudents}</p></div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الحضور</p><p className="text-2xl font-black text-green-600">{stats.attendanceRate}%</p></div>
@@ -609,7 +543,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
           <div className="lg:col-span-1 flex flex-col gap-4">
               <TodoWidget />
           </div>
-          
           <div className="lg:col-span-1 flex flex-col gap-4">
               <WeeklyPlanWidget teacherId={currentUser?.id || ''} onNavigate={onNavigate} />
               <UpcomingExamsWidget teacherId={currentUser?.id || ''} onNavigate={onNavigate} />
@@ -617,10 +550,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Risk Alerts & Top Students */}
         <div className="space-y-6">
-            {/* Risk Alerts */}
             {riskAlerts.length > 0 && (
                 <div className="bg-red-50 border border-red-100 rounded-xl p-4 animate-bounce-in">
                     <h3 className="text-red-800 font-bold mb-3 flex items-center gap-2 text-sm"><AlertCircle size={16}/> تنبيهات المتابعة (Risk)</h3>
@@ -634,8 +564,6 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                     </div>
                 </div>
             )}
-
-            {/* Top Students */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col h-64">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500"/> لوحة الشرف</h3>
@@ -655,18 +583,12 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                 </div>
             </div>
         </div>
-
-        {/* Recent Activity Feed (Enhanced) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full max-h-[500px] flex flex-col">
             <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2"><Activity size={18} className="text-purple-600"/> سجل النشاطات الأخير</h3>
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
                 {recentActivity.length > 0 ? recentActivity.map((activity, idx) => (
                     <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors">
-                        <div className={`mt-1 min-w-[24px] h-6 flex items-center justify-center rounded-full ${
-                            activity.type === 'ATTENDANCE' ? 'bg-orange-100 text-orange-600' :
-                            activity.type === 'BEHAVIOR' ? 'bg-green-100 text-green-600' :
-                            'bg-blue-100 text-blue-600'
-                        }`}>
+                        <div className={`mt-1 min-w-[24px] h-6 flex items-center justify-center rounded-full ${activity.type === 'ATTENDANCE' ? 'bg-orange-100 text-orange-600' : activity.type === 'BEHAVIOR' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
                             {activity.type === 'ATTENDANCE' ? <Clock size={14}/> : activity.type === 'BEHAVIOR' ? <Smile size={14}/> : <Award size={14}/>}
                         </div>
                         <div>
