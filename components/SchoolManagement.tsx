@@ -9,9 +9,10 @@ import {
     getReportHeaderConfig, saveReportHeaderConfig,
     getFeedback, addFeedback, addSchool, updateSchool,
     getUserTheme, saveUserTheme,
-    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm
+    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
+    getExams, getLessonPlans, getWeeklyPlans
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight, Plus, Activity } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -135,6 +136,14 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       if (!mySchool) return [];
       return teachers.filter(t => t.schoolId === mySchool.id || t.managerId === currentUser?.nationalId);
   }, [teachers, mySchool, currentUser]);
+
+  // Enhanced Teacher Stats
+  const getTeacherStats = (tId: string) => {
+      const plans = getWeeklyPlans(tId).length;
+      const exams = getExams(tId).length;
+      const lessons = getLessonPlans(tId).length;
+      return { plans, exams, lessons };
+  };
 
   const uniqueClasses = useMemo(() => {
       const classes = new Set<string>();
@@ -644,26 +653,49 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             {activeTab === 'TEACHERS' && isManager && (
                 <div className="space-y-4 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {myTeachers.map(teacher => (
-                            <div key={teacher.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">
-                                            {teacher.name.charAt(0)}
+                        {myTeachers.map(teacher => {
+                            const stats = getTeacherStats(teacher.id);
+                            return (
+                                <div key={teacher.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-1 h-full bg-indigo-500"></div>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">
+                                                {teacher.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-gray-800">{teacher.name}</h4>
+                                                <p className="text-xs text-gray-500">{teacher.subjectSpecialty || 'معلم عام'}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-800">{teacher.name}</h4>
-                                            <p className="text-xs text-gray-500">{teacher.subjectSpecialty || 'معلم عام'}</p>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-3 gap-2 text-center text-xs mb-4">
+                                        <div className="bg-gray-50 p-2 rounded">
+                                            <span className="block font-bold text-gray-700">{stats.plans}</span>
+                                            <span className="text-gray-400">تحضير</span>
+                                        </div>
+                                        <div className="bg-gray-50 p-2 rounded">
+                                            <span className="block font-bold text-gray-700">{stats.exams}</span>
+                                            <span className="text-gray-400">اختبارات</span>
+                                        </div>
+                                        <div className="bg-gray-50 p-2 rounded">
+                                            <span className="block font-bold text-gray-700">{stats.lessons}</span>
+                                            <span className="text-gray-400">دروس</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 border-t flex gap-2">
+                                        <button onClick={() => setViewingTeacher(teacher)} className="flex-1 bg-indigo-50 text-indigo-700 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 flex items-center justify-center gap-1">
+                                            <Send size={14}/> توجيه
+                                        </button>
+                                        <div className="px-2 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold border border-green-100 flex items-center gap-1">
+                                            <Activity size={14}/> نشط
                                         </div>
                                     </div>
                                 </div>
-                                <div className="mt-4 pt-4 border-t flex gap-2">
-                                    <button onClick={() => setViewingTeacher(teacher)} className="flex-1 bg-indigo-50 text-indigo-700 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 flex items-center justify-center gap-1">
-                                        <Send size={14}/> توجيه
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                     {/* Feedback Modal */}
                     {viewingTeacher && (
@@ -686,6 +718,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
+            {/* ... (Other Tabs: SUBJECTS, SCHEDULE, SETTINGS remain unchanged) ... */}
             {activeTab === 'SUBJECTS' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                     {/* My Classes List (For Teacher) */}

@@ -1,5 +1,4 @@
 
-// ... (imports remain the same)
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
@@ -11,7 +10,6 @@ import { supabase } from './supabaseClient';
 
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
 
-// ... (DB_MAP and CACHE init remain the same)
 // --- Database Mapping ---
 // Order matters for sequential sync (Critical tables first)
 export const DB_MAP: Record<string, string> = {
@@ -41,50 +39,7 @@ export const DB_MAP: Record<string, string> = {
     academicTerms: 'academic_terms'
 };
 
-// ... (CACHE initialization code remains same) ...
-const DEFAULT_AI_SETTINGS: AISettings = {
-    modelId: 'gemini-2.5-flash',
-    temperature: 0.7,
-    enableReports: true,
-    enableQuiz: true,
-    enablePlanning: true,
-    systemInstruction: ''
-};
-
-const DEFAULT_THEME: UserTheme = { mode: 'LIGHT', backgroundStyle: 'FLAT' };
-
-const CACHE = {
-    students: [] as Student[],
-    teachers: [] as Teacher[],
-    schools: [] as School[],
-    systemUsers: [] as SystemUser[],
-    attendance: [] as AttendanceRecord[],
-    performance: [] as PerformanceRecord[],
-    assignments: [] as Assignment[],
-    schedules: [] as ScheduleItem[],
-    teacherAssignments: [] as TeacherAssignment[],
-    subjects: [] as Subject[],
-    weeklyPlans: [] as WeeklyPlanItem[],
-    lessonLinks: [] as LessonLink[],
-    lessonPlans: [] as StoredLessonPlan[],
-    customTables: [] as CustomTable[],
-    messages: [] as MessageLog[],
-    feedback: [] as Feedback[],
-    exams: [] as Exam[],
-    examResults: [] as ExamResult[],
-    questions: [] as Question[],
-    curriculumUnits: [] as CurriculumUnit[],
-    curriculumLessons: [] as CurriculumLesson[],
-    microConcepts: [] as MicroConcept[],
-    trackingSheets: [] as TrackingSheet[],
-    academicTerms: [] as AcademicTerm[],
-    reportConfig: {} as ReportHeaderConfig,
-    aiSettings: DEFAULT_AI_SETTINGS,
-    userTheme: DEFAULT_THEME,
-    worksMasterUrl: ''
-};
-
-// ... (Local Storage Helpers and Init remain same) ...
+// --- In-Memory Cache & Helpers ---
 const loadFromLocal = <T>(key: string, defaultVal: T): T => {
     try {
         const item = localStorage.getItem(key);
@@ -94,159 +49,141 @@ const loadFromLocal = <T>(key: string, defaultVal: T): T => {
     }
 };
 
-const saveToLocal = (key: string, data: any) => {
+const CACHE = {
+    schools: loadFromLocal<School[]>('schools', []),
+    systemUsers: loadFromLocal<SystemUser[]>('systemUsers', []),
+    teachers: loadFromLocal<Teacher[]>('teachers', []),
+    students: loadFromLocal<Student[]>('students', []),
+    attendance: loadFromLocal<AttendanceRecord[]>('attendance', []),
+    performance: loadFromLocal<PerformanceRecord[]>('performance', []),
+    assignments: loadFromLocal<Assignment[]>('assignments', []),
+    schedules: loadFromLocal<ScheduleItem[]>('schedules', []),
+    teacherAssignments: loadFromLocal<TeacherAssignment[]>('teacherAssignments', []),
+    subjects: loadFromLocal<Subject[]>('subjects', []),
+    weeklyPlans: loadFromLocal<WeeklyPlanItem[]>('weeklyPlans', []),
+    lessonLinks: loadFromLocal<LessonLink[]>('lessonLinks', []),
+    lessonPlans: loadFromLocal<StoredLessonPlan[]>('lessonPlans', []),
+    customTables: loadFromLocal<CustomTable[]>('customTables', []),
+    messages: loadFromLocal<MessageLog[]>('messages', []),
+    feedback: loadFromLocal<Feedback[]>('feedback', []),
+    exams: loadFromLocal<Exam[]>('exams', []),
+    examResults: loadFromLocal<ExamResult[]>('examResults', []),
+    questions: loadFromLocal<Question[]>('questions', []),
+    curriculumUnits: loadFromLocal<CurriculumUnit[]>('curriculumUnits', []),
+    curriculumLessons: loadFromLocal<CurriculumLesson[]>('curriculumLessons', []),
+    microConcepts: loadFromLocal<MicroConcept[]>('microConcepts', []),
+    trackingSheets: loadFromLocal<TrackingSheet[]>('trackingSheets', []),
+    academicTerms: loadFromLocal<AcademicTerm[]>('academicTerms', []),
+    
+    // Configs
+    reportConfig: loadFromLocal<ReportHeaderConfig>('reportConfig', { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' }),
+    aiSettings: loadFromLocal<AISettings>('aiSettings', { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' }),
+    userTheme: loadFromLocal<UserTheme>('userTheme', { mode: 'LIGHT', backgroundStyle: 'FLAT' }),
+    worksMasterUrl: loadFromLocal<string>('worksMasterUrl', '')
+};
+
+// --- Event Bus ---
+type SyncListener = (status: SyncStatus) => void;
+type DataListener = () => void;
+const syncListeners: SyncListener[] = [];
+const dataListeners: DataListener[] = [];
+
+export const subscribeToSyncStatus = (listener: SyncListener) => {
+    syncListeners.push(listener);
+    return () => { const idx = syncListeners.indexOf(listener); if(idx > -1) syncListeners.splice(idx, 1); };
+};
+
+export const subscribeToDataChanges = (listener: DataListener) => {
+    dataListeners.push(listener);
+    return () => { const idx = dataListeners.indexOf(listener); if(idx > -1) dataListeners.splice(idx, 1); };
+};
+
+const notifySyncStatus = (status: SyncStatus) => syncListeners.forEach(l => l(status));
+export const notifyDataChanges = () => dataListeners.forEach(l => l());
+
+// --- Helpers ---
+export const saveToLocal = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
     notifyDataChanges();
 };
 
-Object.keys(CACHE).forEach(key => {
-    if (key === 'aiSettings') CACHE.aiSettings = loadFromLocal(key, DEFAULT_AI_SETTINGS);
-    else if (key === 'userTheme') CACHE.userTheme = loadFromLocal(key, DEFAULT_THEME);
-    else if (key === 'reportConfig') CACHE.reportConfig = loadFromLocal(key, {} as ReportHeaderConfig);
-    else if (key === 'worksMasterUrl') CACHE.worksMasterUrl = loadFromLocal(key, '');
-    else (CACHE as any)[key] = loadFromLocal(key, []);
-});
+let isAutoSyncEnabled = false;
 
-// ... (Sync Logic, Subscriptions, Push Queue remain same) ...
-const syncListeners: Set<(status: SyncStatus) => void> = new Set();
-const dataListeners: Set<() => void> = new Set();
-
-const notifySyncStatus = (status: SyncStatus) => syncListeners.forEach(l => l(status));
-const notifyDataChanges = () => dataListeners.forEach(l => l());
-
-export const subscribeToSyncStatus = (cb: (status: SyncStatus) => void) => {
-    syncListeners.add(cb);
-    return () => syncListeners.delete(cb);
-};
-
-export const subscribeToDataChanges = (cb: () => void) => {
-    dataListeners.add(cb);
-    return () => dataListeners.delete(cb);
-};
-
-const pushQueue: { table: string, data: any }[] = [];
-let pushTimeout: any;
-let isOnline = false;
-
-const processPushQueue = async () => {
-    if (pushQueue.length === 0 || !isOnline) return;
-
-    notifySyncStatus('SYNCING');
-    const batch = [...pushQueue];
-    pushQueue.length = 0; 
-
-    const grouped: Record<string, any[]> = {};
-    batch.forEach(item => {
-        if (!grouped[item.table]) grouped[item.table] = [];
-        grouped[item.table].push(item.data);
-    });
-
+// --- Cloud Sync Logic ---
+export const pushToCloud = async (key: string, data: any, op: 'UPSERT' | 'DELETE' = 'UPSERT') => {
+    if (!isAutoSyncEnabled) return;
     try {
-        for (const tableName of Object.keys(grouped)) {
-            const { error } = await supabase.from(tableName).upsert(grouped[tableName]);
-            if (error) {
-                console.warn(`Cloud save warning for ${tableName}:`, error.message);
-                if (error.code === 'PGRST301' || error.code === '42P01' || error.message.includes('404')) {
-                    isOnline = false;
-                    notifySyncStatus('OFFLINE');
-                }
-            }
+        notifySyncStatus('SYNCING');
+        const dbTable = DB_MAP[key];
+        if (!dbTable) return;
+
+        if (op === 'UPSERT') {
+            await supabase.from(dbTable).upsert(data);
+        } else {
+            await supabase.from(dbTable).delete().match({ id: data.id });
         }
-        if (isOnline) notifySyncStatus('ONLINE');
+        notifySyncStatus('ONLINE');
     } catch (e) {
-        console.error("Push failed", e);
+        console.error('Sync error', e);
         notifySyncStatus('ERROR');
     }
 };
 
-const pushToCloud = (key: string, data: any) => {
-    const tableName = DB_MAP[key];
-    if (!tableName) return;
-    pushQueue.push({ table: tableName, data });
-    clearTimeout(pushTimeout);
-    pushTimeout = setTimeout(processPushQueue, 2000); 
-};
-
-export const checkConnection = async () => {
-    try {
-        const { error, count } = await supabase.from('schools').select('*', { count: 'exact', head: true });
-        if (error) {
-            console.warn("Connection check failed:", error.message);
-            isOnline = false;
-            return { success: false };
-        }
-        isOnline = true;
-        return { success: true };
-    } catch (e) {
-        console.warn("Connection check exception:", e);
-        isOnline = false;
-        return { success: false };
-    }
-};
-
 export const initAutoSync = async () => {
+    isAutoSyncEnabled = true;
     notifySyncStatus('SYNCING');
-    const connected = await checkConnection();
-    if (!connected.success) {
-        console.log("Offline Mode: Cloud sync disabled.");
-        notifySyncStatus('OFFLINE');
-        return;
-    }
     await downloadFromSupabase();
-};
-
-export const downloadFromSupabase = async () => {
-    if (!isOnline) return;
-    notifySyncStatus('SYNCING');
-    try {
-        const keys = Object.keys(DB_MAP);
-        for (const key of keys) {
-            if (!isOnline) break; 
-            const tableName = DB_MAP[key];
-            const { data, error } = await supabase.from(tableName).select('*');
-            if (error) {
-                console.warn(`Could not sync table ${tableName}:`, error.message);
-                if (error.code === 'PGRST301' || error.code === '42P01' || error.message.includes('404')) {
-                     isOnline = false; notifySyncStatus('OFFLINE'); break; 
-                }
-                continue; 
-            }
-            if (data) {
-                (CACHE as any)[key] = data;
-                localStorage.setItem(key, JSON.stringify(data));
-            }
-        }
-        if (isOnline) {
-            notifyDataChanges();
-            notifySyncStatus('ONLINE');
-        }
-    } catch (e) {
-        notifySyncStatus('OFFLINE');
-    }
 };
 
 export const uploadToSupabase = async () => {
     notifySyncStatus('SYNCING');
     try {
-        const keys = Object.keys(DB_MAP);
-        await Promise.all(keys.map(async (key) => {
-            const tableName = DB_MAP[key];
+        for (const key of Object.keys(DB_MAP)) {
+            const table = DB_MAP[key];
             const localData = (CACHE as any)[key];
             if (Array.isArray(localData) && localData.length > 0) {
-                const chunkSize = 100;
-                for (let i = 0; i < localData.length; i += chunkSize) {
-                    const chunk = localData.slice(i, i + chunkSize);
-                    await supabase.from(tableName).upsert(chunk);
-                }
+                const { error } = await supabase.from(table).upsert(localData);
+                if (error) throw error;
             }
-        }));
+        }
         notifySyncStatus('ONLINE');
     } catch (e) {
+        console.error(e);
         notifySyncStatus('ERROR');
+        throw e;
     }
 };
 
-// ... (Standard CRUD functions remain the same) ...
+export const downloadFromSupabase = async () => {
+    notifySyncStatus('SYNCING');
+    try {
+        for (const key of Object.keys(DB_MAP)) {
+            const table = DB_MAP[key];
+            const { data, error } = await supabase.from(table).select('*');
+            if (error) throw error;
+            if (data) {
+                (CACHE as any)[key] = data;
+                localStorage.setItem(key, JSON.stringify(data));
+            }
+        }
+        notifyDataChanges();
+        notifySyncStatus('ONLINE');
+    } catch (e) {
+        console.error(e);
+        notifySyncStatus('OFFLINE'); 
+    }
+};
+
+export const checkConnection = async () => {
+    try {
+        const { data, error } = await supabase.from('schools').select('id').limit(1);
+        if (error) throw error;
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e };
+    }
+};
+
 // 1. Students
 export const getStudents = () => CACHE.students;
 export const addStudent = (student: Student) => {
@@ -501,7 +438,6 @@ export const addFeedback = (f: Feedback) => {
     pushToCloud('feedback', f);
 };
 
-// ... (Other sections remain same) ...
 // 11. Lesson Planning & Resources
 export const getLessonPlans = (teacherId?: string) => {
     if (teacherId) return CACHE.lessonPlans.filter(p => p.teacherId === teacherId);
@@ -692,7 +628,7 @@ export const setCurrentTerm = (id: string, teacherId?: string) => {
     saveToLocal('academicTerms', updated); // Persist
 }
 
-// ... (Helper functions for UI and Admin Tools remain same) ...
+// ... (Helper functions for UI and Admin Tools)
 export const getTableDisplayName = (tableName: string) => {
     const reverseMap: Record<string, string> = {
         'schools': 'المدارس',
@@ -790,7 +726,7 @@ export const restoreCloudDatabase = async (json: string) => {
     }
 };
 
-// SQL Generators - UPDATED
+// SQL Generators
 export const getDatabaseSchemaSQL = () => {
     return `
 -- 1. Schools
@@ -1114,11 +1050,58 @@ CREATE TABLE IF NOT EXISTS academic_terms (
 `;
 };
 
+// COMPREHENSIVE UPDATE SQL
 export const getDatabaseUpdateSQL = () => {
     return `
--- Use this block only if you are updating an existing database to add new features
+-- Assignments
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS periodId TEXT;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS termId TEXT;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Academic Terms
 ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS periods JSONB;
+ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Message Logs
 ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Subjects
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Schedules
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Students
+ALTER TABLE students ADD COLUMN IF NOT EXISTS createdById TEXT;
+
+-- Attendance
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS createdById TEXT;
+
+-- Performance
+ALTER TABLE performance ADD COLUMN IF NOT EXISTS createdById TEXT;
+
+-- Exams
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Questions
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Lesson Plans
+ALTER TABLE lesson_plans ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Lesson Links
+ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Curriculum Units
+ALTER TABLE curriculum_units ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Micro Concepts
+ALTER TABLE micro_concepts ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Tracking Sheets
+ALTER TABLE tracking_sheets ADD COLUMN IF NOT EXISTS teacherId TEXT;
+
+-- Custom Tables
+ALTER TABLE custom_tables ADD COLUMN IF NOT EXISTS teacherId TEXT;
 `;
 };
