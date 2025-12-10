@@ -140,7 +140,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         // If workbook cached, load headers immediately
         if (workbookCache) {
             const { headers } = getSheetHeadersAndData(workbookCache, name);
-            setFoundHeaders(headers as string[]);
+            setFoundHeaders(headers);
             setSelectedHeadersToImport(new Set());
         }
     };
@@ -151,7 +151,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         try {
             const result = await fetchWorkbookStructureUrl(masterUrl);
             const workbook = result.workbook;
-            const sheetNames = (result.sheetNames as unknown as string[]) || [];
+            const sheetNames: string[] = result.sheetNames || [];
 
             setWorkbookCache(workbook);
             setAvailableSheets(sheetNames);
@@ -159,13 +159,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             // If current target sheet is valid, load its headers
             if (targetSheetName && sheetNames.includes(targetSheetName)) {
                 const { headers } = getSheetHeadersAndData(workbook, targetSheetName);
-                setFoundHeaders(headers as string[]);
+                setFoundHeaders(headers);
             } else if (sheetNames.length > 0) {
                 // Auto-select first if none selected
                 const firstSheet = sheetNames[0];
                 handleSetTargetSheet(firstSheet);
                 const { headers } = getSheetHeadersAndData(workbook, firstSheet);
-                setFoundHeaders(headers as string[]);
+                setFoundHeaders(headers);
             }
             setStatusMsg('✅ تم الاتصال بالملف بنجاح');
         } catch (e: any) {

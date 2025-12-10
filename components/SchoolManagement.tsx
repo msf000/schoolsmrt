@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme, AcademicTerm, TermPeriod } from '../types';
 import { 
@@ -22,7 +21,7 @@ interface SchoolManagementProps {
     onUpdateTheme?: (theme: UserTheme) => void;
 }
 
-export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onUpdateTheme }) => {
+export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onImportStudents, onImportPerformance, onImportAttendance, onUpdateTheme }) => {
   const isManager = currentUser?.role === 'SCHOOL_MANAGER' || currentUser?.role === 'SUPER_ADMIN';
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS' | 'CALENDAR'>(() => {
       return localStorage.getItem('school_mgmt_active_tab') as any || 'DASHBOARD';
@@ -619,7 +618,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                                     <div key={period.id} className="flex justify-between items-center bg-white border rounded p-2 text-xs">
                                                                         <div>
                                                                             <span className="font-bold text-gray-800 block">{period.name}</span>
-                                                                            <span className="text-gray-400 font-mono text-[10px]">{period.startDate} -> {period.endDate}</span>
+                                                                            <span className="text-gray-400 font-mono text-[10px]">{period.startDate} {'->'} {period.endDate}</span>
                                                                         </div>
                                                                         <button onClick={() => handleDeletePeriod(term, period.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
                                                                     </div>
