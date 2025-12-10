@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm, Subject } from '../types';
 import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp, Smile, Frown, Users, UserCheck, Star, Sparkles, BrainCircuit } from 'lucide-react';
 import { getReportHeaderConfig, getSubjects, getAcademicTerms } from '../services/storageService';
 import { generateClassReport } from '../services/geminiService';
@@ -33,7 +33,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig>({ schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', logoBase64: '' });
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   
   // Terms State
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
@@ -45,7 +45,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
 
   useEffect(() => {
       setHeaderConfig(getReportHeaderConfig());
-      setSubjects(getSubjects().map(s => s.name));
+      setSubjects(getSubjects());
       setTerms(getAcademicTerms());
   }, []);
 

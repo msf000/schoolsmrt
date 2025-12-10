@@ -744,7 +744,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                           <Filter size={14} className="text-gray-400"/>
                           <select value={logSubject} onChange={e => setLogSubject(e.target.value)} className="bg-transparent outline-none font-bold text-gray-700 min-w-[100px]">
                               <option value="">جميع المواد</option>
-                              {uniqueSubjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                              {uniqueSubjects.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                       </div>
                       {!selectedTermId && (
