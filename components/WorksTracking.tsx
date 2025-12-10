@@ -36,8 +36,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>(() => {
         return localStorage.getItem('works_tracking_mode') as any || 'GRADING';
     });
+    
     const [activeTab, setActiveTab] = useState<PerformanceCategory>(() => {
-        return localStorage.getItem('works_tracking_tab') as any || 'ACTIVITY';
+        const saved = localStorage.getItem('works_tracking_tab');
+        return (saved as PerformanceCategory) || 'ACTIVITY';
     });
 
     useEffect(() => { localStorage.setItem('works_tracking_mode', activeMode); }, [activeMode]);
@@ -163,9 +165,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             } else if (sheetNames.length > 0) {
                 // Auto-select first if none selected
                 const firstSheet = sheetNames[0];
-                handleSetTargetSheet(firstSheet);
-                const { headers } = getSheetHeadersAndData(workbook, firstSheet);
-                setFoundHeaders(headers);
+                if (typeof firstSheet === 'string') {
+                    handleSetTargetSheet(firstSheet);
+                    const { headers } = getSheetHeadersAndData(workbook, firstSheet);
+                    setFoundHeaders(headers);
+                }
             }
             setStatusMsg('✅ تم الاتصال بالملف بنجاح');
         } catch (e: any) {
