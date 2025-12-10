@@ -118,9 +118,20 @@ export const pushToCloud = async (key: string, data: any, op: 'UPSERT' | 'DELETE
         if (!dbTable) return;
 
         if (op === 'UPSERT') {
-            await supabase.from(dbTable).upsert(data);
+            const { error } = await supabase.from(dbTable).upsert(data);
+            if (error) {
+                if (error.code === '42P01') {
+                    console.warn(`Table ${dbTable} missing. Skipping push.`);
+                    return;
+                }
+                throw error;
+            }
         } else {
-            await supabase.from(dbTable).delete().match({ id: data.id });
+            const { error } = await supabase.from(dbTable).delete().match({ id: data.id });
+            if (error) {
+                if (error.code === '42P01') return;
+                throw error;
+            }
         }
         notifySyncStatus('ONLINE');
     } catch (e) {
@@ -143,7 +154,13 @@ export const uploadToSupabase = async () => {
             const localData = (CACHE as any)[key];
             if (Array.isArray(localData) && localData.length > 0) {
                 const { error } = await supabase.from(table).upsert(localData);
-                if (error) throw error;
+                if (error) {
+                    if (error.code === '42P01') {
+                        console.warn(`Table ${table} missing. Skipping upload.`);
+                        continue;
+                    }
+                    throw error;
+                }
             }
         }
         notifySyncStatus('ONLINE');
@@ -160,7 +177,15 @@ export const downloadFromSupabase = async () => {
         for (const key of Object.keys(DB_MAP)) {
             const table = DB_MAP[key];
             const { data, error } = await supabase.from(table).select('*');
-            if (error) throw error;
+            
+            if (error) {
+                if (error.code === '42P01') {
+                    console.warn(`Table ${table} does not exist in Supabase. Skipping download.`);
+                    continue; 
+                }
+                throw error;
+            }
+            
             if (data) {
                 (CACHE as any)[key] = data;
                 localStorage.setItem(key, JSON.stringify(data));
@@ -176,8 +201,9 @@ export const downloadFromSupabase = async () => {
 
 export const checkConnection = async () => {
     try {
+        // Try selecting from a simple table or check health
         const { data, error } = await supabase.from('schools').select('id').limit(1);
-        if (error) throw error;
+        if (error && error.code !== '42P01') throw error; // If table missing, connection is technically ok just schema missing
         return { success: true };
     } catch (e) {
         return { success: false, error: e };
@@ -730,322 +756,322 @@ export const restoreCloudDatabase = async (json: string) => {
 export const getDatabaseSchemaSQL = () => {
     return `
 -- 1. Schools
-CREATE TABLE IF NOT EXISTS schools (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  ministryCode TEXT,
-  managerName TEXT,
-  managerNationalId TEXT,
-  type TEXT,
-  phone TEXT,
-  studentCount INTEGER,
-  educationAdministration TEXT,
-  worksMasterUrl TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "schools" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "ministryCode" TEXT,
+  "managerName" TEXT,
+  "managerNationalId" TEXT,
+  "type" TEXT,
+  "phone" TEXT,
+  "studentCount" INTEGER,
+  "educationAdministration" TEXT,
+  "worksMasterUrl" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 2. Teachers
-CREATE TABLE IF NOT EXISTS teachers (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  nationalId TEXT,
-  email TEXT,
-  phone TEXT,
-  password TEXT,
-  subjectSpecialty TEXT,
-  schoolId TEXT,
-  managerId TEXT,
-  subscriptionStatus TEXT,
-  subscriptionEndDate TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "teachers" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "nationalId" TEXT,
+  "email" TEXT,
+  "phone" TEXT,
+  "password" TEXT,
+  "subjectSpecialty" TEXT,
+  "schoolId" TEXT,
+  "managerId" TEXT,
+  "subscriptionStatus" TEXT,
+  "subscriptionEndDate" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. System Users
-CREATE TABLE IF NOT EXISTS system_users (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  email TEXT,
-  nationalId TEXT,
-  password TEXT,
-  role TEXT,
-  schoolId TEXT,
-  status TEXT,
-  isDemo BOOLEAN,
-  phone TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "system_users" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "email" TEXT,
+  "nationalId" TEXT,
+  "password" TEXT,
+  "role" TEXT,
+  "schoolId" TEXT,
+  "status" TEXT,
+  "isDemo" BOOLEAN,
+  "phone" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 4. Students
-CREATE TABLE IF NOT EXISTS students (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  nationalId TEXT,
-  gradeLevel TEXT,
-  className TEXT,
-  schoolId TEXT,
-  parentId TEXT,
-  parentName TEXT,
-  parentPhone TEXT,
-  parentEmail TEXT,
-  password TEXT,
-  seatIndex INTEGER,
-  createdById TEXT,
-  classId TEXT,
-  phone TEXT,
-  email TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "students" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "nationalId" TEXT,
+  "gradeLevel" TEXT,
+  "className" TEXT,
+  "schoolId" TEXT,
+  "parentId" TEXT,
+  "parentName" TEXT,
+  "parentPhone" TEXT,
+  "parentEmail" TEXT,
+  "password" TEXT,
+  "seatIndex" INTEGER,
+  "createdById" TEXT,
+  "classId" TEXT,
+  "phone" TEXT,
+  "email" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 5. Attendance
-CREATE TABLE IF NOT EXISTS attendance (
-  id TEXT PRIMARY KEY,
-  studentId TEXT,
-  date TEXT,
-  status TEXT,
-  subject TEXT,
-  period INTEGER,
-  behaviorStatus TEXT,
-  behaviorNote TEXT,
-  excuseNote TEXT,
-  excuseFile TEXT,
-  createdById TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "attendance" (
+  "id" TEXT PRIMARY KEY,
+  "studentId" TEXT,
+  "date" TEXT,
+  "status" TEXT,
+  "subject" TEXT,
+  "period" INTEGER,
+  "behaviorStatus" TEXT,
+  "behaviorNote" TEXT,
+  "excuseNote" TEXT,
+  "excuseFile" TEXT,
+  "createdById" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 6. Performance (Grades)
-CREATE TABLE IF NOT EXISTS performance (
-  id TEXT PRIMARY KEY,
-  studentId TEXT,
-  subject TEXT,
-  title TEXT,
-  category TEXT,
-  score NUMERIC,
-  maxScore NUMERIC,
-  date TEXT,
-  notes TEXT,
-  url TEXT,
-  createdById TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "performance" (
+  "id" TEXT PRIMARY KEY,
+  "studentId" TEXT,
+  "subject" TEXT,
+  "title" TEXT,
+  "category" TEXT,
+  "score" NUMERIC,
+  "maxScore" NUMERIC,
+  "date" TEXT,
+  "notes" TEXT,
+  "url" TEXT,
+  "createdById" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 7. Assignments (Columns)
-CREATE TABLE IF NOT EXISTS assignments (
-  id TEXT PRIMARY KEY,
-  title TEXT,
-  category TEXT,
-  maxScore NUMERIC,
-  url TEXT,
-  isVisible BOOLEAN,
-  orderIndex INTEGER,
-  sourceMetadata TEXT,
-  teacherId TEXT,
-  termId TEXT,
-  periodId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "assignments" (
+  "id" TEXT PRIMARY KEY,
+  "title" TEXT,
+  "category" TEXT,
+  "maxScore" NUMERIC,
+  "url" TEXT,
+  "isVisible" BOOLEAN,
+  "orderIndex" INTEGER,
+  "sourceMetadata" TEXT,
+  "teacherId" TEXT,
+  "termId" TEXT,
+  "periodId" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 8. Schedules
-CREATE TABLE IF NOT EXISTS schedules (
-  id TEXT PRIMARY KEY,
-  classId TEXT,
-  day TEXT,
-  period INTEGER,
-  subjectName TEXT,
-  teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "schedules" (
+  "id" TEXT PRIMARY KEY,
+  "classId" TEXT,
+  "day" TEXT,
+  "period" INTEGER,
+  "subjectName" TEXT,
+  "teacherId" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 9. Teacher Assignments (Class-Subject Links)
-CREATE TABLE IF NOT EXISTS teacher_assignments (
-  id TEXT PRIMARY KEY,
-  classId TEXT,
-  subjectName TEXT,
-  teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "teacher_assignments" (
+  "id" TEXT PRIMARY KEY,
+  "classId" TEXT,
+  "subjectName" TEXT,
+  "teacherId" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 10. Subjects
-CREATE TABLE IF NOT EXISTS subjects (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "subjects" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "teacherId" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 11. Weekly Plans
-CREATE TABLE IF NOT EXISTS weekly_plans (
-  id TEXT PRIMARY KEY,
-  teacherId TEXT,
-  classId TEXT,
-  subjectName TEXT,
-  day TEXT,
-  period INTEGER,
-  weekStartDate TEXT,
-  lessonTopic TEXT,
-  homework TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "weekly_plans" (
+  "id" TEXT PRIMARY KEY,
+  "teacherId" TEXT,
+  "classId" TEXT,
+  "subjectName" TEXT,
+  "day" TEXT,
+  "period" INTEGER,
+  "weekStartDate" TEXT,
+  "lessonTopic" TEXT,
+  "homework" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 12. Lesson Links
-CREATE TABLE IF NOT EXISTS lesson_links (
-  id TEXT PRIMARY KEY,
-  title TEXT,
-  url TEXT,
-  teacherId TEXT,
-  createdAt TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "lesson_links" (
+  "id" TEXT PRIMARY KEY,
+  "title" TEXT,
+  "url" TEXT,
+  "teacherId" TEXT,
+  "createdAt" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 13. Lesson Plans (Detailed)
-CREATE TABLE IF NOT EXISTS lesson_plans (
-  id TEXT PRIMARY KEY,
-  teacherId TEXT,
-  lessonId TEXT,
-  subject TEXT,
-  topic TEXT,
-  contentJson TEXT,
-  resources JSONB,
-  createdAt TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "lesson_plans" (
+  "id" TEXT PRIMARY KEY,
+  "teacherId" TEXT,
+  "lessonId" TEXT,
+  "subject" TEXT,
+  "topic" TEXT,
+  "contentJson" TEXT,
+  "resources" JSONB,
+  "createdAt" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 14. Custom Tables
-CREATE TABLE IF NOT EXISTS custom_tables (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  createdAt TEXT,
-  columns JSONB,
-  rows JSONB,
-  sourceUrl TEXT,
-  lastUpdated TEXT,
-  teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "custom_tables" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "createdAt" TEXT,
+  "columns" JSONB,
+  "rows" JSONB,
+  "sourceUrl" TEXT,
+  "lastUpdated" TEXT,
+  "teacherId" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 15. Message Logs (UPDATED with teacherId)
-CREATE TABLE IF NOT EXISTS message_logs (
-  id TEXT PRIMARY KEY,
-  studentId TEXT,
-  studentName TEXT,
-  parentPhone TEXT,
-  type TEXT,
-  content TEXT,
-  status TEXT,
-  date TEXT,
-  sentBy TEXT,
-  teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "message_logs" (
+  "id" TEXT PRIMARY KEY,
+  "studentId" TEXT,
+  "studentName" TEXT,
+  "parentPhone" TEXT,
+  "type" TEXT,
+  "content" TEXT,
+  "status" TEXT,
+  "date" TEXT,
+  "sentBy" TEXT,
+  "teacherId" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 16. Feedback
-CREATE TABLE IF NOT EXISTS feedback (
-  id TEXT PRIMARY KEY,
-  teacherId TEXT,
-  managerId TEXT,
-  content TEXT,
-  date TEXT,
-  isRead BOOLEAN,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "feedback" (
+  "id" TEXT PRIMARY KEY,
+  "teacherId" TEXT,
+  "managerId" TEXT,
+  "content" TEXT,
+  "date" TEXT,
+  "isRead" BOOLEAN,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 17. Exams
-CREATE TABLE IF NOT EXISTS exams (
-  id TEXT PRIMARY KEY,
-  title TEXT,
-  subject TEXT,
-  gradeLevel TEXT,
-  durationMinutes INTEGER,
-  questions JSONB,
-  isActive BOOLEAN,
-  createdAt TEXT,
-  teacherId TEXT,
-  date TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "exams" (
+  "id" TEXT PRIMARY KEY,
+  "title" TEXT,
+  "subject" TEXT,
+  "gradeLevel" TEXT,
+  "durationMinutes" INTEGER,
+  "questions" JSONB,
+  "isActive" BOOLEAN,
+  "createdAt" TEXT,
+  "teacherId" TEXT,
+  "date" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 18. Exam Results
-CREATE TABLE IF NOT EXISTS exam_results (
-  id TEXT PRIMARY KEY,
-  examId TEXT,
-  studentId TEXT,
-  studentName TEXT,
-  score NUMERIC,
-  totalScore NUMERIC,
-  date TEXT,
-  answers JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "exam_results" (
+  "id" TEXT PRIMARY KEY,
+  "examId" TEXT,
+  "studentId" TEXT,
+  "studentName" TEXT,
+  "score" NUMERIC,
+  "totalScore" NUMERIC,
+  "date" TEXT,
+  "answers" JSONB,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 19. Questions Bank
-CREATE TABLE IF NOT EXISTS questions (
-  id TEXT PRIMARY KEY,
-  text TEXT,
-  type TEXT,
-  options JSONB,
-  correctAnswer TEXT,
-  points INTEGER,
-  subject TEXT,
-  gradeLevel TEXT,
-  topic TEXT,
-  difficulty TEXT,
-  teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "questions" (
+  "id" TEXT PRIMARY KEY,
+  "text" TEXT,
+  "type" TEXT,
+  "options" JSONB,
+  "correctAnswer" TEXT,
+  "points" INTEGER,
+  "subject" TEXT,
+  "gradeLevel" TEXT,
+  "topic" TEXT,
+  "difficulty" TEXT,
+  "teacherId" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 20. Curriculum Units
-CREATE TABLE IF NOT EXISTS curriculum_units (
-  id TEXT PRIMARY KEY,
-  teacherId TEXT,
-  subject TEXT,
-  gradeLevel TEXT,
-  title TEXT,
-  orderIndex INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "curriculum_units" (
+  "id" TEXT PRIMARY KEY,
+  "teacherId" TEXT,
+  "subject" TEXT,
+  "gradeLevel" TEXT,
+  "title" TEXT,
+  "orderIndex" INTEGER,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 21. Curriculum Lessons
-CREATE TABLE IF NOT EXISTS curriculum_lessons (
-  id TEXT PRIMARY KEY,
-  unitId TEXT,
-  title TEXT,
-  orderIndex INTEGER,
-  learningStandards JSONB,
-  microConceptIds JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
+  "id" TEXT PRIMARY KEY,
+  "unitId" TEXT,
+  "title" TEXT,
+  "orderIndex" INTEGER,
+  "learningStandards" JSONB,
+  "microConceptIds" JSONB,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 22. Micro Concepts
-CREATE TABLE IF NOT EXISTS micro_concepts (
-  id TEXT PRIMARY KEY,
-  teacherId TEXT,
-  subject TEXT,
-  name TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "micro_concepts" (
+  "id" TEXT PRIMARY KEY,
+  "teacherId" TEXT,
+  "subject" TEXT,
+  "name" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 23. Tracking Sheets
-CREATE TABLE IF NOT EXISTS tracking_sheets (
-  id TEXT PRIMARY KEY,
-  title TEXT,
-  subject TEXT,
-  className TEXT,
-  teacherId TEXT,
-  createdAt TEXT,
-  columns JSONB,
-  scores JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "tracking_sheets" (
+  "id" TEXT PRIMARY KEY,
+  "title" TEXT,
+  "subject" TEXT,
+  "className" TEXT,
+  "teacherId" TEXT,
+  "createdAt" TEXT,
+  "columns" JSONB,
+  "scores" JSONB,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 24. Academic Terms
-CREATE TABLE IF NOT EXISTS academic_terms (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  startDate TEXT,
-  endDate TEXT,
-  isCurrent BOOLEAN,
-  teacherId TEXT,
-  periods JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS "academic_terms" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "startDate" TEXT,
+  "endDate" TEXT,
+  "isCurrent" BOOLEAN,
+  "teacherId" TEXT,
+  "periods" JSONB,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 `;
 };
@@ -1054,54 +1080,54 @@ CREATE TABLE IF NOT EXISTS academic_terms (
 export const getDatabaseUpdateSQL = () => {
     return `
 -- Assignments
-ALTER TABLE assignments ADD COLUMN IF NOT EXISTS periodId TEXT;
-ALTER TABLE assignments ADD COLUMN IF NOT EXISTS termId TEXT;
-ALTER TABLE assignments ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "assignments" ADD COLUMN IF NOT EXISTS "periodId" TEXT;
+ALTER TABLE "assignments" ADD COLUMN IF NOT EXISTS "termId" TEXT;
+ALTER TABLE "assignments" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Academic Terms
-ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS periods JSONB;
-ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "academic_terms" ADD COLUMN IF NOT EXISTS "periods" JSONB;
+ALTER TABLE "academic_terms" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Message Logs
-ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "message_logs" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Subjects
-ALTER TABLE subjects ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "subjects" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Schedules
-ALTER TABLE schedules ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Students
-ALTER TABLE students ADD COLUMN IF NOT EXISTS createdById TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "createdById" TEXT;
 
 -- Attendance
-ALTER TABLE attendance ADD COLUMN IF NOT EXISTS createdById TEXT;
+ALTER TABLE "attendance" ADD COLUMN IF NOT EXISTS "createdById" TEXT;
 
 -- Performance
-ALTER TABLE performance ADD COLUMN IF NOT EXISTS createdById TEXT;
+ALTER TABLE "performance" ADD COLUMN IF NOT EXISTS "createdById" TEXT;
 
 -- Exams
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "exams" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Questions
-ALTER TABLE questions ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "questions" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Lesson Plans
-ALTER TABLE lesson_plans ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "lesson_plans" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Lesson Links
-ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "lesson_links" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Curriculum Units
-ALTER TABLE curriculum_units ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "curriculum_units" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Micro Concepts
-ALTER TABLE micro_concepts ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "micro_concepts" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Tracking Sheets
-ALTER TABLE tracking_sheets ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "tracking_sheets" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 
 -- Custom Tables
-ALTER TABLE custom_tables ADD COLUMN IF NOT EXISTS teacherId TEXT;
+ALTER TABLE "custom_tables" ADD COLUMN IF NOT EXISTS "teacherId" TEXT;
 `;
 };
