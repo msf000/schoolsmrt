@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm, Subject } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm, Subject, SystemUser } from '../types';
 import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp, Smile, Frown, Users, UserCheck, Star, Sparkles, BrainCircuit } from 'lucide-react';
 import { getReportHeaderConfig, getSubjects, getAcademicTerms } from '../services/storageService';
 import { generateClassReport } from '../services/geminiService';
@@ -11,9 +11,10 @@ interface MonthlyReportProps {
   students: Student[];
   attendance: AttendanceRecord[];
   performance: PerformanceRecord[];
+  currentUser?: SystemUser | null;
 }
 
-const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, performance }) => {
+const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, performance, currentUser }) => {
   // Safety check
   if (!students || !attendance || !performance) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
@@ -44,10 +45,10 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
   const [loadingAI, setLoadingAI] = useState(false);
 
   useEffect(() => {
-      setHeaderConfig(getReportHeaderConfig());
-      setSubjects(getSubjects());
-      setTerms(getAcademicTerms());
-  }, []);
+      setHeaderConfig(getReportHeaderConfig(currentUser?.id));
+      setSubjects(getSubjects(currentUser?.id));
+      setTerms(getAcademicTerms(currentUser?.id));
+  }, [currentUser]);
 
   const handleTermChange = (termId: string) => {
       setSelectedTermId(termId);

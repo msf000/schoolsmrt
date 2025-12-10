@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, SystemUser } from '../types';
 import { generateStudentAnalysis } from '../services/geminiService';
 import { getAcademicTerms } from '../services/storageService';
 import { Sparkles, Bot, Loader2, Calendar } from 'lucide-react';
@@ -10,9 +10,10 @@ interface AIReportsProps {
   students: Student[];
   attendance: AttendanceRecord[];
   performance: PerformanceRecord[];
+  currentUser?: SystemUser | null;
 }
 
-const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance }) => {
+const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance, currentUser }) => {
   // Safety check
   if (!students || !attendance || !performance) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
@@ -27,12 +28,12 @@ const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance
   const [selectedTermId, setSelectedTermId] = useState('');
 
   useEffect(() => {
-      const loadedTerms = getAcademicTerms();
+      const loadedTerms = getAcademicTerms(currentUser?.id);
       setTerms(loadedTerms);
       const current = loadedTerms.find(t => t.isCurrent);
       if (current) setSelectedTermId(current.id);
       else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
-  }, []);
+  }, [currentUser]);
 
   const handleGenerate = async () => {
     if (!selectedStudentId) return;

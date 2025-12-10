@@ -192,7 +192,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     gradeLevel: d.gradeLevel,
                     phone: d.phone,
                     email: d.email,
-                    className: d.gradeLevel // Fallback
+                    className: d.gradeLevel, // Fallback
+                    createdById: currentUser?.id
                 }));
                 onImportStudents(students);
             } else if (importType === 'GRADES') {
@@ -206,7 +207,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     score: Number(d.score),
                     maxScore: Number(d.maxScore) || 10,
                     date: new Date().toISOString().split('T')[0],
-                    category: 'OTHER'
+                    category: 'OTHER',
+                    createdById: currentUser?.id
                 } as any));
                 onImportPerformance(records);
             } else if (importType === 'ATTENDANCE') {
@@ -218,7 +220,8 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     date: d.date || new Date().toISOString().split('T')[0],
                     status: d.status === 'ABSENT' ? AttendanceStatus.ABSENT : d.status === 'LATE' ? AttendanceStatus.LATE : AttendanceStatus.PRESENT,
                     subject: d.subject, 
-                    period: d.period 
+                    period: d.period,
+                    createdById: currentUser?.id
                 } as any));
                 onImportAttendance(records);
             }

@@ -185,7 +185,13 @@ const App: React.FC = () => {
         loadData(); 
     };
     
-    const handleBulkAddPerformance = (recs: PerformanceRecord[]) => { bulkAddPerformance(recs); loadData(); };
+    // UPDATED: Ensure createdById is attached for bulk imports
+    const handleBulkAddPerformance = (recs: PerformanceRecord[]) => { 
+        const enrichedRecs = recs.map(r => ({ ...r, createdById: currentUser?.id }));
+        bulkAddPerformance(enrichedRecs); 
+        loadData(); 
+    };
+
     const handleDeletePerformance = (id: string) => { deletePerformance(id); loadData(); };
     
     const handleImportStudents = (data: Student[], key?: keyof Student, strategy?: any, fields?: any[]) => {
@@ -465,8 +471,8 @@ const App: React.FC = () => {
                     {currentView === 'PERFORMANCE' && <PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance} onDeletePerformance={handleDeletePerformance} currentUser={currentUser} />}
                     {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance} currentUser={currentUser}/>}
                     {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser} onSaveAttendance={handleSaveAttendance}/>}
-                    {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance} performance={performance}/>}
-                    {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance}/>}
+                    {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance} performance={performance} currentUser={currentUser}/>}
+                    {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser}/>}
                     {currentView === 'CLASSROOM_MANAGEMENT' && (
                         <ClassroomManager 
                             students={students} 
