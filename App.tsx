@@ -174,18 +174,23 @@ const App: React.FC = () => {
     const handleAddStudent = (s: Student) => { addStudent(s); loadData(); };
     const handleUpdateStudent = (s: Student) => { updateStudent(s); loadData(); };
     const handleDeleteStudent = (id: string) => { deleteStudent(id); loadData(); };
-    const handleSaveAttendance = (recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); };
+    
+    // ATTENDANCE: Manually saving attendance should attach teacher ID if not present
+    const handleSaveAttendance = (recs: AttendanceRecord[]) => { 
+        const enrichedRecs = recs.map(r => ({ ...r, createdById: r.createdById || currentUser?.id }));
+        saveAttendance(enrichedRecs); 
+        loadData(); 
+    };
     
     const handleAddPerformance = (rec: PerformanceRecord | PerformanceRecord[]) => { 
         if (Array.isArray(rec)) {
-            bulkAddPerformance(rec);
+            handleBulkAddPerformance(rec);
         } else {
-            addPerformance(rec);
+            addPerformance({ ...rec, createdById: currentUser?.id });
         }
         loadData(); 
     };
     
-    // UPDATED: Ensure createdById is attached for bulk imports
     const handleBulkAddPerformance = (recs: PerformanceRecord[]) => { 
         const enrichedRecs = recs.map(r => ({ ...r, createdById: currentUser?.id }));
         bulkAddPerformance(enrichedRecs); 
@@ -229,14 +234,13 @@ const App: React.FC = () => {
 
     // --- PARENT PORTAL ---
     if (currentUser && currentUser.role === 'PARENT') {
-        // Fetch ALL data for parent so portal can filter
         const allStds = getStudents(); 
         const allAtt = getAttendance();
         const allPerf = getPerformance();
         
         return (
             <ParentPortal 
-                parentPhone={currentUser.email} // Stored phone in email field
+                parentPhone={currentUser.email} 
                 allStudents={allStds}
                 attendance={allAtt}
                 performance={allPerf}

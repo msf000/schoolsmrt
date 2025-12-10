@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
 import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans, getAcademicTerms } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table, XCircle } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table, XCircle, PlusCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -570,6 +570,17 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
+            {/* New: Quick Add Students if list is empty */}
+            {students.length === 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 text-center animate-bounce-in">
+                    <h3 className="text-purple-800 font-bold mb-2">ابدأ بإضافة طلابك</h3>
+                    <p className="text-sm text-purple-600 mb-4">لا يوجد طلاب في قائمتك. أضفهم الآن لبدء المتابعة.</p>
+                    <button onClick={() => onNavigate('STUDENTS')} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center justify-center gap-2 mx-auto">
+                        <PlusCircle size={18}/> إضافة طلاب
+                    </button>
+                </div>
+            )}
+
             {riskAlerts.length > 0 && (
                 <div className="bg-red-50 border border-red-100 rounded-xl p-4 animate-bounce-in">
                     <h3 className="text-red-800 font-bold mb-3 flex items-center gap-2 text-sm"><AlertCircle size={16}/> تنبيهات المتابعة (Risk)</h3>
@@ -589,7 +600,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                     <button onClick={() => onNavigate('STUDENT_FOLLOWUP')} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
                 </div>
                 <div className="flex-1 overflow-auto space-y-3 custom-scrollbar">
-                    {topStudents.map((s, idx) => (
+                    {topStudents.length > 0 ? topStudents.map((s, idx) => (
                         <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
                             <div className="flex items-center gap-3">
                                 <span className="font-bold text-gray-400 w-4">{idx + 1}</span>
@@ -598,7 +609,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                             </div>
                             <span className="font-black text-yellow-600 text-sm">{s.score}%</span>
                         </div>
-                    ))}
+                    )) : <p className="text-center text-xs text-gray-400 py-10">لا توجد بيانات كافية</p>}
                 </div>
             </div>
         </div>
