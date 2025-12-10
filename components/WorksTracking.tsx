@@ -153,7 +153,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         try {
             const result = await fetchWorkbookStructureUrl(masterUrl);
             const workbook = result.workbook;
-            const sheetNames: string[] = result.sheetNames || [];
+            const sheetNames: string[] = Array.isArray(result.sheetNames) ? result.sheetNames : [];
 
             setWorkbookCache(workbook);
             setAvailableSheets(sheetNames);
@@ -165,11 +165,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             } else if (sheetNames.length > 0) {
                 // Auto-select first if none selected
                 const firstSheet = sheetNames[0];
-                if (typeof firstSheet === 'string') {
-                    handleSetTargetSheet(firstSheet);
-                    const { headers } = getSheetHeadersAndData(workbook, firstSheet);
-                    setFoundHeaders(headers);
-                }
+                handleSetTargetSheet(firstSheet);
+                const { headers } = getSheetHeadersAndData(workbook, firstSheet);
+                setFoundHeaders(headers);
             }
             setStatusMsg('✅ تم الاتصال بالملف بنجاح');
         } catch (e: any) {
