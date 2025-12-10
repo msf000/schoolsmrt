@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm } from '../types';
 import { Calendar, Printer, Filter, Download, ListFilter, AlertTriangle, BookOpen, AlertCircle, Loader2, TrendingUp, Smile, Frown, Users, UserCheck, Star, Sparkles, BrainCircuit } from 'lucide-react';
-import { getReportHeaderConfig, getSubjects } from '../services/storageService';
+import { getReportHeaderConfig, getSubjects, getAcademicTerms } from '../services/storageService';
 import { generateClassReport } from '../services/geminiService';
 import * as XLSX from 'xlsx';
 import ReactMarkdown from 'react-markdown';
@@ -35,6 +35,10 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
   const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig>({ schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', logoBase64: '' });
   const [subjects, setSubjects] = useState<string[]>([]);
   
+  // Terms State
+  const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState('');
+
   // AI State
   const [aiSummary, setAiSummary] = useState('');
   const [loadingAI, setLoadingAI] = useState(false);
@@ -42,7 +46,17 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
   useEffect(() => {
       setHeaderConfig(getReportHeaderConfig());
       setSubjects(getSubjects().map(s => s.name));
+      setTerms(getAcademicTerms());
   }, []);
+
+  const handleTermChange = (termId: string) => {
+      setSelectedTermId(termId);
+      const term = terms.find(t => t.id === termId);
+      if (term) {
+          setStartDate(term.startDate);
+          setEndDate(term.endDate);
+      }
+  };
 
   // Extract unique classes
   const uniqueClasses = useMemo(() => {
@@ -223,6 +237,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
       else if (type === 'SEMESTER') start.setMonth(start.getMonth() - 4);
       setEndDate(end.toISOString().split('T')[0]);
       setStartDate(start.toISOString().split('T')[0]);
+      setSelectedTermId(''); // Reset term selection
   };
 
   const handleAIAnalysis = async () => {
@@ -311,7 +326,14 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                 <div className="flex bg-gray-100 p-1 rounded-lg">
                     <button onClick={() => setRange('WEEK')} className="px-3 py-1 text-xs font-bold text-gray-600 hover:bg-white hover:shadow rounded transition-all">أسبوع</button>
                     <button onClick={() => setRange('MONTH')} className="px-3 py-1 text-xs font-bold text-gray-600 hover:bg-white hover:shadow rounded transition-all">شهر</button>
-                    <button onClick={() => setRange('SEMESTER')} className="px-3 py-1 text-xs font-bold text-gray-600 hover:bg-white hover:shadow rounded transition-all">فصل</button>
+                    <select 
+                        className="px-2 py-1 text-xs font-bold text-gray-600 hover:bg-white hover:shadow rounded transition-all bg-transparent outline-none"
+                        value={selectedTermId}
+                        onChange={(e) => handleTermChange(e.target.value)}
+                    >
+                        <option value="">فترة مخصصة</option>
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
                 </div>
 
                 <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border">

@@ -153,18 +153,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         try {
             const result = await fetchWorkbookStructureUrl(masterUrl);
             const workbook = result.workbook;
-            const sheetNames: string[] = Array.isArray(result.sheetNames) ? (result.sheetNames as any[]).map(s => String(s)) : [];
+            const sheetNames: string[] = Array.isArray(result.sheetNames) ? (result.sheetNames as any[]).map((s: any) => String(s)) : [];
 
             setWorkbookCache(workbook);
             setAvailableSheets(sheetNames);
             
             // If current target sheet is valid, load its headers
             if (targetSheetName && sheetNames.includes(targetSheetName)) {
-                const { headers } = getSheetHeadersAndData(workbook, targetSheetName);
+                const { headers } = getSheetHeadersAndData(workbook, String(targetSheetName));
                 setFoundHeaders(headers);
             } else if (sheetNames.length > 0) {
                 // Auto-select first if none selected
-                const firstSheet = sheetNames[0];
+                const firstSheet = String(sheetNames[0]);
                 handleSetTargetSheet(firstSheet);
                 const { headers } = getSheetHeadersAndData(workbook, firstSheet);
                 setFoundHeaders(headers);
@@ -234,7 +234,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const res = await fetchWorkbookStructureUrl(masterUrl);
                 workbook = res.workbook;
                 // If target sheet not set or invalid, try to guess or use first
-                const sheetNames: string[] = Array.isArray(res.sheetNames) ? (res.sheetNames as any[]).map(s => String(s)) : [];
+                const sheetNames: string[] = Array.isArray(res.sheetNames) ? (res.sheetNames as any[]).map((s: any) => String(s)) : [];
                 if (!currentSheetName || !sheetNames.includes(currentSheetName)) {
                     currentSheetName = sheetNames.length > 0 ? String(sheetNames[0]) : '';
                     // Save preference if we had to guess
@@ -244,7 +244,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             if (!currentSheetName) throw new Error("No sheet found in workbook");
 
-            const { data } = getSheetHeadersAndData(workbook, currentSheetName);
+            const { data } = getSheetHeadersAndData(workbook, String(currentSheetName));
             
             // Get Current Assignments to map to
             const currentAssignments = getAssignments(category, currentUser?.id);

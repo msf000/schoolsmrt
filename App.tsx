@@ -43,7 +43,7 @@ import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import ParentPortal from './components/ParentPortal';
 import CertificatesCenter from './components/CertificatesCenter';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff } from 'lucide-react';
 
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
@@ -159,7 +159,7 @@ const App: React.FC = () => {
     };
 
     const handleManualSync = () => {
-        if (syncStatus === 'OFFLINE' || syncStatus === 'ERROR') {
+        if (syncStatus === 'OFFLINE' || syncStatus === 'ERROR' || syncStatus === 'IDLE') {
             initAutoSync();
         }
     };
@@ -384,6 +384,7 @@ const App: React.FC = () => {
                         } ${
                             syncStatus === 'SYNCING' ? 'bg-blue-50 border-blue-200' :
                             syncStatus === 'ONLINE' ? 'bg-green-50 border-green-200' :
+                            syncStatus === 'OFFLINE' ? 'bg-gray-100 border-gray-300' :
                             syncStatus === 'ERROR' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
                         }`}
                         title={syncStatus === 'ERROR' || syncStatus === 'OFFLINE' ? 'اضغط لإعادة المحاولة' : ''}
@@ -392,17 +393,20 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-1">
                             {syncStatus === 'SYNCING' && <RefreshCw size={14} className="text-blue-500 animate-spin"/>}
                             {syncStatus === 'ONLINE' && <Cloud size={14} className="text-green-500"/>}
-                            {syncStatus === 'OFFLINE' && <CloudOff size={14} className="text-gray-400"/>}
+                            {syncStatus === 'OFFLINE' && <WifiOff size={14} className="text-gray-500"/>}
                             {syncStatus === 'ERROR' && <AlertCircle size={14} className="text-red-500"/>}
+                            {syncStatus === 'IDLE' && <Cloud size={14} className="text-gray-400"/>}
                             
                             <span className={`font-bold ${
                                 syncStatus === 'SYNCING' ? 'text-blue-600' :
                                 syncStatus === 'ONLINE' ? 'text-green-600' :
+                                syncStatus === 'OFFLINE' ? 'text-gray-600' :
                                 syncStatus === 'ERROR' ? 'text-red-600' : 'text-gray-500'
                             }`}>
                                 {syncStatus === 'SYNCING' ? 'جاري التحديث...' :
-                                 syncStatus === 'ONLINE' ? 'متصل' :
-                                 syncStatus === 'ERROR' ? 'خطأ' : 'غير متصل'}
+                                 syncStatus === 'ONLINE' ? 'متصل (Online)' :
+                                 syncStatus === 'OFFLINE' ? 'وضع غير متصل' :
+                                 syncStatus === 'ERROR' ? 'خطأ الاتصال' : 'جاهز'}
                             </span>
                         </div>
                     </button>
@@ -439,7 +443,7 @@ const App: React.FC = () => {
                     </button>
 
                     <div className="text-center mt-2 text-[10px] text-gray-300">
-                        نظام المدرس الذكي v1.0
+                        نظام المدرس الذكي v1.1
                     </div>
                 </div>
             </aside>

@@ -1,8 +1,8 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, SystemUser } from '../types';
+import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm } from '../types';
 import { formatDualDate } from '../services/dateService';
+import { getAcademicTerms } from '../services/storageService';
 import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle } from 'lucide-react';
 import DataImport from './DataImport';
 import * as XLSX from 'xlsx';
@@ -55,10 +55,18 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [logSubject, setLogSubject] = useState('');
   const [logDateStart, setLogDateStart] = useState('');
   const [logDateEnd, setLogDateEnd] = useState('');
+  
+  // Term Filtering
+  const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState('');
 
   // Analytics State
   const [analyticsSubject, setAnalyticsSubject] = useState('');
   const [analyticsExam, setAnalyticsExam] = useState('');
+
+  useEffect(() => {
+      setTerms(getAcademicTerms());
+  }, []);
 
   const uniqueGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
   
@@ -142,6 +150,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   }, [filteredStudentsEntry, studentId]);
 
   const filteredHistory = useMemo(() => {
+      const activeTerm = terms.find(t => t.id === selectedTermId);
+      
       return performance.filter(p => {
           const student = students.find(s => s.id === p.studentId);
           if (!student) return false; 
@@ -151,10 +161,14 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
           if (logSubject && p.subject !== logSubject) return false;
           if (logDateStart && p.date < logDateStart) return false;
           if (logDateEnd && p.date > logDateEnd) return false;
+          
+          if (activeTerm) {
+              if (p.date < activeTerm.startDate || p.date > activeTerm.endDate) return false;
+          }
 
           return true;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [performance, students, logSearch, logClass, logSubject, logDateStart, logDateEnd]);
+  }, [performance, students, logSearch, logClass, logSubject, logDateStart, logDateEnd, selectedTermId, terms]);
 
   // --- Handlers ---
 
@@ -431,9 +445,15 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-lg text-gray-700">إضافة درجة لطالب واحد</h3>
-                    <span className="text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded">
-                        التاريخ: {formatDualDate(new Date())}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <select className="text-[10px] bg-gray-50 border rounded px-1 outline-none" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
+                            <option value="">الفترة الحالية</option>
+                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                        <span className="text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                            التاريخ: {formatDualDate(new Date())}
+                        </span>
+                    </div>
                 </div>
                 
                 <div className="bg-gray-50 p-3 rounded-lg mb-4 grid grid-cols-2 gap-2 border border-gray-200">
@@ -709,6 +729,13 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                   <div className="flex flex-wrap gap-2 text-sm items-center flex-1">
                       <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
                           <Filter size={14} className="text-gray-400"/>
+                          <select value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)} className="bg-transparent outline-none font-bold text-purple-700 min-w-[100px]">
+                              <option value="">كل الفترات</option>
+                              {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                      </div>
+                      <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                          <Filter size={14} className="text-gray-400"/>
                           <select value={logClass} onChange={e => setLogClass(e.target.value)} className="bg-transparent outline-none font-bold text-gray-700 min-w-[100px]">
                               <option value="">جميع الفصول</option>
                               {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
@@ -721,14 +748,18 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                               {uniqueSubjects.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                       </div>
-                      <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
-                          <span className="text-xs text-gray-400">من:</span>
-                          <input type="date" value={logDateStart} onChange={e => setLogDateStart(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
-                      </div>
-                      <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
-                          <span className="text-xs text-gray-400">إلى:</span>
-                          <input type="date" value={logDateEnd} onChange={e => setLogDateEnd(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
-                      </div>
+                      {!selectedTermId && (
+                          <>
+                            <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                                <span className="text-xs text-gray-400">من:</span>
+                                <input type="date" value={logDateStart} onChange={e => setLogDateStart(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
+                            </div>
+                            <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                                <span className="text-xs text-gray-400">إلى:</span>
+                                <input type="date" value={logDateEnd} onChange={e => setLogDateEnd(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
+                            </div>
+                          </>
+                      )}
                       <div className="relative">
                           <Search size={14} className="absolute right-2 top-2 text-gray-400"/>
                           <input type="text" placeholder="بحث..." value={logSearch} onChange={e => setLogSearch(e.target.value)} className="pl-2 pr-7 py-1 border rounded-lg outline-none text-sm w-32 focus:ring-1 focus:ring-purple-300"/>
