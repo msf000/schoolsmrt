@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme, AcademicTerm } from '../types';
+import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme, AcademicTerm, TermPeriod } from '../types';
 import { 
     getTeachers, updateTeacher,
     getSchools, getSubjects, addSubject, deleteSubject,
@@ -11,7 +11,7 @@ import {
     getUserTheme, saveUserTheme,
     getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -54,6 +54,12 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [newTermName, setNewTermName] = useState('');
   const [newTermStart, setNewTermStart] = useState('');
   const [newTermEnd, setNewTermEnd] = useState('');
+  const [expandedTermId, setExpandedTermId] = useState<string | null>(null);
+  
+  // New Period UI State
+  const [newPeriodName, setNewPeriodName] = useState('');
+  const [newPeriodStart, setNewPeriodStart] = useState('');
+  const [newPeriodEnd, setNewPeriodEnd] = useState('');
 
   // Schedule UI State
   const [scheduleViewMode, setScheduleViewMode] = useState<'CLASS' | 'TEACHER'>('CLASS');
@@ -175,11 +181,37 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           startDate: newTermStart,
           endDate: newTermEnd,
           isCurrent: academicTerms.length === 0, // Default to current if first
-          teacherId: currentUser.id
+          teacherId: currentUser.id,
+          periods: []
       };
       saveAcademicTerm(term);
       setAcademicTerms(getAcademicTerms(currentUser.id));
       setNewTermName(''); setNewTermStart(''); setNewTermEnd('');
+  };
+
+  const handleAddPeriod = (term: AcademicTerm) => {
+      if (!newPeriodName || !newPeriodStart || !newPeriodEnd) {
+          alert('يرجى تعبئة بيانات الفترة');
+          return;
+      }
+      const period: TermPeriod = {
+          id: Date.now().toString() + '_p',
+          name: newPeriodName,
+          startDate: newPeriodStart,
+          endDate: newPeriodEnd
+      };
+      const updatedTerm = { ...term, periods: [...(term.periods || []), period] };
+      saveAcademicTerm(updatedTerm);
+      setAcademicTerms(getAcademicTerms(currentUser?.id));
+      setNewPeriodName(''); setNewPeriodStart(''); setNewPeriodEnd('');
+  };
+
+  const handleDeletePeriod = (term: AcademicTerm, periodId: string) => {
+      if(confirm('حذف الفترة؟')) {
+          const updatedPeriods = term.periods?.filter(p => p.id !== periodId) || [];
+          saveAcademicTerm({ ...term, periods: updatedPeriods });
+          setAcademicTerms(getAcademicTerms(currentUser?.id));
+      }
   };
 
   const handleDeleteTerm = (id: string) => {
@@ -499,7 +531,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                         <div>
                             <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><CalendarDays className="text-indigo-600"/> التقويم الدراسي</h3>
-                            <p className="text-sm text-gray-500">تحديد الفصول الدراسية وتواريخ بدايتها ونهايتها لحساب الحضور والدرجات بدقة.</p>
+                            <p className="text-sm text-gray-500">تحديد الفصول الدراسية والفترات التابعة لها لضبط حساب الغياب والدرجات.</p>
                         </div>
                     </div>
 
@@ -525,6 +557,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         <table className="w-full text-right text-sm">
                             <thead className="bg-indigo-50 text-indigo-900 font-bold">
                                 <tr>
+                                    <th className="p-3 w-10"></th>
                                     <th className="p-3">الفصل الدراسي</th>
                                     <th className="p-3">البداية</th>
                                     <th className="p-3">النهاية</th>
@@ -534,28 +567,73 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                             </thead>
                             <tbody className="divide-y bg-white">
                                 {academicTerms.map(term => (
-                                    <tr key={term.id} className="hover:bg-gray-50">
-                                        <td className="p-3 font-bold text-gray-800">{term.name}</td>
-                                        <td className="p-3 font-mono text-gray-600">{term.startDate}</td>
-                                        <td className="p-3 font-mono text-gray-600">{term.endDate}</td>
-                                        <td className="p-3 text-center">
-                                            {term.isCurrent ? (
-                                                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 mx-auto w-fit">
-                                                    <CheckCircle size={12}/> نشط
-                                                </span>
-                                            ) : (
-                                                <button onClick={() => handleSetCurrentTerm(term.id)} className="text-gray-400 hover:text-indigo-600 text-xs font-bold border px-2 py-1 rounded hover:bg-indigo-50">
-                                                    تنشيط
-                                                </button>
-                                            )}
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <button onClick={() => handleDeleteTerm(term.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
-                                        </td>
-                                    </tr>
+                                    <React.Fragment key={term.id}>
+                                        <tr className="hover:bg-gray-50">
+                                            <td className="p-3 text-center cursor-pointer" onClick={() => setExpandedTermId(expandedTermId === term.id ? null : term.id)}>
+                                                {expandedTermId === term.id ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
+                                            </td>
+                                            <td className="p-3 font-bold text-gray-800">{term.name} <span className="text-xs text-gray-400 font-normal">({term.periods?.length || 0} فترات)</span></td>
+                                            <td className="p-3 font-mono text-gray-600">{term.startDate}</td>
+                                            <td className="p-3 font-mono text-gray-600">{term.endDate}</td>
+                                            <td className="p-3 text-center">
+                                                {term.isCurrent ? (
+                                                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 mx-auto w-fit">
+                                                        <CheckCircle size={12}/> نشط
+                                                    </span>
+                                                ) : (
+                                                    <button onClick={() => handleSetCurrentTerm(term.id)} className="text-gray-400 hover:text-indigo-600 text-xs font-bold border px-2 py-1 rounded hover:bg-indigo-50">
+                                                        تنشيط
+                                                    </button>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                <button onClick={() => handleDeleteTerm(term.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
+                                            </td>
+                                        </tr>
+                                        {/* Sub-Periods Row */}
+                                        {expandedTermId === term.id && (
+                                            <tr className="bg-gray-50/50">
+                                                <td colSpan={6} className="p-4 border-t border-b">
+                                                    <div className="pl-8 pr-4">
+                                                        <h4 className="font-bold text-gray-700 mb-3 text-xs flex items-center gap-2"><ListTree size={14}/> الفترات التقويمية التابعة لـ {term.name}</h4>
+                                                        
+                                                        <div className="bg-white border rounded-lg p-3 mb-3 flex flex-wrap items-end gap-2 shadow-sm">
+                                                            <div className="flex-1">
+                                                                <label className="text-[10px] font-bold text-gray-500 block mb-1">اسم الفترة</label>
+                                                                <input className="w-full p-1.5 border rounded text-xs" placeholder="مثال: الفترة الأولى" value={newPeriodName} onChange={e => setNewPeriodName(e.target.value)}/>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-gray-500 block mb-1">من</label>
+                                                                <input type="date" className="p-1.5 border rounded text-xs bg-white" value={newPeriodStart} onChange={e => setNewPeriodStart(e.target.value)}/>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-gray-500 block mb-1">إلى</label>
+                                                                <input type="date" className="p-1.5 border rounded text-xs bg-white" value={newPeriodEnd} onChange={e => setNewPeriodEnd(e.target.value)}/>
+                                                            </div>
+                                                            <button onClick={() => handleAddPeriod(term)} className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700">إضافة</button>
+                                                        </div>
+
+                                                        {term.periods && term.periods.length > 0 ? (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                                {term.periods.map(period => (
+                                                                    <div key={period.id} className="flex justify-between items-center bg-white border rounded p-2 text-xs">
+                                                                        <div>
+                                                                            <span className="font-bold text-gray-800 block">{period.name}</span>
+                                                                            <span className="text-gray-400 font-mono text-[10px]">{period.startDate} -> {period.endDate}</span>
+                                                                        </div>
+                                                                        <button onClick={() => handleDeletePeriod(term, period.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : <p className="text-xs text-gray-400 italic">لا توجد فترات مضافة لهذا الفصل.</p>}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
                                 ))}
                                 {academicTerms.length === 0 && (
-                                    <tr><td colSpan={5} className="p-8 text-center text-gray-400">لم يتم إضافة فصول دراسية بعد</td></tr>
+                                    <tr><td colSpan={6} className="p-8 text-center text-gray-400">لم يتم إضافة فصول دراسية بعد</td></tr>
                                 )}
                             </tbody>
                         </table>

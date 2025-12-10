@@ -886,6 +886,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   sourceMetadata TEXT,
   teacherId TEXT,
   termId TEXT,
+  periodId TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -1088,6 +1089,7 @@ CREATE TABLE IF NOT EXISTS academic_terms (
   endDate TEXT,
   isCurrent BOOLEAN,
   teacherId TEXT,
+  periods JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 `;
@@ -1096,16 +1098,7 @@ CREATE TABLE IF NOT EXISTS academic_terms (
 export const getDatabaseUpdateSQL = () => {
     return `
 -- Use this block only if you are updating an existing database to add new features
-ALTER TABLE assignments ADD COLUMN IF NOT EXISTS termId TEXT;
-
-CREATE TABLE IF NOT EXISTS academic_terms (
-  id TEXT PRIMARY KEY,
-  name TEXT,
-  startDate TEXT,
-  endDate TEXT,
-  isCurrent BOOLEAN,
-  teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS periodId TEXT;
+ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS periods JSONB;
 `;
 };

@@ -85,24 +85,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleDemoLogin = (role: 'MANAGER' | 'TEACHER' | 'STUDENT') => {
-      setLoading(true);
-      setSystemMode(true);
-      setTimeout(() => {
-          if (role === 'MANAGER') {
-              const u = getSystemUsers().find(u => u.email === 'manager@demo.com');
-              if(u) onLoginSuccess({ ...u, isDemo: true }, false);
-          } else if (role === 'TEACHER') {
-              const u = getSystemUsers().find(u => u.email === 'teacher@demo.com');
-              if(u) onLoginSuccess({ ...u, isDemo: true }, false);
-          } else if (role === 'STUDENT') {
-              const s = getStudents().find(s => s.nationalId === '1010101010');
-              if(s) onLoginSuccess({ ...s, role: 'STUDENT', email: s.nationalId, isDemo: true }, false);
-          }
-          setLoading(false);
-      }, 500);
-  };
-
   const handleReset = () => {
       if (confirm('تحذير: سيتم حذف جميع الحسابات والبيانات المخزنة محلياً.\nهل أنت متأكد من مسح كل شيء؟')) {
           clearDatabase();
@@ -243,30 +225,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         </button>
                     </div>
                 )}
-
-                <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-200"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-white text-gray-500 font-bold">أو جرب النظام (Demo)</span>
-                    </div>
-                </div>
-
-                {/* Demo Access Buttons */}
-                <div className="grid grid-cols-3 gap-3">
-                    <button onClick={() => { setRoleMode('STAFF'); handleDemoLogin('MANAGER'); }} className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors text-xs font-bold text-purple-700 group">
-                        <LayoutTemplate size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة مدير
-                    </button>
-                    <button onClick={() => { setRoleMode('STAFF'); handleDemoLogin('TEACHER'); }} className="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors text-xs font-bold text-blue-700 group">
-                        <User size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة معلم
-                    </button>
-                    <button onClick={() => { setRoleMode('STUDENT'); handleDemoLogin('STUDENT'); }} className="flex flex-col items-center justify-center p-3 rounded-xl bg-green-50 hover:bg-green-100 border border-green-100 transition-colors text-xs font-bold text-green-700 group">
-                        <Users size={20} className="mb-2 group-hover:scale-110 transition-transform"/> تجربة طالب
-                    </button>
-                </div>
                 
-                <div className="text-[10px] text-gray-400 text-center mt-4 flex items-center justify-center gap-3">
+                <div className="text-[10px] text-gray-400 text-center mt-8 flex items-center justify-center gap-3 border-t pt-4">
                     <span className="flex items-center gap-1"><CloudLightning size={12}/> المزامنة السحابية</span>
                     <button onClick={handleReset} className="text-red-300 hover:text-red-500 flex items-center gap-1 transition-colors" title="مسح كافة البيانات المحلية">
                         <Trash2 size={12}/> إعادة ضبط

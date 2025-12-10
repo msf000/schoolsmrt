@@ -132,6 +132,14 @@ export interface AttendanceRecord {
 
 export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
 
+// NEW: Sub-periods for Academic Term (e.g., Period 1, Period 2)
+export interface TermPeriod {
+    id: string;
+    name: string; // e.g. "الفترة الأولى"
+    startDate: string;
+    endDate: string;
+}
+
 // NEW: Academic Term for Calendar
 export interface AcademicTerm {
     id: string;
@@ -140,6 +148,7 @@ export interface AcademicTerm {
     endDate: string; // YYYY-MM-DD
     isCurrent: boolean;
     teacherId?: string; // Created by teacher
+    periods?: TermPeriod[]; // Nested periods
 }
 
 // NEW: Dedicated Assignment Table
@@ -154,6 +163,7 @@ export interface Assignment {
     sourceMetadata?: string; // JSON string for excel source info
     teacherId?: string; // NEW: Assignment belongs to teacher
     termId?: string; // NEW: Linked to Academic Term
+    periodId?: string; // NEW: Linked to specific Period inside Term
 }
 
 export interface PerformanceRecord {
