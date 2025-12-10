@@ -153,7 +153,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         try {
             const result = await fetchWorkbookStructureUrl(masterUrl);
             const workbook = result.workbook;
-            const sheetNames: string[] = Array.isArray(result.sheetNames) ? result.sheetNames : [];
+            const sheetNames: string[] = Array.isArray(result.sheetNames) ? (result.sheetNames as string[]) : [];
 
             setWorkbookCache(workbook);
             setAvailableSheets(sheetNames);
@@ -164,7 +164,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 setFoundHeaders(headers);
             } else if (sheetNames.length > 0) {
                 // Auto-select first if none selected
-                const firstSheet = sheetNames[0];
+                const firstSheet = String(sheetNames[0]);
                 handleSetTargetSheet(firstSheet);
                 const { headers } = getSheetHeadersAndData(workbook, firstSheet);
                 setFoundHeaders(headers);
@@ -234,7 +234,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const res = await fetchWorkbookStructureUrl(masterUrl);
                 workbook = res.workbook;
                 // If target sheet not set or invalid, try to guess or use first
-                const sheetNames: string[] = res.sheetNames || [];
+                const sheetNames: string[] = Array.isArray(res.sheetNames) ? (res.sheetNames as string[]) : [];
                 if (!currentSheetName || !sheetNames.includes(currentSheetName)) {
                     currentSheetName = sheetNames.length > 0 ? String(sheetNames[0]) : '';
                     // Save preference if we had to guess

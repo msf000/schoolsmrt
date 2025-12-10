@@ -27,7 +27,7 @@ const hasValidKey = () => {
 };
 
 // --- RETRY LOGIC (New) ---
-// Wraps API calls to handle 429 (Quota Exceeded) errors gracefully
+// Wraps API calls to handle 429 (Quota Exceeded) errors gracefully and stop on 403
 async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
     if (!hasValidKey()) {
         throw new Error("مفتاح API غير صالح أو غير مهيأ. يرجى التحقق من الإعدادات.");
@@ -38,8 +38,8 @@ async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 20
     } catch (error: any) {
         // FAIL FAST: If Permission Denied (403) or Invalid Key, do not retry.
         if (error.status === 403 || error.code === 403 || error.message?.includes('API key') || error.message?.includes('PERMISSION_DENIED')) {
-            // Silently fail to avoid console spam, just return error
-            throw new Error("خدمة الذكاء الاصطناعي غير متوفرة حالياً (تأكد من مفتاح API).");
+            // Silently fail to avoid console spam, return a friendly error
+            throw new Error("خدمة الذكاء الاصطناعي غير متوفرة حالياً (تأكد من مفتاح API وصلاحياته).");
         }
 
         // Check for 429 or Quota related messages
@@ -328,9 +328,6 @@ export const generateStudentAnalysis = async (student: Student, attendance: Atte
         return "خدمة التحليل غير متوفرة.";
     }
 };
-
-// ... Include other functions (generateQuiz, generateRemedialPlan, etc.) similarly wrapped with withRetry ...
-// For brevity, assuming other functions follow the same pattern of using `withRetry` wrapper.
 
 export const generateQuiz = async (subject: string, topic: string, grade: string, count: number, difficulty: string) => {
      const { model } = getConfig();

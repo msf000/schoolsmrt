@@ -11,8 +11,9 @@ import { supabase } from './supabaseClient';
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
 
 // --- Database Mapping ---
+// Order matters for sequential sync (Critical tables first)
 export const DB_MAP: Record<string, string> = {
-    schools: 'schools', // Critical: Check this first
+    schools: 'schools', 
     systemUsers: 'system_users',
     teachers: 'teachers',
     students: 'students',
@@ -134,7 +135,7 @@ const processPushQueue = async () => {
     const batch = [...pushQueue];
     pushQueue.length = 0; // Clear queue
 
-    // Group by table to optimize
+    // Group by table to optimize upserts
     const grouped: Record<string, any[]> = {};
     batch.forEach(item => {
         if (!grouped[item.table]) grouped[item.table] = [];
@@ -167,14 +168,14 @@ const pushToCloud = (key: string, data: any) => {
     // Add to queue
     pushQueue.push({ table: tableName, data });
 
-    // Debounce processing
+    // Debounce processing (wait 2s before sending to bundle requests)
     clearTimeout(pushTimeout);
-    pushTimeout = setTimeout(processPushQueue, 2000); // 2 seconds delay
+    pushTimeout = setTimeout(processPushQueue, 2000); 
 };
 
 export const checkConnection = async () => {
     try {
-        // Quick check using a light query on the most critical table
+        // Quick check using a light query on the most critical table (Schools)
         // We use 'count' to be efficient and check table existence
         const { error, count } = await supabase.from('schools').select('*', { count: 'exact', head: true });
         
@@ -206,6 +207,72 @@ export const initAutoSync = async () => {
     await downloadFromSupabase();
 };
 
+// --- Cloud Sync (Graceful & Sequential) ---
+
+export const downloadFromSupabase = async () => {
+    if (!isOnline) return;
+    
+    notifySyncStatus('SYNCING');
+    try {
+        const keys = Object.keys(DB_MAP);
+        // Use sequential loop to abort early on failure (Avoids 404 Storm)
+        for (const key of keys) {
+            if (!isOnline) break; // Stop if previous iteration detected offline
+
+            const tableName = DB_MAP[key];
+            const { data, error } = await supabase.from(tableName).select('*');
+            
+            if (error) {
+                console.warn(`Could not sync table ${tableName}:`, error.message);
+                // If table missing (404/42P01) or connection failed, stop trying others immediately
+                if (error.code === 'PGRST301' || error.code === '42P01' || error.message.includes('404') || error.message.includes('fetch')) {
+                     isOnline = false;
+                     notifySyncStatus('OFFLINE');
+                     break; 
+                }
+                continue; // Skip this table but try others if error is minor
+            }
+            
+            if (data) {
+                (CACHE as any)[key] = data;
+                localStorage.setItem(key, JSON.stringify(data));
+            }
+        }
+        
+        if (isOnline) {
+            notifyDataChanges();
+            notifySyncStatus('ONLINE');
+        }
+    } catch (e) {
+        console.error('General Sync failed', e);
+        notifySyncStatus('OFFLINE');
+    }
+};
+
+export const uploadToSupabase = async () => {
+    notifySyncStatus('SYNCING');
+    try {
+        const keys = Object.keys(DB_MAP);
+        await Promise.all(keys.map(async (key) => {
+            const tableName = DB_MAP[key];
+            const localData = (CACHE as any)[key];
+            if (Array.isArray(localData) && localData.length > 0) {
+                // Upsert in chunks to avoid payload limits
+                const chunkSize = 100;
+                for (let i = 0; i < localData.length; i += chunkSize) {
+                    const chunk = localData.slice(i, i + chunkSize);
+                    const { error } = await supabase.from(tableName).upsert(chunk);
+                    if (error) console.warn(`Upload warning for ${tableName}:`, error.message);
+                }
+            }
+        }));
+        notifySyncStatus('ONLINE');
+    } catch (e) {
+        notifySyncStatus('ERROR');
+        console.error('Upload failed', e);
+    }
+};
+
 // --- CRUD Operations (Updated with pushToCloud) ---
 
 // 1. Students
@@ -223,7 +290,7 @@ export const updateStudent = (student: Student) => {
 export const deleteStudent = (id: string) => {
     CACHE.students = CACHE.students.filter(s => s.id !== id);
     saveToLocal('students', CACHE.students);
-    // Delete logic typically handled by soft delete or specific API call if needed
+    // Note: Deletes are not pushed to cloud via upsert. Requires dedicated delete logic or soft delete.
 };
 export const bulkAddStudents = (students: Student[]) => {
     CACHE.students = [...CACHE.students, ...students];
@@ -697,14 +764,7 @@ export const setCurrentTerm = (id: string, teacherId?: string) => {
     saveToLocal('academicTerms', updated); // Persist
 }
 
-export const getStorageStatistics = () => {
-    return Object.keys(CACHE).reduce((acc, key) => {
-        const val = (CACHE as any)[key];
-        acc[key] = Array.isArray(val) ? val.length : 1;
-        return acc;
-    }, {} as Record<string, number>);
-};
-
+// --- Helper for UI ---
 export const getTableDisplayName = (tableName: string) => {
     const reverseMap: Record<string, string> = {
         'schools': 'المدارس',
@@ -735,73 +795,16 @@ export const getTableDisplayName = (tableName: string) => {
     return reverseMap[tableName] || tableName;
 };
 
-// --- Cloud Sync (Graceful) ---
-
-export const downloadFromSupabase = async () => {
-    if (!isOnline) return;
-    
-    notifySyncStatus('SYNCING');
-    try {
-        const keys = Object.keys(DB_MAP);
-        // Use sequential loop to abort early on failure
-        for (const key of keys) {
-            if (!isOnline) break; // Stop if previous iteration detected offline
-
-            const tableName = DB_MAP[key];
-            const { data, error } = await supabase.from(tableName).select('*');
-            
-            if (error) {
-                console.warn(`Could not sync table ${tableName}:`, error.message);
-                // If table missing (404/42P01) or connection failed, stop trying others
-                if (error.code === 'PGRST301' || error.code === '42P01' || error.message.includes('404') || error.message.includes('fetch')) {
-                     isOnline = false;
-                     notifySyncStatus('OFFLINE');
-                     break; 
-                }
-                continue; // Skip this table but try others if error is minor
-            }
-            
-            if (data) {
-                (CACHE as any)[key] = data;
-                localStorage.setItem(key, JSON.stringify(data));
-            }
-        }
-        
-        if (isOnline) {
-            notifyDataChanges();
-            notifySyncStatus('ONLINE');
-        }
-    } catch (e) {
-        console.error('General Sync failed', e);
-        notifySyncStatus('OFFLINE');
-    }
+export const getStorageStatistics = () => {
+    return Object.keys(CACHE).reduce((acc, key) => {
+        const val = (CACHE as any)[key];
+        acc[key] = Array.isArray(val) ? val.length : 1;
+        return acc;
+    }, {} as Record<string, number>);
 };
 
-export const uploadToSupabase = async () => {
-    notifySyncStatus('SYNCING');
-    try {
-        const keys = Object.keys(DB_MAP);
-        await Promise.all(keys.map(async (key) => {
-            const tableName = DB_MAP[key];
-            const localData = (CACHE as any)[key];
-            if (Array.isArray(localData) && localData.length > 0) {
-                // Upsert in chunks to avoid payload limits
-                const chunkSize = 100;
-                for (let i = 0; i < localData.length; i += chunkSize) {
-                    const chunk = localData.slice(i, i + chunkSize);
-                    const { error } = await supabase.from(tableName).upsert(chunk);
-                    if (error) console.warn(`Upload warning for ${tableName}:`, error.message);
-                }
-            }
-        }));
-        notifySyncStatus('ONLINE');
-    } catch (e) {
-        notifySyncStatus('ERROR');
-        console.error('Upload failed', e);
-    }
-};
+// --- Admin Tools ---
 
-// ... (Rest of SQL generators and Admin Tools remain same) ...
 export const createBackup = () => JSON.stringify(CACHE);
 
 export const restoreBackup = (json: string) => {
