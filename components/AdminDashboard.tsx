@@ -391,7 +391,7 @@ const UsersManager = () => {
     );
 };
 
-// ... (SubscriptionsManager component code - no changes) ...
+// ... (SubscriptionsManager and AISettingsView component code - no changes) ...
 const SubscriptionsManager = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -480,9 +480,6 @@ const SubscriptionsManager = () => {
     );
 };
 
-// ==========================================
-// 4. AI SETTINGS COMPONENT (UPDATED)
-// ==========================================
 const AISettingsView = () => {
     const [aiConfig, setAiConfig] = useState<AISettings>({ modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' });
     const [connectionStatus, setConnectionStatus] = useState<{status: 'IDLE' | 'TESTING' | 'SUCCESS' | 'ERROR', msg: string}>({status: 'IDLE', msg: ''});
@@ -644,6 +641,14 @@ const DatabaseSettings = () => {
         }
     };
 
+    const handleResetConfig = () => {
+        if(confirm('سيتم حذف إعدادات Supabase والعودة للافتراضي. متابعة؟')) {
+            localStorage.removeItem('custom_supabase_url');
+            localStorage.removeItem('custom_supabase_key');
+            window.location.reload();
+        }
+    }
+
     const handleFetchCloud = async () => {
         setCloudLoading(true);
         try {
@@ -784,7 +789,12 @@ const DatabaseSettings = () => {
                                 </p>
                             </div>
                         </div>
-                        <button onClick={handleCheckConnection} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1"><RefreshCw size={14}/> فحص</button>
+                        <div className="flex gap-2">
+                            {connectionStatus === 'ERROR' && (
+                                <button onClick={handleResetConfig} className="text-sm font-bold text-red-600 hover:bg-red-50 px-3 py-1 rounded">إعادة ضبط</button>
+                            )}
+                            <button onClick={handleCheckConnection} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1"><RefreshCw size={14}/> فحص</button>
+                        </div>
                     </div>
 
                     {/* Credentials Form */}
