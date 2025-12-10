@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
-import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects } from '../services/storageService';
+import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser, AcademicTerm } from '../types';
+import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, getAcademicTerms } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, AlertTriangle, Zap, Check, DownloadCloud, FileSpreadsheet, Calendar, Filter } from 'lucide-react';
 
@@ -51,13 +51,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); 
     const [activityTarget, setActivityTarget] = useState<number>(13); 
     
-    // --- PERIODS STATE ---
-    const [periods, setPeriods] = useState<string[]>(() => {
-        const saved = localStorage.getItem('works_periods');
-        return saved ? JSON.parse(saved) : ['الفترة الأولى', 'الفترة الثانية', 'الفترة الثالثة'];
-    });
-    const [selectedPeriod, setSelectedPeriod] = useState<string>(periods[0]);
-    const [newPeriodName, setNewPeriodName] = useState('');
+    // --- ACADEMIC TERMS STATE ---
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
 
     // Status States
     const [savedSuccess, setSavedSuccess] = useState(false);
@@ -88,6 +84,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (loadedSubjects.length > 0) setSelectedSubject(loadedSubjects[0].name);
         else setSelectedSubject('عام');
 
+        // Load Terms
+        const loadedTerms = getAcademicTerms(currentUser?.id);
+        setTerms(loadedTerms);
+        const current = loadedTerms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+
         const schools = getSchools();
         if (schools.length > 0 && schools[0].worksMasterUrl) {
             setMasterUrl(schools[0].worksMasterUrl);
@@ -101,48 +104,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (savedTarget) setActivityTarget(parseInt(savedTarget));
     }, [currentUser]);
 
-    // Save Periods
-    useEffect(() => {
-        localStorage.setItem('works_periods', JSON.stringify(periods));
-    }, [periods]);
-
-    // Helper to get period from assignment metadata
-    const getAssignmentPeriod = (assignment: Assignment): string => {
-        try {
-            if (assignment.sourceMetadata) {
-                const meta = JSON.parse(assignment.sourceMetadata);
-                return meta.period || periods[0];
-            }
-        } catch {}
-        return periods[0];
-    };
-
-    // Helper to set period
-    const setAssignmentPeriod = (assignment: Assignment, period: string) => {
-        let meta = {};
-        try { meta = JSON.parse(assignment.sourceMetadata || '{}'); } catch {}
-        const newMeta = { ...meta, period };
-        
-        const updated = { ...assignment, sourceMetadata: JSON.stringify(newMeta) };
+    // Helper to set term for assignment
+    const setAssignmentTerm = (assignment: Assignment, termId: string) => {
+        const updated = { ...assignment, termId: termId };
         saveAssignment(updated); // Save to DB
-        
         // Update local state
         setAssignments(prev => prev.map(a => a.id === assignment.id ? updated : a));
-    };
-
-    // --- PERIOD MANAGEMENT ---
-    const handleAddPeriod = () => {
-        if (newPeriodName && !periods.includes(newPeriodName)) {
-            setPeriods([...periods, newPeriodName]);
-            setNewPeriodName('');
-        }
-    };
-
-    const handleDeletePeriod = (p: string) => {
-        if (confirm(`حذف الفترة "${p}"؟`)) {
-            setPeriods(periods.filter(period => period !== p));
-            if (selectedPeriod === p) setSelectedPeriod(periods[0] || '');
-        }
     };
 
     // Save target sheet preference
@@ -161,23 +128,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!masterUrl) return;
         setIsGenerating(true);
         try {
-            const structure = await fetchWorkbookStructureUrl(masterUrl);
-            const workbook = structure.workbook;
-            const sheetNames = structure.sheetNames as string[];
-            
+            const result = await fetchWorkbookStructureUrl(masterUrl);
+            const workbook = result.workbook;
+            const sheetNames: string[] = result.sheetNames || [];
+
             setWorkbookCache(workbook);
             setAvailableSheets(sheetNames);
             
             // If current target sheet is valid, load its headers
             if (targetSheetName && sheetNames.includes(targetSheetName)) {
                 const { headers } = getSheetHeadersAndData(workbook, targetSheetName);
-                setFoundHeaders(headers as string[]);
+                setFoundHeaders(headers);
             } else if (sheetNames.length > 0) {
                 // Auto-select first if none selected
                 const firstSheet = String(sheetNames[0]);
                 handleSetTargetSheet(firstSheet);
                 const { headers } = getSheetHeadersAndData(workbook, firstSheet);
-                setFoundHeaders(headers as string[]);
+                setFoundHeaders(headers);
             }
             setStatusMsg('✅ تم الاتصال بالملف بنجاح');
         } catch (e: any) {
@@ -213,9 +180,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     isVisible: true,
                     orderIndex: assignments.length + idx, // Now idx is a number
                     teacherId: currentUser?.id,
-                    // Store the exact header name from excel to map correctly later
-                    // Also Default to current selected period
-                    sourceMetadata: JSON.stringify({ originalHeader: header, period: selectedPeriod })
+                    termId: selectedTermId, // Link to current Term
+                    sourceMetadata: JSON.stringify({ originalHeader: header })
                 };
                 saveAssignment(newAssign);
                 newCount++;
@@ -244,14 +210,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (!workbook) {
                 const res = await fetchWorkbookStructureUrl(masterUrl);
                 workbook = res.workbook;
-                const sheetNames = res.sheetNames as string[];
                 // If target sheet not set or invalid, try to guess or use first
+                const sheetNames: string[] = res.sheetNames || [];
                 if (!currentSheetName || !sheetNames.includes(currentSheetName)) {
-                    currentSheetName = String(sheetNames[0]);
+                    currentSheetName = sheetNames.length > 0 ? String(sheetNames[0]) : '';
                     // Save preference if we had to guess
-                    handleSetTargetSheet(currentSheetName);
+                    if (currentSheetName) handleSetTargetSheet(currentSheetName);
                 }
             }
+
+            if (!currentSheetName) throw new Error("No sheet found in workbook");
 
             const { data } = getSheetHeadersAndData(workbook, currentSheetName);
             
@@ -510,8 +478,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             url: '',
             orderIndex: assignments.length,
             teacherId: currentUser.id,
-            // Tag with current selected Period
-            sourceMetadata: JSON.stringify({ period: selectedPeriod })
+            // Tag with current selected Period/Term
+            termId: selectedTermId
         };
         saveAssignment(newAssign);
         setAssignments([...assignments, newAssign]);
@@ -543,28 +511,34 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [students]);
 
-    // --- FILTERED ASSIGNMENTS BY PERIOD ---
+    // --- FILTERED ASSIGNMENTS BY TERM ---
     const visibleAssignments = useMemo(() => {
-        // Show assignments matching selected period
+        // Show assignments matching selected term
         return assignments.filter(a => {
             if (!a.isVisible) return false;
             // Get period from metadata
-            const period = getAssignmentPeriod(a);
-            return selectedPeriod === 'ALL' || period === selectedPeriod;
+            const termId = a.termId;
+            return selectedTermId === 'ALL' || !termId || termId === selectedTermId;
         });
-    }, [assignments, selectedPeriod]);
+    }, [assignments, selectedTermId]);
+
+    // --- ACTIVE TERM DATA ---
+    const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
 
     const renderStudentRow = (student: Student, i: number) => {
+        // Calculate Attendance based on selected Term Date Range
         const myAtt = attendance.filter(a => a.studentId === student.id);
-        const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+        const termAtt = activeTerm ? myAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate) : myAtt;
+        
+        const absentCount = termAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
         const lowAttendance = absentCount > 3;
 
         const nameCell = (
             <td className="p-3 border-l font-bold text-gray-700 sticky right-0 bg-white z-10 shadow-sm border-r group-hover:bg-gray-50 flex items-center justify-between">
                 <span>{student.name}</span>
                 {lowAttendance && (
-                    <span className="text-red-500" title={`تنبيه: ${absentCount} غياب`}>
-                        <AlertTriangle size={14}/>
+                    <span className="text-red-500 font-bold text-xs" title={`تنبيه: ${absentCount} غياب في هذا الفصل`}>
+                        ({absentCount} غ) <AlertTriangle size={12} className="inline"/>
                     </span>
                 )}
             </td>
@@ -650,9 +624,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             actRecs.forEach(p => { if (!p.title.includes('حضور')) actSumVal += p.score; });
             const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * 15, 15) : 0;
 
-            const attRecs = attendance.filter(a => a.studentId === student.id);
-            const present = attRecs.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
-            const attGrade = attRecs.length > 0 ? (present / attRecs.length) * 15 : 15;
+            // Attendance based on Term
+            const present = termAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
+            const attGrade = termAtt.length > 0 ? (present / termAtt.length) * 15 : 15; // Defaults to full if no records
 
             const examRecs = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject);
             let examScoreTotal = 0;
@@ -710,17 +684,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </div>
                     )}
 
-                    {/* PERIOD SELECTOR (GRADING MODE) */}
+                    {/* PERIOD/TERM SELECTOR (GRADING MODE) */}
                     {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && (
                         <div className="flex items-center gap-2 bg-white p-1 rounded-lg border">
-                            <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Calendar size={14}/> الفترة:</span>
+                            <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Calendar size={14}/> التقويم:</span>
                             <select 
-                                value={selectedPeriod} 
-                                onChange={(e) => setSelectedPeriod(e.target.value)} 
+                                value={selectedTermId} 
+                                onChange={(e) => setSelectedTermId(e.target.value)} 
                                 className="bg-transparent text-sm font-bold outline-none text-purple-700 min-w-[120px]"
                             >
-                                {periods.map(p => <option key={p} value={p}>{p}</option>)}
-                                <option value="ALL">الكل</option>
+                                <option value="ALL">كل الفصول</option>
+                                {terms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </div>
                     )}
@@ -739,30 +713,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             {/* --- Management Mode: Connection Settings & Periods --- */}
             {activeMode === 'MANAGEMENT' && (
                 <div className="space-y-6">
-                    {/* Period Management */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
-                        <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><Calendar size={18} className="text-orange-600"/> إدارة الفترات</h3>
-                        <div className="flex gap-2 mb-4">
-                            <input 
-                                className="flex-1 p-2 bg-gray-50 border rounded text-sm" 
-                                placeholder="اسم الفترة الجديدة (مثال: الفترة الثالثة)..." 
-                                value={newPeriodName}
-                                onChange={e => setNewPeriodName(e.target.value)}
-                            />
-                            <button onClick={handleAddPeriod} disabled={!newPeriodName} className="bg-orange-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-orange-700 disabled:opacity-50 flex items-center gap-2">
-                                <Plus size={16}/> إضافة فترة
-                            </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {periods.map(p => (
-                                <div key={p} className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
-                                    <span className="text-sm font-bold text-gray-700">{p}</span>
-                                    <button onClick={() => handleDeletePeriod(p)} className="text-gray-400 hover:text-red-500"><Trash2 size={14}/></button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
                         {/* 1. Connection Section */}
                         <div className="mb-6">
@@ -820,13 +770,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 
                                 <div className="flex justify-between items-center bg-gray-50 p-2 rounded border">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-gray-600">تعيين للفترة:</span>
+                                        <span className="text-xs font-bold text-gray-600">تعيين للفصل:</span>
                                         <select 
                                             className="p-1 border rounded text-xs font-bold"
-                                            value={selectedPeriod}
-                                            onChange={e => setSelectedPeriod(e.target.value)}
+                                            value={selectedTermId}
+                                            onChange={e => setSelectedTermId(e.target.value)}
                                         >
-                                            {periods.map(p => <option key={p} value={p}>{p}</option>)}
+                                            {terms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                         </select>
                                     </div>
                                     <button 
@@ -887,7 +837,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <tr>
                                     <th className="p-3 w-12 text-center">#</th>
                                     <th className="p-3">العنوان</th>
-                                    <th className="p-3 w-32">الفترة</th>
+                                    <th className="p-3 w-32">الفصل الدراسي</th>
                                     <th className="p-3 w-24">الدرجة</th>
                                     <th className="p-3">الرابط (URL)</th>
                                     <th className="p-3 w-20 text-center">عرض</th>
@@ -902,10 +852,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <td className="p-3">
                                             <select 
                                                 className="w-full p-2 border rounded text-xs bg-white"
-                                                value={getAssignmentPeriod(col)}
-                                                onChange={(e) => setAssignmentPeriod(col, e.target.value)}
+                                                value={col.termId || ''}
+                                                onChange={(e) => setAssignmentTerm(col, e.target.value)}
                                             >
-                                                {periods.map(p => <option key={p} value={p}>{p}</option>)}
+                                                <option value="">غير محدد</option>
+                                                {terms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                             </select>
                                         </td>
                                         <td className="p-3"><input type="number" className="w-full p-2 border rounded text-center" value={col.maxScore} onChange={(e) => handleUpdateColumn(index, 'maxScore', e.target.value)} /></td>

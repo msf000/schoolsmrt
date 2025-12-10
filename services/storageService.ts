@@ -4,7 +4,7 @@ import {
     Assignment, ScheduleItem, TeacherAssignment, Subject, CustomTable, 
     LessonLink, MessageLog, Feedback, ReportHeaderConfig, AISettings, UserTheme, 
     PerformanceCategory, Exam, ExamResult, Question, StoredLessonPlan,
-    CurriculumUnit, CurriculumLesson, MicroConcept, TrackingSheet, WeeklyPlanItem
+    CurriculumUnit, CurriculumLesson, MicroConcept, TrackingSheet, WeeklyPlanItem, AcademicTerm
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -34,7 +34,8 @@ export const DB_MAP: Record<string, string> = {
     curriculumUnits: 'curriculum_units',
     curriculumLessons: 'curriculum_lessons',
     microConcepts: 'micro_concepts',
-    trackingSheets: 'tracking_sheets'
+    trackingSheets: 'tracking_sheets',
+    academicTerms: 'academic_terms'
 };
 
 export const getTableDisplayName = (key: string) => {
@@ -60,7 +61,8 @@ export const getTableDisplayName = (key: string) => {
         curriculumUnits: 'وحدات المنهج',
         curriculumLessons: 'دروس المنهج',
         microConcepts: 'المفاهيم الدقيقة',
-        trackingSheets: 'سجلات المتابعة'
+        trackingSheets: 'سجلات المتابعة',
+        academicTerms: 'التقويم الدراسي'
     };
     return map[key] || key;
 };
@@ -101,6 +103,7 @@ const CACHE = {
     curriculumLessons: [] as CurriculumLesson[],
     microConcepts: [] as MicroConcept[],
     trackingSheets: [] as TrackingSheet[],
+    academicTerms: [] as AcademicTerm[],
     reportConfig: {} as ReportHeaderConfig,
     aiSettings: DEFAULT_AI_SETTINGS,
     userTheme: DEFAULT_THEME,
@@ -437,8 +440,6 @@ export const deleteTeacherAssignment = (id: string) => {
 
 // 9. Config & Theme
 export const getReportHeaderConfig = (teacherId?: string) => {
-    // If teacherId provided, we could store per-teacher config, 
-    // but for now keeping it simple or returning global config
     return CACHE.reportConfig;
 };
 export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
@@ -622,6 +623,28 @@ export const saveTrackingSheet = (sheet: TrackingSheet) => {
 export const deleteTrackingSheet = (id: string) => {
     CACHE.trackingSheets = CACHE.trackingSheets.filter(x => x.id !== id);
     saveToLocal('trackingSheets', CACHE.trackingSheets);
+}
+
+// 15. Academic Terms
+export const getAcademicTerms = (teacherId?: string) => {
+    if(teacherId) return CACHE.academicTerms.filter(t => t.teacherId === teacherId || !t.teacherId);
+    return CACHE.academicTerms;
+}
+export const saveAcademicTerm = (term: AcademicTerm) => {
+    const idx = CACHE.academicTerms.findIndex(t => t.id === term.id);
+    if (idx > -1) CACHE.academicTerms[idx] = term;
+    else CACHE.academicTerms.push(term);
+    saveToLocal('academicTerms', CACHE.academicTerms);
+}
+export const deleteAcademicTerm = (id: string) => {
+    CACHE.academicTerms = CACHE.academicTerms.filter(t => t.id !== id);
+    saveToLocal('academicTerms', CACHE.academicTerms);
+}
+export const setCurrentTerm = (id: string, teacherId?: string) => {
+    const terms = getAcademicTerms(teacherId);
+    const updated = terms.map(t => ({ ...t, isCurrent: t.id === id }));
+    CACHE.academicTerms = updated; // Update memory
+    saveToLocal('academicTerms', updated); // Persist
 }
 
 export const getStorageStatistics = () => {
@@ -862,6 +885,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   orderIndex INTEGER,
   sourceMetadata TEXT,
   teacherId TEXT,
+  termId TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -1055,48 +1079,32 @@ CREATE TABLE IF NOT EXISTS tracking_sheets (
   scores JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 24. Academic Terms
+CREATE TABLE IF NOT EXISTS academic_terms (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  startDate TEXT,
+  endDate TEXT,
+  isCurrent BOOLEAN,
+  teacherId TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 `;
 };
 
 export const getDatabaseUpdateSQL = () => {
     return `
 -- Use this block only if you are updating an existing database to add new features
-ALTER TABLE students ADD COLUMN IF NOT EXISTS seatIndex INTEGER;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS phone TEXT;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS createdById TEXT;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS termId TEXT;
 
-CREATE TABLE IF NOT EXISTS questions (
+CREATE TABLE IF NOT EXISTS academic_terms (
   id TEXT PRIMARY KEY,
-  text TEXT,
-  type TEXT,
-  options JSONB,
-  correctAnswer TEXT,
-  points INTEGER,
-  subject TEXT,
-  gradeLevel TEXT,
-  topic TEXT,
-  difficulty TEXT,
+  name TEXT,
+  startDate TEXT,
+  endDate TEXT,
+  isCurrent BOOLEAN,
   teacherId TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS curriculum_units (
-  id TEXT PRIMARY KEY,
-  teacherId TEXT,
-  subject TEXT,
-  gradeLevel TEXT,
-  title TEXT,
-  orderIndex INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS curriculum_lessons (
-  id TEXT PRIMARY KEY,
-  unitId TEXT,
-  title TEXT,
-  orderIndex INTEGER,
-  learningStandards JSONB,
-  microConceptIds JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 `;

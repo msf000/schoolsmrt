@@ -132,6 +132,16 @@ export interface AttendanceRecord {
 
 export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
 
+// NEW: Academic Term for Calendar
+export interface AcademicTerm {
+    id: string;
+    name: string; // e.g. "الفصل الدراسي الأول 1446"
+    startDate: string; // YYYY-MM-DD
+    endDate: string; // YYYY-MM-DD
+    isCurrent: boolean;
+    teacherId?: string; // Created by teacher
+}
+
 // NEW: Dedicated Assignment Table
 export interface Assignment {
     id: string; // Unique ID (used as key in WorksTracking)
@@ -143,6 +153,7 @@ export interface Assignment {
     orderIndex?: number;
     sourceMetadata?: string; // JSON string for excel source info
     teacherId?: string; // NEW: Assignment belongs to teacher
+    termId?: string; // NEW: Linked to Academic Term
 }
 
 export interface PerformanceRecord {

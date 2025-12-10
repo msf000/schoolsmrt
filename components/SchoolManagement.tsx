@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme } from '../types';
+import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme, AcademicTerm } from '../types';
 import { 
     getTeachers, updateTeacher,
     getSchools, getSubjects, addSubject, deleteSubject,
@@ -8,9 +8,10 @@ import {
     getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment,
     getReportHeaderConfig, saveReportHeaderConfig,
     getFeedback, addFeedback, addSchool, updateSchool,
-    getUserTheme, saveUserTheme
+    getUserTheme, saveUserTheme,
+    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -23,7 +24,7 @@ interface SchoolManagementProps {
 
 export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onUpdateTheme }) => {
   const isManager = currentUser?.role === 'SCHOOL_MANAGER' || currentUser?.role === 'SUPER_ADMIN';
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS'>(() => {
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS' | 'CALENDAR'>(() => {
       return localStorage.getItem('school_mgmt_active_tab') as any || 'DASHBOARD';
   });
 
@@ -37,6 +38,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+  const [academicTerms, setAcademicTerms] = useState<AcademicTerm[]>([]);
   const [reportConfig, setReportConfig] = useState<ReportHeaderConfig>({
       schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: ''
   });
@@ -48,6 +50,11 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [newSubject, setNewSubject] = useState('');
   
+  // Calendar UI State
+  const [newTermName, setNewTermName] = useState('');
+  const [newTermStart, setNewTermStart] = useState('');
+  const [newTermEnd, setNewTermEnd] = useState('');
+
   // Schedule UI State
   const [scheduleViewMode, setScheduleViewMode] = useState<'CLASS' | 'TEACHER'>('CLASS');
   const [selectedClassForSchedule, setSelectedClassForSchedule] = useState('');
@@ -71,6 +78,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       if (currentUser) {
           setSubjects(getSubjects(currentUser.id));
           setReportConfig(getReportHeaderConfig(currentUser.id));
+          setAcademicTerms(getAcademicTerms(currentUser.id));
       }
       
       setSchedules(getSchedules());
@@ -152,6 +160,39 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       if (confirm('حذف المادة؟') && currentUser) {
           deleteSubject(id);
           setSubjects(getSubjects(currentUser.id));
+      }
+  };
+
+  const handleAddTerm = () => {
+      if (!newTermName || !newTermStart || !newTermEnd || !currentUser) {
+          alert('يرجى تعبئة جميع بيانات الفصل الدراسي');
+          return;
+      }
+      
+      const term: AcademicTerm = {
+          id: Date.now().toString(),
+          name: newTermName,
+          startDate: newTermStart,
+          endDate: newTermEnd,
+          isCurrent: academicTerms.length === 0, // Default to current if first
+          teacherId: currentUser.id
+      };
+      saveAcademicTerm(term);
+      setAcademicTerms(getAcademicTerms(currentUser.id));
+      setNewTermName(''); setNewTermStart(''); setNewTermEnd('');
+  };
+
+  const handleDeleteTerm = (id: string) => {
+      if (confirm('حذف الفصل الدراسي؟ سيتم فقدان ارتباطه بالواجبات.')) {
+          deleteAcademicTerm(id);
+          setAcademicTerms(getAcademicTerms(currentUser?.id));
+      }
+  };
+
+  const handleSetCurrentTerm = (id: string) => {
+      if (currentUser) {
+          setCurrentTerm(id, currentUser.id);
+          setAcademicTerms(getAcademicTerms(currentUser.id));
       }
   };
 
@@ -395,6 +436,9 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             <button onClick={() => setActiveTab('SCHEDULE')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SCHEDULE' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>
                 <Clock size={16} className="inline mr-2"/> الجدول الدراسي
             </button>
+            <button onClick={() => setActiveTab('CALENDAR')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'CALENDAR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>
+                <CalendarDays size={16} className="inline mr-2"/> التقويم الدراسي
+            </button>
             <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>
                 <Settings size={16} className="inline mr-2"/> {isManager ? 'إعدادات المدرسة' : 'الإعدادات الشخصية'}
             </button>
@@ -446,6 +490,75 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'CALENDAR' && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                        <div>
+                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><CalendarDays className="text-indigo-600"/> التقويم الدراسي</h3>
+                            <p className="text-sm text-gray-500">تحديد الفصول الدراسية وتواريخ بدايتها ونهايتها لحساب الحضور والدرجات بدقة.</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 flex flex-wrap items-end gap-3">
+                        <div className="flex-1 min-w-[200px]">
+                            <label className="block text-xs font-bold text-gray-600 mb-1">اسم الفصل الدراسي</label>
+                            <input className="w-full p-2 border rounded-lg text-sm" placeholder="مثال: الفصل الدراسي الأول 1447" value={newTermName} onChange={e => setNewTermName(e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">تاريخ البداية</label>
+                            <input type="date" className="p-2 border rounded-lg text-sm font-bold bg-white" value={newTermStart} onChange={e => setNewTermStart(e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">تاريخ النهاية</label>
+                            <input type="date" className="p-2 border rounded-lg text-sm font-bold bg-white" value={newTermEnd} onChange={e => setNewTermEnd(e.target.value)} />
+                        </div>
+                        <button onClick={handleAddTerm} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 flex items-center gap-2">
+                            <PlusCircle size={16}/> إضافة فصل
+                        </button>
+                    </div>
+
+                    <div className="overflow-hidden border rounded-xl">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-indigo-50 text-indigo-900 font-bold">
+                                <tr>
+                                    <th className="p-3">الفصل الدراسي</th>
+                                    <th className="p-3">البداية</th>
+                                    <th className="p-3">النهاية</th>
+                                    <th className="p-3 text-center">الحالة</th>
+                                    <th className="p-3 text-center">إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y bg-white">
+                                {academicTerms.map(term => (
+                                    <tr key={term.id} className="hover:bg-gray-50">
+                                        <td className="p-3 font-bold text-gray-800">{term.name}</td>
+                                        <td className="p-3 font-mono text-gray-600">{term.startDate}</td>
+                                        <td className="p-3 font-mono text-gray-600">{term.endDate}</td>
+                                        <td className="p-3 text-center">
+                                            {term.isCurrent ? (
+                                                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 mx-auto w-fit">
+                                                    <CheckCircle size={12}/> نشط
+                                                </span>
+                                            ) : (
+                                                <button onClick={() => handleSetCurrentTerm(term.id)} className="text-gray-400 hover:text-indigo-600 text-xs font-bold border px-2 py-1 rounded hover:bg-indigo-50">
+                                                    تنشيط
+                                                </button>
+                                            )}
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <button onClick={() => handleDeleteTerm(term.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {academicTerms.length === 0 && (
+                                    <tr><td colSpan={5} className="p-8 text-center text-gray-400">لم يتم إضافة فصول دراسية بعد</td></tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
