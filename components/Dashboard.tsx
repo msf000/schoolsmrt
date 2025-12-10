@@ -4,8 +4,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, ScatterChart, Scatter, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem } from '../types';
-import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
+import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans, getAcademicTerms } from '../services/storageService';
 import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table, XCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
@@ -50,12 +50,16 @@ const SystemAdminDashboard = () => (
 // --- SCHOOL MANAGER DASHBOARD ---
 const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performance, currentUser, onNavigate }) => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
     
     useEffect(() => {
         const allTeachers = getTeachers();
-        // Filter teachers belonging to this school manager's school
         const mySchoolTeachers = allTeachers.filter(t => t.schoolId === currentUser.schoolId || t.managerId === currentUser.nationalId);
         setTeachers(mySchoolTeachers);
+
+        const terms = getAcademicTerms(currentUser.id);
+        const active = terms.find(t => t.isCurrent) || (terms.length > 0 ? terms[0] : null);
+        setCurrentTerm(active);
     }, [currentUser]);
 
     const stats = useMemo(() => {
@@ -69,12 +73,17 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
         const absentToday = todaysRecords.filter((a: any) => a.status === 'ABSENT').length;
         const attendanceRate = totalStudents > 0 && todaysRecords.length > 0 ? Math.round((presentToday / todaysRecords.length) * 100) : 0;
 
-        // Performance Avg
-        const totalScore = performance.reduce((acc: number, curr: any) => acc + (curr.score / curr.maxScore), 0);
-        const avgPerformance = performance.length > 0 ? Math.round((totalScore / performance.length) * 100) : 0;
+        // Performance Avg (Filtered by Current Term if available)
+        let filteredPerf = performance;
+        if (currentTerm) {
+            filteredPerf = performance.filter((p: PerformanceRecord) => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+        }
+
+        const totalScore = filteredPerf.reduce((acc: number, curr: any) => acc + (curr.score / curr.maxScore), 0);
+        const avgPerformance = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
 
         return { totalStudents, totalTeachers, attendanceRate, absentToday, avgPerformance, presentToday };
-    }, [students, attendance, performance, teachers]);
+    }, [students, attendance, performance, teachers, currentTerm]);
 
     // Chart Data: Attendance by Grade
     const attendanceByGrade = useMemo(() => {
@@ -120,7 +129,7 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
                 </div>
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
                     <div>
-                        <p className="text-gray-500 text-xs font-bold mb-1">الأداء العام</p>
+                        <p className="text-gray-500 text-xs font-bold mb-1">الأداء العام {currentTerm ? `(${currentTerm.name})` : ''}</p>
                         <h3 className="text-3xl font-black text-orange-500">{stats.avgPerformance}%</h3>
                     </div>
                     <div className="bg-orange-50 p-3 rounded-full text-orange-600"><Activity size={24}/></div>
@@ -196,7 +205,7 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
     );
 };
 
-// --- TODO WIDGET ---
+// ... (TodoWidget, UpcomingExamsWidget, WeeklyPlanWidget components - NO CHANGES) ...
 const TodoWidget = () => {
     const [tasks, setTasks] = useState<{id: string, text: string, done: boolean}[]>(() => {
         const saved = localStorage.getItem('teacher_todo_list');
@@ -259,7 +268,6 @@ const TodoWidget = () => {
     );
 };
 
-// --- UPCOMING EXAMS WIDGET ---
 const UpcomingExamsWidget = ({ teacherId, onNavigate }: { teacherId: string, onNavigate?: (view: string) => void }) => {
     const [upcomingExams, setUpcomingExams] = useState<Exam[]>([]);
 
@@ -317,7 +325,6 @@ const UpcomingExamsWidget = ({ teacherId, onNavigate }: { teacherId: string, onN
     );
 };
 
-// --- WEEKLY PLAN WIDGET ---
 const WeeklyPlanWidget = ({ teacherId, onNavigate }: { teacherId: string, onNavigate?: (view: string) => void }) => {
     const [progress, setProgress] = useState({ totalSlots: 0, filledSlots: 0 });
     const [currentWeekStart, setCurrentWeekStart] = useState('');
@@ -394,10 +401,15 @@ const WeeklyPlanWidget = ({ teacherId, onNavigate }: { teacherId: string, onNavi
 const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
+  const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
 
   useEffect(() => {
       setSchedules(getSchedules());
       
+      const terms = getAcademicTerms(currentUser?.id);
+      const active = terms.find(t => t.isCurrent) || (terms.length > 0 ? terms[0] : null);
+      setCurrentTerm(active);
+
       if (currentUser?.role === 'TEACHER') {
           const teachers = getTeachers();
           const me = teachers.find(t => 
@@ -431,11 +443,17 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
     
     const attendanceRate = totalStudents > 0 ? Math.round((present / totalStudents) * 100) : 0;
 
-    const totalScore = performance.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
-    const avgScore = performance.length > 0 ? Math.round((totalScore / performance.length) * 100) : 0;
+    // Filter Performance by Current Term if available
+    let filteredPerf = performance;
+    if (currentTerm) {
+        filteredPerf = performance.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+    }
+
+    const totalScore = filteredPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
+    const avgScore = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
 
     return { totalStudents, present, absent, attendanceRate, avgScore };
-  }, [students, attendance, performance, selectedDate]);
+  }, [students, attendance, performance, selectedDate, currentTerm]);
 
   const studentMetrics = useMemo(() => {
     return students.map(student => {
@@ -584,7 +602,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الطلاب</p><p className="text-2xl font-black text-gray-800">{stats.totalStudents}</p></div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الحضور</p><p className="text-2xl font-black text-green-600">{stats.attendanceRate}%</p></div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الغياب</p><p className="text-2xl font-black text-red-600">{stats.absent}</p></div>
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الأداء</p><p className="text-2xl font-black text-blue-600">{stats.avgScore}%</p></div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الأداء {currentTerm ? `(${currentTerm.name})` : ''}</p><p className="text-2xl font-black text-blue-600">{stats.avgScore}%</p></div>
               </div>
           </div>
 

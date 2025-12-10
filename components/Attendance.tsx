@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
-import { getSchedules } from '../services/storageService';
+import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser, AcademicTerm } from '../types';
+import { getSchedules, getAcademicTerms } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
 import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity, FileBarChart, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import DataImport from './DataImport';
@@ -105,21 +105,39 @@ const Attendance: React.FC<AttendanceProps> = ({
       return d.toISOString().split('T')[0];
   });
 
+  // Filter States
   const [logFilterClass, setLogFilterClass] = useState('');
   const [logFilterDateStart, setLogFilterDateStart] = useState(() => {
       const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0];
   });
   const [logFilterDateEnd, setLogFilterDateEnd] = useState(new Date().toISOString().split('T')[0]);
   const [logSearch, setLogSearch] = useState('');
+  
+  // Terms State
+  const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState('');
 
   useEffect(() => {
     setSchedules(getSchedules());
-  }, []);
+    setTerms(getAcademicTerms(currentUser?.id));
+  }, [currentUser]);
 
   useEffect(() => {
       if(preSelectedClass) setSelectedClass(preSelectedClass);
       if(preSelectedSubject) setSelectedSubject(preSelectedSubject);
   }, [preSelectedClass, preSelectedSubject]);
+
+  // Handle Term Selection Logic
+  const handleTermFilterChange = (termId: string) => {
+      setSelectedTermId(termId);
+      const term = terms.find(t => t.id === termId);
+      if (term) {
+          setLogFilterDateStart(term.startDate);
+          setLogFilterDateEnd(term.endDate);
+          // Also set Weekly view start date if needed
+          setWeekStartDate(term.startDate);
+      }
+  };
 
   useEffect(() => {
       localStorage.setItem('behavior_positive_tags', JSON.stringify(positiveList));
@@ -136,6 +154,7 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   const filteredHistory = useMemo(() => {
       if (!attendanceHistory) return [];
+      
       return attendanceHistory.filter(rec => {
           const student = students.find(s => s.id === rec.studentId);
           if (!student) return false;
@@ -724,6 +743,16 @@ const Attendance: React.FC<AttendanceProps> = ({
                   </div>
                   
                   <div className="flex items-center gap-4">
+                      {/* Term Selector for Quick Jump */}
+                      <select 
+                          className="p-1.5 border rounded-lg text-sm bg-gray-50 outline-none"
+                          value={selectedTermId}
+                          onChange={(e) => handleTermFilterChange(e.target.value)}
+                      >
+                          <option value="">فصل دراسي...</option>
+                          {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+
                       <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
                           <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
                           <span className="text-sm font-bold w-32 text-center">{formatDualDate(weekStartDate).split('|')[0]}</span>
@@ -811,6 +840,36 @@ const Attendance: React.FC<AttendanceProps> = ({
                       <h3 className="font-bold text-gray-800">سجل المتابعة الشامل</h3>
                   </div>
                   <div className="flex flex-wrap gap-2 text-sm items-center">
+                      <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                          <Filter size={14} className="text-gray-400"/>
+                          <select value={selectedTermId} onChange={e => handleTermFilterChange(e.target.value)} className="bg-transparent outline-none font-bold text-purple-700 min-w-[100px]">
+                              <option value="">كل الفترات</option>
+                              {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                      </div>
+                      <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                          <Filter size={14} className="text-gray-400"/>
+                          <select value={logFilterClass} onChange={e => setLogFilterClass(e.target.value)} className="bg-transparent outline-none font-bold text-gray-700 min-w-[100px]">
+                              <option value="">جميع الفصول</option>
+                              {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                      </div>
+                      {!selectedTermId && (
+                          <>
+                            <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                                <span className="text-xs text-gray-400">من:</span>
+                                <input type="date" value={logFilterDateStart} onChange={e => setLogFilterDateStart(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
+                            </div>
+                            <div className="flex items-center gap-1 bg-white border rounded-lg px-2 py-1">
+                                <span className="text-xs text-gray-400">إلى:</span>
+                                <input type="date" value={logFilterDateEnd} onChange={e => setLogFilterDateEnd(e.target.value)} className="outline-none bg-transparent font-bold text-xs"/>
+                            </div>
+                          </>
+                      )}
+                      <div className="relative">
+                          <Search size={14} className="absolute right-2 top-2 text-gray-400"/>
+                          <input type="text" placeholder="بحث..." value={logSearch} onChange={e => setLogSearch(e.target.value)} className="pl-2 pr-7 py-1 border rounded-lg outline-none text-sm w-32 focus:ring-1 focus:ring-purple-300"/>
+                      </div>
                       {/* Navigation Link to Monthly Report */}
                       {onNavigate && (
                           <button 
