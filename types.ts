@@ -271,6 +271,7 @@ export interface MessageLog {
     status: 'SENT' | 'FAILED';
     date: string;
     sentBy: string;
+    teacherId?: string; // NEW: Strict link to the teacher
 }
 
 // --- Lesson Planning Types ---

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm, SystemUser } from '../types';
 import { getMessages, saveMessage, getAcademicTerms } from '../services/storageService';
 import { generateParentMessage } from '../services/geminiService';
 import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar } from 'lucide-react';
@@ -10,6 +10,7 @@ interface MessageCenterProps {
     students: Student[];
     attendance: AttendanceRecord[];
     performance: PerformanceRecord[];
+    currentUser?: SystemUser | null; // Added
 }
 
 const TEMPLATES = [
@@ -20,7 +21,7 @@ const TEMPLATES = [
     { id: 'general_meeting', title: 'دعوة اجتماع', text: 'ندعوكم لحضور مجلس الآباء يوم {اليوم} لمناقشة مستوى الطالب {اسم_الطالب}.' },
 ];
 
-const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, performance }) => {
+const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, performance, currentUser }) => {
     // Safety check
     if (!students || !attendance || !performance) {
         return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
@@ -55,12 +56,12 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
     const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
 
     useEffect(() => {
-        setHistory(getMessages());
-        const loadedTerms = getAcademicTerms();
+        setHistory(getMessages(currentUser?.id)); // Filter by current user
+        const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
         const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
         setCurrentTerm(active);
-    }, []);
+    }, [currentUser]);
 
     // Unique Classes
     const uniqueClasses = useMemo(() => {
@@ -155,7 +156,8 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
             content: finalMsg,
             status: 'SENT',
             date: new Date().toISOString(),
-            sentBy: 'Teacher' // Or current user name
+            sentBy: currentUser?.name || 'Teacher',
+            teacherId: currentUser?.id // STRICT LINK
         };
         saveMessage(log);
         setHistory(prev => [log, ...prev]);

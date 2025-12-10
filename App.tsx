@@ -481,7 +481,7 @@ const App: React.FC = () => {
                     )}
                     {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagementComponent students={students} onImportStudents={handleImportStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleImportAttendance} currentUser={currentUser} onUpdateTheme={setTheme}/>}
                     {currentView === 'CUSTOM_TABLES' && <CustomTablesView currentUser={currentUser}/>}
-                    {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance} />}
+                    {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
                     {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
                     {currentView === 'LESSON_PLANNING' && <LessonPlanning />}
                     {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser} />}
