@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan } from '../services/storageService';
-import { generateLessonBlocks } from '../services/geminiService';
-import { Subject, StoredLessonPlan, LessonBlock } from '../types';
-import { PenTool, Save, Loader2, BookOpen, Trash2, Copy, Printer, CheckCircle, RefreshCw } from 'lucide-react';
+import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
+import { LessonBlock, StoredLessonPlan, Subject } from '../types';
+import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, ChevronDown, ChevronUp } from 'lucide-react';
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
@@ -16,96 +16,80 @@ const SAUDI_GRADES = [
 
 const LessonPlanning: React.FC = () => {
     // State
-    const [currentUser] = useState(() => JSON.parse(localStorage.getItem('current_user') || '{}'));
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    
-    // Selection State
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedGrade, setSelectedGrade] = useState('');
-    const [lessonTopic, setLessonTopic] = useState('');
+    const [selectedUnitId, setSelectedUnitId] = useState('');
+    const [selectedLessonId, setSelectedLessonId] = useState('');
     
-    // Unused state variables kept for compatibility if needed or removed
-    const [, setSelectedUnitId] = useState('');
-    const [, setSelectedLessonId] = useState('');
-
-    // Generation State
+    // Editor State
+    const [lessonTopic, setLessonTopic] = useState('');
+    const [lessonContent, setLessonContent] = useState<LessonBlock[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [generatedBlocks, setGeneratedBlocks] = useState<LessonBlock[]>([]);
-    const [settings, setSettings] = useState({ includeActivity: true, includeVideo: true, includeWorksheet: true });
-
-    // History State
     const [savedPlans, setSavedPlans] = useState<StoredLessonPlan[]>([]);
 
     useEffect(() => {
-        if (currentUser?.id) {
-            setSubjects(getSubjects(currentUser.id));
-            setSavedPlans(getLessonPlans(currentUser.id));
+        // Mock user ID fetch from localStorage as component props are not passed in App.tsx
+        const user = JSON.parse(localStorage.getItem('current_user') || '{}');
+        if (user.id) {
+            setSubjects(getSubjects(user.id));
+            setSavedPlans(getLessonPlans(user.id));
         }
-    }, [currentUser]);
+    }, []);
 
     const handleGenerate = async () => {
-        if (!selectedSubject || !selectedGrade || !lessonTopic) return alert('البيانات ناقصة');
-        
+        if (!selectedSubject || !lessonTopic || !selectedGrade) return;
         setIsGenerating(true);
         try {
-            const blocks = await generateLessonBlocks(selectedSubject, lessonTopic, selectedGrade, settings);
-            setGeneratedBlocks(blocks);
+            const blocks = await generateLessonBlocks(selectedSubject, lessonTopic, selectedGrade, { 
+                includeActivity: true, 
+                includeVideo: true, 
+                includeWorksheet: true 
+            });
+            setLessonContent(blocks);
         } catch (e) {
-            alert('فشل التوليد. حاول مرة أخرى.');
+            console.error(e);
+            alert('حدث خطأ أثناء التوليد');
         } finally {
             setIsGenerating(false);
         }
     };
 
-    const handleSavePlan = () => {
-        if (generatedBlocks.length === 0 || !currentUser?.id) return;
+    const handleSave = () => {
+        const user = JSON.parse(localStorage.getItem('current_user') || '{}');
+        if (!user.id) return;
         
-        const plan: StoredLessonPlan = {
+        const newPlan: StoredLessonPlan = {
             id: Date.now().toString(),
-            teacherId: currentUser.id,
+            teacherId: user.id,
             subject: selectedSubject,
             topic: lessonTopic,
-            contentJson: JSON.stringify(generatedBlocks),
+            contentJson: JSON.stringify(lessonContent),
             resources: [],
             createdAt: new Date().toISOString()
         };
-        
-        saveLessonPlan(plan);
-        setSavedPlans(getLessonPlans(currentUser.id));
-        alert('تم حفظ التحضير في المكتبة!');
-    };
-
-    const handleDeletePlan = (id: string) => {
-        if (confirm('حذف هذا التحضير؟')) {
-            deleteLessonPlan(id);
-            setSavedPlans(getLessonPlans(currentUser.id));
-        }
-    };
-
-    const handleLoadPlan = (plan: StoredLessonPlan) => {
-        setSelectedSubject(plan.subject);
-        setLessonTopic(plan.topic);
-        try {
-            setGeneratedBlocks(JSON.parse(plan.contentJson));
-        } catch(e) {
-            console.error('Failed to parse plan content');
-        }
+        saveLessonPlan(newPlan);
+        setSavedPlans(getLessonPlans(user.id));
+        alert('تم حفظ التحضير');
     };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
-            <div className="mb-6">
+        <div className="p-6 h-full bg-gray-50 overflow-y-auto animate-fade-in">
+            <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <PenTool className="text-purple-600"/> التحضير الذكي للدروس
                 </h2>
-                <p className="text-sm text-gray-500">قم بتوليد خطط دروس متكاملة باستخدام الذكاء الاصطناعي.</p>
+                <div className="flex gap-2">
+                    <button className="bg-white border text-gray-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-gray-50">
+                        <BookOpen size={16}/> خططي المحفوظة ({savedPlans.length})
+                    </button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full overflow-hidden">
-                {/* Left Panel: Inputs */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 overflow-y-auto">
-                    <h3 className="font-bold text-gray-800 mb-4 border-b pb-2">إعدادات الدرس</h3>
-                    
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Configuration Panel */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-fit">
+                    <h3 className="font-bold text-gray-700 mb-4 border-b pb-2">إعدادات الدرس</h3>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1.5">المادة الدراسية</label>
@@ -136,85 +120,50 @@ const LessonPlanning: React.FC = () => {
                             <label className="block text-xs font-bold text-gray-600 mb-1.5">عنوان الدرس</label>
                             <input 
                                 className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="مثال: خصائص المادة"
+                                placeholder="مثال: خصائص المادة..."
                                 value={lessonTopic}
                                 onChange={e => setLessonTopic(e.target.value)}
                             />
                         </div>
 
-                        <div className="space-y-2 pt-2 border-t">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={settings.includeActivity} onChange={e => setSettings({...settings, includeActivity: e.target.checked})} className="w-4 h-4 text-purple-600"/>
-                                <span className="text-sm text-gray-700">اقتراح نشاط حركي</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={settings.includeVideo} onChange={e => setSettings({...settings, includeVideo: e.target.checked})} className="w-4 h-4 text-purple-600"/>
-                                <span className="text-sm text-gray-700">اقتراح فيديو تعليمي</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={settings.includeWorksheet} onChange={e => setSettings({...settings, includeWorksheet: e.target.checked})} className="w-4 h-4 text-purple-600"/>
-                                <span className="text-sm text-gray-700">فكرة ورقة عمل</span>
-                            </label>
-                        </div>
-
                         <button 
-                            onClick={handleGenerate} 
-                            disabled={isGenerating || !lessonTopic}
-                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:bg-gray-300 flex items-center justify-center gap-2 shadow-md transition-all"
+                            onClick={handleGenerate}
+                            disabled={isGenerating || !selectedSubject || !lessonTopic}
+                            className="w-full py-3 bg-purple-600 text-white rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-purple-700 disabled:opacity-50 shadow-md transition-transform active:scale-95"
                         >
-                            {isGenerating ? <Loader2 className="animate-spin" size={18}/> : <RefreshCw size={18}/>}
-                            {isGenerating ? 'جاري التوليد...' : 'توليد التحضير'}
+                            {isGenerating ? <Loader2 className="animate-spin"/> : <RefreshCw size={18}/>}
+                            توليد التحضير (AI)
                         </button>
-                    </div>
-
-                    {/* Saved Plans List */}
-                    <div className="mt-8 pt-4 border-t">
-                        <h4 className="font-bold text-gray-600 text-sm mb-3 flex items-center gap-2"><BookOpen size={16}/> تحضيراتي السابقة</h4>
-                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                            {savedPlans.length > 0 ? savedPlans.map(plan => (
-                                <div key={plan.id} className="flex justify-between items-center p-2 bg-gray-50 rounded border hover:bg-gray-100 cursor-pointer text-sm" onClick={() => handleLoadPlan(plan)}>
-                                    <span className="truncate flex-1">{plan.topic}</span>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeletePlan(plan.id); }} className="text-gray-400 hover:text-red-500"><Trash2 size={14}/></button>
-                                </div>
-                            )) : <p className="text-xs text-gray-400 text-center py-2">لا توجد تحضيرات محفوظة</p>}
-                        </div>
                     </div>
                 </div>
 
-                {/* Right Panel: Output */}
-                <div className="lg:col-span-2 bg-white p-8 rounded-xl shadow-sm border border-gray-200 overflow-y-auto flex flex-col relative print:p-0 print:border-none print:shadow-none">
-                    {generatedBlocks.length > 0 ? (
-                        <>
-                            <div className="flex justify-between items-center mb-6 print:hidden">
-                                <h3 className="text-xl font-black text-gray-800 border-b-4 border-purple-200 pb-1">{lessonTopic}</h3>
-                                <div className="flex gap-2">
-                                    <button onClick={handleSavePlan} className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-sm text-sm">
-                                        <Save size={16}/> حفظ
-                                    </button>
-                                    <button onClick={() => window.print()} className="px-4 py-2 bg-gray-800 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-black shadow-sm text-sm">
-                                        <Printer size={16}/> طباعة
-                                    </button>
-                                </div>
-                            </div>
+                {/* Content Preview */}
+                <div className="lg:col-span-2 bg-white p-8 rounded-xl border border-gray-200 shadow-sm min-h-[600px] relative">
+                    <div className="absolute top-4 left-4 flex gap-2">
+                        {lessonContent.length > 0 && (
+                            <button onClick={handleSave} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center gap-2 shadow-sm">
+                                <Save size={16}/> حفظ
+                            </button>
+                        )}
+                    </div>
 
-                            <div className="space-y-6">
-                                {generatedBlocks.map((block, idx) => (
-                                    <div key={idx} className="bg-gray-50 p-6 rounded-xl border border-gray-100 print:bg-white print:border-black print:border-2">
-                                        <h4 className="font-bold text-purple-800 text-lg mb-3 flex items-center gap-2">
-                                            <span className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-sm border border-purple-200 print:border-black">{idx + 1}</span>
-                                            {block.title}
-                                        </h4>
-                                        <div className="text-gray-700 leading-loose whitespace-pre-line text-justify">
-                                            {block.content}
-                                        </div>
+                    {lessonContent.length > 0 ? (
+                        <div className="space-y-6">
+                            <h1 className="text-3xl font-black text-center text-gray-800 mb-8 border-b-2 border-gray-100 pb-4">{lessonTopic}</h1>
+                            {lessonContent.map((block) => (
+                                <div key={block.id} className="p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-200 transition-colors group relative">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-purple-800 text-lg">{block.title}</h4>
+                                        <span className="text-[10px] bg-white border px-2 py-1 rounded text-gray-400 font-mono">{block.type}</span>
                                     </div>
-                                ))}
-                            </div>
-                        </>
+                                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{block.content}</p>
+                                </div>
+                            ))}
+                        </div>
                     ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                        <div className="h-full flex flex-col items-center justify-center text-gray-300">
                             <BookOpen size={64} className="mb-4 opacity-20"/>
-                            <p className="text-lg">قم بإدخال تفاصيل الدرس لتوليد الخطة</p>
+                            <p className="text-lg">أدخل البيانات واضغط "توليد" لإنشاء خطة الدرس.</p>
                         </div>
                     )}
                 </div>

@@ -1,201 +1,179 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Question, SystemUser, Subject } from '../types';
 import { getQuestionBank, saveQuestionToBank, deleteQuestionFromBank, getSubjects } from '../services/storageService';
-import { Library, Plus, Trash2, Search, Filter, Edit2, Save, X } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Filter, Save, X, Library } from 'lucide-react';
 
 interface QuestionBankProps {
-    currentUser: any;
+    currentUser: SystemUser;
 }
 
 const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
     const [questions, setQuestions] = useState<Question[]>([]);
-    const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [view, setView] = useState<'LIST' | 'EDITOR'>('LIST');
-    
-    // Filters
-    const [filterSubject, setFilterSubject] = useState('');
     const [filterGrade, setFilterGrade] = useState('');
+    const [filterSubject, setFilterSubject] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-
-    // Editor
-    const [editingQuestion, setEditingQuestion] = useState<Partial<Question>>({});
+    const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [subjects, setSubjects] = useState<Subject[]>([]);
 
     useEffect(() => {
-        if (currentUser?.id) {
+        if(currentUser?.id) {
             setQuestions(getQuestionBank(currentUser.id));
             setSubjects(getSubjects(currentUser.id));
         }
     }, [currentUser]);
 
-    const filteredQuestions = questions.filter(q => {
-        if (filterSubject && q.subject !== filterSubject) return false;
-        if (filterGrade && q.gradeLevel !== filterGrade) return false;
-        if (searchTerm && !q.text.includes(searchTerm)) return false;
-        return true;
-    });
+    const filteredQuestions = useMemo(() => {
+        return questions.filter(q => 
+            (!filterGrade || q.gradeLevel === filterGrade) &&
+            (!filterSubject || q.subject === filterSubject) &&
+            (!searchTerm || q.text.includes(searchTerm))
+        );
+    }, [questions, filterGrade, filterSubject, searchTerm]);
 
     const handleSave = () => {
-        if (!editingQuestion.text || !editingQuestion.correctAnswer || !editingQuestion.subject) return alert('البيانات ناقصة');
-        
-        const q: Question = {
-            id: editingQuestion.id || Date.now().toString(),
-            text: editingQuestion.text,
-            type: editingQuestion.type || 'MCQ',
-            options: editingQuestion.type === 'MCQ' ? (editingQuestion.options || []) : ['صح', 'خطأ'],
-            correctAnswer: editingQuestion.correctAnswer,
-            points: editingQuestion.points || 1,
-            subject: editingQuestion.subject,
-            gradeLevel: editingQuestion.gradeLevel,
-            teacherId: currentUser.id
-        };
-
-        saveQuestionToBank(q);
+        if (!editingQuestion || !editingQuestion.text) return;
+        saveQuestionToBank(editingQuestion);
         setQuestions(getQuestionBank(currentUser.id));
-        setEditingQuestion({});
-        setView('LIST');
+        setIsModalOpen(false);
+        setEditingQuestion(null);
     };
 
     const handleDelete = (id: string) => {
-        if (confirm('حذف السؤال؟')) {
+        if(confirm('حذف السؤال؟')) {
             deleteQuestionFromBank(id);
             setQuestions(getQuestionBank(currentUser.id));
         }
     };
 
+    const openEditor = (q?: Question) => {
+        if (q) setEditingQuestion(q);
+        else setEditingQuestion({
+            id: Date.now().toString(),
+            text: '',
+            type: 'MCQ',
+            options: ['', '', '', ''],
+            correctAnswer: '',
+            points: 1,
+            teacherId: currentUser.id
+        });
+        setIsModalOpen(true);
+    };
+
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
-            {view === 'LIST' && (
-                <>
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Library className="text-teal-600"/> بنك الأسئلة</h2>
-                        <button onClick={() => { setEditingQuestion({ type: 'MCQ', options: ['', '', '', ''], points: 1 }); setView('EDITOR'); }} className="bg-teal-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-teal-700 flex items-center gap-2"><Plus size={18}/> سؤال جديد</button>
-                    </div>
+        <div className="p-6 h-full bg-gray-50 animate-fade-in flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Library className="text-purple-600"/> بنك الأسئلة
+                </h2>
+                <button onClick={() => openEditor()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2">
+                    <Plus size={18}/> سؤال جديد
+                </button>
+            </div>
 
-                    <div className="bg-white p-4 rounded-xl border shadow-sm mb-4 flex flex-wrap gap-4 items-end">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">المادة</label>
-                            <select className="w-full p-2 border rounded text-sm bg-gray-50" value={filterSubject} onChange={e => setFilterSubject(e.target.value)}>
-                                <option value="">كل المواد</option>
-                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">الصف</label>
-                            <select className="w-full p-2 border rounded text-sm bg-gray-50" value={filterGrade} onChange={e => setFilterGrade(e.target.value)}>
-                                <option value="">كل الصفوف</option>
-                                {[
-                                    "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
-                                    "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
-                                    "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
-                                    "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
-                                ].map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex-1 relative">
-                            <Search size={16} className="absolute top-3 right-3 text-gray-400"/>
-                            <input className="w-full pl-2 pr-9 py-2 border rounded text-sm" placeholder="بحث في نص السؤال..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
-                        </div>
-                    </div>
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4 flex flex-wrap gap-4 items-center">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute top-2.5 right-3 text-gray-400" size={16}/>
+                    <input className="w-full pr-9 pl-3 py-2 border rounded-lg text-sm" placeholder="بحث في نص السؤال..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
+                <div>
+                    <select className="w-full p-2 border rounded text-sm bg-gray-50" value={filterGrade} onChange={e => setFilterGrade(e.target.value)}>
+                        <option value="">كل الصفوف</option>
+                        {[
+                            "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
+                            "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
+                            "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
+                            "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
+                        ].map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <select className="w-full p-2 border rounded text-sm bg-gray-50" value={filterSubject} onChange={e => setFilterSubject(e.target.value)}>
+                        <option value="">كل المواد</option>
+                        {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
+                </div>
+            </div>
 
-                    <div className="flex-1 overflow-y-auto bg-white rounded-xl border shadow-sm p-4 space-y-3 custom-scrollbar">
-                        {filteredQuestions.map(q => (
-                            <div key={q.id} className="border p-4 rounded-lg hover:bg-gray-50 flex justify-between items-start group">
-                                <div>
-                                    <div className="font-bold text-gray-800 text-sm mb-1">{q.text}</div>
-                                    <div className="text-xs text-gray-500 flex gap-2">
-                                        <span className="bg-gray-100 px-2 rounded">{q.subject}</span>
-                                        <span className="bg-gray-100 px-2 rounded">{q.gradeLevel}</span>
-                                        <span className="bg-green-50 text-green-700 px-2 rounded font-bold">الإجابة: {q.correctAnswer}</span>
+            <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3 custom-scrollbar">
+                {filteredQuestions.map(q => (
+                    <div key={q.id} className="p-4 border rounded-lg hover:border-purple-300 transition-colors bg-gray-50 hover:bg-white group">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold">{q.type}</span>
+                                <span className="text-xs text-gray-500">{q.subject} - {q.gradeLevel}</span>
+                            </div>
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openEditor(q)} className="text-blue-600 hover:bg-blue-50 p-1 rounded"><Edit size={16}/></button>
+                                <button onClick={() => handleDelete(q.id)} className="text-red-600 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
+                            </div>
+                        </div>
+                        <p className="font-bold text-gray-800 text-lg">{q.text}</p>
+                        {q.type === 'MCQ' && (
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-600">
+                                {q.options.map((opt, i) => (
+                                    <div key={i} className={`px-2 py-1 rounded ${opt === q.correctAnswer ? 'bg-green-100 text-green-800 font-bold border border-green-200' : 'bg-white border'}`}>
+                                        {opt}
                                     </div>
-                                </div>
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => { setEditingQuestion(q); setView('EDITOR'); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded"><Edit2 size={16}/></button>
-                                    <button onClick={() => handleDelete(q.id)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
-                                </div>
-                            </div>
-                        ))}
-                        {filteredQuestions.length === 0 && <div className="text-center py-20 text-gray-400">لا توجد أسئلة</div>}
-                    </div>
-                </>
-            )}
-
-            {view === 'EDITOR' && (
-                <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg border h-fit my-auto">
-                    <div className="flex justify-between mb-6 border-b pb-4">
-                        <h3 className="font-bold text-lg text-gray-800">{editingQuestion.id ? 'تعديل سؤال' : 'إضافة سؤال جديد'}</h3>
-                        <button onClick={() => setView('LIST')}><X size={20} className="text-gray-400"/></button>
-                    </div>
-                    
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">المادة</label>
-                                <select className="w-full p-2 border rounded" value={editingQuestion.subject || ''} onChange={e => setEditingQuestion({...editingQuestion, subject: e.target.value})}>
-                                    <option value="">-- اختر المادة --</option>
-                                    {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">الصف</label>
-                                <select className="w-full p-2 border rounded" value={editingQuestion.gradeLevel || ''} onChange={e => setEditingQuestion({...editingQuestion, gradeLevel: e.target.value})}>
-                                    <option value="">-- اختر الصف --</option>
-                                    {[
-                                        "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
-                                        "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
-                                        "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
-                                        "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
-                                    ].map(g => <option key={g} value={g}>{g}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">نص السؤال</label>
-                            <input className="w-full p-2 border rounded" value={editingQuestion.text || ''} onChange={e => setEditingQuestion({...editingQuestion, text: e.target.value})} />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">نوع السؤال</label>
-                            <select className="w-full p-2 border rounded" value={editingQuestion.type} onChange={e => setEditingQuestion({...editingQuestion, type: e.target.value as any})}>
-                                <option value="MCQ">اختر من متعدد</option>
-                                <option value="TRUE_FALSE">صح أو خطأ</option>
-                            </select>
-                        </div>
-
-                        {editingQuestion.type === 'MCQ' && (
-                            <div className="grid grid-cols-2 gap-2">
-                                {[0,1,2,3].map(i => (
-                                    <input 
-                                        key={i} 
-                                        className="p-2 border rounded text-sm" 
-                                        placeholder={`خيار ${i+1}`} 
-                                        value={editingQuestion.options?.[i] || ''} 
-                                        onChange={e => {
-                                            const opts = [...(editingQuestion.options || [])];
-                                            opts[i] = e.target.value;
-                                            setEditingQuestion({...editingQuestion, options: opts});
-                                        }}
-                                    />
                                 ))}
                             </div>
                         )}
+                    </div>
+                ))}
+                {filteredQuestions.length === 0 && <div className="text-center py-20 text-gray-400">لا توجد أسئلة</div>}
+            </div>
 
-                        <div className="flex gap-4">
-                            <div className="flex-1">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">الإجابة الصحيحة</label>
-                                <select className="w-full p-2 border rounded" value={editingQuestion.correctAnswer || ''} onChange={e => setEditingQuestion({...editingQuestion, correctAnswer: e.target.value})}>
-                                    <option value="">-- اختر --</option>
-                                    {editingQuestion.type === 'MCQ' ? editingQuestion.options?.map(o => o && <option key={o} value={o}>{o}</option>) : <><option value="صح">صح</option><option value="خطأ">خطأ</option></>}
-                                </select>
-                            </div>
-                            <div className="w-24">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">الدرجة</label>
-                                <input type="number" className="w-full p-2 border rounded text-center" value={editingQuestion.points} onChange={e => setEditingQuestion({...editingQuestion, points: Number(e.target.value)})}/>
-                            </div>
+            {isModalOpen && editingQuestion && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 animate-bounce-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-lg">تحرير سؤال</h3>
+                            <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-gray-400"/></button>
                         </div>
+                        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">نص السؤال</label>
+                                <textarea className="w-full p-2 border rounded" rows={3} value={editingQuestion.text} onChange={e => setEditingQuestion({...editingQuestion, text: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">المادة</label>
+                                    <select className="w-full p-2 border rounded" value={editingQuestion.subject || ''} onChange={e => setEditingQuestion({...editingQuestion, subject: e.target.value})}>
+                                        <option value="">-- اختر --</option>
+                                        {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">الصف</label>
+                                    <select className="w-full p-2 border rounded" value={editingQuestion.gradeLevel || ''} onChange={e => setEditingQuestion({...editingQuestion, gradeLevel: e.target.value})}>
+                                        <option value="">-- اختر الصف --</option>
+                                        {[
+                                            "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
+                                            "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
+                                            "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
+                                            "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
+                                        ].map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">الخيارات (للإختيار من متعدد)</label>
+                                {editingQuestion.options.map((opt, i) => (
+                                    <div key={i} className="flex gap-2 mb-2">
+                                        <input className="flex-1 p-2 border rounded text-sm" placeholder={`الخيار ${i+1}`} value={opt} onChange={e => {
+                                            const newOpts = [...editingQuestion.options];
+                                            newOpts[i] = e.target.value;
+                                            setEditingQuestion({...editingQuestion, options: newOpts});
+                                        }} />
+                                        <input type="radio" name="correct" checked={editingQuestion.correctAnswer === opt && opt !== ''} onChange={() => setEditingQuestion({...editingQuestion, correctAnswer: opt})} />
+                                    </div>
+                                ))}
+                            </div>
 
-                        <button onClick={handleSave} className="w-full py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 flex items-center justify-center gap-2"><Save size={18}/> حفظ السؤال</button>
+                            <button onClick={handleSave} className="w-full bg-purple-600 text-white py-2 rounded font-bold hover:bg-purple-700">حفظ السؤال</button>
+                        </div>
                     </div>
                 </div>
             )}
