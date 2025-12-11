@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -14,6 +14,8 @@ interface WorksTrackingProps {
     onAddPerformance: (records: PerformanceRecord[]) => void;
     currentUser?: SystemUser | null;
 }
+
+const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone'];
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
@@ -42,10 +44,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // Google Sheet Sync Settings (Inside Modal)
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
-    const [targetSheetName, setTargetSheetName] = useState('');
+    const [sheetNames, setSheetNames] = useState<string[]>([]);
+    const [selectedSheetName, setSelectedSheetName] = useState('');
     const [settingTermId, setSettingTermId] = useState('');
     const [settingPeriodId, setSettingPeriodId] = useState('');
-    const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+    
+    // Sync Preview State
+    const [isFetchingStructure, setIsFetchingStructure] = useState(false);
+    const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
+    const [selectedHeaders, setSelectedHeaders] = useState<Set<string>>(new Set());
+    const [unmatchedStudents, setUnmatchedStudents] = useState<string[]>([]);
+    const [workbookRef, setWorkbookRef] = useState<any>(null);
+    const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
     // --- Effects ---
     useEffect(() => {
@@ -62,7 +72,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const current = loadedTerms.find(t => t.isCurrent);
             if (current) {
                 setSelectedTermId(current.id);
-                setSettingTermId(current.id); // Default for settings too
+                setSettingTermId(current.id); 
             } else if (loadedTerms.length > 0) {
                 setSelectedTermId(loadedTerms[0].id);
                 setSettingTermId(loadedTerms[0].id);
@@ -178,133 +188,171 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }, 500);
     };
 
-    // --- Google Sync Logic ---
-
-    const handleSyncFromGoogleSheet = async () => {
+    // --- Google Sync Logic Step 1: Analyze ---
+    const handleFetchSheetStructure = async () => {
         if (!googleSheetUrl) return alert('يرجى إدخال رابط الملف');
-        if (!settingTermId) return alert('يرجى اختيار الفصل الدراسي لربط البيانات');
         
-        setIsSyncingSheet(true);
+        setIsFetchingStructure(true);
         try {
-            // 1. Save URL for next time
             saveWorksMasterUrl(googleSheetUrl);
-
-            // 2. Fetch Workbook
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
             
-            // 3. Determine Sheet
-            const sheetToUse = targetSheetName && sheetNames.includes(targetSheetName) ? targetSheetName : sheetNames[0];
-            if (!targetSheetName) setTargetSheetName(sheetToUse); // Update UI
-
-            const { headers, data } = getSheetHeadersAndData(workbook, sheetToUse);
+            setWorkbookRef(workbook);
+            setSheetNames(sheetNames);
             
-            // 4. Create Assignments (Columns)
-            let newAssignments: Assignment[] = [];
-            let count = 0;
+            // Auto select first sheet and analyze headers
+            const targetSheet = selectedSheetName && sheetNames.includes(selectedSheetName) ? selectedSheetName : sheetNames[0];
+            setSelectedSheetName(targetSheet);
+            analyzeSheet(workbook, targetSheet);
             
-            headers.forEach((header, index) => {
-                // Ignore standard ID columns
-                if (['name', 'id', 'الاسم', 'الهوية', 'student', 'سجل'].some(k => header.toLowerCase().includes(k))) return;
+            setSyncStep('SELECTION');
+        } catch (e: any) {
+            alert('فشل الاتصال بالملف: ' + e.message);
+        } finally {
+            setIsFetchingStructure(false);
+        }
+    };
 
+    const analyzeSheet = (wb: any, sheet: string) => {
+        const { headers, data } = getSheetHeadersAndData(wb, sheet);
+        
+        // Filter out system columns (Name, ID, etc.) to show only potential assignments
+        const potentialAssignments = headers.filter(h => 
+            !IGNORED_COLUMNS.some(ignored => h.toLowerCase().includes(ignored))
+        );
+        
+        setAvailableHeaders(potentialAssignments);
+        
+        // Auto-select columns that don't exist yet, or keep all unchecked by default
+        // Let's select all valid ones by default for ease
+        setSelectedHeaders(new Set(potentialAssignments));
+
+        // Check for unmatched students
+        const unmatched: string[] = [];
+        data.forEach(row => {
+            const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
+            const rowName = row['الاسم'] || row['name'] || row['student'];
+            
+            let found = false;
+            if (rowNid && students.some(s => s.nationalId === String(rowNid).trim())) found = true;
+            else if (rowName && students.some(s => s.name.trim() === String(rowName).trim())) found = true;
+            
+            if (!found && rowName) unmatched.push(String(rowName));
+        });
+        setUnmatchedStudents(unmatched.slice(0, 10)); // Show top 10
+    };
+
+    // --- Google Sync Logic Step 2: Sync Selected ---
+    const handleConfirmSync = () => {
+        if (!workbookRef || !selectedSheetName || !settingTermId) return;
+        
+        setIsFetchingStructure(true);
+        try {
+            const { data } = getSheetHeadersAndData(workbookRef, selectedSheetName);
+            let newAssignmentsCount = 0;
+            let updatedScoresCount = 0;
+            const recordsToUpsert: PerformanceRecord[] = [];
+            const today = new Date().toISOString().split('T')[0];
+
+            // 1. Ensure Assignments Exist
+            const currentAssignments = getAssignments(activeTab, currentUser?.id, isManager);
+            
+            selectedHeaders.forEach((header, index) => {
+                // Extract Title & Max Score
                 let title = header;
                 let maxScore = 10;
-
-                // Extract Max Score: "Exam 1 (20)" -> Title: Exam 1, Max: 20
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
                 if (match) {
                     title = match[1].trim();
                     maxScore = parseInt(match[2]);
                 }
 
-                // Check if assignment exists to avoid dupes (by title + term + period)
-                // Actually, we usually want to update if it exists or create new
-                // For simplicity in this Sync, we create/update based on Title matching for this Term
-                
-                const assignId = `google_${settingTermId}_${settingPeriodId || 'all'}_${index}`;
-                
-                const newAssign: Assignment = {
-                    id: assignId,
-                    title: title,
-                    category: activeTab as any,
-                    maxScore: maxScore,
-                    isVisible: true,
-                    teacherId: currentUser?.id,
-                    termId: settingTermId,
-                    periodId: settingPeriodId || undefined,
-                    orderIndex: index,
-                    sourceMetadata: JSON.stringify({ sheet: sheetToUse, header: header })
-                };
-                
-                saveAssignment(newAssign);
-                newAssignments.push(newAssign);
-                count++;
-            });
+                // Find existing assignment by title in this term (avoid duplicates)
+                let assignment = currentAssignments.find(a => 
+                    a.title === title && 
+                    a.termId === settingTermId && 
+                    a.category === activeTab
+                );
 
-            // 5. Parse Data Rows & Create Performance Records
-            const performanceRecords: PerformanceRecord[] = [];
-            const today = new Date().toISOString().split('T')[0];
-
-            data.forEach(row => {
-                // Find Student
-                let student: Student | undefined;
-                
-                // Try finding by National ID first
-                const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
-                if (rowNid) {
-                    student = students.find(s => s.nationalId === String(rowNid).trim());
+                if (!assignment) {
+                    // Create New
+                    const newId = `gs_${Date.now()}_${index}`;
+                    assignment = {
+                        id: newId,
+                        title: title,
+                        category: activeTab as any,
+                        maxScore: maxScore,
+                        isVisible: true,
+                        teacherId: currentUser?.id,
+                        termId: settingTermId,
+                        periodId: settingPeriodId || undefined,
+                        orderIndex: index + 100, // Put at end
+                        sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: header })
+                    };
+                    saveAssignment(assignment);
+                    newAssignmentsCount++;
                 }
-                
-                // Fallback to Name
-                if (!student) {
-                    const rowName = row['الاسم'] || row['name'] || row['student'];
-                    if (rowName) {
-                        student = students.find(s => s.name.trim() === String(rowName).trim());
+
+                // 2. Parse Data for this Column
+                data.forEach(row => {
+                    let student: Student | undefined;
+                    // Match Student
+                    const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
+                    if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
+                    if (!student) {
+                        const rowName = row['الاسم'] || row['name'] || row['student'];
+                        if (rowName) student = students.find(s => s.name.trim() === String(rowName).trim());
                     }
-                }
 
-                if (student) {
-                    // Iterate created assignments and find their value in this row
-                    newAssignments.forEach(assign => {
-                        const meta = assign.sourceMetadata ? JSON.parse(assign.sourceMetadata) : {};
-                        const headerName = meta.header || assign.title;
-                        const rawVal = row[headerName];
-                        
+                    if (student) {
+                        const rawVal = row[header];
                         if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
                             const numVal = parseFloat(rawVal);
                             if (!isNaN(numVal)) {
-                                performanceRecords.push({
-                                    id: `${student!.id}_${assign.id}_${today}`,
-                                    studentId: student!.id,
+                                recordsToUpsert.push({
+                                    id: `${student.id}_${assignment!.id}_${today}`,
+                                    studentId: student.id,
                                     subject: selectedSubject || 'عام',
-                                    title: assign.title,
-                                    category: assign.category,
+                                    title: assignment!.title,
+                                    category: assignment!.category,
                                     score: numVal,
-                                    maxScore: assign.maxScore,
+                                    maxScore: assignment!.maxScore,
                                     date: today,
-                                    notes: assign.id, // Link to assignment
+                                    notes: assignment!.id, 
                                     createdById: currentUser?.id
                                 });
+                                updatedScoresCount++;
                             }
                         }
-                    });
-                }
+                    }
+                });
             });
 
-            // 6. Save Everything
-            setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
-            if (performanceRecords.length > 0) {
-                onAddPerformance(performanceRecords);
+            // 3. Save Records
+            if (recordsToUpsert.length > 0) {
+                onAddPerformance(recordsToUpsert);
             }
-
-            alert(`تم المزامنة بنجاح!\n- الأعمدة المحدثة: ${count}\n- الدرجات المرصودة: ${performanceRecords.length}`);
+            
+            // Refresh local state
+            setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
+            
+            alert(`تمت العملية بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات مرصودة/محدثة: ${updatedScoresCount}`);
             setIsSettingsOpen(false);
+            setSyncStep('URL');
 
         } catch (e: any) {
-            alert('فشل الاتصال بالملف: ' + e.message);
+            alert('حدث خطأ أثناء المعالجة: ' + e.message);
         } finally {
-            setIsSyncingSheet(false);
+            setIsFetchingStructure(false);
         }
+    };
+
+    const toggleHeaderSelection = (header: string) => {
+        const newSet = new Set(selectedHeaders);
+        if (newSet.has(header)) newSet.delete(header);
+        else newSet.add(header);
+        setSelectedHeaders(newSet);
     };
 
     const handleAddManualColumn = () => {
@@ -555,7 +603,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-bounce-in">
                         <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Settings size={18}/> إعدادات الأعمدة ({activeTab})</h3>
-                            <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
+                            <button onClick={() => { setIsSettingsOpen(false); setSyncStep('URL'); }} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
                         </div>
                         
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -563,56 +611,85 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                                 <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2"><FileSpreadsheet size={16}/> استيراد من Google Sheets</h4>
                                 
-                                <div className="space-y-3">
-                                    <div className="grid grid-cols-2 gap-2">
+                                {syncStep === 'URL' ? (
+                                    <div className="space-y-3">
                                         <div>
-                                            <label className="block text-xs font-bold text-green-700 mb-1">الفصل الدراسي *</label>
-                                            <select className="w-full p-2 border rounded text-xs" value={settingTermId} onChange={e => setSettingTermId(e.target.value)}>
-                                                <option value="">اختر الفصل...</option>
-                                                {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                            </select>
+                                            <label className="block text-xs font-bold text-green-700 mb-1">رابط الملف</label>
+                                            <input 
+                                                className="w-full p-2 border rounded text-xs dir-ltr" 
+                                                placeholder="https://docs.google.com/spreadsheets/d/..."
+                                                value={googleSheetUrl}
+                                                onChange={e => setGoogleSheetUrl(e.target.value)}
+                                            />
                                         </div>
+                                        <button 
+                                            onClick={handleFetchSheetStructure} 
+                                            disabled={isFetchingStructure}
+                                            className="bg-green-600 text-white w-full py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                                        >
+                                            {isFetchingStructure ? <Loader2 size={16} className="animate-spin"/> : <Search size={16}/>}
+                                            فحص الملف
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 animate-fade-in">
+                                        {/* Setup Section */}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="block text-xs font-bold text-green-700 mb-1">ورقة العمل</label>
+                                                <select className="w-full p-2 border rounded text-xs" value={selectedSheetName} onChange={e => { setSelectedSheetName(e.target.value); analyzeSheet(workbookRef, e.target.value); }}>
+                                                    {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-green-700 mb-1">للفصل الدراسي:</label>
+                                                <select className="w-full p-2 border rounded text-xs" value={settingTermId} onChange={e => setSettingTermId(e.target.value)}>
+                                                    <option value="">اختر الفصل...</option>
+                                                    {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Unmatched Warning */}
+                                        {unmatchedStudents.length > 0 && (
+                                            <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-xs">
+                                                <div className="flex items-center gap-2 text-amber-800 font-bold mb-1">
+                                                    <AlertTriangle size={14}/> تنبيه: طلاب غير موجودين ({unmatchedStudents.length})
+                                                </div>
+                                                <div className="max-h-20 overflow-y-auto text-amber-700 px-2">
+                                                    {unmatchedStudents.join(', ')}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Column Selection */}
                                         <div>
-                                            <label className="block text-xs font-bold text-green-700 mb-1">الفترة (اختياري)</label>
-                                            <select className="w-full p-2 border rounded text-xs" value={settingPeriodId} onChange={e => setSettingPeriodId(e.target.value)}>
-                                                <option value="">الكل</option>
-                                                {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </select>
+                                            <label className="block text-xs font-bold text-green-700 mb-2">اختر الأعمدة لإضافتها/تحديثها:</label>
+                                            <div className="max-h-40 overflow-y-auto border rounded bg-white p-2 grid grid-cols-2 gap-2">
+                                                {availableHeaders.length > 0 ? availableHeaders.map(h => (
+                                                    <label key={h} className="flex items-center gap-2 p-1.5 hover:bg-green-50 rounded cursor-pointer text-xs">
+                                                        <div onClick={() => toggleHeaderSelection(h)} className={`w-4 h-4 border rounded flex items-center justify-center ${selectedHeaders.has(h) ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300'}`}>
+                                                            {selectedHeaders.has(h) && <Check size={10}/>}
+                                                        </div>
+                                                        <span className={selectedHeaders.has(h) ? 'font-bold text-green-800' : 'text-gray-600'}>{h}</span>
+                                                    </label>
+                                                )) : <p className="col-span-2 text-center text-gray-400">لا توجد أعمدة صالحة</p>}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setSyncStep('URL')} className="flex-1 py-2 border rounded text-xs font-bold text-gray-600 hover:bg-gray-50">عودة</button>
+                                            <button 
+                                                onClick={handleConfirmSync} 
+                                                disabled={isFetchingStructure || selectedHeaders.size === 0 || !settingTermId}
+                                                className="flex-2 w-full bg-green-600 text-white py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                {isFetchingStructure ? <Loader2 size={16} className="animate-spin"/> : <DownloadCloud size={16}/>}
+                                                مزامنة وتحديث ({selectedHeaders.size})
+                                            </button>
                                         </div>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-green-700 mb-1">اسم ورقة العمل (Sheet Name)</label>
-                                        <input 
-                                            className="w-full p-2 border rounded text-xs" 
-                                            placeholder="مثال: Sheet1 أو ورقة1 (اتركه فارغاً للأولى)"
-                                            value={targetSheetName}
-                                            onChange={e => setTargetSheetName(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-green-700 mb-1">رابط الملف</label>
-                                        <input 
-                                            className="w-full p-2 border rounded text-xs dir-ltr" 
-                                            placeholder="https://docs.google.com/spreadsheets/d/..."
-                                            value={googleSheetUrl}
-                                            onChange={e => setGoogleSheetUrl(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <button 
-                                        onClick={handleSyncFromGoogleSheet} 
-                                        disabled={isSyncingSheet || !settingTermId}
-                                        className="bg-green-600 text-white w-full py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
-                                    >
-                                        {isSyncingSheet ? <Loader2 size={16} className="animate-spin"/> : <DownloadCloud size={16}/>}
-                                        جلب البيانات وتحديث الدرجات
-                                    </button>
-                                </div>
-                                <p className="text-[10px] text-green-600 mt-2">
-                                    تنبيه: سيتم إنشاء الأعمدة تلقائياً بناءً على عناوين الملف (الصف الأول)، وسيتم رصد الدرجات للطلاب المطابقين (عبر الهوية أو الاسم).
-                                </p>
+                                )}
                             </div>
 
                             {/* Manual Management */}
@@ -656,7 +733,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </div>
 
                         <div className="p-4 border-t bg-gray-50 text-right">
-                            <button onClick={() => setIsSettingsOpen(false)} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-black">إغلاق</button>
+                            <button onClick={() => { setIsSettingsOpen(false); setSyncStep('URL'); }} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-black">إغلاق</button>
                         </div>
                     </div>
                 </div>
