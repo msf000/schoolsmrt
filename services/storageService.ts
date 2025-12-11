@@ -83,6 +83,51 @@ const notifyDataChange = () => {
     dataListeners.forEach(l => l());
 };
 
+// --- HELPER: Cascading Delete for Teacher Data ---
+const cleanupTeacherData = async (teacherId: string) => {
+    console.log(`Cleaning up data for teacher: ${teacherId}`);
+    
+    // 1. Delete from Cloud Tables (Parallel)
+    // We do NOT delete from 'schools'.
+    await Promise.all([
+        supabase.from('students').delete().eq('createdById', teacherId),
+        supabase.from('attendance').delete().eq('createdById', teacherId),
+        supabase.from('performance').delete().eq('createdById', teacherId),
+        supabase.from('assignments').delete().eq('teacherId', teacherId),
+        supabase.from('schedules').delete().eq('teacherId', teacherId),
+        supabase.from('subjects').delete().eq('teacherId', teacherId),
+        supabase.from('lesson_plans').delete().eq('teacherId', teacherId),
+        supabase.from('lesson_links').delete().eq('teacherId', teacherId),
+        supabase.from('exams').delete().eq('teacherId', teacherId),
+        supabase.from('questions').delete().eq('teacherId', teacherId),
+        supabase.from('curriculum_units').delete().eq('teacherId', teacherId),
+        supabase.from('micro_concepts').delete().eq('teacherId', teacherId),
+        supabase.from('message_logs').delete().eq('teacherId', teacherId),
+        supabase.from('custom_tables').delete().eq('teacherId', teacherId),
+        supabase.from('tracking_sheets').delete().eq('teacherId', teacherId),
+        supabase.from('academic_terms').delete().eq('teacherId', teacherId),
+        supabase.from('weekly_plans').delete().eq('teacherId', teacherId),
+        supabase.from('feedback').delete().eq('teacherId', teacherId)
+    ]);
+
+    // 2. Cleanup Local Cache
+    updateCache(KEYS.STUDENTS, getStudents().filter(s => s.createdById !== teacherId));
+    updateCache(KEYS.ATTENDANCE, getAttendance().filter(a => a.createdById !== teacherId));
+    updateCache(KEYS.PERFORMANCE, getPerformance().filter(p => p.createdById !== teacherId));
+    updateCache(KEYS.WORKS_ASSIGNMENTS, get<Assignment>(KEYS.WORKS_ASSIGNMENTS).filter(a => a.teacherId !== teacherId));
+    updateCache(KEYS.SCHEDULES, getSchedules().filter(s => s.teacherId !== teacherId));
+    updateCache(KEYS.SUBJECTS, get<Subject>(KEYS.SUBJECTS).filter(s => s.teacherId !== teacherId));
+    updateCache(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.teacherId !== teacherId));
+    updateCache(KEYS.LESSON_LINKS, getLessonLinks().filter(l => l.teacherId !== teacherId));
+    updateCache(KEYS.EXAMS, getExams().filter(e => e.teacherId !== teacherId));
+    updateCache(KEYS.QUESTION_BANK, getQuestionBank(teacherId).filter(q => q.teacherId !== teacherId)); // Effectively clears it
+    updateCache(KEYS.MESSAGES, getMessages().filter(m => m.teacherId !== teacherId));
+    updateCache(KEYS.CUSTOM_TABLES, getCustomTables().filter(t => t.teacherId !== teacherId));
+    updateCache(KEYS.TRACKING_SHEETS, getTrackingSheets().filter(t => t.teacherId !== teacherId));
+    updateCache(KEYS.ACADEMIC_TERMS, getAcademicTerms().filter(t => t.teacherId !== teacherId));
+    updateCache(KEYS.WEEKLY_PLANS, getWeeklyPlans().filter(p => p.teacherId !== teacherId));
+};
+
 // --- CLOUD FIRST OPERATIONS ---
 
 // 1. Schools
@@ -138,7 +183,35 @@ export const updateSystemUser = async (u: SystemUser) => {
     const list = getSystemUsers(); const idx = list.findIndex(x => x.id === u.id); 
     if (idx > -1) list[idx] = u; updateCache(KEYS.USERS, list); 
 };
+
+// --- UPDATED DELETE FUNCTIONS ---
+
+export const deleteTeacher = async (id: string) => { 
+    // 1. Cleanup all related data first
+    await cleanupTeacherData(id);
+
+    // 2. Delete the teacher record
+    await supabase.from('teachers').delete().eq('id', id);
+    
+    // 3. Delete from system_users (login access)
+    await supabase.from('system_users').delete().eq('id', id);
+
+    // 4. Update local teacher cache
+    updateCache(KEYS.TEACHERS, getTeachers().filter(x => x.id !== id)); 
+    updateCache(KEYS.USERS, getSystemUsers().filter(x => x.id !== id));
+};
+
 export const deleteSystemUser = async (id: string) => { 
+    // If this user is a teacher, clean up their data too
+    const user = getSystemUsers().find(u => u.id === id);
+    if (user && user.role === 'TEACHER') {
+        await cleanupTeacherData(id);
+        // Remove from teachers table if exists there too
+        await supabase.from('teachers').delete().eq('id', id);
+        updateCache(KEYS.TEACHERS, getTeachers().filter(x => x.id !== id)); 
+    }
+
+    // Normal delete
     await supabase.from('system_users').delete().eq('id', id);
     updateCache(KEYS.USERS, getSystemUsers().filter(x => x.id !== id)); 
 };
