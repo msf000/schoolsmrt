@@ -819,444 +819,104 @@ export const getTableDisplayName = (table: string): string => {
     return map[table] || table;
 };
 
-export const getDatabaseUpdateSQL = (): string => {
-    return `
--- 20. Curriculum Units
-CREATE TABLE IF NOT EXISTS "curriculum_units" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_units" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "curriculum_units" FOR ALL USING (true) WITH CHECK (true);
-
--- 21. Curriculum Lessons
-CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
-  "id" TEXT PRIMARY KEY,
-  "unitId" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "learningStandards" JSONB,
-  "microConceptIds" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_lessons" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "curriculum_lessons" FOR ALL USING (true) WITH CHECK (true);
-
--- 22. Micro Concepts
-CREATE TABLE IF NOT EXISTS "micro_concepts" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "name" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "micro_concepts" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "micro_concepts" FOR ALL USING (true) WITH CHECK (true);
-
--- 23. Tracking Sheets
-CREATE TABLE IF NOT EXISTS "tracking_sheets" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "subject" TEXT,
-  "className" TEXT,
-  "teacherId" TEXT,
-  "createdAt" TEXT,
-  "columns" JSONB,
-  "scores" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "tracking_sheets" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "tracking_sheets" FOR ALL USING (true) WITH CHECK (true);
-
--- 24. Academic Terms
-CREATE TABLE IF NOT EXISTS "academic_terms" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "startDate" TEXT,
-  "endDate" TEXT,
-  "isCurrent" BOOLEAN,
-  "teacherId" TEXT,
-  "periods" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
-`;
-};
-
-// SQL Generators
 export const getDatabaseSchemaSQL = () => {
+    // Generate SQL that is safe to run multiple times
     return `
--- 1. Schools
-CREATE TABLE IF NOT EXISTS "schools" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "ministryCode" TEXT,
-  "managerName" TEXT,
-  "managerNationalId" TEXT,
-  "type" TEXT,
-  "phone" TEXT,
-  "studentCount" INTEGER,
-  "educationAdministration" TEXT,
-  "worksMasterUrl" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "schools" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "schools" FOR ALL USING (true) WITH CHECK (true);
+-- Enable RLS and Public Access for all tables (Safe to run multiple times)
+do $$
+declare
+  tables text[] := array[
+    'schools', 'teachers', 'system_users', 'students', 'attendance', 'performance', 
+    'assignments', 'schedules', 'teacher_assignments', 'subjects', 'weekly_plans', 
+    'lesson_links', 'lesson_plans', 'custom_tables', 'message_logs', 'feedback', 
+    'exams', 'exam_results', 'questions', 'curriculum_units', 'curriculum_lessons', 
+    'micro_concepts', 'tracking_sheets', 'academic_terms'
+  ];
+  t text;
+begin
+  -- 1. Create Tables if not exist
+  CREATE TABLE IF NOT EXISTS "schools" (
+    "id" TEXT PRIMARY KEY, "name" TEXT, "ministryCode" TEXT, "managerName" TEXT, "managerNationalId" TEXT, "type" TEXT, "phone" TEXT, "studentCount" INTEGER, "educationAdministration" TEXT, "worksMasterUrl" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "teachers" (
+    "id" TEXT PRIMARY KEY, "name" TEXT, "nationalId" TEXT, "email" TEXT, "phone" TEXT, "password" TEXT, "subjectSpecialty" TEXT, "schoolId" TEXT, "managerId" TEXT, "subscriptionStatus" TEXT, "subscriptionEndDate" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "system_users" (
+    "id" TEXT PRIMARY KEY, "name" TEXT, "email" TEXT, "nationalId" TEXT, "password" TEXT, "role" TEXT, "schoolId" TEXT, "status" TEXT, "isDemo" BOOLEAN, "phone" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "students" (
+    "id" TEXT PRIMARY KEY, "name" TEXT, "nationalId" TEXT, "gradeLevel" TEXT, "className" TEXT, "schoolId" TEXT, "parentId" TEXT, "parentName" TEXT, "parentPhone" TEXT, "parentEmail" TEXT, "password" TEXT, "seatIndex" INTEGER, "createdById" TEXT, "classId" TEXT, "phone" TEXT, "email" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "attendance" (
+    "id" TEXT PRIMARY KEY, "studentId" TEXT, "date" TEXT, "status" TEXT, "subject" TEXT, "period" INTEGER, "behaviorStatus" TEXT, "behaviorNote" TEXT, "excuseNote" TEXT, "excuseFile" TEXT, "createdById" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "performance" (
+    "id" TEXT PRIMARY KEY, "studentId" TEXT, "subject" TEXT, "title" TEXT, "category" TEXT, "score" NUMERIC, "maxScore" NUMERIC, "date" TEXT, "notes" TEXT, "url" TEXT, "createdById" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "assignments" (
+    "id" TEXT PRIMARY KEY, "title" TEXT, "category" TEXT, "maxScore" NUMERIC, "url" TEXT, "isVisible" BOOLEAN, "orderIndex" INTEGER, "sourceMetadata" TEXT, "teacherId" TEXT, "termId" TEXT, "periodId" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "schedules" (
+    "id" TEXT PRIMARY KEY, "classId" TEXT, "day" TEXT, "period" INTEGER, "subjectName" TEXT, "teacherId" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "teacher_assignments" (
+    "id" TEXT PRIMARY KEY, "classId" TEXT, "subjectName" TEXT, "teacherId" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "subjects" (
+    "id" TEXT PRIMARY KEY, "name" TEXT, "teacherId" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "weekly_plans" (
+    "id" TEXT PRIMARY KEY, "teacherId" TEXT, "classId" TEXT, "subjectName" TEXT, "day" TEXT, "period" INTEGER, "weekStartDate" TEXT, "lessonTopic" TEXT, "homework" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "lesson_links" (
+    "id" TEXT PRIMARY KEY, "title" TEXT, "url" TEXT, "teacherId" TEXT, "createdAt" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "lesson_plans" (
+    "id" TEXT PRIMARY KEY, "teacherId" TEXT, "lessonId" TEXT, "subject" TEXT, "topic" TEXT, "contentJson" TEXT, "resources" JSONB, "createdAt" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "custom_tables" (
+    "id" TEXT PRIMARY KEY, "name" TEXT, "createdAt" TEXT, "columns" JSONB, "rows" JSONB, "sourceUrl" TEXT, "lastUpdated" TEXT, "teacherId" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "message_logs" (
+    "id" TEXT PRIMARY KEY, "studentId" TEXT, "studentName" TEXT, "parentPhone" TEXT, "type" TEXT, "content" TEXT, "status" TEXT, "date" TEXT, "sentBy" TEXT, "teacherId" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "feedback" (
+    "id" TEXT PRIMARY KEY, "teacherId" TEXT, "managerId" TEXT, "content" TEXT, "date" TEXT, "isRead" BOOLEAN, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "exams" (
+    "id" TEXT PRIMARY KEY, "title" TEXT, "subject" TEXT, "gradeLevel" TEXT, "durationMinutes" INTEGER, "questions" JSONB, "isActive" BOOLEAN, "createdAt" TEXT, "teacherId" TEXT, "date" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "exam_results" (
+    "id" TEXT PRIMARY KEY, "examId" TEXT, "studentId" TEXT, "studentName" TEXT, "score" NUMERIC, "totalScore" NUMERIC, "date" TEXT, "answers" JSONB, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "questions" (
+    "id" TEXT PRIMARY KEY, "text" TEXT, "type" TEXT, "options" JSONB, "correctAnswer" TEXT, "points" INTEGER, "subject" TEXT, "gradeLevel" TEXT, "topic" TEXT, "difficulty" TEXT, "teacherId" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "curriculum_units" (
+    "id" TEXT PRIMARY KEY, "teacherId" TEXT, "subject" TEXT, "gradeLevel" TEXT, "title" TEXT, "orderIndex" INTEGER, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
+    "id" TEXT PRIMARY KEY, "unitId" TEXT, "title" TEXT, "orderIndex" INTEGER, "learningStandards" JSONB, "microConceptIds" JSONB, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "micro_concepts" (
+    "id" TEXT PRIMARY KEY, "teacherId" TEXT, "subject" TEXT, "name" TEXT, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "tracking_sheets" (
+    "id" TEXT PRIMARY KEY, "title" TEXT, "subject" TEXT, "className" TEXT, "teacherId" TEXT, "createdAt" TEXT, "columns" JSONB, "scores" JSONB, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS "academic_terms" (
+    "id" TEXT PRIMARY KEY, "name" TEXT, "startDate" TEXT, "endDate" TEXT, "isCurrent" BOOLEAN, "teacherId" TEXT, "periods" JSONB, "created_at" TIMESTAMPTZ DEFAULT NOW()
+  );
 
--- 2. Teachers
-CREATE TABLE IF NOT EXISTS "teachers" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "nationalId" TEXT,
-  "email" TEXT,
-  "phone" TEXT,
-  "password" TEXT,
-  "subjectSpecialty" TEXT,
-  "schoolId" TEXT,
-  "managerId" TEXT,
-  "subscriptionStatus" TEXT,
-  "subscriptionEndDate" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "teachers" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "teachers" FOR ALL USING (true) WITH CHECK (true);
-
--- 3. System Users
-CREATE TABLE IF NOT EXISTS "system_users" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "email" TEXT,
-  "nationalId" TEXT,
-  "password" TEXT,
-  "role" TEXT,
-  "schoolId" TEXT,
-  "status" TEXT,
-  "isDemo" BOOLEAN,
-  "phone" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "system_users" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "system_users" FOR ALL USING (true) WITH CHECK (true);
-
--- 4. Students
-CREATE TABLE IF NOT EXISTS "students" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "nationalId" TEXT,
-  "gradeLevel" TEXT,
-  "className" TEXT,
-  "schoolId" TEXT,
-  "parentId" TEXT,
-  "parentName" TEXT,
-  "parentPhone" TEXT,
-  "parentEmail" TEXT,
-  "password" TEXT,
-  "seatIndex" INTEGER,
-  "createdById" TEXT,
-  "classId" TEXT,
-  "phone" TEXT,
-  "email" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "students" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "students" FOR ALL USING (true) WITH CHECK (true);
-
--- 5. Attendance
-CREATE TABLE IF NOT EXISTS "attendance" (
-  "id" TEXT PRIMARY KEY,
-  "studentId" TEXT,
-  "date" TEXT,
-  "status" TEXT,
-  "subject" TEXT,
-  "period" INTEGER,
-  "behaviorStatus" TEXT,
-  "behaviorNote" TEXT,
-  "excuseNote" TEXT,
-  "excuseFile" TEXT,
-  "createdById" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "attendance" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "attendance" FOR ALL USING (true) WITH CHECK (true);
-
--- 6. Performance (Grades)
-CREATE TABLE IF NOT EXISTS "performance" (
-  "id" TEXT PRIMARY KEY,
-  "studentId" TEXT,
-  "subject" TEXT,
-  "title" TEXT,
-  "category" TEXT,
-  "score" NUMERIC,
-  "maxScore" NUMERIC,
-  "date" TEXT,
-  "notes" TEXT,
-  "url" TEXT,
-  "createdById" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "performance" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "performance" FOR ALL USING (true) WITH CHECK (true);
-
--- 7. Assignments (Columns)
-CREATE TABLE IF NOT EXISTS "assignments" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "category" TEXT,
-  "maxScore" NUMERIC,
-  "url" TEXT,
-  "isVisible" BOOLEAN,
-  "orderIndex" INTEGER,
-  "sourceMetadata" TEXT,
-  "teacherId" TEXT,
-  "termId" TEXT,
-  "periodId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "assignments" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "assignments" FOR ALL USING (true) WITH CHECK (true);
-
--- 8. Schedules
-CREATE TABLE IF NOT EXISTS "schedules" (
-  "id" TEXT PRIMARY KEY,
-  "classId" TEXT,
-  "day" TEXT,
-  "period" INTEGER,
-  "subjectName" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "schedules" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "schedules" FOR ALL USING (true) WITH CHECK (true);
-
--- 9. Teacher Assignments (Class-Subject Links)
-CREATE TABLE IF NOT EXISTS "teacher_assignments" (
-  "id" TEXT PRIMARY KEY,
-  "classId" TEXT,
-  "subjectName" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "teacher_assignments" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "teacher_assignments" FOR ALL USING (true) WITH CHECK (true);
-
--- 10. Subjects
-CREATE TABLE IF NOT EXISTS "subjects" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "subjects" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "subjects" FOR ALL USING (true) WITH CHECK (true);
-
--- 11. Weekly Plans
-CREATE TABLE IF NOT EXISTS "weekly_plans" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "classId" TEXT,
-  "subjectName" TEXT,
-  "day" TEXT,
-  "period" INTEGER,
-  "weekStartDate" TEXT,
-  "lessonTopic" TEXT,
-  "homework" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "weekly_plans" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "weekly_plans" FOR ALL USING (true) WITH CHECK (true);
-
--- 12. Lesson Links
-CREATE TABLE IF NOT EXISTS "lesson_links" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "url" TEXT,
-  "teacherId" TEXT,
-  "createdAt" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "lesson_links" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "lesson_links" FOR ALL USING (true) WITH CHECK (true);
-
--- 13. Lesson Plans (Detailed)
-CREATE TABLE IF NOT EXISTS "lesson_plans" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "lessonId" TEXT,
-  "subject" TEXT,
-  "topic" TEXT,
-  "contentJson" TEXT,
-  "resources" JSONB,
-  "createdAt" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "lesson_plans" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "lesson_plans" FOR ALL USING (true) WITH CHECK (true);
-
--- 14. Custom Tables
-CREATE TABLE IF NOT EXISTS "custom_tables" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "createdAt" TEXT,
-  "columns" JSONB,
-  "rows" JSONB,
-  "sourceUrl" TEXT,
-  "lastUpdated" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "custom_tables" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "custom_tables" FOR ALL USING (true) WITH CHECK (true);
-
--- 15. Message Logs (UPDATED with teacherId)
-CREATE TABLE IF NOT EXISTS "message_logs" (
-  "id" TEXT PRIMARY KEY,
-  "studentId" TEXT,
-  "studentName" TEXT,
-  "parentPhone" TEXT,
-  "type" TEXT,
-  "content" TEXT,
-  "status" TEXT,
-  "date" TEXT,
-  "sentBy" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "message_logs" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "message_logs" FOR ALL USING (true) WITH CHECK (true);
-
--- 16. Feedback
-CREATE TABLE IF NOT EXISTS "feedback" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "managerId" TEXT,
-  "content" TEXT,
-  "date" TEXT,
-  "isRead" BOOLEAN,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "feedback" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "feedback" FOR ALL USING (true) WITH CHECK (true);
-
--- 17. Exams
-CREATE TABLE IF NOT EXISTS "exams" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "durationMinutes" INTEGER,
-  "questions" JSONB,
-  "isActive" BOOLEAN,
-  "createdAt" TEXT,
-  "teacherId" TEXT,
-  "date" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "exams" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "exams" FOR ALL USING (true) WITH CHECK (true);
-
--- 18. Exam Results
-CREATE TABLE IF NOT EXISTS "exam_results" (
-  "id" TEXT PRIMARY KEY,
-  "examId" TEXT,
-  "studentId" TEXT,
-  "studentName" TEXT,
-  "score" NUMERIC,
-  "totalScore" NUMERIC,
-  "date" TEXT,
-  "answers" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "exam_results" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "exam_results" FOR ALL USING (true) WITH CHECK (true);
-
--- 19. Questions Bank
-CREATE TABLE IF NOT EXISTS "questions" (
-  "id" TEXT PRIMARY KEY,
-  "text" TEXT,
-  "type" TEXT,
-  "options" JSONB,
-  "correctAnswer" TEXT,
-  "points" INTEGER,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "topic" TEXT,
-  "difficulty" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "questions" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "questions" FOR ALL USING (true) WITH CHECK (true);
-
--- 20. Curriculum Units
-CREATE TABLE IF NOT EXISTS "curriculum_units" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_units" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "curriculum_units" FOR ALL USING (true) WITH CHECK (true);
-
--- 21. Curriculum Lessons
-CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
-  "id" TEXT PRIMARY KEY,
-  "unitId" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "learningStandards" JSONB,
-  "microConceptIds" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_lessons" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "curriculum_lessons" FOR ALL USING (true) WITH CHECK (true);
-
--- 22. Micro Concepts
-CREATE TABLE IF NOT EXISTS "micro_concepts" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "name" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "micro_concepts" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "micro_concepts" FOR ALL USING (true) WITH CHECK (true);
-
--- 23. Tracking Sheets
-CREATE TABLE IF NOT EXISTS "tracking_sheets" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "subject" TEXT,
-  "className" TEXT,
-  "teacherId" TEXT,
-  "createdAt" TEXT,
-  "columns" JSONB,
-  "scores" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "tracking_sheets" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "tracking_sheets" FOR ALL USING (true) WITH CHECK (true);
-
--- 24. Academic Terms
-CREATE TABLE IF NOT EXISTS "academic_terms" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "startDate" TEXT,
-  "endDate" TEXT,
-  "isCurrent" BOOLEAN,
-  "teacherId" TEXT,
-  "periods" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
+  -- 2. Apply Policies Loop
+  foreach t in array tables loop
+    execute format('ALTER TABLE IF EXISTS "%I" ENABLE ROW LEVEL SECURITY;', t);
+    execute format('DROP POLICY IF EXISTS "Public Access" ON "%I";', t);
+    execute format('CREATE POLICY "Public Access" ON "%I" FOR ALL USING (true) WITH CHECK (true);', t);
+  end loop;
+end $$;
 `;
 };
+
+// Use the same robust logic for update SQL
+export const getDatabaseUpdateSQL = getDatabaseSchemaSQL;
