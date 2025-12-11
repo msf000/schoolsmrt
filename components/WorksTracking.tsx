@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl } from '../services/storageService';
@@ -20,7 +21,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
     // --- State ---
-    const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>('HOMEWORK');
+    const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>(() => {
+        return (localStorage.getItem('works_active_tab') as any) || 'HOMEWORK';
+    });
+
+    // Persist Tab
+    useEffect(() => {
+        localStorage.setItem('works_active_tab', activeTab);
+    }, [activeTab]);
     
     // Filters (Main View)
     const [selectedTermId, setSelectedTermId] = useState('');

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Teacher, School } from '../types';
-import { addTeacher, getTeachers, getSchools, addSchool } from '../services/storageService';
+import { Teacher, School, SystemUser } from '../types';
+import { addTeacher, getTeachers, getSchools, addSchool, addSystemUser } from '../services/storageService';
 import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info, MapPin, Building } from 'lucide-react';
 
 interface TeacherRegistrationProps {
@@ -98,9 +98,16 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                     schoolId = foundSchool.id;
                     managerId = foundSchool.managerNationalId;
                 } else {
-                    // New School Logic - Relaxed Requirements
+                    // New School Logic
                     if (!formData.schoolName) {
                         setError('الرمز الوزاري جديد. الرجاء كتابة اسم المدرسة لإنشائها.');
+                        setLoading(false);
+                        return;
+                    }
+                    
+                    // Validate Manager Data for account creation
+                    if (!formData.managerNationalId || formData.managerNationalId.length < 5) {
+                        setError('الرجاء إدخال رقم هوية المدير لإنشاء حسابه.');
                         setLoading(false);
                         return;
                     }
@@ -109,19 +116,39 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         id: Date.now().toString() + '_sch',
                         name: formData.schoolName,
                         ministryCode: formData.schoolCode,
-                        managerName: formData.managerName || 'غير مسجل', // Optional
-                        managerNationalId: formData.managerNationalId || undefined, // Optional (send undefined to skip column)
+                        managerName: formData.managerName || 'غير مسجل',
+                        managerNationalId: formData.managerNationalId,
                         educationAdministration: formData.educationAdmin || '',
                         type: formData.schoolType as any || 'PUBLIC',
                         phone: '',
                         studentCount: 0
                     };
                     
-                    // Attempt to save with retry logic
+                    // 1. Create School
                     await tryAddSchool(newSchool);
                     
                     schoolId = newSchool.id;
                     managerId = formData.managerNationalId;
+
+                    // 2. Create System User for Manager (Auto-generated)
+                    // Password = Last 4 digits of National ID
+                    const mgrPassword = formData.managerNationalId.trim().slice(-4);
+                    
+                    const managerUser: SystemUser = {
+                        id: `mgr_${Date.now()}`,
+                        name: formData.managerName || 'مدير المدرسة',
+                        email: `manager.${formData.managerNationalId}@system.local`, // Dummy email for unique constraint if needed
+                        nationalId: formData.managerNationalId, // Used for login
+                        password: mgrPassword,
+                        role: 'SCHOOL_MANAGER',
+                        schoolId: newSchool.id,
+                        status: 'ACTIVE',
+                        phone: ''
+                    };
+
+                    // Add manager to system users
+                    await addSystemUser(managerUser);
+                    console.log(`Manager Created: ID=${managerUser.nationalId}, Pass=${managerUser.password}`);
                 }
             }
 
@@ -161,7 +188,15 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         <CheckCircle size={40} />
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">تم التسجيل بنجاح!</h2>
-                    <p className="text-gray-500">جاري توجيهك إلى النظام...</p>
+                    <p className="text-gray-500 mb-4">تم إنشاء حساب المعلم.</p>
+                    {!foundSchool && formData.managerNationalId && (
+                        <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-sm text-blue-800 text-right">
+                            <p className="font-bold mb-1">تم إنشاء حساب لمدير المدرسة:</p>
+                            <p>اسم المستخدم: <span className="font-mono font-bold">{formData.managerNationalId}</span></p>
+                            <p>كلمة المرور: <span className="font-mono font-bold">{formData.managerNationalId.slice(-4)}</span> (آخر 4 أرقام)</p>
+                        </div>
+                    )}
+                    <p className="text-gray-400 text-xs mt-4">جاري التوجيه...</p>
                 </div>
             </div>
         );
@@ -259,7 +294,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                     <SchoolIcon size={14}/> المدرسة (اختياري)
                                 </label>
                                 <p className="text-[10px] text-gray-500 mb-2">
-                                    أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، سيطلب منك إدخال بياناتها لإنشائها.
+                                    أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، سيطلب منك إدخال بياناتها لإنشائها وإنشاء حساب للمدير.
                                 </p>
                                 
                                 <div className="mb-3">
@@ -291,7 +326,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                 ) : formData.schoolCode.length >= 3 ? (
                                     <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2 bg-white p-3 rounded-lg border border-teal-100 shadow-sm">
                                         <div className="flex items-center gap-2 text-teal-700 text-xs font-bold mb-2">
-                                            <Info size={14}/> إعداد مدرسة جديدة بالكامل:
+                                            <Info size={14}/> إعداد مدرسة جديدة وحساب المدير:
                                         </div>
                                         
                                         <input 
@@ -323,19 +358,22 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                         </div>
                                         
                                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                                            <div className="col-span-2 text-[10px] text-gray-500 mb-1">
+                                                سيتم إنشاء حساب للمدير. الدخول برقم الهوية وكلمة المرور (آخر 4 أرقام).
+                                            </div>
                                             <input 
                                                 name="managerName" 
                                                 value={formData.managerName} 
                                                 onChange={handleChange} 
                                                 className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
-                                                placeholder="اسم المدير"
+                                                placeholder="اسم المدير *"
                                             />
                                             <input 
                                                 name="managerNationalId" 
                                                 value={formData.managerNationalId} 
                                                 onChange={handleChange} 
                                                 className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white font-mono" 
-                                                placeholder="هوية المدير (للربط)"
+                                                placeholder="هوية المدير (مطلوب للدخول) *"
                                             />
                                         </div>
                                     </div>

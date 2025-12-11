@@ -60,8 +60,11 @@ const App: React.FC = () => {
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [theme, setTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
 
-    // UI State
-    const [currentView, setCurrentView] = useState('DASHBOARD');
+    // UI State - Persist Current View
+    const [currentView, setCurrentView] = useState(() => {
+        return localStorage.getItem('app_last_view') || 'DASHBOARD';
+    });
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showClassroomScreen, setShowClassroomScreen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -72,16 +75,27 @@ const App: React.FC = () => {
     // AI Status State
     const [aiStatus, setAiStatus] = useState<'IDLE' | 'CHECKING' | 'CONNECTED' | 'ERROR'>('IDLE');
 
+    // Save View on Change
+    useEffect(() => {
+        if (currentUser) {
+            localStorage.setItem('app_last_view', currentView);
+        }
+    }, [currentView, currentUser]);
+
     useEffect(() => {
         if (currentUser) {
             const startUp = async () => {
-                setIsLoading(true);
+                // If data is empty locally, show loader. If we have cache, load immediately then sync in background.
+                if (getStudents().length === 0) setIsLoading(true);
+                
+                loadData(); // Load local cache first for instant render
+                
                 try {
                     await initAutoSync();
                 } catch (e) {
                     console.error("Initialization Sync Failed:", e);
                 } finally {
-                    loadData();
+                    loadData(); // Reload after sync
                     setIsLoading(false);
                 }
             };
@@ -97,7 +111,11 @@ const App: React.FC = () => {
             checkAI();
             
             const unsubSync = subscribeToSyncStatus((status) => setSyncStatus(status));
-            const unsubData = subscribeToDataChanges(() => loadData());
+            // Subscribe to data changes to auto-update UI when data changes elsewhere (e.g., Attendance component saves data)
+            const unsubData = subscribeToDataChanges(() => {
+                console.log("Data changed, reloading...");
+                loadData();
+            });
 
             return () => {
                 unsubSync();
@@ -153,6 +171,7 @@ const App: React.FC = () => {
     const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
+        localStorage.removeItem('app_last_view'); // Clear view on logout
         setSystemMode(false);
         setShowClassroomScreen(false);
         setCurrentView('DASHBOARD');

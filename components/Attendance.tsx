@@ -56,7 +56,17 @@ const Attendance: React.FC<AttendanceProps> = ({
       );
   }
 
-  const [activeTab, setActiveTab] = useState<'REGISTER' | 'WEEKLY' | 'LOG'>(isManager ? 'LOG' : 'REGISTER');
+  // Persist Tab
+  const [activeTab, setActiveTab] = useState<'REGISTER' | 'WEEKLY' | 'LOG'>(() => {
+      const saved = localStorage.getItem('attendance_active_tab');
+      if (saved) return saved as any;
+      return isManager ? 'LOG' : 'REGISTER';
+  });
+
+  useEffect(() => {
+      localStorage.setItem('attendance_active_tab', activeTab);
+  }, [activeTab]);
+
   const [viewMode, setViewMode] = useState<'LIST' | 'GRID'>('GRID'); // Default to Grid for better UX
 
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
