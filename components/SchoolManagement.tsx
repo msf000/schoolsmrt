@@ -1091,6 +1091,5 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
         </div>
-    </div>
-  );
+    );
 };

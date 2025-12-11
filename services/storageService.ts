@@ -1,5 +1,4 @@
 
-// ... existing code ...
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Subject, ScheduleItem, TeacherAssignment, Assignment, WeeklyPlanItem, 
@@ -42,7 +41,7 @@ const KEYS = {
     WORKS_MASTER_URL: 'works_master_url'
 };
 
-// ... (Keep existing Helper Functions and Event Emitters same as before) ...
+// --- Helper Functions ---
 const get = <T>(key: string): T[] => {
     try {
         const data = localStorage.getItem(key);
@@ -55,6 +54,7 @@ const save = <T>(key: string, data: T[]) => {
     notifyDataChange();
 };
 
+// --- Event Emitter for Sync/Data ---
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
 type Listener = (status: SyncStatus) => void;
 type DataListener = () => void;
@@ -82,7 +82,8 @@ const notifyDataChange = () => {
     dataListeners.forEach(l => l());
 };
 
-// ... (Keep existing CRUD functions for Students, Attendance, etc.) ...
+// --- Basic CRUD ---
+
 // Students
 export const getStudents = (): Student[] => get(KEYS.STUDENTS);
 export const addStudent = (s: Student) => { const list = getStudents(); list.push(s); save(KEYS.STUDENTS, list); };
@@ -104,6 +105,7 @@ export const bulkUpsertStudents = (students: Student[], key: keyof Student = 'na
 export const getAttendance = (): AttendanceRecord[] => get(KEYS.ATTENDANCE);
 export const saveAttendance = (records: AttendanceRecord[]) => { 
     let list = getAttendance(); 
+    // Upsert logic
     records.forEach(r => {
         const idx = list.findIndex(x => x.id === r.id);
         if (idx > -1) list[idx] = r;
@@ -125,6 +127,7 @@ export const addTeacher = (t: Teacher) => {
     const list = getTeachers(); 
     list.push(t); 
     save(KEYS.TEACHERS, list);
+    // Also add to System Users
     addSystemUser({
         id: t.id, name: t.name, email: t.email || t.id, nationalId: t.nationalId, 
         password: t.password || '123456', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE'
@@ -166,6 +169,7 @@ export const deleteSubject = (id: string) => { save(KEYS.SUBJECTS, get<Subject>(
 export const getSchedules = (): ScheduleItem[] => get(KEYS.SCHEDULES);
 export const saveScheduleItem = (item: ScheduleItem) => { 
     const list = getSchedules(); 
+    // Check if replacing
     const idx = list.findIndex(x => x.classId === item.classId && x.day === item.day && x.period === item.period);
     if (idx > -1) list[idx] = item;
     else list.push(item);
@@ -292,7 +296,7 @@ export const saveQuestionToBank = (q: Question) => {
 };
 export const deleteQuestionFromBank = (id: string) => { save(KEYS.QUESTION_BANK, get<Question>(KEYS.QUESTION_BANK).filter(x => x.id !== id)); };
 
-// Tracking Sheets
+// Tracking Sheets (Flexible)
 export const getTrackingSheets = (teacherId?: string): TrackingSheet[] => {
     const all = get<TrackingSheet>(KEYS.TRACKING_SHEETS);
     if (!teacherId) return all;
