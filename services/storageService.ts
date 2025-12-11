@@ -151,9 +151,36 @@ export const getSystemUsers = (): SystemUser[] => get(KEYS.USERS);
 export const addSystemUser = (u: SystemUser) => { const list = getSystemUsers(); list.push(u); save(KEYS.USERS, list); };
 export const updateSystemUser = (u: SystemUser) => { const list = getSystemUsers(); const idx = list.findIndex(x => x.id === u.id); if (idx > -1) list[idx] = u; save(KEYS.USERS, list); };
 export const deleteSystemUser = (id: string) => { save(KEYS.USERS, getSystemUsers().filter(x => x.id !== id)); };
+
+// --- UPDATED AUTHENTICATION WITH CLOUD FALLBACK ---
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
+    // 1. Try Local Storage first
     const users = getSystemUsers();
-    return users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === password && u.status === 'ACTIVE');
+    const localUser = users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === password && u.status === 'ACTIVE');
+    
+    if (localUser) return localUser;
+
+    // 2. Try Supabase Cloud Fallback
+    try {
+        console.log("Local auth failed, trying cloud...");
+        const { data, error } = await supabase
+            .from('system_users')
+            .select('*')
+            .or(`email.eq.${identifier},nationalId.eq.${identifier}`)
+            .eq('password', password)
+            .eq('status', 'ACTIVE')
+            .single();
+            
+        if (data && !error) {
+            // Cache locally for next time
+            addSystemUser(data);
+            return data as SystemUser;
+        }
+    } catch (e) {
+        console.error("Cloud auth failed:", e);
+    }
+
+    return undefined;
 };
 
 // Subjects
@@ -466,6 +493,8 @@ CREATE TABLE IF NOT EXISTS "schools" (
   "worksMasterUrl" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "schools" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "schools" FOR ALL USING (true) WITH CHECK (true);
 
 -- 2. Teachers
 CREATE TABLE IF NOT EXISTS "teachers" (
@@ -482,6 +511,8 @@ CREATE TABLE IF NOT EXISTS "teachers" (
   "subscriptionEndDate" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "teachers" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "teachers" FOR ALL USING (true) WITH CHECK (true);
 
 -- 3. System Users
 CREATE TABLE IF NOT EXISTS "system_users" (
@@ -497,6 +528,8 @@ CREATE TABLE IF NOT EXISTS "system_users" (
   "phone" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "system_users" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "system_users" FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. Students
 CREATE TABLE IF NOT EXISTS "students" (
@@ -518,6 +551,8 @@ CREATE TABLE IF NOT EXISTS "students" (
   "email" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "students" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "students" FOR ALL USING (true) WITH CHECK (true);
 
 -- 5. Attendance
 CREATE TABLE IF NOT EXISTS "attendance" (
@@ -534,6 +569,8 @@ CREATE TABLE IF NOT EXISTS "attendance" (
   "createdById" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "attendance" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "attendance" FOR ALL USING (true) WITH CHECK (true);
 
 -- 6. Performance (Grades)
 CREATE TABLE IF NOT EXISTS "performance" (
@@ -550,6 +587,8 @@ CREATE TABLE IF NOT EXISTS "performance" (
   "createdById" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "performance" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "performance" FOR ALL USING (true) WITH CHECK (true);
 
 -- 7. Assignments (Columns)
 CREATE TABLE IF NOT EXISTS "assignments" (
@@ -566,6 +605,8 @@ CREATE TABLE IF NOT EXISTS "assignments" (
   "periodId" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "assignments" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "assignments" FOR ALL USING (true) WITH CHECK (true);
 
 -- 8. Schedules
 CREATE TABLE IF NOT EXISTS "schedules" (
@@ -577,6 +618,8 @@ CREATE TABLE IF NOT EXISTS "schedules" (
   "teacherId" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "schedules" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "schedules" FOR ALL USING (true) WITH CHECK (true);
 
 -- 9. Teacher Assignments (Class-Subject Links)
 CREATE TABLE IF NOT EXISTS "teacher_assignments" (
@@ -586,6 +629,8 @@ CREATE TABLE IF NOT EXISTS "teacher_assignments" (
   "teacherId" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "teacher_assignments" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "teacher_assignments" FOR ALL USING (true) WITH CHECK (true);
 
 -- 10. Subjects
 CREATE TABLE IF NOT EXISTS "subjects" (
@@ -594,6 +639,8 @@ CREATE TABLE IF NOT EXISTS "subjects" (
   "teacherId" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "subjects" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "subjects" FOR ALL USING (true) WITH CHECK (true);
 
 -- 11. Weekly Plans
 CREATE TABLE IF NOT EXISTS "weekly_plans" (
@@ -608,6 +655,8 @@ CREATE TABLE IF NOT EXISTS "weekly_plans" (
   "homework" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "weekly_plans" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "weekly_plans" FOR ALL USING (true) WITH CHECK (true);
 
 -- 12. Lesson Links
 CREATE TABLE IF NOT EXISTS "lesson_links" (
@@ -618,6 +667,8 @@ CREATE TABLE IF NOT EXISTS "lesson_links" (
   "createdAt" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "lesson_links" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "lesson_links" FOR ALL USING (true) WITH CHECK (true);
 
 -- 13. Lesson Plans (Detailed)
 CREATE TABLE IF NOT EXISTS "lesson_plans" (
@@ -631,6 +682,8 @@ CREATE TABLE IF NOT EXISTS "lesson_plans" (
   "createdAt" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "lesson_plans" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "lesson_plans" FOR ALL USING (true) WITH CHECK (true);
 
 -- 14. Custom Tables
 CREATE TABLE IF NOT EXISTS "custom_tables" (
@@ -644,6 +697,8 @@ CREATE TABLE IF NOT EXISTS "custom_tables" (
   "teacherId" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "custom_tables" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "custom_tables" FOR ALL USING (true) WITH CHECK (true);
 
 -- 15. Message Logs (UPDATED with teacherId)
 CREATE TABLE IF NOT EXISTS "message_logs" (
@@ -659,6 +714,8 @@ CREATE TABLE IF NOT EXISTS "message_logs" (
   "teacherId" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "message_logs" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "message_logs" FOR ALL USING (true) WITH CHECK (true);
 
 -- 16. Feedback
 CREATE TABLE IF NOT EXISTS "feedback" (
@@ -670,6 +727,8 @@ CREATE TABLE IF NOT EXISTS "feedback" (
   "isRead" BOOLEAN,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "feedback" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "feedback" FOR ALL USING (true) WITH CHECK (true);
 
 -- 17. Exams
 CREATE TABLE IF NOT EXISTS "exams" (
@@ -685,6 +744,8 @@ CREATE TABLE IF NOT EXISTS "exams" (
   "date" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "exams" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "exams" FOR ALL USING (true) WITH CHECK (true);
 
 -- 18. Exam Results
 CREATE TABLE IF NOT EXISTS "exam_results" (
@@ -698,6 +759,8 @@ CREATE TABLE IF NOT EXISTS "exam_results" (
   "answers" JSONB,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "exam_results" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "exam_results" FOR ALL USING (true) WITH CHECK (true);
 
 -- 19. Questions Bank
 CREATE TABLE IF NOT EXISTS "questions" (
@@ -714,6 +777,8 @@ CREATE TABLE IF NOT EXISTS "questions" (
   "teacherId" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "questions" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "questions" FOR ALL USING (true) WITH CHECK (true);
 
 -- 20. Curriculum Units
 CREATE TABLE IF NOT EXISTS "curriculum_units" (
@@ -725,6 +790,8 @@ CREATE TABLE IF NOT EXISTS "curriculum_units" (
   "orderIndex" INTEGER,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "curriculum_units" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "curriculum_units" FOR ALL USING (true) WITH CHECK (true);
 
 -- 21. Curriculum Lessons
 CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
@@ -736,6 +803,8 @@ CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
   "microConceptIds" JSONB,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "curriculum_lessons" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "curriculum_lessons" FOR ALL USING (true) WITH CHECK (true);
 
 -- 22. Micro Concepts
 CREATE TABLE IF NOT EXISTS "micro_concepts" (
@@ -745,6 +814,8 @@ CREATE TABLE IF NOT EXISTS "micro_concepts" (
   "name" TEXT,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "micro_concepts" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "micro_concepts" FOR ALL USING (true) WITH CHECK (true);
 
 -- 23. Tracking Sheets
 CREATE TABLE IF NOT EXISTS "tracking_sheets" (
@@ -758,6 +829,8 @@ CREATE TABLE IF NOT EXISTS "tracking_sheets" (
   "scores" JSONB,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "tracking_sheets" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "tracking_sheets" FOR ALL USING (true) WITH CHECK (true);
 
 -- 24. Academic Terms
 CREATE TABLE IF NOT EXISTS "academic_terms" (
@@ -770,22 +843,37 @@ CREATE TABLE IF NOT EXISTS "academic_terms" (
   "periods" JSONB,
   "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
 `;
 };
 
 export const getDatabaseUpdateSQL = () => {
     return `
--- Fix Academic Terms (Create if missing)
-CREATE TABLE IF NOT EXISTS "academic_terms" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "startDate" TEXT,
-  "endDate" TEXT,
-  "isCurrent" BOOLEAN,
-  "teacherId" TEXT,
-  "periods" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
+-- Enable RLS and Public Access for all tables (Safe to run multiple times)
+do $$
+declare
+  tables text[] := array[
+    'schools', 'teachers', 'system_users', 'students', 'attendance', 'performance', 
+    'assignments', 'schedules', 'teacher_assignments', 'subjects', 'weekly_plans', 
+    'lesson_links', 'lesson_plans', 'custom_tables', 'message_logs', 'feedback', 
+    'exams', 'exam_results', 'questions', 'curriculum_units', 'curriculum_lessons', 
+    'micro_concepts', 'tracking_sheets', 'academic_terms'
+  ];
+  t text;
+begin
+  foreach t in array tables loop
+    -- 1. Create table if missing (Generic structure, mostly relies on schema update)
+    -- This block is just a placeholder, rely on full schema for creation.
+    
+    -- 2. Enable RLS
+    execute format('ALTER TABLE IF EXISTS "%I" ENABLE ROW LEVEL SECURITY;', t);
+    
+    -- 3. Create Policy (Drop first to avoid error)
+    execute format('DROP POLICY IF EXISTS "Public Access" ON "%I";', t);
+    execute format('CREATE POLICY "Public Access" ON "%I" FOR ALL USING (true) WITH CHECK (true);', t);
+  end loop;
+end $$;
 `;
 };
 
