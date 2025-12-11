@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine } from 'recharts';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -189,14 +190,36 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
         const behaviorLogs = studentAtt.filter(a => (a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL) || a.behaviorNote).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        let behScore = 0;
-        const behaviorTrendData = studentAtt.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(a => { if(a.behaviorStatus === 'POSITIVE') behScore += 1; if(a.behaviorStatus === 'NEGATIVE') behScore -= 1; return { date: a.date.slice(5), score: behScore }; }).filter((_, i) => i % 2 === 0 || i === studentAtt.length - 1);
-        
-        const academicTrendData = myPerformance.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(p => ({ name: p.title, grade: Math.round((p.score / p.maxScore) * 100), full: 100 }));
-        
-        const chartData = [{ name: 'الحضور', value: Math.round(attPercent), full: 100, fill: '#10b981' }, { name: 'الواجبات', value: Math.round(hwPercent), full: 100, fill: '#3b82f6' }, { name: 'الأنشطة', value: Math.round(actPercent), full: 100, fill: '#f59e0b' }, { name: 'الاختبارات', value: Math.round((examWeighted / 20) * 100), full: 100, fill: '#8b5cf6' }];
+        // --- Class Average Calculation ---
+        let classAvg = 0;
+        const classStudents = students.filter(s => s.className === student.className);
+        if (classStudents.length > 0) {
+            let totalClassScore = 0;
+            let scoredStudents = 0;
+            classStudents.forEach(cs => {
+                const sPerf = performance.filter(p => p.studentId === cs.id && p.subject === selectedSubject && (!activeTerm || (p.date >= activeTerm.startDate && p.date <= activeTerm.endDate)));
+                if (sPerf.length > 0) {
+                    const sTotal = sPerf.reduce((acc, p) => acc + (p.score/p.maxScore), 0);
+                    totalClassScore += (sTotal / sPerf.length);
+                    scoredStudents++;
+                }
+            });
+            if (scoredStudents > 0) classAvg = Math.round((totalClassScore / scoredStudents) * 100);
+        }
 
-        return { attPercent, gradePart, hwPercent, distinctHWs, totalHWCount, gradeHW, actSum, gradeAct, actPercent, examWeighted, totalTasks, totalPeriod, studentActs, studentHWs, studentExams, behaviorLogs, chartData, behaviorTrendData, academicTrendData };
+        const chartData = [
+            { name: 'الحضور', value: Math.round(attPercent), full: 100, fill: '#10b981' }, 
+            { name: 'الواجبات', value: Math.round(hwPercent), full: 100, fill: '#3b82f6' }, 
+            { name: 'الأنشطة', value: Math.round(actPercent), full: 100, fill: '#f59e0b' }, 
+            { name: 'الاختبارات', value: Math.round((examWeighted / 20) * 100), full: 100, fill: '#8b5cf6' }
+        ];
+
+        return { 
+            attPercent, gradePart, hwPercent, distinctHWs, totalHWCount, gradeHW, 
+            actSum, gradeAct, actPercent, examWeighted, totalTasks, totalPeriod, 
+            studentActs, studentHWs, studentExams, behaviorLogs, chartData,
+            classAvg 
+        };
     };
 
     const stats = calculateStats();
@@ -215,6 +238,31 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             onSaveAttendance([record]);
         }
         window.print();
+    };
+
+    const handleShareWhatsApp = () => {
+        if (!student || !stats) return;
+        const phone = student.parentPhone ? student.parentPhone.replace(/\D/g, '') : '';
+        if (!phone) {
+            alert('رقم ولي الأمر غير مسجل');
+            return;
+        }
+        
+        const message = `
+تقرير الطالب: ${student.name}
+المادة: ${selectedSubject}
+الفترة: ${activeTerm ? activeTerm.name : 'الحالية'}
+
+📊 الملخص:
+- نسبة الحضور: ${Math.round(stats.attPercent)}%
+- إنجاز الواجبات: ${Math.round(stats.hwPercent)}%
+- مجموع الدرجات: ${stats.totalPeriod.toFixed(1)} / 60
+
+ملاحظة: هذا تقرير تلقائي من نظام المتابعة.
+        `.trim();
+
+        const formattedPhone = phone.startsWith('966') ? phone : `966${phone.startsWith('0') ? phone.slice(1) : phone}`;
+        window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, '_blank');
     };
 
     return (
@@ -265,9 +313,14 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     </select>
                     
                     {selectedStudentId && (
-                        <button onClick={() => setIsCertModalOpen(true)} className="bg-yellow-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-yellow-600 text-sm font-bold animate-pulse">
-                            <Gift size={16}/> شهادة
-                        </button>
+                        <>
+                            <button onClick={handleShareWhatsApp} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-green-700 text-sm font-bold" title="مشاركة التقرير عبر واتساب">
+                                <Share2 size={16}/>
+                            </button>
+                            <button onClick={() => setIsCertModalOpen(true)} className="bg-yellow-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-yellow-600 text-sm font-bold animate-pulse">
+                                <Gift size={16}/> شهادة
+                            </button>
+                        </>
                     )}
 
                     <button onClick={() => window.print()} disabled={!selectedStudentId} className="bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-black disabled:opacity-50 text-sm font-bold">
@@ -330,16 +383,29 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                                             ))}
                                         </Bar>
+                                        {/* Comparison Line */}
+                                        <ReferenceLine y={stats.classAvg} label="معدل الفصل" stroke="red" strokeDasharray="3 3" />
                                     </BarChart>
                                 </ResponsiveContainer>
+                            </div>
+                            <div className="flex justify-center gap-6 mt-2 text-xs">
+                                <div className="flex items-center gap-1">
+                                    <div className="w-3 h-3 bg-red-500 rounded-full"></div> <span>معدل الفصل ({stats.classAvg}%)</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <Users size={14} className="text-gray-500"/> <span>المقارنة مع الزملاء</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                    <User size={64} className="mb-4 opacity-20"/>
-                    <p className="text-xl font-bold">اختر طالباً لعرض التقرير</p>
+                    <div className="bg-gray-100 p-6 rounded-full mb-4">
+                        <Search size={48} className="text-gray-300"/>
+                    </div>
+                    <p className="text-xl font-bold text-gray-500">اختر طالباً لعرض التقرير</p>
+                    <p className="text-sm">يمكنك البحث بالاسم أو الهوية أعلاه</p>
                 </div>
             )}
         </div>
