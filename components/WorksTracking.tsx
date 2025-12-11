@@ -1,4 +1,5 @@
 
+// ... (imports remain the same)
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl } from '../services/storageService';
@@ -7,6 +8,7 @@ import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, S
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
+// ... (Interface and consts remain same)
 interface WorksTrackingProps {
     students: Student[];
     performance: PerformanceRecord[];
@@ -18,50 +20,44 @@ interface WorksTrackingProps {
 const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone'];
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
+    // ... (State definitions remain same)
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
-    // --- State ---
     const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>(() => {
         return (localStorage.getItem('works_active_tab') as any) || 'HOMEWORK';
     });
 
-    // Persist Tab
     useEffect(() => {
         localStorage.setItem('works_active_tab', activeTab);
     }, [activeTab]);
     
-    // Filters (Main View)
     const [selectedTermId, setSelectedTermId] = useState('');
     const [selectedPeriodId, setSelectedPeriodId] = useState(''); 
     const [selectedSubject, setSelectedSubject] = useState('');
-    const [selectedClass, setSelectedClass] = useState(''); // Empty string now means "All Classes"
+    const [selectedClass, setSelectedClass] = useState(''); 
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Data
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     
-    // UI State
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
     const [activityTarget, setActivityTarget] = useState(15);
 
-    // Year Work Config State
     const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
         hw: 10, act: 15, att: 15, exam: 20
     });
 
-    // Google Sheet Sync Settings (Inside Modal)
+    // Google Sheet Sync Settings
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
     const [sheetNames, setSheetNames] = useState<string[]>([]);
     const [selectedSheetName, setSelectedSheetName] = useState('');
     const [settingTermId, setSettingTermId] = useState('');
     const [settingPeriodId, setSettingPeriodId] = useState('');
     
-    // Sync Preview State
     const [isFetchingStructure, setIsFetchingStructure] = useState(false);
     const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
     const [selectedHeaders, setSelectedHeaders] = useState<Set<string>>(new Set());
@@ -69,22 +65,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
-    // --- Effects ---
+    // ... (Effects remain same)
     useEffect(() => {
         if (currentUser) {
             setSubjects(getSubjects(currentUser.id));
             const loadedTerms = getAcademicTerms(currentUser.id);
             setTerms(loadedTerms);
             
-            // Load saved Master URL
             const savedUrl = getWorksMasterUrl();
             if (savedUrl) setGoogleSheetUrl(savedUrl);
 
-            // Load Year Work Config
             const savedConfig = localStorage.getItem('works_year_config');
             if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
 
-            // Set default term
             const current = loadedTerms.find(t => t.isCurrent);
             if (current) {
                 setSelectedTermId(current.id);
@@ -94,7 +87,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 setSettingTermId(loadedTerms[0].id);
             }
             
-            // Set default subject
             const subs = getSubjects(currentUser.id);
             if(subs.length > 0) setSelectedSubject(subs[0].name);
         }
@@ -106,16 +98,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId]);
 
-    // Save Year Work Config on change
     useEffect(() => {
         localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig));
     }, [yearWorkConfig]);
 
-    // --- Derived Data ---
     const activeTerm = terms.find(t => t.id === selectedTermId);
     const activePeriods = activeTerm?.periods || [];
     
-    // For Settings Modal
     const settingsTerm = terms.find(t => t.id === settingTermId);
     const settingsPeriods = settingsTerm?.periods || [];
 
@@ -128,7 +117,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let filtered = students;
         if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass);
         if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm));
-        // Sort by Class then Name
         return filtered.sort((a,b) => {
             if (a.className === b.className) return a.name.localeCompare(b.name);
             return (a.className || '').localeCompare(b.className || '');
@@ -159,6 +147,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         
         filteredStudents.forEach(s => {
             newScores[s.id] = {};
+            // Filter existing performance records for this student and subject
             const studentPerf = performance.filter(p => 
                 p.studentId === s.id && 
                 p.subject === selectedSubject &&
@@ -166,6 +155,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
 
             studentPerf.forEach(p => {
+                // Link score to assignment via ID stored in 'notes' OR title match
                 if (p.notes && filteredAssignments.some(a => a.id === p.notes)) {
                     newScores[s.id][p.notes] = p.score.toString();
                 } else {
@@ -198,16 +188,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (val !== undefined && val !== '') {
                     const assignment = assignments.find(a => a.id === assignmentId);
                     if (assignment) {
+                        // CRITICAL FIX: Find existing record ID to enable UPDATE instead of INSERT
+                        // We use assignment ID stored in 'notes' to link them
+                        const existingRecord = performance.find(p => 
+                            p.studentId === studentId && 
+                            p.notes === assignmentId // Matches assignment ID
+                        );
+
                         recordsToSave.push({
-                            id: `${studentId}_${assignmentId}_${today}`,
+                            // Use existing ID if found to update, else create stable new ID based on Student+Assignment
+                            id: existingRecord ? existingRecord.id : `${studentId}_${assignmentId}`,
                             studentId,
                             subject: selectedSubject,
                             title: assignment.title,
                             category: assignment.category,
                             score: parseFloat(val),
                             maxScore: assignment.maxScore,
-                            date: today,
-                            notes: assignment.id, 
+                            date: existingRecord ? existingRecord.date : today, // Keep original date or use today
+                            notes: assignment.id, // Store assignment ID for linking
                             createdById: currentUser?.id
                         });
                     }
@@ -215,31 +213,28 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             });
         });
 
+        // onAddPerformance now calls bulkAddPerformance which supports upsert
         onAddPerformance(recordsToSave);
         setTimeout(() => {
             setIsSaving(false);
-            alert('تم حفظ الدرجات بنجاح');
+            // alert('تم حفظ الدرجات بنجاح'); // Optional: Remove alert for smoother flow
         }, 500);
     };
 
-    // --- Google Sync Logic ---
+    // ... (Rest of the component remains exactly the same: Google Sync, Manual Column, Export, Calculation, Render)
     const handleFetchSheetStructure = async () => {
+        // ... (existing code)
         if (!googleSheetUrl) return alert('يرجى إدخال رابط الملف');
-        
         setIsFetchingStructure(true);
         try {
             saveWorksMasterUrl(googleSheetUrl);
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
-            
             setWorkbookRef(workbook);
             setSheetNames(sheetNames);
-            
-            // Auto select first sheet and analyze headers
             const targetSheet = selectedSheetName && sheetNames.includes(selectedSheetName) ? selectedSheetName : sheetNames[0];
             setSelectedSheetName(targetSheet);
             analyzeSheet(workbook, targetSheet);
-            
             setSyncStep('SELECTION');
         } catch (e: any) {
             alert('فشل الاتصال بالملف: ' + e.message);
@@ -250,31 +245,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const analyzeSheet = (wb: any, sheet: string) => {
         const { headers, data } = getSheetHeadersAndData(wb, sheet);
-        
-        const potentialAssignments = headers.filter(h => 
-            !IGNORED_COLUMNS.some(ignored => h.toLowerCase().includes(ignored))
-        );
-        
+        const potentialAssignments = headers.filter(h => !IGNORED_COLUMNS.some(ignored => h.toLowerCase().includes(ignored)));
         setAvailableHeaders(potentialAssignments);
         setSelectedHeaders(new Set(potentialAssignments));
-
         const unmatched: string[] = [];
         data.forEach(row => {
             const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
             const rowName = row['الاسم'] || row['name'] || row['student'];
-            
             let found = false;
             if (rowNid && students.some(s => s.nationalId === String(rowNid).trim())) found = true;
             else if (rowName && students.some(s => s.name.trim() === String(rowName).trim())) found = true;
-            
             if (!found && rowName) unmatched.push(String(rowName));
         });
-        setUnmatchedStudents(unmatched.slice(0, 10)); // Show top 10
+        setUnmatchedStudents(unmatched.slice(0, 10));
     };
 
     const handleConfirmSync = () => {
         if (!workbookRef || !selectedSheetName || !settingTermId) return;
-        
         setIsFetchingStructure(true);
         try {
             const { data } = getSheetHeadersAndData(workbookRef, selectedSheetName);
@@ -282,46 +269,26 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             let updatedScoresCount = 0;
             const recordsToUpsert: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
-
             const currentAssignments = getAssignments(activeTab, currentUser?.id, isManager);
             
             selectedHeaders.forEach((header, index) => {
                 let title = header;
                 let maxScore = 10;
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
-                if (match) {
-                    title = match[1].trim();
-                    maxScore = parseInt(match[2], 10);
-                }
+                if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
 
-                const existingAssignment = currentAssignments.find(a => 
-                    a.title === title && 
-                    a.termId === settingTermId && 
-                    a.category === activeTab
-                );
-
+                const existingAssignment = currentAssignments.find(a => a.title === title && a.termId === settingTermId && a.category === activeTab);
                 let targetAssignment: Assignment;
 
                 if (!existingAssignment) {
                     const newId = `gs_${Date.now()}_${index}`;
                     const newAssignment: Assignment = {
-                        id: newId,
-                        title: title,
-                        category: activeTab as any,
-                        maxScore: Number(maxScore),
-                        isVisible: true,
-                        teacherId: currentUser?.id,
-                        termId: settingTermId,
-                        periodId: settingPeriodId || undefined,
-                        orderIndex: Number(index) + 100,
-                        sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: header })
+                        id: newId, title: title, category: activeTab as any, maxScore: Number(maxScore), isVisible: true, teacherId: currentUser?.id, termId: settingTermId, periodId: settingPeriodId || undefined, orderIndex: Number(index) + 100, sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: header })
                     };
                     saveAssignment(newAssignment);
                     newAssignmentsCount++;
                     targetAssignment = newAssignment;
-                } else {
-                    targetAssignment = existingAssignment;
-                }
+                } else { targetAssignment = existingAssignment; }
 
                 data.forEach(row => {
                     let student: Student | undefined;
@@ -337,15 +304,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
                             const numVal = parseFloat(String(rawVal));
                             if (!isNaN(numVal)) {
+                                // Find existing record to upsert correctly
+                                const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment.id);
+                                
                                 recordsToUpsert.push({
-                                    id: `${student.id}_${targetAssignment.id}_${today}`,
+                                    id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment.id}`,
                                     studentId: student.id,
                                     subject: selectedSubject || 'عام',
                                     title: targetAssignment.title,
                                     category: targetAssignment.category,
                                     score: numVal,
                                     maxScore: targetAssignment.maxScore,
-                                    date: today,
+                                    date: existingRecord ? existingRecord.date : today,
                                     notes: targetAssignment.id, 
                                     createdById: currentUser?.id
                                 });
@@ -356,16 +326,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 });
             });
 
-            if (recordsToUpsert.length > 0) {
-                onAddPerformance(recordsToUpsert);
-            }
-            
+            if (recordsToUpsert.length > 0) onAddPerformance(recordsToUpsert);
             setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
-            
             alert(`تمت العملية بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات مرصودة/محدثة: ${updatedScoresCount}`);
             setIsSettingsOpen(false);
             setSyncStep('URL');
-
         } catch (e: any) {
             alert('حدث خطأ أثناء المعالجة: ' + e.message);
         } finally {
@@ -384,16 +349,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const title = prompt('عنوان العمود:');
         if (!title) return;
         const max = prompt('الدرجة العظمى:', '10');
-        
         const newAssign: Assignment = {
             id: Date.now().toString(),
-            title,
-            category: activeTab as any,
-            maxScore: Number(max) || 10,
-            isVisible: true,
-            teacherId: currentUser?.id,
-            termId: settingTermId || undefined,
-            periodId: settingPeriodId || undefined
+            title, category: activeTab as any, maxScore: Number(max) || 10, isVisible: true, teacherId: currentUser?.id, termId: settingTermId || undefined, periodId: settingPeriodId || undefined
         };
         saveAssignment(newAssign);
         setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
@@ -413,90 +371,50 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const handleExport = () => {
         const rows = filteredStudents.map(s => {
-            const rowData: any = {
-                'الاسم': s.name,
-                'الصف': s.gradeLevel,
-                'الفصل': s.className
-            };
-            
+            const rowData: any = { 'الاسم': s.name, 'الصف': s.gradeLevel, 'الفصل': s.className };
             if (activeTab === 'YEAR_WORK') {
                 const yw = calculateYearWork(s);
-                rowData['واجبات'] = yw.hwGrade;
-                rowData['أنشطة'] = yw.actGrade;
-                rowData['حضور'] = yw.attGrade;
-                rowData['اختبارات'] = yw.examGrade;
-                rowData['المجموع'] = yw.total;
+                rowData['واجبات'] = yw.hwGrade; rowData['أنشطة'] = yw.actGrade; rowData['حضور'] = yw.attGrade; rowData['اختبارات'] = yw.examGrade; rowData['المجموع'] = yw.total;
             } else {
-                filteredAssignments.forEach(a => {
-                    rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || '';
-                });
+                filteredAssignments.forEach(a => { rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || ''; });
             }
             return rowData;
         });
-
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Scores");
         XLSX.writeFile(wb, `Tracking_${activeTab}_${selectedClass || 'All'}.xlsx`);
     };
 
-    // --- Calculation Logic ---
     const calculateYearWork = (student: Student) => {
-        // Define date range based on Term AND Period
         let startDate: string | undefined;
         let endDate: string | undefined;
-
         if (selectedPeriodId) {
-            // If specific period is selected, filter strictly by that period
             const period = activeTerm?.periods?.find(p => p.id === selectedPeriodId);
-            if (period) {
-                startDate = period.startDate;
-                endDate = period.endDate;
-            }
-        } else if (activeTerm) {
-            // Else filter by the whole term
-            startDate = activeTerm.startDate;
-            endDate = activeTerm.endDate;
-        }
+            if (period) { startDate = period.startDate; endDate = period.endDate; }
+        } else if (activeTerm) { startDate = activeTerm.startDate; endDate = activeTerm.endDate; }
 
-        const filterByPeriod = (date: string) => {
-            if (!startDate || !endDate) return true;
-            return date >= startDate && date <= endDate;
-        };
+        const filterByPeriod = (date: string) => { if (!startDate || !endDate) return true; return date >= startDate && date <= endDate; };
         
-        // Use configured weights
-        const hwMax = yearWorkConfig.hw;
-        const actMax = yearWorkConfig.act;
-        const attMax = yearWorkConfig.att;
-        const examMax = yearWorkConfig.exam;
+        const hwMax = yearWorkConfig.hw; const actMax = yearWorkConfig.act; const attMax = yearWorkConfig.att; const examMax = yearWorkConfig.exam;
 
-        // Homework
         const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject && filterByPeriod(p.date));
-        
-        // Count Homework Columns relevant to this term/period
         const hwCols = getAssignments('HOMEWORK', currentUser?.id, isManager).filter(a => {
-            // Match Term
             const termMatch = !activeTerm || !a.termId || a.termId === activeTerm.id;
-            // Match Period if selected
             const periodMatch = !selectedPeriodId || !a.periodId || a.periodId === selectedPeriodId;
             return termMatch && periodMatch;
         });
-
         const distinctHW = new Set(hwRecs.map(p => p.notes || p.title)).size; 
         const hwGrade = hwCols.length > 0 ? Math.min((distinctHW / hwCols.length) * hwMax, hwMax) : (hwRecs.length > 0 ? hwMax : 0);
 
-        // Activity
         const actRecs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject && filterByPeriod(p.date));
-        let actSumVal = 0;
-        actRecs.forEach(p => actSumVal += p.score);
+        let actSumVal = 0; actRecs.forEach(p => actSumVal += p.score);
         const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * actMax, actMax) : 0;
 
-        // Attendance
         const termAtt = attendance.filter(a => a.studentId === student.id && filterByPeriod(a.date));
         const present = termAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
         const attGrade = termAtt.length > 0 ? (present / termAtt.length) * attMax : attMax;
 
-        // Exams
         const examRecs = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject && filterByPeriod(p.date));
         let examScoreTotal = 0; let examMaxTotal = 0;
         examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
@@ -504,21 +422,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
         const total = hwGrade + actGrade + attGrade + examGrade;
         const totalMax = hwMax + actMax + attMax + examMax;
-
         return { hwGrade, actGrade, attGrade, examGrade, total, totalMax };
     };
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
-            
-            {/* Top Toolbar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                        <Table className="text-purple-600"/> سجل الرصد والمتابعة
-                    </h2>
-                    
-                    {/* Filters */}
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Table className="text-purple-600"/> سجل الرصد والمتابعة</h2>
                     <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                         <div className="flex items-center bg-gray-50 border rounded-lg px-2 py-1">
                             <Calendar size={16} className="text-gray-400 ml-2"/>
@@ -547,7 +458,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
                 </div>
 
-                {/* Actions & Tabs */}
                 <div className="flex flex-wrap justify-between items-center gap-4 border-t pt-4">
                     <div className="flex gap-2 overflow-x-auto pb-1">
                         <button onClick={() => setActiveTab('HOMEWORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'HOMEWORK' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>الواجبات</button>
@@ -557,11 +467,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
 
                     <div className="flex gap-2">
-                        {/* Always allow settings to configure Year Work or Columns */}
                         <button onClick={() => { setIsSettingsOpen(true); setSettingTermId(selectedTermId || ''); }} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
                             <Settings size={16}/> إعدادات {activeTab === 'YEAR_WORK' ? 'توزيع الدرجات' : 'الأعمدة'}
                         </button>
-                        
                         {activeTab !== 'YEAR_WORK' && (
                             <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200">
                                 <FileSpreadsheet size={16}/> استيراد درجات
