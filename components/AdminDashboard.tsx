@@ -23,9 +23,9 @@ import {
     Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
     CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
     Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson, Crown, Star,
-    Zap, ZapOff, AlertCircle, Activity, BarChart3, PieChart
+    Zap, ZapOff, AlertCircle, Activity, BarChart3, PieChart, TrendingUp
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart as RePieChart, Pie, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart as RePieChart, Pie, Legend, AreaChart, Area } from 'recharts';
 
 // --- NEW: Admin Overview Component ---
 const AdminOverview = () => {
@@ -39,6 +39,7 @@ const AdminOverview = () => {
     
     const [gradeDistribution, setGradeDistribution] = useState<{name: string, value: number}[]>([]);
     const [subscriptionStats, setSubscriptionStats] = useState<{name: string, value: number, fill: string}[]>([]);
+    const [attendanceTrend, setAttendanceTrend] = useState<{date: string, rate: number}[]>([]);
 
     useEffect(() => {
         const schools = getSchools();
@@ -67,11 +68,10 @@ const AdminOverview = () => {
             const g = s.gradeLevel || 'غير محدد';
             grades[g] = (grades[g] || 0) + 1;
         });
-        // Convert to array and sort by count descending
         const gradeData = Object.keys(grades)
             .map(k => ({ name: k, value: grades[k] }))
             .sort((a,b) => b.value - a.value)
-            .slice(0, 7); // Top 7 grades
+            .slice(0, 7); 
         setGradeDistribution(gradeData);
 
         // 3. Subscription Stats
@@ -85,6 +85,21 @@ const AdminOverview = () => {
             { name: 'محترف (Pro)', value: subs.PRO, fill: '#4f46e5' },
             { name: 'مؤسسات', value: subs.ENTERPRISE, fill: '#7c3aed' }
         ]);
+
+        // 4. Attendance Trend (Last 7 Days)
+        const trend = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            
+            const dayRecords = attendance.filter(a => a.date === dateStr);
+            const present = dayRecords.filter(a => a.status === AttendanceStatus.PRESENT).length;
+            const rate = dayRecords.length > 0 ? Math.round((present / dayRecords.length) * 100) : 0;
+            
+            trend.push({ date: dateStr.slice(5), rate }); // "MM-DD"
+        }
+        setAttendanceTrend(trend);
 
     }, []);
 
@@ -119,6 +134,30 @@ const AdminOverview = () => {
                         <h3 className="text-3xl font-black text-purple-600">{stats.attendanceToday}%</h3>
                     </div>
                     <div className="p-3 bg-purple-50 text-purple-600 rounded-full"><Activity size={24}/></div>
+                </div>
+            </div>
+
+            {/* Attendance Trend Chart (New) */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <TrendingUp size={18} className="text-green-500"/> اتجاه الحضور (آخر 7 أيام)
+                </h3>
+                <div className="flex-1 min-h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={attendanceTrend}>
+                            <defs>
+                                <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="date" tick={{fontSize: 12}} />
+                            <YAxis domain={[0, 100]} />
+                            <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                            <Area type="monotone" dataKey="rate" stroke="#10b981" fillOpacity={1} fill="url(#colorRate)" />
+                        </AreaChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
 
@@ -173,7 +212,6 @@ const AdminOverview = () => {
     );
 };
 
-// ... (SchoolsManager component code - no changes)
 const SchoolsManager = () => {
     const [schools, setSchools] = useState<School[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -348,7 +386,6 @@ const SchoolsManager = () => {
     );
 };
 
-// ... (UsersManager and SubscriptionsManager component code - no changes)
 const UsersManager = () => {
     const [users, setUsers] = useState<SystemUser[]>([]);
     const [schools, setSchools] = useState<School[]>([]);
