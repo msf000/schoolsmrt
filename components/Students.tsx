@@ -23,6 +23,8 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
   }
 
+  const isManager = currentUser?.role === 'SCHOOL_MANAGER';
+
   // --- State ---
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrade, setFilterGrade] = useState('');
@@ -257,18 +259,22 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 />
             </div>
 
-            {/* Actions */}
+            {/* Actions (Hidden for Manager) */}
             <div className="flex gap-2 w-full md:w-auto">
-                <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm">
-                    <FileSpreadsheet size={18} /> استيراد
-                </button>
-                <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm">
-                    <UserPlus size={18} /> إضافة
-                </button>
-                {students.length > 0 && (
-                    <button onClick={handleDeleteAll} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">
-                        <Trash2 size={18}/>
-                    </button>
+                {!isManager && (
+                    <>
+                        <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm">
+                            <FileSpreadsheet size={18} /> استيراد
+                        </button>
+                        <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm">
+                            <UserPlus size={18} /> إضافة
+                        </button>
+                        {students.length > 0 && (
+                            <button onClick={handleDeleteAll} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">
+                                <Trash2 size={18}/>
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
         </div>
@@ -323,12 +329,16 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                              <button onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50" title="عرض الملف">
                                 <Eye size={16} />
                             </button>
-                            <button onClick={() => openEditModal(student)} className="text-gray-400 hover:text-yellow-600 p-1.5 rounded-full hover:bg-yellow-50" title="تعديل">
-                                <Edit size={16} />
-                            </button>
-                            <button onClick={() => onDeleteStudent(student.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50" title="حذف">
-                                <Trash2 size={16} />
-                            </button>
+                            {!isManager && (
+                                <>
+                                    <button onClick={() => openEditModal(student)} className="text-gray-400 hover:text-yellow-600 p-1.5 rounded-full hover:bg-yellow-50" title="تعديل">
+                                        <Edit size={16} />
+                                    </button>
+                                    <button onClick={() => onDeleteStudent(student.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50" title="حذف">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </td>
                 </tr>
@@ -566,7 +576,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       )}
 
       {/* Add/Edit Form Modal */}
-      {isFormModalOpen && (
+      {isFormModalOpen && !isManager && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl my-8 border border-gray-100">
             <h3 className="text-xl font-bold mb-4 border-b pb-2 flex justify-between items-center text-gray-800">
@@ -676,7 +686,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
         </div>
       )}
 
-      {isImportModalOpen && (
+      {isImportModalOpen && !isManager && (
           <div className="fixed inset-0 z-[100] bg-white">
               <DataImport 
                   existingStudents={students}

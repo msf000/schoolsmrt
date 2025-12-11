@@ -25,7 +25,8 @@ interface SchoolManagementProps {
 }
 
 export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onImportStudents, onImportPerformance, onImportAttendance, onUpdateTheme }) => {
-  const isManager = currentUser?.role === 'SCHOOL_MANAGER' || currentUser?.role === 'SUPER_ADMIN';
+  const isSchoolManager = currentUser?.role === 'SCHOOL_MANAGER';
+  const isManager = isSchoolManager || currentUser?.role === 'SUPER_ADMIN';
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS' | 'CALENDAR'>(() => {
       return localStorage.getItem('school_mgmt_active_tab') as any || 'DASHBOARD';
   });
@@ -326,6 +327,9 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   };
 
   const handleScheduleCellClick = (day: string, period: number) => {
+      // Disabled for School Manager
+      if (isSchoolManager) return;
+
       if (!selectedClassForSchedule || !activeSubject) return;
       const existingItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
 
@@ -488,7 +492,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </button>
             )}
             <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>
-                <BookOpen size={16} className="inline mr-2"/> {isManager ? 'إدارة المواد' : 'موادي وفصولي'}
+                <BookOpen size={16} className="inline mr-2"/> {isManager ? 'قائمة المواد' : 'موادي وفصولي'}
             </button>
             <button onClick={() => setActiveTab('SCHEDULE')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SCHEDULE' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>
                 <Clock size={16} className="inline mr-2"/> الجدول الدراسي
@@ -559,6 +563,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                     </div>
 
+                    {!isSchoolManager && (
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 flex flex-wrap items-end gap-3">
                         <div className="flex-1 min-w-[200px]">
                             <label className="block text-xs font-bold text-gray-600 mb-1">اسم الفصل الدراسي</label>
@@ -576,6 +581,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                             <PlusCircle size={16}/> إضافة فصل
                         </button>
                     </div>
+                    )}
 
                     <div className="overflow-hidden border rounded-xl">
                         <table className="w-full text-right text-sm">
@@ -586,7 +592,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     <th className="p-3">البداية (هجري/ميلادي)</th>
                                     <th className="p-3">النهاية (هجري/ميلادي)</th>
                                     <th className="p-3 text-center">الحالة</th>
-                                    <th className="p-3 text-center">إجراءات</th>
+                                    {!isSchoolManager && <th className="p-3 text-center">إجراءات</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y bg-white">
@@ -605,17 +611,21 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                         <CheckCircle size={12}/> نشط
                                                     </span>
                                                 ) : (
+                                                    !isSchoolManager && (
                                                     <button onClick={() => handleSetCurrentTerm(term.id)} className="text-gray-400 hover:text-indigo-600 text-xs font-bold border px-2 py-1 rounded hover:bg-indigo-50">
                                                         تنشيط
                                                     </button>
+                                                    )
                                                 )}
                                             </td>
+                                            {!isSchoolManager && (
                                             <td className="p-3 text-center">
                                                 <div className="flex justify-center gap-2">
                                                     <button onClick={() => handleEditTerm(term)} className="text-gray-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50"><Edit size={16}/></button>
                                                     <button onClick={() => handleDeleteTerm(term.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
                                                 </div>
                                             </td>
+                                            )}
                                         </tr>
                                         {expandedTermId === term.id && (
                                             <tr className="bg-gray-50/50">
@@ -623,6 +633,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                     <div className="pl-8 pr-4">
                                                         <h4 className="font-bold text-gray-700 mb-3 text-xs flex items-center gap-2"><ListTree size={14}/> الفترات التقويمية التابعة لـ {term.name}</h4>
                                                         
+                                                        {!isSchoolManager && (
                                                         <div className="bg-white border rounded-lg p-3 mb-3 flex flex-wrap items-end gap-2 shadow-sm">
                                                             <div className="flex-1">
                                                                 <label className="text-[10px] font-bold text-gray-500 block mb-1">اسم الفترة</label>
@@ -638,6 +649,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                             </div>
                                                             <button onClick={() => handleAddPeriod(term)} className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700">إضافة</button>
                                                         </div>
+                                                        )}
 
                                                         {term.periods && term.periods.length > 0 ? (
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -647,10 +659,12 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                                             <span className="font-bold text-gray-800 block">{period.name}</span>
                                                                             <span className="text-gray-400 text-[10px]">{formatDualDate(period.startDate)} {' -> '} {formatDualDate(period.endDate)}</span>
                                                                         </div>
+                                                                        {!isSchoolManager && (
                                                                         <div className="flex gap-1">
                                                                             <button onClick={() => handleEditPeriod(term, period)} className="text-blue-400 hover:text-blue-600"><Edit size={14}/></button>
                                                                             <button onClick={() => handleDeletePeriod(term, period.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
                                                                         </div>
+                                                                        )}
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -670,7 +684,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
-            {isTermModalOpen && editingTerm && (
+            {isTermModalOpen && editingTerm && !isSchoolManager && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
                         <h3 className="font-bold text-lg mb-4 text-gray-800">تعديل الفصل الدراسي</h3>
@@ -698,7 +712,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
-            {isPeriodModalOpen && editingPeriod && editingPeriodParentTerm && (
+            {isPeriodModalOpen && editingPeriod && editingPeriodParentTerm && !isSchoolManager && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
                         <h3 className="font-bold text-lg mb-4 text-gray-800">تعديل الفترة</h3>
@@ -825,6 +839,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><BookOpen className="text-indigo-600"/> المواد الدراسية</h3>
+                        {!isSchoolManager && (
                         <div className="flex gap-2 mb-4">
                             <input 
                                 className="flex-1 p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors outline-none" 
@@ -836,13 +851,16 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 <Plus size={16}/> إضافة
                             </button>
                         </div>
+                        )}
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                             {subjects.map(sub => (
                                 <div key={sub.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors">
                                     <span className="font-bold text-gray-700">{sub.name}</span>
+                                    {!isSchoolManager && (
                                     <button onClick={() => handleDeleteSubject(sub.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">
                                         <Trash2 size={16}/>
                                     </button>
+                                    )}
                                 </div>
                             ))}
                             {subjects.length === 0 && <p className="text-center text-gray-400 text-sm py-4">لا توجد مواد مضافة</p>}
@@ -887,7 +905,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                 <td 
                                                     key={period} 
                                                     onClick={() => handleScheduleCellClick(day, period)}
-                                                    className={`border p-2 cursor-pointer transition-all h-16 ${item ? 'bg-indigo-100 hover:bg-indigo-200' : 'hover:bg-gray-100'}`}
+                                                    className={`border p-2 transition-all h-16 ${item ? 'bg-indigo-100 hover:bg-indigo-200' : 'hover:bg-gray-100'} ${isSchoolManager ? 'cursor-default' : 'cursor-pointer'}`}
                                                 >
                                                     {item ? (
                                                         <div className="font-bold text-indigo-800 text-xs">
