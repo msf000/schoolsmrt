@@ -111,8 +111,44 @@ function cleanJsonString(text: string): string {
     return clean.trim();
 }
 
+// --- PRESET CURRICULUM FOR EARTH & SPACE (SAUDI) ---
+const EARTH_SPACE_PRESET = [
+    {
+        unitTitle: "الفصل الأول: علم الأرض",
+        lessons: [
+            { title: "مقدمة في علم الأرض", standards: ["ESS.1.1"] },
+            { title: "أنظمة الأرض", standards: ["ESS.1.2"] },
+            { title: "الخرائط الطبوغرافية", standards: ["ESS.1.3"] }
+        ]
+    },
+    {
+        unitTitle: "الفصل الثاني: مصادر الأرض",
+        lessons: [
+            { title: "الموارد الطبيعية", standards: ["ESS.2.1"] },
+            { title: "الطاقة ومصادرها", standards: ["ESS.2.2"] },
+            { title: "المعادن والصخور", standards: ["ESS.2.3"] }
+        ]
+    },
+    {
+        unitTitle: "الفصل الثالث: الغلاف الجوي",
+        lessons: [
+            { title: "مكونات الغلاف الجوي", standards: ["ESS.3.1"] },
+            { title: "طبقات الغلاف الجوي", standards: ["ESS.3.2"] },
+            { title: "الطقس والمناخ", standards: ["ESS.3.3"] }
+        ]
+    },
+    {
+        unitTitle: "الفصل الرابع: النظام الشمسي والكون",
+        lessons: [
+            { title: "الشمس والأرض والقمر", standards: ["ESS.4.1"] },
+            { title: "كواكب النظام الشمسي", standards: ["ESS.4.2"] },
+            { title: "النجوم والمجرات", standards: ["ESS.4.3"] },
+            { title: "استكشاف الفضاء", standards: ["ESS.4.4"] }
+        ]
+    }
+];
+
 // ... (Rest of existing AI functions: gradeExamPaper, regenerateSingleBlock, etc.) ...
-// Keep existing implementations but wrap them with `withRetry`
 
 export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<any> => {
     const { model, config, enabled } = getConfig();
@@ -269,6 +305,14 @@ export const generateCurriculumMap = async (
     grade: string,
     semester: string = "الفصل الدراسي الأول"
 ): Promise<any[]> => {
+    // --- PRESET OVERRIDE FOR EARTH AND SPACE SCIENCE ---
+    if (subject.includes('علم الأرض') || subject.includes('Earth and Space')) {
+        console.log("Using Earth & Space Preset");
+        // Simulate async delay for realism
+        await new Promise(resolve => setTimeout(resolve, 800));
+        return EARTH_SPACE_PRESET;
+    }
+
     const { model, config, enabled } = getConfig();
     if (!enabled.planning) throw new Error("AI Planning is disabled");
 
