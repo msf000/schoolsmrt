@@ -606,7 +606,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         disabled={isSyncingSheet || !settingTermId}
                                         className="bg-green-600 text-white w-full py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                                     >
-                                        {isSyncingSheet ? <Loader2 size={16} className="animate-spin"/> : <CloudDownload size={16}/>}
+                                        {isSyncingSheet ? <Loader2 size={16} className="animate-spin"/> : <DownloadCloud size={16}/>}
                                         جلب البيانات وتحديث الدرجات
                                     </button>
                                 </div>
