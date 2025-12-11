@@ -138,11 +138,11 @@ const AdminOverview = () => {
             </div>
 
             {/* Attendance Trend Chart (New) */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                 <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <TrendingUp size={18} className="text-green-500"/> اتجاه الحضور (آخر 7 أيام)
                 </h3>
-                <div className="flex-1 min-h-[250px]">
+                <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={attendanceTrend}>
                             <defs>
@@ -163,11 +163,11 @@ const AdminOverview = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Grade Distribution Chart */}
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                     <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
                         <BarChart3 size={18} className="text-blue-500"/> توزيع الطلاب حسب المراحل
                     </h3>
-                    <div className="flex-1 min-h-[300px]">
+                    <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={gradeDistribution}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -181,11 +181,11 @@ const AdminOverview = () => {
                 </div>
 
                 {/* Subscriptions Chart */}
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                     <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
                         <PieChart size={18} className="text-indigo-500"/> توزيع اشتراكات المعلمين
                     </h3>
-                    <div className="flex-1 min-h-[300px]">
+                    <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <RePieChart>
                                 <Pie
