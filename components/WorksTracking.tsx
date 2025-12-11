@@ -284,12 +284,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         id: newId,
                         title: title,
                         category: activeTab as any,
-                        maxScore: maxScore,
+                        maxScore: Number(maxScore), // Force number
                         isVisible: true,
                         teacherId: currentUser?.id,
                         termId: settingTermId,
                         periodId: settingPeriodId || undefined,
-                        orderIndex: index + 100, // Put at end
+                        orderIndex: Number(index) + 100, // Force number
                         sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: header })
                     };
                     saveAssignment(newAssignment);
@@ -313,7 +313,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     if (student) {
                         const rawVal = row[header];
                         if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
-                            const numVal = parseFloat(rawVal);
+                            const numVal = parseFloat(String(rawVal));
                             if (!isNaN(numVal)) {
                                 recordsToUpsert.push({
                                     id: `${student.id}_${targetAssignment.id}_${today}`,
