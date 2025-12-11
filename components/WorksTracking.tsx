@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser, AcademicTerm, TermPeriod } from '../types';
-import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, getAcademicTerms } from '../services/storageService';
+import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser, AcademicTerm, TermPeriod, ReportHeaderConfig } from '../types';
+import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Cloud, Sigma, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, AlertTriangle, Zap, Check, DownloadCloud, FileSpreadsheet, Calendar, Filter, Clock } from 'lucide-react';
 
@@ -59,6 +59,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [selectedTermId, setSelectedTermId] = useState<string>('');
     const [selectedPeriodId, setSelectedPeriodId] = useState<string>(''); // For sub-periods
 
+    // Print Header Config
+    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
+
     // --- ACTIVE TERM DATA (Moved Up) ---
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
     const activePeriod = useMemo(() => activeTerm?.periods?.find(p => p.id === selectedPeriodId), [activeTerm, selectedPeriodId]);
@@ -101,6 +104,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const current = loadedTerms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+
+        setHeaderConfig(getReportHeaderConfig(currentUser?.id));
 
         const schools = getSchools();
         if (schools.length > 0 && schools[0].worksMasterUrl) {
@@ -723,7 +728,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     return (
         <div className="p-4 md:p-6 h-full flex flex-col animate-fade-in relative bg-gray-50">
              {/* Header & Modes */}
-             <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-6 flex gap-2">
+             <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-6 flex gap-2 print:hidden">
                  <button onClick={() => setActiveMode('GRADING')} className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'GRADING' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                      <Table size={18}/> <span className="hidden md:inline">رصد الدرجات</span><span className="md:hidden">الرصد</span>
                  </button>
@@ -734,7 +739,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                  )}
              </div>
 
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 print:hidden">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         {activeMode === 'GRADING' ? <List className="text-primary"/> : <PenTool className="text-purple-600"/>}
@@ -900,7 +905,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             
             {/* Tabs (Hidden in Management) */}
             {activeMode === 'GRADING' && (
-                <div className="flex overflow-x-auto gap-2 border-b border-gray-200 mb-4 pb-1">
+                <div className="flex overflow-x-auto gap-2 border-b border-gray-200 mb-4 pb-1 print:hidden">
                     {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => (
                         <button key={cat} onClick={() => setActiveTab(cat)} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors whitespace-nowrap ${activeTab === cat ? 'bg-white text-gray-800 border border-b-0 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
                             <div className="flex items-center gap-2">
@@ -917,7 +922,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             {/* Optional Toolbar */}
             {activeMode === 'GRADING' && activeTab === 'ACTIVITY' && (
-                <div className="flex justify-end mb-2">
+                <div className="flex justify-end mb-2 print:hidden">
                     <div className="flex items-center gap-2 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
                         <Target size={14} className="text-amber-600"/>
                         <span className="text-xs font-bold text-amber-800">هدف الأنشطة:</span>
@@ -926,7 +931,30 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             )}
 
-            <div className="flex-1 bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px] flex flex-col overflow-hidden">
+            <div className="flex-1 bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px] flex flex-col overflow-hidden print:shadow-none print:border-none print:m-0">
+                
+                {/* OFFICIAL PRINT HEADER (Hidden on Screen) */}
+                <div className="hidden print:flex justify-between items-center h-28 border-b-2 border-gray-800 mb-6 p-6">
+                    <div className="text-right text-xs font-bold leading-loose w-1/3">
+                        <p>المملكة العربية السعودية</p>
+                        <p>وزارة التعليم</p>
+                        <p>{headerConfig?.educationAdmin ? `إدارة التعليم بـ${headerConfig.educationAdmin}` : '.........'}</p>
+                        <p>{headerConfig?.schoolName ? `مدرسة ${headerConfig.schoolName}` : '.........'}</p>
+                    </div>
+                    <div className="text-center flex-1 flex flex-col items-center justify-center">
+                        {headerConfig?.logoBase64 ? (
+                            <img src={headerConfig.logoBase64} alt="شعار" className="h-16 object-contain mb-2" />
+                        ) : <div className="w-16 h-16 bg-gray-100 rounded-full border mb-1"></div>}
+                        <h1 className="font-black text-lg text-gray-900">كشف رصد الدرجات - {activeTab === 'ACTIVITY' ? 'الأنشطة' : activeTab === 'HOMEWORK' ? 'الواجبات' : activeTab === 'PLATFORM_EXAM' ? 'الاختبارات' : 'أعمال السنة'}</h1>
+                        <p className="text-xs font-bold mt-1">المادة: {selectedSubject} | {activeTerm ? activeTerm.name : ''}</p>
+                    </div>
+                    <div className="text-left text-xs font-bold leading-loose w-1/3 flex flex-col items-end">
+                        <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                        <p>{headerConfig?.academicYear || '1447هـ'}</p>
+                        <p>{headerConfig?.term || 'الفصل الدراسي ....'}</p>
+                    </div>
+                </div>
+
                 {activeMode === 'MANAGEMENT' && !isManager && (
                     <div className="p-6 flex-1 overflow-auto">
                         <div className="flex justify-between items-center mb-4">
@@ -1070,6 +1098,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </table>
                     </div>
                 )}
+
+                {/* Footer Signature (Hidden on Screen) */}
+                <div className="hidden print:flex justify-between items-end mt-12 pt-8 border-t break-inside-avoid p-6">
+                    <div className="text-center flex flex-col items-center">
+                        <p className="font-bold text-gray-600 mb-2">معلم المادة</p>
+                        {headerConfig?.signatureBase64 ? (
+                            <img src={headerConfig.signatureBase64} alt="Sig" className="h-16 object-contain mb-1"/>
+                        ) : <div className="h-16"></div>}
+                        <p className="font-bold">{headerConfig?.teacherName || '................'}</p>
+                    </div>
+                    <div className="text-center">
+                        <p className="font-bold text-gray-600 mb-8">مدير المدرسة</p>
+                        <p className="font-bold">{headerConfig?.schoolManager || '................'}</p>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, MessageLog, SystemUser, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
-import { getMessages, getExams, getWeeklyPlans, getAcademicTerms } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter } from 'lucide-react';
+import { getMessages, getExams, getWeeklyPlans, getAcademicTerms, saveAttendance } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface ParentPortalProps {
@@ -28,6 +28,11 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     // Terms Logic
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [selectedTermId, setSelectedTermId] = useState<string>('');
+
+    // Excuse Modal State
+    const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
+    const [selectedAbsentRecord, setSelectedAbsentRecord] = useState<AttendanceRecord | null>(null);
+    const [excuseText, setExcuseText] = useState('');
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms();
@@ -81,8 +86,31 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         const recentAtt = [...childAtt].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
         const recentPerf = [...childPerf].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
-        return { absent, late, attendanceRate, positive, negative, avgScore, recentAtt, recentPerf };
+        // Absent Days without excuse
+        const unexcusedAbsences = childAtt.filter(a => (a.status === AttendanceStatus.ABSENT || a.status === AttendanceStatus.LATE) && !a.excuseNote);
+
+        return { absent, late, attendanceRate, positive, negative, avgScore, recentAtt, recentPerf, unexcusedAbsences };
     }, [activeChild, attendance, performance, activeTerm]);
+
+    const handleSubmitExcuse = () => {
+        if (!selectedAbsentRecord || !excuseText) return;
+        
+        const updatedRecord: AttendanceRecord = {
+            ...selectedAbsentRecord,
+            excuseNote: excuseText,
+            // status: AttendanceStatus.EXCUSED // Don't change status immediately, wait for teacher approval? Or set it? Usually teacher approval.
+            // Let's keep status as is, just attach note. Teacher sees it in "Pending Excuses".
+        };
+        
+        saveAttendance([updatedRecord]);
+        setIsExcuseModalOpen(false);
+        setExcuseText('');
+        setSelectedAbsentRecord(null);
+        alert('تم إرسال العذر للمعلم بنجاح.');
+        // Trigger reload? The parent component passes data, it might need refresh. 
+        // Ideally App.tsx handles re-render on storage change. 
+        window.location.reload(); 
+    };
 
     if (!activeChild) {
         return (
@@ -203,8 +231,29 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="p-4 bg-teal-50 border-b border-teal-100 flex justify-between items-center">
                                 <h3 className="font-bold text-teal-800 flex items-center gap-2"><Calendar size={18}/> سجل الحضور ({activeTerm ? activeTerm.name : 'عام'})</h3>
-                                <span className="text-xs bg-white px-2 py-1 rounded text-teal-600 font-bold">{stats.absent} غياب</span>
+                                <div className="flex gap-2">
+                                    <span className="text-xs bg-white px-2 py-1 rounded text-teal-600 font-bold">{stats.absent} غياب</span>
+                                </div>
                             </div>
+                            
+                            {/* Unexcused Absences Alert */}
+                            {stats.unexcusedAbsences.length > 0 && (
+                                <div className="bg-red-50 p-3 border-b border-red-100">
+                                    <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1"><AlertTriangle size={14}/> يوجد غياب غير مبرر، يرجى تقديم عذر:</p>
+                                    <div className="flex gap-2 overflow-x-auto pb-1">
+                                        {stats.unexcusedAbsences.map(rec => (
+                                            <button 
+                                                key={rec.id} 
+                                                onClick={() => { setSelectedAbsentRecord(rec); setIsExcuseModalOpen(true); }}
+                                                className="flex-shrink-0 bg-white border border-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-100 transition-colors"
+                                            >
+                                                {formatDualDate(rec.date)} (قدم عذر)
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="p-4">
                                 {stats.recentAtt.length > 0 ? (
                                     <div className="space-y-3">
@@ -225,11 +274,14 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                                         </div>
                                                     </div>
                                                 </div>
-                                                {(rec.behaviorStatus !== BehaviorStatus.NEUTRAL) && (
-                                                    <span className={`text-xs px-2 py-1 rounded font-bold ${rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                        {rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'سلوك إيجابي' : 'ملاحظة سلبية'}
-                                                    </span>
-                                                )}
+                                                <div className="flex flex-col items-end gap-1">
+                                                    {(rec.behaviorStatus !== BehaviorStatus.NEUTRAL) && (
+                                                        <span className={`text-xs px-2 py-1 rounded font-bold ${rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                            {rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'سلوك إيجابي' : 'ملاحظة سلبية'}
+                                                        </span>
+                                                    )}
+                                                    {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1"><FileText size={10}/> تم تقديم عذر</span>}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -317,6 +369,46 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                 )}
 
             </main>
+
+            {/* EXCUSE SUBMISSION MODAL */}
+            {isExcuseModalOpen && selectedAbsentRecord && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                <FileText className="text-purple-600"/> تقديم عذر غياب
+                            </h3>
+                            <button onClick={() => setIsExcuseModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
+                                <span className="font-bold block mb-1">تفاصيل الغياب:</span>
+                                التاريخ: {formatDualDate(selectedAbsentRecord.date)} <br/>
+                                الحالة: {selectedAbsentRecord.status === AttendanceStatus.ABSENT ? 'غائب' : 'متأخر'}
+                            </div>
+                            
+                            <label className="block text-sm font-bold text-gray-700 mb-2">سبب الغياب / التأخر:</label>
+                            <textarea 
+                                className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none"
+                                placeholder="اكتب مبرر الغياب هنا..."
+                                value={excuseText}
+                                onChange={e => setExcuseText(e.target.value)}
+                            />
+                            
+                            <div className="mt-6 flex gap-3">
+                                <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>
+                                <button 
+                                    onClick={handleSubmitExcuse} 
+                                    disabled={!excuseText}
+                                    className="flex-2 w-full py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <Send size={16}/> إرسال العذر
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

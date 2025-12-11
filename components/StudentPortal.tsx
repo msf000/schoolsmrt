@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm, LessonLink } from '../types';
 import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms, getLessonLinks } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown, Send } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 
@@ -527,6 +527,10 @@ const StudentTimetable = ({ student }: { student: Student }) => {
 
 const StudentAttendanceView = ({ student, attendance, terms }: { student: Student, attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
     const [selectedTermId, setSelectedTermId] = useState<string>('');
+    const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
+    const [selectedAbsentRecord, setSelectedAbsentRecord] = useState<AttendanceRecord | null>(null);
+    const [excuseText, setExcuseText] = useState('');
+
     useEffect(() => {
         const current = terms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
@@ -542,6 +546,22 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
         }
         return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [attendance, student, activeTerm]);
+
+    const handleSubmitExcuse = () => {
+        if (!selectedAbsentRecord || !excuseText) return;
+        
+        const updatedRecord: AttendanceRecord = {
+            ...selectedAbsentRecord,
+            excuseNote: excuseText,
+        };
+        
+        saveAttendance([updatedRecord]);
+        setIsExcuseModalOpen(false);
+        setExcuseText('');
+        setSelectedAbsentRecord(null);
+        alert('تم إرسال العذر للمعلم بنجاح.');
+        window.location.reload(); 
+    };
     
     return (
         <div className="space-y-6 animate-fade-in">
@@ -566,7 +586,7 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
                                     <th className="p-3">التاريخ</th>
                                     <th className="p-3">الحالة</th>
                                     <th className="p-3">المادة / الحصة</th>
-                                    <th className="p-3">ملاحظات السلوك</th>
+                                    <th className="p-3">ملاحظات / عذر</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
@@ -584,13 +604,23 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
                                         </td>
                                         <td className="p-3 text-gray-600">{rec.subject || '-'} {rec.period ? `(ح${rec.period})` : ''}</td>
                                         <td className="p-3">
-                                            {(rec.behaviorStatus !== 'NEUTRAL' || rec.behaviorNote) ? (
-                                                <div className="flex items-center gap-2">
+                                            {(rec.behaviorStatus !== 'NEUTRAL' || rec.behaviorNote) && (
+                                                <div className="flex items-center gap-2 mb-1">
                                                     {rec.behaviorStatus === 'POSITIVE' && <Smile size={16} className="text-green-500"/>}
                                                     {rec.behaviorStatus === 'NEGATIVE' && <Frown size={16} className="text-red-500"/>}
                                                     <span className="text-xs text-gray-600">{rec.behaviorNote}</span>
                                                 </div>
-                                            ) : '-'}
+                                            )}
+                                            {/* Submit Excuse Button if Absent and No Excuse */}
+                                            {(rec.status === AttendanceStatus.ABSENT || rec.status === AttendanceStatus.LATE) && !rec.excuseNote && (
+                                                <button 
+                                                    onClick={() => { setSelectedAbsentRecord(rec); setIsExcuseModalOpen(true); }}
+                                                    className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                                >
+                                                    تقديم عذر
+                                                </button>
+                                            )}
+                                            {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1"><FileText size={10}/> تم تقديم عذر</span>}
                                         </td>
                                     </tr>
                                 ))}
@@ -599,6 +629,46 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
                     </div>
                 ) : <div className="text-center py-10 text-gray-400">لا يوجد سجلات حضور في هذه الفترة</div>}
             </div>
+
+            {/* EXCUSE SUBMISSION MODAL */}
+            {isExcuseModalOpen && selectedAbsentRecord && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                <FileText className="text-purple-600"/> تقديم عذر غياب
+                            </h3>
+                            <button onClick={() => setIsExcuseModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
+                                <span className="font-bold block mb-1">تفاصيل الغياب:</span>
+                                التاريخ: {formatDualDate(selectedAbsentRecord.date)} <br/>
+                                الحالة: {selectedAbsentRecord.status === AttendanceStatus.ABSENT ? 'غائب' : 'متأخر'}
+                            </div>
+                            
+                            <label className="block text-sm font-bold text-gray-700 mb-2">سبب الغياب / التأخر:</label>
+                            <textarea 
+                                className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none"
+                                placeholder="اكتب مبرر الغياب هنا..."
+                                value={excuseText}
+                                onChange={e => setExcuseText(e.target.value)}
+                            />
+                            
+                            <div className="mt-6 flex gap-3">
+                                <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>
+                                <button 
+                                    onClick={handleSubmitExcuse} 
+                                    disabled={!excuseText}
+                                    className="flex-2 w-full py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <Send size={16}/> إرسال العذر
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
