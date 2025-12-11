@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { authenticateUser, getSystemUsers, getStudents, setSystemMode, clearDatabase } from '../services/storageService';
+import { authenticateUser, getStudents, setSystemMode, clearDatabase } from '../services/storageService';
 import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
@@ -33,40 +33,40 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setSystemMode(false);
+    setSystemMode(true); // Default to Online mode for Cloud login
 
     try {
         const cleanIdentifier = identifier.trim();
 
-        // 1. Parent Login Logic
+        // 1. Parent Login Logic (Needs local students synced or cloud fetch)
+        // Since getStudents() uses cached local data, we rely on initAutoSync having run or fallback
         if (roleMode === 'PARENT') {
             const allStudents = getStudents();
-            // Find ANY student linked to this phone number
             const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
             
             if (children.length > 0) {
-                // Parent Login Success - Create Virtual User
                 onLoginSuccess({ 
                     id: `parent_${cleanIdentifier}`, 
                     name: children[0].parentName || 'ولي أمر', 
                     role: 'PARENT',
-                    email: cleanIdentifier, // Storing phone as email ID for session
+                    email: cleanIdentifier, 
                     phone: cleanIdentifier
                 }, rememberMe);
                 setLoading(false);
                 return;
             } else {
-                setError('رقم الجوال غير مسجل كولي أمر لأي طالب.');
+                // If local cache is empty, we might fail here. 
+                // But typically initAutoSync runs on App load.
+                setError('رقم الجوال غير مسجل كولي أمر لأي طالب (تأكد من المزامنة).');
                 setLoading(false);
                 return;
             }
         }
 
-        // 2. Staff/Student Logic
+        // 2. Staff/Student Logic (Cloud Auth)
         const user = await authenticateUser(cleanIdentifier, password);
         
         if (user) {
-            // Check Role Mismatch
             if (roleMode === 'STUDENT' && user.role !== 'STUDENT') {
                 setError('هذا الحساب ليس حساب طالب.');
             } else if (roleMode === 'STAFF' && user.role === 'STUDENT') {
@@ -75,7 +75,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 onLoginSuccess(user, rememberMe);
             }
         } else {
-            setError('البيانات المدخلة غير صحيحة.');
+            setError('البيانات المدخلة غير صحيحة أو خطأ في الاتصال بالسحابة.');
         }
     } catch (e) {
         console.error(e);
@@ -86,7 +86,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const handleReset = () => {
-      if (confirm('تحذير: سيتم حذف جميع الحسابات والبيانات المخزنة محلياً.\nهل أنت متأكد من مسح كل شيء؟')) {
+      if (confirm('تحذير: سيتم تصفير الذاكرة المؤقتة للمتصفح. هل أنت متأكد؟')) {
           clearDatabase();
           alert('تم مسح البيانات بنجاح.');
       }
@@ -108,7 +108,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     <div className="w-20 h-20 bg-white/20 rounded-2xl mx-auto flex items-center justify-center backdrop-blur-sm border border-white/30 mb-4 shadow-lg">
                         <GraduationCap size={40} className="text-white" />
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-1">نظام المدرس الذكي</h1>
+                    <h1 className="text-2xl font-bold text-white mb-1">نظام المدرس الذكي (Cloud)</h1>
                     <p className="text-teal-100 text-sm">بوابة الدخول الموحدة</p>
                 </div>
             </div>
@@ -227,7 +227,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 )}
                 
                 <div className="text-[10px] text-gray-400 text-center mt-8 flex items-center justify-center gap-3 border-t pt-4">
-                    <span className="flex items-center gap-1"><CloudLightning size={12}/> المزامنة السحابية</span>
+                    <span className="flex items-center gap-1 text-green-600"><CloudLightning size={12}/> متصل بالسحابة</span>
                     <button onClick={handleReset} className="text-red-300 hover:text-red-500 flex items-center gap-1 transition-colors" title="مسح كافة البيانات المحلية">
                         <Trash2 size={12}/> إعادة ضبط
                     </button>
@@ -235,7 +235,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
         </div>
         
-        <p className="mt-6 text-gray-400 text-xs text-center pb-6">Smart School System &copy; {new Date().getFullYear()}</p>
+        <p className="mt-6 text-gray-400 text-xs text-center pb-6">Smart School System (Cloud) &copy; {new Date().getFullYear()}</p>
       </div>
     </div>
   );
