@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms } from '../services/storageService';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
+import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
 import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine } from 'recharts';
@@ -32,6 +32,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     // Terms State
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [selectedTermId, setSelectedTermId] = useState<string>('');
+    
+    // Header Config for Print
+    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
 
     // Certificate State
     const [isCertModalOpen, setIsCertModalOpen] = useState(false);
@@ -52,6 +55,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         // Set default to current term if available
         const current = loadedTerms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
+        
+        setHeaderConfig(getReportHeaderConfig(currentUser?.id));
 
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -330,11 +335,34 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             </div>
 
             {student && stats ? (
-                <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto z-0">
-                    <div className="text-center mb-8">
+                <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto z-0 print:m-0">
+                    
+                    {/* PRINT HEADER - Visible only in Print */}
+                    <div className="hidden print:flex justify-between items-center h-28 border-b-2 border-gray-800 mb-6">
+                        <div className="text-right text-xs font-bold leading-loose w-1/3">
+                            <p>المملكة العربية السعودية</p>
+                            <p>وزارة التعليم</p>
+                            <p>{headerConfig?.educationAdmin ? `إدارة التعليم بـ${headerConfig.educationAdmin}` : '.........'}</p>
+                            <p>{headerConfig?.schoolName ? `مدرسة ${headerConfig.schoolName}` : '.........'}</p>
+                        </div>
+                        <div className="text-center flex-1 flex flex-col items-center justify-center">
+                            {headerConfig?.logoBase64 ? (
+                                <img src={headerConfig.logoBase64} alt="شعار" className="h-16 object-contain mb-2" />
+                            ) : <div className="w-16 h-16 bg-gray-100 rounded-full border mb-1"></div>}
+                            <h1 className="font-black text-lg text-gray-900">تقرير متابعة طالب</h1>
+                        </div>
+                        <div className="text-left text-xs font-bold leading-loose w-1/3 flex flex-col items-end">
+                            <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                            <p>{headerConfig?.academicYear || '1447هـ'}</p>
+                            <p>{headerConfig?.term || 'الفصل الدراسي ....'}</p>
+                        </div>
+                    </div>
+
+                    <div className="text-center mb-8 print:hidden">
                         <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject}</h1>
                         {activeTerm && <p className="text-sm text-gray-500 mt-1">({activeTerm.name})</p>}
                     </div>
+
                     <div className="overflow-x-auto mb-8">
                         <table className="w-full text-center border-collapse text-sm">
                             <thead>
@@ -396,6 +424,21 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                     <Users size={14} className="text-gray-500"/> <span>المقارنة مع الزملاء</span>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Footer Signature */}
+                    <div className="hidden print:flex justify-between items-end mt-12 pt-8 border-t break-inside-avoid">
+                        <div className="text-center flex flex-col items-center">
+                            <p className="font-bold text-gray-600 mb-2">معلم المادة</p>
+                            {headerConfig?.signatureBase64 ? (
+                                <img src={headerConfig.signatureBase64} alt="Sig" className="h-16 object-contain mb-1"/>
+                            ) : <div className="h-16"></div>}
+                            <p className="font-bold">{headerConfig?.teacherName || '................'}</p>
+                        </div>
+                        <div className="text-center">
+                            <p className="font-bold text-gray-600 mb-8">مدير المدرسة</p>
+                            <p className="font-bold">{headerConfig?.schoolManager || '................'}</p>
                         </div>
                     </div>
                 </div>

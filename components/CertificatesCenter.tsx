@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus } from '../types';
-import { getSchools, getAcademicTerms } from '../services/storageService';
+import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig } from '../types';
+import { getSchools, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
 import { Award, Printer, CheckSquare, Search, LayoutTemplate, TrendingUp, Medal, Star, ThumbsUp } from 'lucide-react';
 
 interface CertificatesCenterProps {
@@ -24,6 +24,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     const [searchTerm, setSearchTerm] = useState('');
     const [customText, setCustomText] = useState('نظير جهوده المتميزة ومستواه الرائع خلال الفترة الماضية، متمنين له دوام التوفيق.');
     const [logToHistory, setLogToHistory] = useState(true);
+    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
 
     const [schoolInfo, setSchoolInfo] = useState<School | undefined>(() => {
         const schools = getSchools();
@@ -37,6 +38,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
         if (currentTerm) {
             setCustomText(`نظير جهوده المتميزة ومستواه الرائع خلال ${currentTerm.name}، متمنين له دوام التوفيق.`);
         }
+        setHeaderConfig(getReportHeaderConfig(currentUser?.id));
     }, [currentUser]);
 
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
@@ -71,7 +73,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                     id: `${id}-cert-${Date.now()}`,
                     studentId: id,
                     date: today,
-                    status: AttendanceStatus.PRESENT, // Assumption
+                    status: AttendanceStatus.PRESENT, 
                     behaviorStatus: BehaviorStatus.POSITIVE,
                     behaviorNote: `منح شهادة: ${selectedTemplate.title}`,
                     createdById: currentUser?.id
@@ -88,6 +90,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
+            {/* ... (Controls UI remains same) ... */}
             <div className="flex justify-between items-center mb-6 print:hidden">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -109,7 +112,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
             <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden print:hidden">
                 <div className="w-full lg:w-1/3 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
                     
-                    {/* Templates */}
+                    {/* Templates & Text Editor */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                         <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><LayoutTemplate size={16}/> اختر القالب</h3>
                         <div className="grid grid-cols-2 gap-2">
@@ -126,7 +129,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                         </div>
                     </div>
 
-                    {/* Custom Text */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                         <h3 className="font-bold text-gray-700 mb-2 text-sm">عبارة التقدير</h3>
                         <textarea 
@@ -136,7 +138,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                         />
                     </div>
 
-                    {/* Student Selection */}
+                    {/* Selection List */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[300px]">
                         <div className="flex flex-col gap-3 mb-3">
                             <div className="flex gap-2">
@@ -177,6 +179,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                             teacherName={currentUser?.name || 'اسم المعلم'} 
                             schoolName={schoolInfo?.name || 'اسم المدرسة'}
                             managerName={schoolInfo?.managerName || 'مدير المدرسة'}
+                            signature={headerConfig?.signatureBase64}
                         />
                     </div>
                 </div>
@@ -193,6 +196,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                             teacherName={currentUser?.name || '...................'} 
                             schoolName={schoolInfo?.name || '...................'}
                             managerName={schoolInfo?.managerName || '...................'}
+                            signature={headerConfig?.signatureBase64}
                         />
                     </div>
                 ))}
@@ -201,7 +205,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     );
 };
 
-const CertificateView = ({ student, template, text, teacherName, schoolName, managerName }: any) => {
+const CertificateView = ({ student, template, text, teacherName, schoolName, managerName, signature }: any) => {
     return (
         <div className={`w-[297mm] h-[210mm] bg-white relative flex flex-col items-center p-16 border-[16px] border-double ${template.border} shadow-sm print:shadow-none`}>
             {/* Decorative Background Pattern */}
@@ -245,9 +249,10 @@ const CertificateView = ({ student, template, text, teacherName, schoolName, man
             </div>
 
             {/* Signatures */}
-            <div className="w-full flex justify-between px-32 mt-12 relative z-10">
-                <div className="text-center">
-                    <p className="font-bold text-gray-500 mb-6 text-xl">معلم المادة</p>
+            <div className="w-full flex justify-between px-32 mt-12 relative z-10 items-end">
+                <div className="text-center flex flex-col items-center">
+                    <p className="font-bold text-gray-500 mb-4 text-xl">معلم المادة</p>
+                    {signature ? <img src={signature} alt="Sig" className="h-16 object-contain mb-2"/> : <div className="h-16"></div>}
                     <p className="font-serif text-2xl text-gray-900">{teacherName}</p>
                 </div>
                 <div className="text-center">

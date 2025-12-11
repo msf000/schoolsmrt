@@ -257,6 +257,7 @@ export interface ReportHeaderConfig {
     academicYear: string; // New: e.g., 1446
     term: string; // New: e.g., First Term
     logoBase64?: string; // New: To store image locally
+    signatureBase64?: string; // New: Teacher's Signature
     teacherId?: string; // NEW: Private config
 }
 

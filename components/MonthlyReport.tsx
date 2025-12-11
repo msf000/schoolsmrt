@@ -33,7 +33,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
   
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig>({ schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', logoBase64: '' });
+  const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig>({ schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', logoBase64: '', signatureBase64: '' });
   const [subjects, setSubjects] = useState<Subject[]>([]);
   
   // Terms State
@@ -590,8 +590,13 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students, attendance, per
                 
                 {/* Footer Signature */}
                 <div className="p-8 bg-white border-t flex justify-between text-sm font-bold mt-4 print:mt-8 print:break-inside-avoid">
-                    <div className="text-center">
-                        <p className="mb-12">معلم المادة</p>
+                    <div className="text-center flex flex-col items-center">
+                        <p className="mb-4">معلم المادة</p>
+                        {headerConfig.signatureBase64 ? (
+                            <img src={headerConfig.signatureBase64} alt="Signature" className="h-16 object-contain mb-2" />
+                        ) : (
+                            <div className="h-16"></div>
+                        )}
                         <p>{headerConfig.teacherName || '..................'}</p>
                     </div>
                     <div className="text-center">

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm } from '../types';
-import { deleteAllStudents, getAcademicTerms } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award } from 'lucide-react';
+import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
+import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
+import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key } from 'lucide-react';
 import DataImport from './DataImport';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
@@ -38,6 +38,10 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
 
+  // --- Print Cards State ---
+  const [isPrintCardsOpen, setIsPrintCardsOpen] = useState(false);
+  const [schoolConfig, setSchoolConfig] = useState<ReportHeaderConfig | null>(null);
+
   // --- Terms State ---
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState<string>('');
@@ -48,6 +52,8 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       const current = loadedTerms.find(t => t.isCurrent);
       if (current) setSelectedTermId(current.id);
       else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+      
+      setSchoolConfig(getReportHeaderConfig(currentUser?.id));
   }, [currentUser]);
 
   // --- Derived Data for Filters ---
@@ -70,7 +76,36 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       }).sort((a, b) => a.name.localeCompare(b.name));
   }, [students, searchTerm, filterGrade, filterClass]);
 
-  // --- Student Stats Calculation (For View Modal) ---
+  // --- Helper to get Risk Status for Table Row ---
+  const getStudentRisk = (studentId: string) => {
+      const activeTerm = terms.find(t => t.id === selectedTermId);
+      
+      let sAtt = attendance.filter(a => a.studentId === studentId);
+      let sPerf = performance.filter(p => p.studentId === studentId);
+
+      if (activeTerm) {
+          sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+          sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+      }
+
+      const totalDays = sAtt.length;
+      const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+      const attRate = totalDays > 0 ? ((totalDays - absent) / totalDays) * 100 : 100;
+
+      let avgGrade = 100;
+      if (sPerf.length > 0) {
+          const totalScore = sPerf.reduce((a,b) => a + (b.score/b.maxScore), 0);
+          avgGrade = (totalScore / sPerf.length) * 100;
+      }
+
+      const risks = [];
+      if (attRate < 85) risks.push({ type: 'ATT', level: attRate < 75 ? 'HIGH' : 'MED' });
+      if (avgGrade < 60) risks.push({ type: 'ACAD', level: avgGrade < 50 ? 'HIGH' : 'MED' });
+
+      return risks;
+  };
+
+  // ... (studentStats logic remains same)
   const studentStats = useMemo(() => {
       if (!viewStudent) return null;
       
@@ -79,13 +114,11 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       let sAtt = attendance.filter(a => a.studentId === viewStudent.id);
       let sPerf = performance.filter(p => p.studentId === viewStudent.id);
 
-      // Apply Term Filter if selected
       if (activeTerm) {
           sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
           sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
       }
 
-      // 1. Attendance
       const totalDays = sAtt.length;
       const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
       const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
@@ -93,24 +126,19 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       const excused = sAtt.filter(a => a.status === AttendanceStatus.EXCUSED).length;
       const attRate = totalDays > 0 ? Math.round(((present + late + excused) / totalDays) * 100) : 100;
 
-      // 2. Behavior
       const posBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
       const negBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
       const behaviorLogs = sAtt.filter(a => a.behaviorStatus !== BehaviorStatus.NEUTRAL || a.behaviorNote);
 
-      // 3. Academic (General)
       const scores = sPerf.map(p => ({ score: p.score, max: p.maxScore || 10 }));
       const totalScore = scores.reduce((sum, i) => sum + i.score, 0);
       const totalMax = scores.reduce((sum, i) => sum + i.max, 0);
       const avgScore = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
       
-      // 4. Academic Details (By Category)
       const homeworks = sPerf.filter(p => p.category === 'HOMEWORK');
       const activities = sPerf.filter(p => p.category === 'ACTIVITY');
       const exams = sPerf.filter(p => p.category === 'PLATFORM_EXAM' || p.category === 'OTHER');
 
-      // 5. Charts Data
-      // Line Chart: Last 5 Grades
       const recentGrades = sPerf
         .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         .slice(0, 5).reverse()
@@ -120,7 +148,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             fullMark: 100
         }));
 
-      // Radar Chart: Skills
       const categories = ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'];
       const radarData = categories.map(cat => {
           const catPerfs = sPerf.filter(p => p.category === cat);
@@ -134,7 +161,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
               fullMark: 100
           };
       });
-      // Add Attendance & Behavior to Radar
       radarData.push({ subject: 'الحضور', A: attRate, fullMark: 100 });
       radarData.push({ subject: 'السلوك', A: Math.max(0, 100 - (negBehavior * 10)), fullMark: 100 });
 
@@ -196,7 +222,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       parentEmail: formData.parentEmail,
       schoolId: finalSchoolId,
       createdById: editingStudent?.createdById || currentUser?.id,
-      password: formData.password // Add password
+      password: formData.password
     };
 
     try {
@@ -214,6 +240,55 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
           onImportStudents([]); 
       }
   };
+
+  // --- PRINT CARDS COMPONENT ---
+  const LoginCardsView = () => (
+      <div className="fixed inset-0 bg-white z-[200] overflow-auto p-8">
+          <div className="max-w-5xl mx-auto">
+              <div className="flex justify-between items-center mb-8 print:hidden">
+                  <h2 className="text-2xl font-bold">بطاقات دخول الطلاب</h2>
+                  <div className="flex gap-2">
+                      <button onClick={() => window.print()} className="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Key size={16}/> طباعة</button>
+                      <button onClick={() => setIsPrintCardsOpen(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold">إغلاق</button>
+                  </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 print:grid-cols-2">
+                  {filteredStudents.map(student => (
+                      <div key={student.id} className="border-2 border-gray-300 rounded-xl p-6 flex flex-col gap-4 relative break-inside-avoid">
+                          <div className="flex justify-between items-start border-b pb-2">
+                              <div>
+                                  <h3 className="font-bold text-lg">{schoolConfig?.schoolName || 'المدرسة الذكية'}</h3>
+                                  <p className="text-xs text-gray-500">بوابة الطالب الإلكترونية</p>
+                              </div>
+                              <div className="text-left">
+                                  <span className="font-bold text-sm block">{student.className}</span>
+                                  <span className="text-xs text-gray-400">{student.gradeLevel}</span>
+                              </div>
+                          </div>
+                          <div className="space-y-2">
+                              <div className="flex justify-between">
+                                  <span className="text-gray-500 text-sm">الاسم:</span>
+                                  <span className="font-bold">{student.name}</span>
+                              </div>
+                              <div className="flex justify-between bg-gray-50 p-2 rounded">
+                                  <span className="text-gray-500 text-sm">اسم المستخدم:</span>
+                                  <span className="font-mono font-bold">{student.nationalId}</span>
+                              </div>
+                              <div className="flex justify-between bg-gray-50 p-2 rounded">
+                                  <span className="text-gray-500 text-sm">كلمة المرور:</span>
+                                  <span className="font-mono font-bold">{student.password || '123456'}</span>
+                              </div>
+                          </div>
+                          <div className="mt-2 text-center text-[10px] text-gray-400">
+                              يرجى الاحتفاظ ببيانات الدخول وعدم مشاركتها.
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      </div>
+  );
 
   return (
     <div className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
@@ -265,6 +340,9 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             <div className="flex gap-2 w-full md:w-auto">
                 {!isManager && (
                     <>
+                        <button onClick={() => setIsPrintCardsOpen(true)} className="flex-1 md:flex-none bg-white text-gray-700 border px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm" title="طباعة بطاقات الدخول">
+                            <CreditCard size={18} /> بطاقات
+                        </button>
                         <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm">
                             <FileSpreadsheet size={18} /> استيراد
                         </button>
@@ -292,59 +370,65 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 <th className="p-4">اسم الطالب</th>
                 <th className="p-4">الصف / الفصل</th>
                 <th className="p-4">رقم الهوية</th>
-                <th className="p-4 text-center">نوع التسجيل</th>
+                <th className="p-4 text-center">تنبيهات (Risk)</th>
                 <th className="p-4 text-center w-32">إجراءات</th>
                 </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredStudents.length > 0 ? filteredStudents.map((student, i) => (
-                <tr key={student.id} className="hover:bg-gray-50 transition-colors group">
-                    <td className="p-4 text-gray-400 font-mono text-xs">{i + 1}</td>
-                    <td className="p-4">
-                        <button 
-                            onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }}
-                            className="font-bold text-gray-800 hover:text-purple-600 hover:underline text-base text-right"
-                        >
-                            {student.name}
-                        </button>
-                    </td>
-                    <td className="p-4">
-                        <div className="flex flex-col">
-                            <span className="font-medium text-gray-700">{student.gradeLevel}</span>
-                            <span className="text-xs text-gray-500">{student.className}</span>
-                        </div>
-                    </td>
-                    <td className="p-4 font-mono text-gray-500">{student.nationalId || '-'}</td>
-                    <td className="p-4 text-center">
-                        {student.schoolId ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-full border border-blue-100 font-bold">
-                                <Building2 size={10}/> مدرسة
-                            </span>
-                        ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-purple-50 text-purple-700 px-2 py-1 rounded-full border border-purple-100 font-bold">
-                                <Lock size={10}/> خاص
-                            </span>
-                        )}
-                    </td>
-                    <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <button onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50" title="عرض الملف">
-                                <Eye size={16} />
+                {filteredStudents.length > 0 ? filteredStudents.map((student, i) => {
+                    const risks = getStudentRisk(student.id);
+                    return (
+                    <tr key={student.id} className="hover:bg-gray-50 transition-colors group">
+                        <td className="p-4 text-gray-400 font-mono text-xs">{i + 1}</td>
+                        <td className="p-4">
+                            <button 
+                                onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }}
+                                className="font-bold text-gray-800 hover:text-purple-600 hover:underline text-base text-right"
+                            >
+                                {student.name}
                             </button>
-                            {!isManager && (
-                                <>
-                                    <button onClick={() => openEditModal(student)} className="text-gray-400 hover:text-yellow-600 p-1.5 rounded-full hover:bg-yellow-50" title="تعديل">
-                                        <Edit size={16} />
-                                    </button>
-                                    <button onClick={() => onDeleteStudent(student.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50" title="حذف">
-                                        <Trash2 size={16} />
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </td>
-                </tr>
-                )) : (
+                        </td>
+                        <td className="p-4">
+                            <div className="flex flex-col">
+                                <span className="font-medium text-gray-700">{student.gradeLevel}</span>
+                                <span className="text-xs text-gray-500">{student.className}</span>
+                            </div>
+                        </td>
+                        <td className="p-4 font-mono text-gray-500">{student.nationalId || '-'}</td>
+                        <td className="p-4 text-center">
+                            <div className="flex justify-center gap-1">
+                                {risks.find(r => r.type === 'ATT') && (
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${risks.find(r=>r.type==='ATT')?.level === 'HIGH' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
+                                        غياب
+                                    </span>
+                                )}
+                                {risks.find(r => r.type === 'ACAD') && (
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${risks.find(r=>r.type==='ACAD')?.level === 'HIGH' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-yellow-50 text-yellow-600 border-yellow-100'}`}>
+                                        مستوى
+                                    </span>
+                                )}
+                                {risks.length === 0 && <span className="text-gray-300 text-xs">-</span>}
+                            </div>
+                        </td>
+                        <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50" title="عرض الملف">
+                                    <Eye size={16} />
+                                </button>
+                                {!isManager && (
+                                    <>
+                                        <button onClick={() => openEditModal(student)} className="text-gray-400 hover:text-yellow-600 p-1.5 rounded-full hover:bg-yellow-50" title="تعديل">
+                                            <Edit size={16} />
+                                        </button>
+                                        <button onClick={() => onDeleteStudent(student.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50" title="حذف">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </td>
+                    </tr>
+                )}) : (
                     <tr>
                         <td colSpan={6} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center">
                             <Search size={48} className="mb-4 opacity-20"/>
@@ -717,6 +801,9 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
               />
           </div>
       )}
+
+      {/* PRINT LOGIN CARDS MODAL */}
+      {isPrintCardsOpen && <LoginCardsView />}
 
     </div>
   );
