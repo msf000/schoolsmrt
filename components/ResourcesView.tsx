@@ -1,62 +1,49 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LessonLink, SystemUser } from '../types';
-import { getLessonLinks, saveLessonLink, deleteLessonLink, getStudents } from '../services/storageService';
-import { BookOpen, Link as LinkIcon, Youtube, FileText, Globe, Plus, Trash2, Search, ExternalLink, School, Laptop, Filter } from 'lucide-react';
+import { getLessonLinks, saveLessonLink, deleteLessonLink } from '../services/storageService';
+import { BookOpen, Plus, Trash2, ExternalLink, Filter, Link as LinkIcon, Youtube, FileText, Globe } from 'lucide-react';
 
 interface ResourcesViewProps {
-    currentUser?: SystemUser | null;
+    currentUser: any;
 }
 
 const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
     const [links, setLinks] = useState<LessonLink[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [showForm, setShowForm] = useState(false);
     const [newTitle, setNewTitle] = useState('');
     const [newUrl, setNewUrl] = useState('');
-    const [isFormOpen, setIsFormOpen] = useState(false);
-    
-    // New Targeting State
     const [targetGrade, setTargetGrade] = useState('');
-    const [targetClass, setTargetClass] = useState('');
-    const [existingGrades, setExistingGrades] = useState<string[]>([]);
-    const [existingClasses, setExistingClasses] = useState<string[]>([]);
+    const [search, setSearch] = useState('');
 
     useEffect(() => {
         setLinks(getLessonLinks());
-        // Extract existing grades/classes from students for dropdowns
-        const students = getStudents();
-        const grades = Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))) as string[];
-        const classes = Array.from(new Set(students.map(s => s.className).filter(Boolean))) as string[];
-        setExistingGrades(grades.sort());
-        setExistingClasses(classes.sort());
     }, []);
 
-    const filteredLinks = links.filter(l => 
-        (l.title.toLowerCase().includes(searchTerm.toLowerCase()) || l.url.includes(searchTerm)) &&
-        (!l.teacherId || l.teacherId === currentUser?.id)
-    );
+    const filteredLinks = links.filter(l => {
+        // Teacher sees their own + public ones (if we had public flag, for now simplified)
+        // Here we just filter by what's available
+        if (targetGrade && l.gradeLevel !== targetGrade) return false;
+        if (search && !l.title.includes(search)) return false;
+        return true;
+    });
 
-    const handleAdd = () => {
+    const handleSave = () => {
         if (!newTitle || !newUrl) return;
-        saveLessonLink({
-            id: Date.now().toString(),
-            title: newTitle,
-            url: newUrl,
-            teacherId: currentUser?.id,
-            createdAt: new Date().toISOString(),
-            gradeLevel: targetGrade, // NEW
-            className: targetClass // NEW
+        saveLessonLink({ 
+            id: Date.now().toString(), 
+            title: newTitle, 
+            url: newUrl, 
+            gradeLevel: targetGrade,
+            teacherId: currentUser?.id, 
+            createdAt: new Date().toISOString() 
         });
         setLinks(getLessonLinks());
-        setNewTitle('');
-        setNewUrl('');
-        setTargetGrade('');
-        setTargetClass('');
-        setIsFormOpen(false);
+        setNewTitle(''); setNewUrl(''); setShowForm(false);
     };
 
     const handleDelete = (id: string) => {
-        if (confirm('حذف هذا المصدر؟')) {
+        if(confirm('حذف هذا الرابط؟')) {
             deleteLessonLink(id);
             setLinks(getLessonLinks());
         }
@@ -72,130 +59,72 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <BookOpen className="text-indigo-600"/> مكتبة المصادر
-                    </h2>
-                    <p className="text-sm text-gray-500">روابط إثرائية، ملفات، ومراجع للدروس.</p>
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><BookOpen className="text-blue-600"/> مكتبة المصادر</h2>
+                    <p className="text-sm text-gray-500">روابط إثرائية، فيديوهات، وملفات للطلاب.</p>
                 </div>
-                <button onClick={() => setIsFormOpen(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-sm">
-                    <Plus size={18}/> مصدر جديد
+                <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 shadow-md">
+                    <Plus size={18}/> رابط جديد
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <a href="https://schools.madrasati.sa" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-blue-100 hover:border-blue-400 hover:shadow-md transition-all group">
-                    <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Laptop size={24}/>
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-gray-800">منصة مدرستي</h3>
-                        <p className="text-xs text-gray-500">الدخول الموحد للكادر والطلاب</p>
-                    </div>
-                    <ExternalLink size={16} className="mr-auto text-gray-300 group-hover:text-blue-500"/>
-                </a>
-
-                <a href="https://www.ien.edu.sa" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-green-100 hover:border-green-400 hover:shadow-md transition-all group">
-                    <div className="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <BookOpen size={24}/>
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-gray-800">بوابة عين التعليمية</h3>
-                        <p className="text-xs text-gray-500">الكتب، الفيديوهات، والإثراءات</p>
-                    </div>
-                    <ExternalLink size={16} className="mr-auto text-gray-300 group-hover:text-green-500"/>
-                </a>
-
-                <a href="https://ktbby.com" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-orange-100 hover:border-orange-400 hover:shadow-md transition-all group">
-                    <div className="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <School size={24}/>
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-gray-800">مكتبة كتبي</h3>
-                        <p className="text-xs text-gray-500">تحميل المناهج والحلول PDF</p>
-                    </div>
-                    <ExternalLink size={16} className="mr-auto text-gray-300 group-hover:text-orange-500"/>
-                </a>
+            {/* Filter Bar */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border mb-4 flex gap-4 items-center">
+                <Filter size={16} className="text-gray-400"/>
+                <select className="p-2 border rounded text-sm font-bold text-gray-700" value={targetGrade} onChange={e => setTargetGrade(e.target.value)}>
+                    <option value="">جميع الصفوف</option>
+                    {[
+                        "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
+                        "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
+                        "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
+                        "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
+                    ].map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+                <input className="flex-1 p-2 border rounded text-sm" placeholder="بحث..." value={search} onChange={e => setSearch(e.target.value)}/>
             </div>
 
-            <div className="bg-white p-4 rounded-xl border shadow-sm mb-4">
-                <div className="relative">
-                    <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
-                    <input 
-                        className="w-full pr-10 pl-4 py-2 border rounded-lg bg-gray-50 focus:bg-white transition-colors outline-none" 
-                        placeholder="بحث في المصادر المحفوظة..." 
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                    />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-10 custom-scrollbar">
+            {/* Content */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-10">
                 {filteredLinks.map(link => (
-                    <div key={link.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative">
-                        <div className="flex items-start gap-3">
+                    <div key={link.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all group flex flex-col">
+                        <div className="flex items-start gap-4 mb-3">
                             <div className="p-3 bg-gray-50 rounded-lg">{getIcon(link.url)}</div>
                             <div className="flex-1 overflow-hidden">
-                                <h4 className="font-bold text-gray-800 truncate mb-1">{link.title}</h4>
-                                <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline truncate block flex items-center gap-1">
-                                    <LinkIcon size={10}/> {link.url}
-                                </a>
-                                <div className="flex items-center gap-2 mt-2">
-                                    {link.gradeLevel && <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{link.gradeLevel}</span>}
-                                    {link.className && <span className="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded">{link.className}</span>}
-                                </div>
-                                <p className="text-[10px] text-gray-400 mt-1 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
+                                <h4 className="font-bold text-gray-800 truncate" title={link.title}>{link.title}</h4>
+                                <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate block mt-1">{link.url}</a>
                             </div>
                         </div>
-                        <div className="absolute top-2 left-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 p-1 rounded backdrop-blur-sm">
-                            <a href={link.url} target="_blank" rel="noreferrer" className="p-1.5 text-gray-600 hover:text-blue-600 bg-white border rounded shadow-sm"><ExternalLink size={14}/></a>
-                            <button onClick={() => handleDelete(link.id)} className="p-1.5 text-gray-600 hover:text-red-600 bg-white border rounded shadow-sm"><Trash2 size={14}/></button>
+                        <div className="mt-auto flex justify-between items-center pt-3 border-t border-gray-50">
+                            <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500">{link.gradeLevel || 'عام'}</span>
+                            <button onClick={() => handleDelete(link.id)} className="text-gray-300 hover:text-red-500 p-1"><Trash2 size={16}/></button>
                         </div>
                     </div>
                 ))}
-                {filteredLinks.length === 0 && (
-                    <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-                        <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
-                        <p>لا توجد مصادر محفوظة.</p>
-                    </div>
-                )}
+                {filteredLinks.length === 0 && <div className="col-span-full text-center py-20 text-gray-400">لا توجد روابط</div>}
             </div>
 
-            {isFormOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-bounce-in">
+            {/* Modal */}
+            {showForm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
                         <h3 className="font-bold text-lg mb-4 text-gray-800">إضافة مصدر جديد</h3>
                         <div className="space-y-4">
+                            <div><label className="block text-sm font-bold text-gray-600 mb-1">العنوان</label><input className="w-full p-2 border rounded" value={newTitle} onChange={e => setNewTitle(e.target.value)} autoFocus/></div>
+                            <div><label className="block text-sm font-bold text-gray-600 mb-1">الرابط (URL)</label><input className="w-full p-2 border rounded dir-ltr" value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="https://..."/></div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">العنوان *</label>
-                                <input className="w-full p-2 border rounded-lg" value={newTitle} onChange={e => setNewTitle(e.target.value)} autoFocus placeholder="مثال: فيديو شرح الدرس الأول"/>
+                                <label className="block text-sm font-bold text-gray-600 mb-1">الصف المستهدف</label>
+                                <select className="w-full p-2 border rounded text-sm" value={targetGrade} onChange={e => setTargetGrade(e.target.value)}>
+                                    <option value="">عام (للجميع)</option>
+                                    {[
+                                        "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
+                                        "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
+                                        "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
+                                        "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
+                                    ].map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">الرابط (URL) *</label>
-                                <input className="w-full p-2 border rounded-lg dir-ltr" value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="https://..."/>
-                            </div>
-                            
-                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1"><Filter size={12}/> تخصيص الظهور (اختياري)</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <select className="w-full p-2 border rounded text-xs" value={targetGrade} onChange={e => setTargetGrade(e.target.value)}>
-                                            <option value="">كل الصفوف</option>
-                                            {existingGrades.map(g => <option key={g} value={g}>{g}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <select className="w-full p-2 border rounded text-xs" value={targetClass} onChange={e => setTargetClass(e.target.value)}>
-                                            <option value="">كل الفصول</option>
-                                            {existingClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-gray-400 mt-2">اتركه فارغاً ليظهر لجميع الطلاب.</p>
-                            </div>
-
-                            <div className="flex gap-2 pt-2">
-                                <button onClick={() => setIsFormOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 font-bold">إلغاء</button>
-                                <button onClick={handleAdd} className="flex-2 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">حفظ</button>
+                            <div className="flex justify-end gap-2 mt-4">
+                                <button onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">إلغاء</button>
+                                <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white font-bold hover:bg-blue-700 rounded">حفظ</button>
                             </div>
                         </div>
                     </div>

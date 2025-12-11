@@ -1,19 +1,15 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Teacher, School, SystemUser, Feedback, Subject, ScheduleItem, TeacherAssignment, ReportHeaderConfig, UserTheme, AcademicTerm, TermPeriod } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Teacher, School, SystemUser, Subject, ReportHeaderConfig, UserTheme, AcademicTerm, TermPeriod } from '../types';
 import { 
     getTeachers, updateTeacher,
     getSchools, getSubjects, addSubject, deleteSubject,
-    getSchedules, saveScheduleItem, deleteScheduleItem,
-    getTeacherAssignments, saveTeacherAssignment, deleteTeacherAssignment,
     getReportHeaderConfig, saveReportHeaderConfig,
-    getFeedback, addFeedback, addSchool, updateSchool,
     getUserTheme, saveUserTheme,
     getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
-    getExams, getLessonPlans, getWeeklyPlans
+    getStudents
 } from '../services/storageService';
-import { formatDualDate } from '../services/dateService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Clock, Palette, Sun, Sunset, CheckCircle, PlusCircle, LogOut, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, ListTree, ChevronDown, ChevronRight, Plus, Activity, Edit, PenTool } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, FileText, BookOpen, Settings, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -24,10 +20,11 @@ interface SchoolManagementProps {
     onUpdateTheme?: (theme: UserTheme) => void;
 }
 
-export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onImportStudents, onImportPerformance, onImportAttendance, onUpdateTheme }) => {
+export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser, students, onUpdateTheme }) => {
   const isSchoolManager = currentUser?.role === 'SCHOOL_MANAGER';
   const isManager = isSchoolManager || currentUser?.role === 'SUPER_ADMIN';
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'SCHEDULE' | 'SETTINGS' | 'CALENDAR'>(() => {
+  
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'CALENDAR' | 'SETTINGS'>(() => {
       return localStorage.getItem('school_mgmt_active_tab') as any || 'DASHBOARD';
   });
 
@@ -39,8 +36,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [mySchool, setMySchool] = useState<School | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
-  const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
   const [academicTerms, setAcademicTerms] = useState<AcademicTerm[]>([]);
   const [reportConfig, setReportConfig] = useState<ReportHeaderConfig>({
       schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', signatureBase64: ''
@@ -48,7 +43,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [userTheme, setUserTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
 
   // UI States
-  const [feedbackMsg, setFeedbackMsg] = useState('');
   const [newSubject, setNewSubject] = useState('');
   
   // Term/Period Modal States
@@ -70,8 +64,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           setReportConfig(getReportHeaderConfig(currentUser.id));
           setAcademicTerms(getAcademicTerms(currentUser.id));
       }
-      setSchedules(getSchedules());
-      setAssignments(getTeacherAssignments());
       setUserTheme(getUserTheme());
       const allTeachers = getTeachers();
       setTeachers(allTeachers);
@@ -97,22 +89,133 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   }, [currentUser, isManager, activeTab]); 
 
   // Helpers
-  const handleAddSubject = () => { if (newSubject.trim() && currentUser) { addSubject({ id: Date.now().toString(), name: newSubject.trim(), teacherId: currentUser.id }); setSubjects(getSubjects(currentUser.id)); setNewSubject(''); } };
-  const handleDeleteSubject = (id: string) => { if (confirm('حذف المادة؟') && currentUser) { deleteSubject(id); setSubjects(getSubjects(currentUser.id)); } };
+  const handleAddSubject = () => { 
+      if (newSubject.trim() && currentUser) { 
+          addSubject({ id: Date.now().toString(), name: newSubject.trim(), teacherId: currentUser.id }); 
+          setSubjects(getSubjects(currentUser.id)); 
+          setNewSubject(''); 
+      } 
+  };
+  
+  const handleDeleteSubject = (id: string) => { 
+      if (confirm('حذف المادة؟') && currentUser) { 
+          deleteSubject(id); 
+          setSubjects(getSubjects(currentUser.id)); 
+      } 
+  };
   
   // Terms Handlers
-  const handleAddTerm = () => { if (!newTermName || !newTermStart || !newTermEnd || !currentUser) return alert('بيانات ناقصة'); const term: AcademicTerm = { id: Date.now().toString(), name: newTermName, startDate: newTermStart, endDate: newTermEnd, isCurrent: academicTerms.length === 0, teacherId: currentUser.id, periods: [] }; saveAcademicTerm(term); setAcademicTerms(getAcademicTerms(currentUser.id)); setNewTermName(''); setNewTermStart(''); setNewTermEnd(''); };
-  const handleDeleteTerm = (id: string) => { if (confirm('حذف الفصل الدراسي؟')) { deleteAcademicTerm(id); setAcademicTerms(getAcademicTerms(currentUser?.id)); } };
-  const handleSetCurrentTerm = (id: string) => { if (currentUser) { setCurrentTerm(id, currentUser.id); setAcademicTerms(getAcademicTerms(currentUser.id)); } };
-  const handleAddPeriod = (term: AcademicTerm) => { if (!newPeriodName || !newPeriodStart || !newPeriodEnd) return alert('بيانات ناقصة'); const period: TermPeriod = { id: Date.now().toString() + '_p', name: newPeriodName, startDate: newPeriodStart, endDate: newPeriodEnd }; const updatedTerm = { ...term, periods: [...(term.periods || []), period] }; saveAcademicTerm(updatedTerm); setAcademicTerms(getAcademicTerms(currentUser?.id)); setNewPeriodName(''); setNewPeriodStart(''); setNewPeriodEnd(''); };
-  const handleDeletePeriod = (term: AcademicTerm, periodId: string) => { if(confirm('حذف الفترة؟')) { const updatedPeriods = term.periods?.filter(p => p.id !== periodId) || []; saveAcademicTerm({ ...term, periods: updatedPeriods }); setAcademicTerms(getAcademicTerms(currentUser?.id)); } };
+  const handleAddTerm = () => { 
+      if (!newTermName || !newTermStart || !newTermEnd || !currentUser) return alert('بيانات ناقصة'); 
+      const term: AcademicTerm = { 
+          id: Date.now().toString(), 
+          name: newTermName, 
+          startDate: newTermStart, 
+          endDate: newTermEnd, 
+          isCurrent: academicTerms.length === 0, 
+          teacherId: currentUser.id, 
+          periods: [] 
+      }; 
+      saveAcademicTerm(term); 
+      setAcademicTerms(getAcademicTerms(currentUser.id)); 
+      setNewTermName(''); setNewTermStart(''); setNewTermEnd(''); 
+  };
+
+  const handleDeleteTerm = (id: string) => { 
+      if (confirm('حذف الفصل الدراسي؟')) { 
+          deleteAcademicTerm(id); 
+          setAcademicTerms(getAcademicTerms(currentUser?.id)); 
+      } 
+  };
+
+  const handleSetCurrentTerm = (id: string) => { 
+      if (currentUser) { 
+          setCurrentTerm(id, currentUser.id); 
+          setAcademicTerms(getAcademicTerms(currentUser.id)); 
+      } 
+  };
+
+  const handleAddPeriod = (term: AcademicTerm) => { 
+      if (!newPeriodName || !newPeriodStart || !newPeriodEnd) return alert('بيانات ناقصة'); 
+      const period: TermPeriod = { 
+          id: Date.now().toString() + '_p', 
+          name: newPeriodName, 
+          startDate: newPeriodStart, 
+          endDate: newPeriodEnd 
+      }; 
+      const updatedTerm = { ...term, periods: [...(term.periods || []), period] }; 
+      saveAcademicTerm(updatedTerm); 
+      setAcademicTerms(getAcademicTerms(currentUser?.id)); 
+      setNewPeriodName(''); setNewPeriodStart(''); setNewPeriodEnd(''); 
+  };
+
+  const handleDeletePeriod = (term: AcademicTerm, periodId: string) => { 
+      if(confirm('حذف الفترة؟')) { 
+          const updatedPeriods = term.periods?.filter(p => p.id !== periodId) || []; 
+          saveAcademicTerm({ ...term, periods: updatedPeriods }); 
+          setAcademicTerms(getAcademicTerms(currentUser?.id)); 
+      } 
+  };
 
   // Settings Handlers
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { setReportConfig(prev => ({ ...prev, logoBase64: reader.result as string })); }; reader.readAsDataURL(file); } };
-  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { setReportConfig(prev => ({ ...prev, signatureBase64: reader.result as string })); }; reader.readAsDataURL(file); } };
-  const handleAutoFillHeader = () => { const newConfig = { ...reportConfig }; if (!newConfig.logoBase64) { newConfig.logoBase64 = "https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg"; } if (currentUser) { const tName = teacherProfile?.name || currentUser.name; if (tName) newConfig.teacherName = tName; if (mySchool) { newConfig.schoolName = mySchool.name; newConfig.schoolManager = mySchool.managerName; if (mySchool.educationAdministration) newConfig.educationAdmin = mySchool.educationAdministration; } } if (!newConfig.academicYear) newConfig.academicYear = '1447هـ'; if (!newConfig.term) newConfig.term = 'الفصل الدراسي الأول'; setReportConfig(newConfig); alert('تم التعبئة التلقائية.'); };
-  const handleSaveSettings = () => { if (currentUser) { const configWithId = { ...reportConfig, teacherId: currentUser.id }; saveReportHeaderConfig(configWithId); saveUserTheme(userTheme); if(onUpdateTheme) onUpdateTheme(userTheme); alert('تم الحفظ بنجاح'); } };
-  const handleTeacherSaveProfile = async () => { if (!teacherProfile) return; setIsSavingProfile(true); try { await updateTeacher(teacherProfile); alert('تم الحفظ'); } catch (e) { alert('خطأ'); } finally { setIsSavingProfile(false); } };
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => { 
+      const file = e.target.files?.[0]; 
+      if (file) { 
+          const reader = new FileReader(); 
+          reader.onloadend = () => { setReportConfig(prev => ({ ...prev, logoBase64: reader.result as string })); }; 
+          reader.readAsDataURL(file); 
+      } 
+  };
+
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => { 
+      const file = e.target.files?.[0]; 
+      if (file) { 
+          const reader = new FileReader(); 
+          reader.onloadend = () => { setReportConfig(prev => ({ ...prev, signatureBase64: reader.result as string })); }; 
+          reader.readAsDataURL(file); 
+      } 
+  };
+
+  const handleAutoFillHeader = () => { 
+      const newConfig = { ...reportConfig }; 
+      if (!newConfig.logoBase64) { newConfig.logoBase64 = "https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg"; } 
+      if (currentUser) { 
+          const tName = teacherProfile?.name || currentUser.name; 
+          if (tName) newConfig.teacherName = tName; 
+          if (mySchool) { 
+              newConfig.schoolName = mySchool.name; 
+              newConfig.schoolManager = mySchool.managerName; 
+              if (mySchool.educationAdministration) newConfig.educationAdmin = mySchool.educationAdministration; 
+          } 
+      } 
+      if (!newConfig.academicYear) newConfig.academicYear = '1447هـ'; 
+      if (!newConfig.term) newConfig.term = 'الفصل الدراسي الأول'; 
+      setReportConfig(newConfig); 
+      alert('تم التعبئة التلقائية.'); 
+  };
+
+  const handleSaveSettings = () => { 
+      if (currentUser) { 
+          const configWithId = { ...reportConfig, teacherId: currentUser.id }; 
+          saveReportHeaderConfig(configWithId); 
+          saveUserTheme(userTheme); 
+          if(onUpdateTheme) onUpdateTheme(userTheme); 
+          alert('تم الحفظ بنجاح'); 
+      } 
+  };
+
+  const handleTeacherSaveProfile = async () => { 
+      if (!teacherProfile) return; 
+      setIsSavingProfile(true); 
+      try { 
+          await updateTeacher(teacherProfile); 
+          alert('تم الحفظ'); 
+      } catch (e) { 
+          alert('خطأ'); 
+      } finally { 
+          setIsSavingProfile(false); 
+      } 
+  };
 
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">

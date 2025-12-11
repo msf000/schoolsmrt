@@ -6,6 +6,13 @@ import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet
 import DataImport from './DataImport';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
+const SAUDI_GRADES = [
+    "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
+    "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
+    "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
+    "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
+];
+
 interface StudentsProps {
   students: Student[];
   attendance?: AttendanceRecord[]; 
@@ -57,7 +64,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   }, [currentUser]);
 
   // --- Derived Data for Filters ---
-  const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))).sort(), [students]);
+  const existingGrades = useMemo(() => Array.from(new Set([...students.map(s => s.gradeLevel).filter(Boolean), ...SAUDI_GRADES])).sort(), [students]);
   const existingClasses = useMemo(() => {
       let classes = students.map(s => s.className).filter(Boolean) as string[];
       if (filterGrade) {
@@ -700,16 +707,14 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1">الصف الدراسي</label>
-                        <input 
-                            list="gradeOptions"
-                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
+                        <select
+                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm bg-white"
                             value={formData.gradeLevel}
                             onChange={(e) => setFormData({...formData, gradeLevel: e.target.value})}
-                            placeholder="اكتب الصف..."
-                        />
-                        <datalist id="gradeOptions">
-                            {existingGrades.map(g => <option key={g} value={g} />)}
-                        </datalist>
+                        >
+                            <option value="">-- اختر الصف --</option>
+                            {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1">الفصل</label>

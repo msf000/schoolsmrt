@@ -1,20 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
-import { 
-    saveLessonPlan, getLessonPlans, deleteLessonPlan, 
-    getCurriculumUnits, getCurriculumLessons, getMicroConcepts, getSubjects, getAcademicTerms
-} from '../services/storageService';
-import { StoredLessonPlan, CurriculumUnit, CurriculumLesson, LessonBlock, AcademicTerm } from '../types';
-import { 
-    BookOpen, PenTool, Loader2, Copy, Printer, CheckCircle, Sparkles, 
-    Layout, Clock, FileText, ArrowRight, ArrowLeft, Settings, Check, List, 
-    AlertTriangle, Calendar, Target, ListTree, BookOpenCheck, Save, Trash2, 
-    Link, Video, Image as ImageIcon, MoveUp, MoveDown, Plus, Search, Grid,
-    ToggleLeft, ToggleRight, MoreVertical, X, RefreshCw, Hash, FileQuestion, Globe, Youtube, ExternalLink, Filter
-} from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import React, { useState, useEffect } from 'react';
+import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan } from '../services/storageService';
+import { generateLessonBlocks } from '../services/geminiService';
+import { Subject, StoredLessonPlan, LessonBlock } from '../types';
+import { PenTool, Save, Loader2, BookOpen, Trash2, Copy, Printer, CheckCircle, RefreshCw } from 'lucide-react';
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
@@ -26,596 +15,210 @@ const SAUDI_GRADES = [
 ];
 
 const LessonPlanning: React.FC = () => {
-    // Layout State
-    const [activeTab, setActiveTab] = useState<'STUDIO' | 'MY_PLANS'>('STUDIO');
+    // State
+    const [currentUser] = useState(() => JSON.parse(localStorage.getItem('current_user') || '{}'));
+    const [subjects, setSubjects] = useState<Subject[]>([]);
     
-    // User & Data Context
-    const currentUser = JSON.parse(localStorage.getItem('current_user') || '{}');
-    const [units, setUnits] = useState<CurriculumUnit[]>([]);
-    const [curriculumLessons, setCurriculumLessons] = useState<CurriculumLesson[]>([]);
-    const [myPlans, setMyPlans] = useState<StoredLessonPlan[]>([]);
-    const [subjects, setSubjects] = useState<any[]>([]);
-
-    // Terms State
-    const [terms, setTerms] = useState<AcademicTerm[]>([]);
-    const [selectedTermId, setSelectedTermId] = useState('');
-
-    // Studio Settings (Right Column)
+    // Selection State
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedGrade, setSelectedGrade] = useState('');
+    const [lessonTopic, setLessonTopic] = useState('');
     
-    // Curriculum Selection instead of Manual Topic
-    const [selectedUnitId, setSelectedUnitId] = useState('');
-    const [selectedLessonId, setSelectedLessonId] = useState('');
-    const [topic, setTopic] = useState(''); 
+    // Unused state variables kept for compatibility if needed or removed
+    const [, setSelectedUnitId] = useState('');
+    const [, setSelectedLessonId] = useState('');
 
-    const [settings, setSettings] = useState({
-        includeActivity: true,
-        includeVideo: false,
-        includeWorksheet: false
-    });
-    
-    // Canvas Data (Middle Column)
-    const [blocks, setBlocks] = useState<LessonBlock[]>([]);
+    // Generation State
     const [isGenerating, setIsGenerating] = useState(false);
-    const [regeneratingBlockId, setRegeneratingBlockId] = useState<string | null>(null);
-    
-    // Previous Lesson Data
-    const [prevPlan, setPrevPlan] = useState<StoredLessonPlan | null>(null);
+    const [generatedBlocks, setGeneratedBlocks] = useState<LessonBlock[]>([]);
+    const [settings, setSettings] = useState({ includeActivity: true, includeVideo: true, includeWorksheet: true });
 
-    // Media Library State
-    const [mediaQuery, setMediaQuery] = useState('');
-    const [mediaResults, setMediaResults] = useState<any[]>([]);
-    const [isMediaLoading, setIsMediaLoading] = useState(false);
+    // History State
+    const [savedPlans, setSavedPlans] = useState<StoredLessonPlan[]>([]);
 
-    // Initialization
     useEffect(() => {
         if (currentUser?.id) {
-            setUnits(getCurriculumUnits(currentUser.id));
-            setCurriculumLessons(getCurriculumLessons());
-            setMyPlans(getLessonPlans(currentUser.id));
             setSubjects(getSubjects(currentUser.id));
-            
-            const loadedTerms = getAcademicTerms(currentUser.id);
-            setTerms(loadedTerms);
-            const current = loadedTerms.find(t => t.isCurrent);
-            if (current) setSelectedTermId(current.id);
-            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+            setSavedPlans(getLessonPlans(currentUser.id));
         }
-    }, [currentUser?.id, activeTab]);
-
-    // Fetch Previous Lesson when Subject/Grade changes
-    useEffect(() => {
-        if (selectedSubject && selectedGrade) {
-            const plans = getLessonPlans(currentUser.id)
-                .filter(p => p.subject === selectedSubject) 
-                .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            
-            if (plans.length > 0) {
-                setPrevPlan(plans[0]);
-            } else {
-                setPrevPlan(null);
-            }
-        }
-    }, [selectedSubject, selectedGrade, currentUser.id]);
-
-    // Filter Logic
-    const filteredUnits = useMemo(() => {
-        return units.filter(u => u.subject === selectedSubject && u.gradeLevel === selectedGrade).sort((a,b) => a.orderIndex - b.orderIndex);
-    }, [units, selectedSubject, selectedGrade]);
-
-    const filteredLessons = useMemo(() => {
-        return curriculumLessons.filter(l => l.unitId === selectedUnitId).sort((a,b) => a.orderIndex - b.orderIndex);
-    }, [curriculumLessons, selectedUnitId]);
-
-    // Filter Plans by Term
-    const filteredMyPlans = useMemo(() => {
-        const activeTerm = terms.find(t => t.id === selectedTermId);
-        if (!activeTerm) return myPlans;
-        
-        return myPlans.filter(p => {
-            const date = p.createdAt.split('T')[0];
-            return date >= activeTerm.startDate && date <= activeTerm.endDate;
-        });
-    }, [myPlans, selectedTermId, terms]);
-
-    // Update Topic when Lesson Selected & Auto-Search Media
-    useEffect(() => {
-        const lesson = curriculumLessons.find(l => l.id === selectedLessonId);
-        if (lesson) {
-            setTopic(lesson.title);
-            setMediaQuery(lesson.title);
-            handleSearchMedia(undefined, lesson.title);
-        }
-    }, [selectedLessonId, curriculumLessons]);
-
-    // --- ACTIONS ---
-
-    const handleSearchMedia = (e?: React.FormEvent, overrideQuery?: string) => {
-        e?.preventDefault();
-        const term = overrideQuery || mediaQuery;
-        if (!term) return;
-
-        setIsMediaLoading(true);
-        
-        // Simulate "Searching" by generating relevant dynamic URLs
-        setTimeout(() => {
-            const results = [
-                // 1. Dynamic AI Generated Images (act as search results)
-                { type: 'IMAGE', url: `https://image.pollinations.ai/prompt/educational photo of ${encodeURIComponent(term)}?width=400&height=300&nologo=true`, title: 'صورة توضيحية (AI)' },
-                { type: 'IMAGE', url: `https://image.pollinations.ai/prompt/diagram of ${encodeURIComponent(term)} with white background?width=400&height=300&nologo=true`, title: 'مخطط بياني (AI)' },
-                { type: 'IMAGE', url: `https://image.pollinations.ai/prompt/illustration of ${encodeURIComponent(term)} for students?width=400&height=300&nologo=true`, title: 'رسم تعليمي (AI)' },
-                
-                // 2. External Search Links (Interactive)
-                { type: 'WEB_SEARCH', url: `https://www.google.com/search?q=${encodeURIComponent(term)}&tbm=isch`, title: 'بحث صور Google' },
-                { type: 'VIDEO_SEARCH', url: `https://www.youtube.com/results?search_query=${encodeURIComponent(term)}`, title: 'بحث في YouTube' }
-            ];
-            setMediaResults(results);
-            setIsMediaLoading(false);
-        }, 800);
-    };
+    }, [currentUser]);
 
     const handleGenerate = async () => {
-        if (!topic || !selectedSubject) return alert('الرجاء اختيار المادة والدرس من القائمة');
+        if (!selectedSubject || !selectedGrade || !lessonTopic) return alert('البيانات ناقصة');
         
         setIsGenerating(true);
         try {
-            // Get Learning Standards for this lesson
-            const currentLesson = curriculumLessons.find(l => l.id === selectedLessonId);
-            const standards = currentLesson ? currentLesson.learningStandards : [];
-
-            const newBlocks = await generateLessonBlocks(
-                selectedSubject, 
-                topic, 
-                selectedGrade, 
-                settings,
-                standards
-            );
-            setBlocks(newBlocks);
-        } catch (error) {
-            console.error(error);
-            alert('حدث خطأ أثناء التوليد');
+            const blocks = await generateLessonBlocks(selectedSubject, lessonTopic, selectedGrade, settings);
+            setGeneratedBlocks(blocks);
+        } catch (e) {
+            alert('فشل التوليد. حاول مرة أخرى.');
         } finally {
             setIsGenerating(false);
         }
     };
 
-    const handleRegenerateBlock = async (block: LessonBlock) => {
-        setRegeneratingBlockId(block.id);
-        try {
-            const prevContent = block.content;
-            const newContent = await regenerateSingleBlock(
-                block.type, 
-                block.title, 
-                { subject: selectedSubject, topic: topic, grade: selectedGrade, prevContent }
-            );
-            
-            setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, content: newContent } : b));
-        } catch (e) {
-            alert('فشل التحديث');
-        } finally {
-            setRegeneratingBlockId(null);
-        }
-    };
-
     const handleSavePlan = () => {
-        if (blocks.length === 0 || !topic) return;
-        const jsonContent = JSON.stringify(blocks);
+        if (generatedBlocks.length === 0 || !currentUser?.id) return;
         
-        const newPlan: StoredLessonPlan = {
+        const plan: StoredLessonPlan = {
             id: Date.now().toString(),
             teacherId: currentUser.id,
-            lessonId: selectedLessonId || undefined,
             subject: selectedSubject,
-            topic: topic,
-            contentJson: jsonContent, // Storing Blocks JSON structure
-            resources: [], 
+            topic: lessonTopic,
+            contentJson: JSON.stringify(generatedBlocks),
+            resources: [],
             createdAt: new Date().toISOString()
         };
-        saveLessonPlan(newPlan);
-        setMyPlans(getLessonPlans(currentUser.id));
-        alert('تم حفظ خطة الدرس بنجاح!');
-    };
-
-    const loadPlan = (plan: StoredLessonPlan) => {
-        try {
-            const loadedBlocks = JSON.parse(plan.contentJson);
-            if (Array.isArray(loadedBlocks)) {
-                setBlocks(loadedBlocks);
-                setTopic(plan.topic);
-                setSelectedSubject(plan.subject);
-                // Try to find Unit/Lesson based on IDs if possible, otherwise just set Strings
-                if (plan.lessonId) {
-                    setSelectedLessonId(plan.lessonId);
-                    const lesson = curriculumLessons.find(l => l.id === plan.lessonId);
-                    if (lesson) setSelectedUnitId(lesson.unitId);
-                }
-                setActiveTab('STUDIO');
-            } else {
-                setBlocks([{ id: 'legacy', type: 'CONTENT', title: 'محتوى الدرس', content: plan.contentJson }]);
-                setActiveTab('STUDIO');
-            }
-        } catch (e) {
-            setBlocks([{ id: 'legacy', type: 'CONTENT', title: 'محتوى الدرس', content: plan.contentJson }]);
-            setActiveTab('STUDIO');
-        }
+        
+        saveLessonPlan(plan);
+        setSavedPlans(getLessonPlans(currentUser.id));
+        alert('تم حفظ التحضير في المكتبة!');
     };
 
     const handleDeletePlan = (id: string) => {
-        if(confirm('حذف الخطة؟')) {
+        if (confirm('حذف هذا التحضير؟')) {
             deleteLessonPlan(id);
-            setMyPlans(getLessonPlans(currentUser.id));
+            setSavedPlans(getLessonPlans(currentUser.id));
         }
     };
 
-    // --- BLOCK MANIPULATION ---
-
-    const moveBlock = (index: number, direction: 'UP' | 'DOWN') => {
-        const newBlocks = [...blocks];
-        if (direction === 'UP' && index > 0) {
-            [newBlocks[index], newBlocks[index - 1]] = [newBlocks[index - 1], newBlocks[index]];
-        } else if (direction === 'DOWN' && index < newBlocks.length - 1) {
-            [newBlocks[index], newBlocks[index + 1]] = [newBlocks[index + 1], newBlocks[index]];
+    const handleLoadPlan = (plan: StoredLessonPlan) => {
+        setSelectedSubject(plan.subject);
+        setLessonTopic(plan.topic);
+        try {
+            setGeneratedBlocks(JSON.parse(plan.contentJson));
+        } catch(e) {
+            console.error('Failed to parse plan content');
         }
-        setBlocks(newBlocks);
-    };
-
-    const deleteBlock = (id: string) => {
-        setBlocks(blocks.filter(b => b.id !== id));
-    };
-
-    const updateBlockContent = (id: string, newContent: string) => {
-        setBlocks(blocks.map(b => b.id === id ? { ...b, content: newContent } : b));
-    };
-
-    const addMediaBlock = (media: { type: string, url: string, title: string }) => {
-        if (media.type === 'WEB_SEARCH' || media.type === 'VIDEO_SEARCH') {
-            window.open(media.url, '_blank');
-            return;
-        }
-
-        const newBlock: LessonBlock = {
-            id: Date.now().toString(),
-            type: 'MEDIA',
-            title: media.title,
-            content: media.type === 'VIDEO' ? `فيديو تعليمي: ${media.title}` : `صورة توضيحية: ${media.title}`,
-            mediaUrl: media.url
-        };
-        setBlocks([...blocks, newBlock]);
-    };
-
-    // --- RENDERERS ---
-
-    const renderBlock = (block: LessonBlock, index: number) => {
-        const isRegenerating = regeneratingBlockId === block.id;
-        return (
-            <div key={block.id} className={`group bg-white rounded-xl border shadow-sm hover:shadow-md transition-all mb-4 overflow-hidden relative break-inside-avoid ${isRegenerating ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200'}`}>
-                {/* Block Header */}
-                <div className="bg-gray-50 px-4 py-2 border-b flex justify-between items-center handle cursor-move print:hidden">
-                    <span className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-2
-                        ${block.type === 'OBJECTIVES' ? 'bg-blue-100 text-blue-700' : 
-                          block.type === 'INTRO' ? 'bg-amber-100 text-amber-700' :
-                          block.type === 'MEDIA' ? 'bg-purple-100 text-purple-700' : 
-                          block.type === 'ACTIVITY' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`
-                    }>
-                        {block.type === 'MEDIA' ? <Video size={12}/> : <FileText size={12}/>}
-                        {block.title}
-                    </span>
-                    
-                    <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                            onClick={() => handleRegenerateBlock(block)} 
-                            disabled={isRegenerating}
-                            className={`p-1.5 rounded text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 ${isRegenerating ? 'animate-spin text-indigo-600' : ''}`}
-                            title="إعادة صياغة (AI)"
-                        >
-                            <RefreshCw size={14}/>
-                        </button>
-                        <div className="w-[1px] h-4 bg-gray-300 mx-1"></div>
-                        <button onClick={() => moveBlock(index, 'UP')} className="p-1 hover:bg-gray-200 rounded text-gray-500" disabled={index === 0}><MoveUp size={14}/></button>
-                        <button onClick={() => moveBlock(index, 'DOWN')} className="p-1 hover:bg-gray-200 rounded text-gray-500" disabled={index === blocks.length - 1}><MoveDown size={14}/></button>
-                        <button onClick={() => deleteBlock(block.id)} className="p-1 hover:bg-red-100 text-red-500 rounded"><X size={14}/></button>
-                    </div>
-                </div>
-
-                {/* Block Content */}
-                <div className="p-4 relative">
-                    {isRegenerating && (
-                        <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center backdrop-blur-sm">
-                            <span className="text-indigo-600 text-sm font-bold flex items-center gap-2"><Sparkles className="animate-spin" size={16}/> جاري إعادة الصياغة...</span>
-                        </div>
-                    )}
-                    {block.type === 'MEDIA' && block.mediaUrl ? (
-                        <div className="flex flex-col items-center">
-                            {block.content.includes('فيديو') ? (
-                                <iframe src={block.mediaUrl} className="w-full aspect-video rounded-lg shadow-sm print:hidden" allowFullScreen></iframe>
-                            ) : (
-                                <img src={block.mediaUrl} alt={block.title} className="max-h-64 rounded-lg shadow-sm object-contain"/>
-                            )}
-                            <p className="text-sm text-gray-500 mt-2">{block.content}</p>
-                        </div>
-                    ) : (
-                        <textarea 
-                            className="w-full min-h-[80px] outline-none text-gray-700 text-sm leading-relaxed resize-y bg-transparent print:border-none print:resize-none"
-                            value={block.content}
-                            onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                        />
-                    )}
-                </div>
-            </div>
-        );
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-100 animate-fade-in">
-            {/* Top Bar */}
-            <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm z-20 print:hidden">
-                <div className="flex items-center gap-3">
-                    <div className="bg-indigo-600 p-2 rounded-lg text-white"><PenTool size={20}/></div>
-                    <div>
-                        <h2 className="font-bold text-gray-800">استوديو الدروس الذكي</h2>
-                        <p className="text-xs text-gray-500">صمم دروسك باستخدام الذكاء الاصطناعي وتوزيع المنهج</p>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => setActiveTab('STUDIO')} 
-                        className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'STUDIO' ? 'bg-gray-100 text-indigo-700' : 'text-gray-500 hover:text-gray-900'}`}
-                    >
-                        المحرر
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('MY_PLANS')} 
-                        className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'MY_PLANS' ? 'bg-gray-100 text-indigo-700' : 'text-gray-500 hover:text-gray-900'}`}
-                    >
-                        خططي المحفوظة
-                    </button>
-                </div>
+        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
+            <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <PenTool className="text-purple-600"/> التحضير الذكي للدروس
+                </h2>
+                <p className="text-sm text-gray-500">قم بتوليد خطط دروس متكاملة باستخدام الذكاء الاصطناعي.</p>
             </div>
 
-            {activeTab === 'MY_PLANS' ? (
-                <div className="p-8 overflow-y-auto print:hidden">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-gray-700">الخطط المحفوظة ({filteredMyPlans.length})</h3>
-                        <div className="flex items-center gap-2 bg-white border p-1 rounded-lg">
-                            <Filter size={16} className="text-gray-400 ml-1"/>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full overflow-hidden">
+                {/* Left Panel: Inputs */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 overflow-y-auto">
+                    <h3 className="font-bold text-gray-800 mb-4 border-b pb-2">إعدادات الدرس</h3>
+                    
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1.5">المادة الدراسية</label>
                             <select 
-                                className="bg-transparent text-sm font-bold text-purple-700 outline-none min-w-[120px]"
-                                value={selectedTermId}
-                                onChange={(e) => setSelectedTermId(e.target.value)}
+                                className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                value={selectedSubject}
+                                onChange={e => { setSelectedSubject(e.target.value); setSelectedUnitId(''); setSelectedLessonId(''); }}
                             >
-                                <option value="">كل الفترات</option>
-                                {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                <option value="">-- اختر المادة --</option>
+                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                <option value="علم الأرض والفضاء">علم الأرض والفضاء</option>
                             </select>
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {filteredMyPlans.map(plan => (
-                            <div key={plan.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative group">
-                                <div className="flex justify-between items-start mb-3">
-                                    <h4 className="font-bold text-lg text-gray-800 line-clamp-1">{plan.topic}</h4>
-                                    <div className="flex gap-1">
-                                        <button onClick={() => loadPlan(plan)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><FileText size={16}/></button>
-                                        <button onClick={() => handleDeletePlan(plan.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
-                                    </div>
-                                </div>
-                                <div className="text-sm text-gray-500 mb-2">
-                                    <span className="block font-bold text-indigo-600">{plan.subject}</span>
-                                    <span className="text-xs">{new Date(plan.createdAt).toLocaleDateString('ar-SA')}</span>
-                                </div>
-                            </div>
-                        ))}
-                        {filteredMyPlans.length === 0 && <div className="col-span-full text-center text-gray-400 py-20">لا توجد خطط محفوظة لهذه الفترة.</div>}
-                    </div>
-                </div>
-            ) : (
-                <div className="flex-1 flex overflow-hidden">
-                    {/* LEFT COLUMN: Media Library (Interactive Search) */}
-                    <div className="w-64 bg-white border-l border-gray-200 flex flex-col z-10 shadow-sm hidden md:flex print:hidden">
-                        <div className="p-4 border-b">
-                            <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2 mb-3"><ImageIcon size={16}/> مكتبة الوسائط التفاعلية</h3>
-                            <form onSubmit={handleSearchMedia} className="relative">
-                                <Search size={14} className="absolute top-2.5 right-2 text-gray-400"/>
-                                <input 
-                                    className="w-full pl-2 pr-8 py-2 bg-gray-50 border rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                    placeholder="بحث صور / فيديو..."
-                                    value={mediaQuery}
-                                    onChange={(e) => setMediaQuery(e.target.value)}
-                                />
-                            </form>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                            {isMediaLoading ? (
-                                <div className="text-center py-10 text-gray-400 flex flex-col items-center gap-2">
-                                    <Loader2 className="animate-spin" size={24}/>
-                                    <span className="text-xs">جاري البحث وتوليد الوسائط...</span>
-                                </div>
-                            ) : mediaResults.length > 0 ? (
-                                mediaResults.map((media, i) => (
-                                    <div key={i} className="group relative rounded-lg overflow-hidden border border-gray-200 cursor-pointer hover:shadow-md transition-all">
-                                        {media.type === 'IMAGE' ? (
-                                            <>
-                                                <img src={media.url} className="w-full h-24 object-cover" />
-                                                <div className="p-2 bg-white text-xs font-bold text-gray-700 truncate">{media.title}</div>
-                                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => addMediaBlock(media)} className="bg-white text-indigo-600 p-1.5 rounded-full hover:scale-110 transition-transform shadow-lg">
-                                                        <Plus size={16}/>
-                                                    </button>
-                                                </div>
-                                                <div className="absolute top-1 right-1 bg-indigo-500 text-white text-[8px] px-1 rounded">AI</div>
-                                            </>
-                                        ) : (
-                                            <div onClick={() => addMediaBlock(media)} className="p-3 bg-gray-50 flex items-center gap-3 hover:bg-gray-100 h-full">
-                                                <div className={`p-2 rounded-full text-white ${media.type === 'WEB_SEARCH' ? 'bg-blue-500' : 'bg-red-500'}`}>
-                                                    {media.type === 'WEB_SEARCH' ? <Globe size={16}/> : <Youtube size={16}/>}
-                                                </div>
-                                                <div className="text-xs font-bold text-gray-700">{media.title}</div>
-                                                <ExternalLink className="mr-auto text-gray-400" size={12}/>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center py-10 text-gray-400 text-xs">
-                                    ابحث عن موضوع الدرس لعرض صور ومقاطع مقترحة.
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* MIDDLE COLUMN: The Canvas (Editor) */}
-                    <div className="flex-1 bg-gray-100 overflow-y-auto p-8 custom-scrollbar print:p-0 print:bg-white print:overflow-visible">
-                        <div className="max-w-3xl mx-auto min-h-[600px] print:w-full print:max-w-none">
-                            {/* Empty State */}
-                            {blocks.length === 0 && (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 rounded-2xl p-10 bg-gray-50/50 print:hidden">
-                                    <Sparkles size={48} className="mb-4 opacity-20"/>
-                                    <h3 className="text-xl font-bold text-gray-500 mb-2">مساحة العمل فارغة</h3>
-                                    <p className="text-sm">اختر الوحدة والدرس من القائمة اليمنى لبدء التحضير الذكي.</p>
-                                </div>
-                            )}
-
-                            {/* Header for Print only */}
-                            <div className="hidden print:block mb-8 text-center border-b pb-4">
-                                <h1 className="text-2xl font-bold text-black">{topic}</h1>
-                                <p className="text-gray-600">{selectedSubject} - {selectedGrade}</p>
-                            </div>
-
-                            {/* Blocks Rendering */}
-                            {blocks.map((block, idx) => renderBlock(block, idx))}
-
-                            {/* Add Block Manually */}
-                            {blocks.length > 0 && (
-                                <div className="flex justify-center mt-8 pb-20 print:hidden">
-                                    <button onClick={() => setBlocks([...blocks, { id: Date.now().toString(), type: 'CONTENT', title: 'فقرة جديدة', content: '' }])} className="bg-white border border-gray-300 text-gray-600 px-4 py-2 rounded-full shadow-sm hover:shadow hover:text-indigo-600 transition-all font-bold text-sm flex items-center gap-2">
-                                        <Plus size={16}/> إضافة كتلة يدوياً
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* RIGHT COLUMN: Settings & Controls */}
-                    <div className="w-80 bg-white border-r border-gray-200 flex flex-col z-10 shadow-sm overflow-y-auto custom-scrollbar print:hidden">
-                        <div className="p-5 border-b bg-indigo-50">
-                            <h3 className="font-bold text-indigo-900 mb-1">إعدادات التحضير</h3>
-                            <p className="text-xs text-indigo-600">بيانات الدرس من المنهج</p>
-                        </div>
-                        
-                        <div className="p-5 space-y-5">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1.5">المادة الدراسية</label>
-                                <select 
-                                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={selectedSubject}
-                                    onChange={e => { setSelectedSubject(e.target.value); setSelectedUnitId(''); setSelectedLessonId(''); }}
-                                >
-                                    <option value="">-- اختر المادة --</option>
-                                    {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                                    <option value="علم الأرض والفضاء">علم الأرض والفضاء</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1.5">الصف</label>
-                                <select 
-                                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={selectedGrade}
-                                    onChange={e => { setSelectedGrade(e.target.value); setSelectedUnitId(''); setSelectedLessonId(''); }}
-                                >
-                                    <option value="">-- اختر الصف --</option>
-                                    {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Curriculum Cascading Dropdowns */}
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1.5">الوحدة</label>
-                                <select 
-                                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                                    value={selectedUnitId}
-                                    onChange={e => { setSelectedUnitId(e.target.value); setSelectedLessonId(''); }}
-                                    disabled={!selectedSubject || !selectedGrade}
-                                >
-                                    <option value="">-- اختر الوحدة --</option>
-                                    {filteredUnits.map(u => <option key={u.id} value={u.id}>{u.title}</option>)}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
-                                    عنوان الدرس <span className="text-xs font-normal text-gray-400">(الموضوع)</span>
-                                </label>
-                                <select 
-                                    className="w-full p-2.5 bg-white border-2 border-indigo-100 rounded-lg text-sm font-bold text-indigo-900 outline-none focus:border-indigo-500"
-                                    value={selectedLessonId}
-                                    onChange={e => setSelectedLessonId(e.target.value)}
-                                    disabled={!selectedUnitId}
-                                >
-                                    <option value="">-- اختر الدرس --</option>
-                                    {filteredLessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Previous Lesson Context */}
-                            {prevPlan && (
-                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Clock size={12}/> الدرس السابق:</span>
-                                        <button onClick={() => loadPlan(prevPlan)} className="text-[10px] bg-white border px-2 py-0.5 rounded hover:text-blue-600">عرض</button>
-                                    </div>
-                                    <p className="text-xs text-blue-600 line-clamp-1">{prevPlan.topic}</p>
-                                </div>
-                            )}
-
-                            <div className="space-y-3 pt-2 border-t">
-                                <label className="flex items-center justify-between cursor-pointer group">
-                                    <span className="text-sm text-gray-700 group-hover:text-indigo-600 transition-colors">نشاط حركي/تفاعلي</span>
-                                    {settings.includeActivity ? 
-                                        <ToggleRight size={24} className="text-indigo-600" onClick={() => setSettings({...settings, includeActivity: false})}/> : 
-                                        <ToggleLeft size={24} className="text-gray-300" onClick={() => setSettings({...settings, includeActivity: true})}/>
-                                    }
-                                </label>
-                                <label className="flex items-center justify-between cursor-pointer group">
-                                    <span className="text-sm text-gray-700 group-hover:text-indigo-600 transition-colors">اقتراح فيديو</span>
-                                    {settings.includeVideo ? 
-                                        <ToggleRight size={24} className="text-indigo-600" onClick={() => setSettings({...settings, includeVideo: false})}/> : 
-                                        <ToggleLeft size={24} className="text-gray-300" onClick={() => setSettings({...settings, includeVideo: true})}/>
-                                    }
-                                </label>
-                                <label className="flex items-center justify-between cursor-pointer group">
-                                    <span className="text-sm text-gray-700 group-hover:text-indigo-600 transition-colors">فكرة ورقة عمل</span>
-                                    {settings.includeWorksheet ? 
-                                        <ToggleRight size={24} className="text-indigo-600" onClick={() => setSettings({...settings, includeWorksheet: false})}/> : 
-                                        <ToggleLeft size={24} className="text-gray-300" onClick={() => setSettings({...settings, includeWorksheet: true})}/>
-                                    }
-                                </label>
-                            </div>
-
-                            <button 
-                                onClick={handleGenerate}
-                                disabled={isGenerating || !topic}
-                                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
+                        <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1.5">الصف</label>
+                            <select 
+                                className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                value={selectedGrade}
+                                onChange={e => { setSelectedGrade(e.target.value); setSelectedUnitId(''); setSelectedLessonId(''); }}
                             >
-                                {isGenerating ? <Loader2 className="animate-spin"/> : <Sparkles size={18}/>}
-                                {isGenerating ? 'جاري البناء...' : 'توليد التحضير (AI)'}
-                            </button>
+                                <option value="">-- اختر الصف --</option>
+                                {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
 
-                            {blocks.length > 0 && (
-                                <div className="grid grid-cols-2 gap-2 pt-4 border-t">
-                                    <button onClick={handleSavePlan} className="py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-1">
-                                        <Save size={14}/> حفظ
-                                    </button>
-                                    <button onClick={() => window.print()} className="py-2 bg-gray-800 text-white rounded-lg font-bold text-sm hover:bg-black flex items-center justify-center gap-1">
-                                        <Printer size={14}/> طباعة
-                                    </button>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1.5">عنوان الدرس</label>
+                            <input 
+                                className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                placeholder="مثال: خصائص المادة"
+                                value={lessonTopic}
+                                onChange={e => setLessonTopic(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={settings.includeActivity} onChange={e => setSettings({...settings, includeActivity: e.target.checked})} className="w-4 h-4 text-purple-600"/>
+                                <span className="text-sm text-gray-700">اقتراح نشاط حركي</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={settings.includeVideo} onChange={e => setSettings({...settings, includeVideo: e.target.checked})} className="w-4 h-4 text-purple-600"/>
+                                <span className="text-sm text-gray-700">اقتراح فيديو تعليمي</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={settings.includeWorksheet} onChange={e => setSettings({...settings, includeWorksheet: e.target.checked})} className="w-4 h-4 text-purple-600"/>
+                                <span className="text-sm text-gray-700">فكرة ورقة عمل</span>
+                            </label>
+                        </div>
+
+                        <button 
+                            onClick={handleGenerate} 
+                            disabled={isGenerating || !lessonTopic}
+                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:bg-gray-300 flex items-center justify-center gap-2 shadow-md transition-all"
+                        >
+                            {isGenerating ? <Loader2 className="animate-spin" size={18}/> : <RefreshCw size={18}/>}
+                            {isGenerating ? 'جاري التوليد...' : 'توليد التحضير'}
+                        </button>
+                    </div>
+
+                    {/* Saved Plans List */}
+                    <div className="mt-8 pt-4 border-t">
+                        <h4 className="font-bold text-gray-600 text-sm mb-3 flex items-center gap-2"><BookOpen size={16}/> تحضيراتي السابقة</h4>
+                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                            {savedPlans.length > 0 ? savedPlans.map(plan => (
+                                <div key={plan.id} className="flex justify-between items-center p-2 bg-gray-50 rounded border hover:bg-gray-100 cursor-pointer text-sm" onClick={() => handleLoadPlan(plan)}>
+                                    <span className="truncate flex-1">{plan.topic}</span>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeletePlan(plan.id); }} className="text-gray-400 hover:text-red-500"><Trash2 size={14}/></button>
                                 </div>
-                            )}
+                            )) : <p className="text-xs text-gray-400 text-center py-2">لا توجد تحضيرات محفوظة</p>}
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* Right Panel: Output */}
+                <div className="lg:col-span-2 bg-white p-8 rounded-xl shadow-sm border border-gray-200 overflow-y-auto flex flex-col relative print:p-0 print:border-none print:shadow-none">
+                    {generatedBlocks.length > 0 ? (
+                        <>
+                            <div className="flex justify-between items-center mb-6 print:hidden">
+                                <h3 className="text-xl font-black text-gray-800 border-b-4 border-purple-200 pb-1">{lessonTopic}</h3>
+                                <div className="flex gap-2">
+                                    <button onClick={handleSavePlan} className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-sm text-sm">
+                                        <Save size={16}/> حفظ
+                                    </button>
+                                    <button onClick={() => window.print()} className="px-4 py-2 bg-gray-800 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-black shadow-sm text-sm">
+                                        <Printer size={16}/> طباعة
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                {generatedBlocks.map((block, idx) => (
+                                    <div key={idx} className="bg-gray-50 p-6 rounded-xl border border-gray-100 print:bg-white print:border-black print:border-2">
+                                        <h4 className="font-bold text-purple-800 text-lg mb-3 flex items-center gap-2">
+                                            <span className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-sm border border-purple-200 print:border-black">{idx + 1}</span>
+                                            {block.title}
+                                        </h4>
+                                        <div className="text-gray-700 leading-loose whitespace-pre-line text-justify">
+                                            {block.content}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                            <BookOpen size={64} className="mb-4 opacity-20"/>
+                            <p className="text-lg">قم بإدخال تفاصيل الدرس لتوليد الخطة</p>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
