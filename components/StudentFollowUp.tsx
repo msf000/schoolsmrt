@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms } from '../services/storageService';
@@ -335,98 +334,12 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                 </ResponsiveContainer>
                             </div>
                         </div>
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex flex-col">
-                            <h4 className="font-bold text-gray-700 mb-4 text-center">سجل الملاحظات السلوكية</h4>
-                            <div className="flex-1 overflow-auto max-h-60 pr-2 custom-scrollbar">
-                                {stats.behaviorLogs.length > 0 ? (
-                                    <ul className="space-y-2">
-                                        {stats.behaviorLogs.map((log, i) => (
-                                            <li key={i} className="text-xs p-2 bg-white rounded border border-gray-200 shadow-sm flex justify-between items-start">
-                                                <div>
-                                                    <span className="font-bold block text-gray-800">{log.behaviorNote || 'بدون ملاحظة'}</span>
-                                                    <span className="text-gray-400">{formatDualDate(log.date).split('|')[0]}</span>
-                                                </div>
-                                                {log.behaviorStatus === 'POSITIVE' && <Smile size={16} className="text-green-500"/>}
-                                                {log.behaviorStatus === 'NEGATIVE' && <Frown size={16} className="text-red-500"/>}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p className="text-center text-gray-400 text-xs py-10">لا توجد ملاحظات سلوكية مسجلة.</p>
-                                )}
-                            </div>
-                        </div>
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-                    <Search size={48} className="mb-4 opacity-20" />
-                    <p className="text-xl font-bold">الرجاء اختيار طالب لعرض التقرير</p>
-                </div>
-            )}
-
-            {/* CERTIFICATE MODAL */}
-            {isCertModalOpen && student && (
-                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full flex flex-col h-[90vh] md:h-auto overflow-hidden animate-slide-up">
-                        <div className="flex bg-gray-100 p-4 border-b justify-between items-center shrink-0">
-                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Award className="text-yellow-600"/> إصدار شهادة</h3>
-                            <div className="flex gap-2">
-                                <button onClick={() => setCertType('EXCELLENCE')} className={`px-3 py-1 rounded text-xs font-bold transition-colors ${certType === 'EXCELLENCE' ? 'bg-yellow-100 text-yellow-800 ring-2 ring-yellow-400' : 'bg-white'}`}>تفوق</button>
-                                <button onClick={() => setCertType('ATTENDANCE')} className={`px-3 py-1 rounded text-xs font-bold transition-colors ${certType === 'ATTENDANCE' ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400' : 'bg-white'}`}>مواظبة</button>
-                                <button onClick={() => setCertType('BEHAVIOR')} className={`px-3 py-1 rounded text-xs font-bold transition-colors ${certType === 'BEHAVIOR' ? 'bg-green-100 text-green-800 ring-2 ring-green-400' : 'bg-white'}`}>سلوك</button>
-                                <button onClick={() => setCertType('THANKS')} className={`px-3 py-1 rounded text-xs font-bold transition-colors ${certType === 'THANKS' ? 'bg-purple-100 text-purple-800 ring-2 ring-purple-400' : 'bg-white'}`}>شكر</button>
-                            </div>
-                            <button onClick={() => setIsCertModalOpen(false)} className="text-gray-500 hover:text-red-500"><X/></button>
-                        </div>
-
-                        <div className="flex-1 overflow-auto bg-gray-200 p-8 flex items-center justify-center">
-                            {/* CERTIFICATE CANVAS */}
-                            <div id="certificate-print" className="bg-white w-[800px] h-[560px] relative shadow-2xl p-10 flex flex-col items-center justify-between text-center border-[12px] border-double border-[#b8860b] bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]">
-                                <div className="absolute top-4 left-4 w-16 h-16 border-t-4 border-l-4 border-[#b8860b]"></div>
-                                <div className="absolute top-4 right-4 w-16 h-16 border-t-4 border-r-4 border-[#b8860b]"></div>
-                                <div className="absolute bottom-4 left-4 w-16 h-16 border-b-4 border-l-4 border-[#b8860b]"></div>
-                                <div className="absolute bottom-4 right-4 w-16 h-16 border-b-4 border-r-4 border-[#b8860b]"></div>
-
-                                <div className="w-full flex justify-between items-start opacity-70">
-                                    <div className="text-right text-xs"><p>المملكة العربية السعودية</p><p>وزارة التعليم</p></div>
-                                    <div className="text-left text-xs"><p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p></div>
-                                </div>
-
-                                <div className="mt-4">
-                                    {certType === 'EXCELLENCE' && <Medal size={64} className="mx-auto text-[#b8860b] mb-4"/>}
-                                    {certType === 'ATTENDANCE' && <Clock size={64} className="mx-auto text-blue-600 mb-4"/>}
-                                    {certType === 'BEHAVIOR' && <Star size={64} className="mx-auto text-green-600 mb-4 fill-green-100"/>}
-                                    {certType === 'THANKS' && <ThumbsUp size={64} className="mx-auto text-purple-600 mb-4"/>}
-                                    <h1 className="text-5xl font-black text-[#b8860b] font-serif mb-2">
-                                        {certType === 'EXCELLENCE' ? 'شهادة تفوق وتميز' : certType === 'ATTENDANCE' ? 'شهادة انضباط ومواظبة' : certType === 'BEHAVIOR' ? 'شهادة حسن سيرة وسلوك' : 'شهادة شكر وتقدير'}
-                                    </h1>
-                                </div>
-
-                                <div className="flex-1 flex flex-col justify-center gap-6 w-3/4">
-                                    <p className="text-xl text-gray-700 font-medium">تتقدم إدارة المدرسة / المعلم بالشكر والتقدير للطالب:</p>
-                                    <h2 className="text-4xl font-black text-gray-900 border-b-2 border-gray-200 pb-2">{student.name}</h2>
-                                    <p className="text-lg text-gray-600">
-                                        {certType === 'EXCELLENCE' ? `لتفوقه الدراسي وتميزه في مادة ${selectedSubject}، متمنين له دوام التوفيق والنجاح.` :
-                                         certType === 'ATTENDANCE' ? 'لانضباطه في الحضور وعدم الغياب خلال الفترة الماضية، بارك الله فيه.' :
-                                         certType === 'BEHAVIOR' ? 'لتحليه بالأخلاق الفاضلة والسلوك الحسن ومساعدته لزملائه.' :
-                                         'لجهوده المبذولة ومشاركته الفاعلة، سائلين الله له المزيد من النجاح.'}
-                                    </p>
-                                </div>
-
-                                <div className="w-full flex justify-between px-20 mt-8">
-                                    <div className="text-center"><p className="font-bold text-gray-800 mb-8">معلم المادة</p><p className="font-serif text-lg">{currentUser?.name || '...................'}</p></div>
-                                    <div className="text-center"><p className="font-bold text-gray-800 mb-8">مدير المدرسة</p><p className="font-serif text-lg">...................</p></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-4 border-t bg-white flex justify-end gap-3">
-                            <button onClick={handlePrint} className="px-6 py-2 bg-gray-800 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-black transition-colors shadow-lg">
-                                <Printer size={18}/> طباعة وحفظ في السجل
-                            </button>
-                        </div>
-                    </div>
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                    <User size={64} className="mb-4 opacity-20"/>
+                    <p className="text-xl font-bold">اختر طالباً لعرض التقرير</p>
                 </div>
             )}
         </div>
