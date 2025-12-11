@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm, LessonLink } from '../types';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms, getLessonLinks } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 
@@ -15,9 +15,9 @@ interface StudentPortalProps {
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
     // Restore last view from session storage or default
-    const [view, setView] = useState<'DASHBOARD' | 'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS' | 'WEEKLY_PLAN'>(() => {
+    const [view, setView] = useState<'DASHBOARD' | 'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS' | 'WEEKLY_PLAN' | 'LIBRARY'>(() => {
         const saved = sessionStorage.getItem('student_last_view');
-        return (saved && ['DASHBOARD', 'PROFILE', 'ATTENDANCE', 'EVALUATION', 'TIMETABLE', 'CUSTOM_RECORDS', 'EXAMS', 'WEEKLY_PLAN'].includes(saved)) ? saved as any : 'DASHBOARD';
+        return (saved && ['DASHBOARD', 'PROFILE', 'ATTENDANCE', 'EVALUATION', 'TIMETABLE', 'CUSTOM_RECORDS', 'EXAMS', 'WEEKLY_PLAN', 'LIBRARY'].includes(saved)) ? saved as any : 'DASHBOARD';
     });
     
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -46,6 +46,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         { id: 'TIMETABLE', label: 'الجدول الدراسي', icon: Clock },
         { id: 'EXAMS', label: 'الاختبارات والواجبات', icon: FileQuestion },
         { id: 'ATTENDANCE', label: 'سجل الحضور', icon: Calendar },
+        { id: 'LIBRARY', label: 'المكتبة والمصادر', icon: Library },
         { id: 'CUSTOM_RECORDS', label: 'سجلات خاصة', icon: Table },
         { id: 'PROFILE', label: 'الملف الشخصي', icon: User },
     ];
@@ -154,6 +155,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     {view === 'TIMETABLE' && <StudentTimetable student={currentUser} />}
                     {view === 'CUSTOM_RECORDS' && <StudentCustomRecords student={currentUser} />}
                     {view === 'EXAMS' && <StudentExamsView student={currentUser} />}
+                    {view === 'LIBRARY' && <StudentLibrary student={currentUser} />}
                 </main>
             </div>
         </div>
@@ -192,6 +194,18 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
     const totalAtt = filteredAtt.length;
     const present = filteredAtt.filter((a: AttendanceRecord) => a.status === 'PRESENT' || a.status === 'LATE').length;
     const attRate = totalAtt > 0 ? Math.round((present / totalAtt) * 100) : 100;
+
+    // Gamification Points (From Attendance Behavior Notes 'نقطة تميز')
+    const totalPoints = useMemo(() => {
+        return filteredAtt.filter((a: AttendanceRecord) => a.behaviorStatus === 'POSITIVE').length;
+    }, [filteredAtt]);
+
+    const studentLevel = useMemo(() => {
+        if (totalPoints < 10) return { name: 'مبتدئ', color: 'text-gray-600', icon: Star, next: 10 };
+        if (totalPoints < 30) return { name: 'مجتهد', color: 'text-blue-600', icon: TrendingUp, next: 30 };
+        if (totalPoints < 60) return { name: 'متفوق', color: 'text-purple-600', icon: Award, next: 60 };
+        return { name: 'أسطورة', color: 'text-yellow-600', icon: Crown, next: 100 };
+    }, [totalPoints]);
 
     // Next Class Logic
     const [nextClass, setNextClass] = useState<ScheduleItem | null>(null);
@@ -243,6 +257,26 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
                         <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                 </select>
+            </div>
+
+            {/* GAMIFICATION CARD */}
+            <div className="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-2 h-full bg-yellow-400"></div>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className="text-gray-500 font-bold text-sm mb-1 flex items-center gap-2"><Trophy size={16} className="text-yellow-500"/> مستوى التميز</h3>
+                        <div className={`text-3xl font-black flex items-center gap-2 ${studentLevel.color}`}>
+                            <studentLevel.icon size={32} className="fill-current"/> {studentLevel.name}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">مجموع النقاط: {totalPoints} نقطة</p>
+                    </div>
+                    <div className="flex flex-col items-end">
+                        <div className="text-xs font-bold text-gray-500 mb-1">المستوى التالي: {studentLevel.next}</div>
+                        <div className="w-32 h-3 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-yellow-400 transition-all duration-1000" style={{width: `${Math.min(100, (totalPoints/studentLevel.next)*100)}%`}}></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Quick Stats */}
@@ -304,7 +338,67 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
     );
 };
 
-// ... (StudentWeeklyPlan & StudentTimetable unchanged) ...
+const StudentLibrary = ({ student }: { student: Student }) => {
+    const [links, setLinks] = useState<LessonLink[]>([]);
+    const [search, setSearch] = useState('');
+
+    useEffect(() => {
+        const allLinks = getLessonLinks();
+        // Filter based on Student's Grade OR Class
+        const relevant = allLinks.filter(l => {
+            const gradeMatch = !l.gradeLevel || l.gradeLevel === student.gradeLevel;
+            const classMatch = !l.className || l.className === student.className;
+            return gradeMatch && classMatch;
+        });
+        setLinks(relevant);
+    }, [student]);
+
+    const filtered = links.filter(l => l.title.includes(search) || l.url.includes(search));
+
+    const getIcon = (url: string) => {
+        if (url.includes('youtube.com') || url.includes('youtu.be')) return <Youtube className="text-red-600" size={24}/>;
+        if (url.endsWith('.pdf')) return <FileText className="text-red-500" size={24}/>;
+        return <Globe className="text-blue-500" size={24}/>;
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Library className="text-indigo-600"/> مكتبة المصادر</h2>
+                <div className="relative w-48">
+                    <input className="w-full p-2 pr-8 border rounded-lg text-sm bg-gray-50" placeholder="بحث..." value={search} onChange={e => setSearch(e.target.value)} />
+                    <Filter className="absolute top-2.5 right-2 text-gray-400" size={16}/>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.length > 0 ? filtered.map(link => (
+                    <a key={link.id} href={link.url} target="_blank" rel="noreferrer" className="bg-white p-4 rounded-xl border border-gray-200 hover:shadow-md transition-all flex items-start gap-3 group">
+                        <div className="p-3 bg-gray-50 rounded-lg group-hover:bg-indigo-50 transition-colors">
+                            {getIcon(link.url)}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <h4 className="font-bold text-gray-800 truncate mb-1 group-hover:text-indigo-600">{link.title}</h4>
+                            <div className="text-xs text-blue-500 flex items-center gap-1">
+                                <LinkIcon size={12}/> <span>فتح الرابط</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-2 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
+                        </div>
+                    </a>
+                )) : (
+                    <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
+                        <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
+                        <p>لا توجد مصادر متاحة حالياً.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ... (Rest of Sub-Components: StudentWeeklyPlan, StudentTimetable, etc. remain mostly unchanged) ...
+// Including them below to ensure full file integrity
+
 const StudentWeeklyPlan = ({ student }: { student: Student }) => {
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();

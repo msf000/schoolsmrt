@@ -281,6 +281,8 @@ export interface LessonLink {
     url: string;
     teacherId?: string; // NEW: Link to the teacher who created it
     createdAt: string;
+    gradeLevel?: string; // NEW: Filter by Grade
+    className?: string; // NEW: Filter by Class
 }
 
 // --- Feedback Types (NEW) ---

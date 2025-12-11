@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LessonLink, SystemUser } from '../types';
-import { getLessonLinks, saveLessonLink, deleteLessonLink } from '../services/storageService';
-import { BookOpen, Link as LinkIcon, Youtube, FileText, Globe, Plus, Trash2, Search, ExternalLink, School, Laptop } from 'lucide-react';
+import { getLessonLinks, saveLessonLink, deleteLessonLink, getStudents } from '../services/storageService';
+import { BookOpen, Link as LinkIcon, Youtube, FileText, Globe, Plus, Trash2, Search, ExternalLink, School, Laptop, Filter } from 'lucide-react';
 
 interface ResourcesViewProps {
     currentUser?: SystemUser | null;
@@ -14,9 +14,21 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
     const [newTitle, setNewTitle] = useState('');
     const [newUrl, setNewUrl] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
+    
+    // New Targeting State
+    const [targetGrade, setTargetGrade] = useState('');
+    const [targetClass, setTargetClass] = useState('');
+    const [existingGrades, setExistingGrades] = useState<string[]>([]);
+    const [existingClasses, setExistingClasses] = useState<string[]>([]);
 
     useEffect(() => {
         setLinks(getLessonLinks());
+        // Extract existing grades/classes from students for dropdowns
+        const students = getStudents();
+        const grades = Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))) as string[];
+        const classes = Array.from(new Set(students.map(s => s.className).filter(Boolean))) as string[];
+        setExistingGrades(grades.sort());
+        setExistingClasses(classes.sort());
     }, []);
 
     const filteredLinks = links.filter(l => 
@@ -31,11 +43,15 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
             title: newTitle,
             url: newUrl,
             teacherId: currentUser?.id,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            gradeLevel: targetGrade, // NEW
+            className: targetClass // NEW
         });
         setLinks(getLessonLinks());
         setNewTitle('');
         setNewUrl('');
+        setTargetGrade('');
+        setTargetClass('');
         setIsFormOpen(false);
     };
 
@@ -123,7 +139,11 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                                 <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline truncate block flex items-center gap-1">
                                     <LinkIcon size={10}/> {link.url}
                                 </a>
-                                <p className="text-[10px] text-gray-400 mt-2 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                    {link.gradeLevel && <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{link.gradeLevel}</span>}
+                                    {link.className && <span className="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded">{link.className}</span>}
+                                </div>
+                                <p className="text-[10px] text-gray-400 mt-1 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
                             </div>
                         </div>
                         <div className="absolute top-2 left-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 p-1 rounded backdrop-blur-sm">
@@ -146,13 +166,33 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                         <h3 className="font-bold text-lg mb-4 text-gray-800">إضافة مصدر جديد</h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">العنوان</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">العنوان *</label>
                                 <input className="w-full p-2 border rounded-lg" value={newTitle} onChange={e => setNewTitle(e.target.value)} autoFocus placeholder="مثال: فيديو شرح الدرس الأول"/>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">الرابط (URL)</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">الرابط (URL) *</label>
                                 <input className="w-full p-2 border rounded-lg dir-ltr" value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="https://..."/>
                             </div>
+                            
+                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1"><Filter size={12}/> تخصيص الظهور (اختياري)</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <select className="w-full p-2 border rounded text-xs" value={targetGrade} onChange={e => setTargetGrade(e.target.value)}>
+                                            <option value="">كل الصفوف</option>
+                                            {existingGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select className="w-full p-2 border rounded text-xs" value={targetClass} onChange={e => setTargetClass(e.target.value)}>
+                                            <option value="">كل الفصول</option>
+                                            {existingClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-gray-400 mt-2">اتركه فارغاً ليظهر لجميع الطلاب.</p>
+                            </div>
+
                             <div className="flex gap-2 pt-2">
                                 <button onClick={() => setIsFormOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 font-bold">إلغاء</button>
                                 <button onClick={handleAdd} className="flex-2 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">حفظ</button>
