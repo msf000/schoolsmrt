@@ -265,20 +265,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
                 if (match) {
                     title = match[1].trim();
-                    maxScore = parseInt(match[2]);
+                    maxScore = parseInt(match[2], 10);
                 }
 
                 // Find existing assignment by title in this term (avoid duplicates)
-                let assignment = currentAssignments.find(a => 
+                const existingAssignment = currentAssignments.find(a => 
                     a.title === title && 
                     a.termId === settingTermId && 
                     a.category === activeTab
                 );
 
-                if (!assignment) {
+                let targetAssignment: Assignment;
+
+                if (!existingAssignment) {
                     // Create New
                     const newId = `gs_${Date.now()}_${index}`;
-                    assignment = {
+                    const newAssignment: Assignment = {
                         id: newId,
                         title: title,
                         category: activeTab as any,
@@ -290,8 +292,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         orderIndex: index + 100, // Put at end
                         sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: header })
                     };
-                    saveAssignment(assignment);
+                    saveAssignment(newAssignment);
                     newAssignmentsCount++;
+                    targetAssignment = newAssignment;
+                } else {
+                    targetAssignment = existingAssignment;
                 }
 
                 // 2. Parse Data for this Column
@@ -311,15 +316,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             const numVal = parseFloat(rawVal);
                             if (!isNaN(numVal)) {
                                 recordsToUpsert.push({
-                                    id: `${student.id}_${assignment!.id}_${today}`,
+                                    id: `${student.id}_${targetAssignment.id}_${today}`,
                                     studentId: student.id,
                                     subject: selectedSubject || 'عام',
-                                    title: assignment!.title,
-                                    category: assignment!.category,
+                                    title: targetAssignment.title,
+                                    category: targetAssignment.category,
                                     score: numVal,
-                                    maxScore: assignment!.maxScore,
+                                    maxScore: targetAssignment.maxScore,
                                     date: today,
-                                    notes: assignment!.id, 
+                                    notes: targetAssignment.id, 
                                     createdById: currentUser?.id
                                 });
                                 updatedScoresCount++;
