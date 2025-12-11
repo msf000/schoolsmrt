@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     getSchools, addSchool, deleteSchool, updateSchool,
@@ -11,18 +12,158 @@ import {
     getAISettings, saveAISettings,
     backupCloudDatabase, restoreCloudDatabase,
     getTeachers, updateTeacher,
-    validateCloudSchema // NEW
+    validateCloudSchema,
+    getStudents, getAttendance
 } from '../services/storageService';
 import { updateSupabaseConfig } from '../services/supabaseClient';
 import { checkAIConnection } from '../services/geminiService';
-import { School, SystemUser, AISettings, Teacher } from '../types';
+import { School, SystemUser, AISettings, Teacher, Student, AttendanceRecord, AttendanceStatus } from '../types';
 import { 
     Shield, Building, Users, CreditCard, Settings, Database, 
     Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
     CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
     Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson, Crown, Star,
-    Zap, ZapOff, AlertCircle
+    Zap, ZapOff, AlertCircle, BarChart3, PieChart, Activity
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart as RePieChart, Pie, Legend } from 'recharts';
+
+// --- NEW: Admin Overview Component ---
+const AdminOverview = () => {
+    const [stats, setStats] = useState({
+        schools: 0,
+        teachers: 0,
+        students: 0,
+        users: 0,
+        attendanceToday: 0
+    });
+    
+    const [gradeDistribution, setGradeDistribution] = useState<{name: string, value: number}[]>([]);
+    const [subscriptionStats, setSubscriptionStats] = useState<{name: string, value: number}[]>([]);
+
+    useEffect(() => {
+        const schools = getSchools();
+        const teachers = getTeachers();
+        const students = getStudents();
+        const users = getSystemUsers();
+        const attendance = getAttendance();
+
+        // 1. Basic Counts
+        const today = new Date().toISOString().split('T')[0];
+        const todaysAttendance = attendance.filter(a => a.date === today);
+        const presentCount = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        const attendanceRate = todaysAttendance.length > 0 ? Math.round((presentCount / todaysAttendance.length) * 100) : 0;
+
+        setStats({
+            schools: schools.length,
+            teachers: teachers.length,
+            students: students.length,
+            users: users.length,
+            attendanceToday: attendanceRate
+        });
+
+        // 2. Grade Distribution
+        const grades: Record<string, number> = {};
+        students.forEach(s => {
+            const g = s.gradeLevel || 'غير محدد';
+            grades[g] = (grades[g] || 0) + 1;
+        });
+        const gradeData = Object.keys(grades).map(k => ({ name: k, value: grades[k] })).sort((a,b) => b.value - a.value);
+        setGradeDistribution(gradeData);
+
+        // 3. Subscription Stats
+        const subs = { FREE: 0, PRO: 0, ENTERPRISE: 0 };
+        teachers.forEach(t => {
+            const s = t.subscriptionStatus || 'FREE';
+            subs[s] = (subs[s] || 0) + 1;
+        });
+        setSubscriptionStats([
+            { name: 'مجاني', value: subs.FREE, fill: '#94a3b8' },
+            { name: 'محترف (Pro)', value: subs.PRO, fill: '#4f46e5' },
+            { name: 'مؤسسات', value: subs.ENTERPRISE, fill: '#7c3aed' }
+        ]);
+
+    }, []);
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">إجمالي المدارس</p>
+                        <h3 className="text-3xl font-black text-gray-800">{stats.schools}</h3>
+                    </div>
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-full"><Building size={24}/></div>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">المعلمون المسجلون</p>
+                        <h3 className="text-3xl font-black text-gray-800">{stats.teachers}</h3>
+                    </div>
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full"><Users size={24}/></div>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">الطلاب في النظام</p>
+                        <h3 className="text-3xl font-black text-gray-800">{stats.students}</h3>
+                    </div>
+                    <div className="p-3 bg-green-50 text-green-600 rounded-full"><CheckCircle size={24}/></div>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-xs font-bold mb-1">حضور النظام (اليوم)</p>
+                        <h3 className="text-3xl font-black text-purple-600">{stats.attendanceToday}%</h3>
+                    </div>
+                    <div className="p-3 bg-purple-50 text-purple-600 rounded-full"><Activity size={24}/></div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Grade Distribution Chart */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><BarChart3 size={18}/> توزيع الطلاب حسب المراحل</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={gradeDistribution}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{fontSize: 10}} />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Subscriptions Chart */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><PieChart size={18}/> توزيع اشتراكات المعلمين</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RePieChart>
+                                <Pie
+                                    data={subscriptionStats}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {subscriptionStats.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend verticalAlign="middle" align="right" layout="vertical"/>
+                            </RePieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // ... (SchoolsManager component code - no changes)
 const SchoolsManager = () => {
@@ -1010,7 +1151,7 @@ const DatabaseSettings = () => {
 };
 
 const AdminDashboard = () => {
-    const [view, setView] = useState<'SCHOOLS' | 'USERS' | 'SUBSCRIPTIONS' | 'AI' | 'DATABASE'>('SCHOOLS');
+    const [view, setView] = useState<'OVERVIEW' | 'SCHOOLS' | 'USERS' | 'SUBSCRIPTIONS' | 'AI' | 'DATABASE'>('OVERVIEW');
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
@@ -1019,6 +1160,9 @@ const AdminDashboard = () => {
                     <Shield className="text-purple-600"/> لوحة تحكم المسؤول (Super Admin)
                 </h2>
                 <div className="flex bg-white p-1 rounded-lg border shadow-sm overflow-x-auto max-w-full">
+                    <button onClick={() => setView('OVERVIEW')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap ${view === 'OVERVIEW' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        <Activity size={16}/> نظرة عامة
+                    </button>
                     <button onClick={() => setView('SCHOOLS')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap ${view === 'SCHOOLS' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>
                         <Building size={16}/> المدارس
                     </button>
@@ -1038,6 +1182,7 @@ const AdminDashboard = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {view === 'OVERVIEW' && <AdminOverview />}
                 {view === 'SCHOOLS' && <SchoolsManager />}
                 {view === 'USERS' && <UsersManager />}
                 {view === 'SUBSCRIPTIONS' && <SubscriptionsManager />}
