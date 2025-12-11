@@ -1,11 +1,8 @@
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // متغير لتخزين العميل (Singleton)
 let supabaseInstance: SupabaseClient | null = null;
-
-// Provided defaults
-const FALLBACK_URL = 'https://rmrbczwgcuergzybvwwb.supabase.co';
-const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtcmJjendnY3Vlcmd6eWJ2d3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1OTU2NjYsImV4cCI6MjA4MDE3MTY2Nn0.nyk35NQFdBhMbsiV3b3Usa6aZ1ADra5tB3ter3dM710';
 
 // دالة للحصول على العميل الحالي (أو إنشائه إذا لم يوجد)
 export const getSupabaseClient = (): SupabaseClient => {
@@ -19,16 +16,17 @@ export const getSupabaseClient = (): SupabaseClient => {
     const envUrl = process.env.SUPABASE_URL;
     const envKey = process.env.SUPABASE_KEY;
 
-    // تحديد القيم النهائية (الأولوية للمدخلات اليدوية ثم البيئة ثم الافتراضي)
-    let finalUrl = localUrl || envUrl || FALLBACK_URL;
-    const finalKey = localKey || envKey || FALLBACK_KEY;
+    // تحديد القيم النهائية (الأولوية للمدخلات اليدوية ثم البيئة)
+    // استخدام قيم مؤقتة آمنة لمنع توقف التطبيق في حال عدم وجود إعدادات
+    let finalUrl = localUrl || envUrl || 'https://placeholder.supabase.co';
+    const finalKey = localKey || envKey || 'placeholder-key';
 
     // التحقق من صحة الرابط
     try {
         new URL(finalUrl);
     } catch (e) {
-        console.warn('Invalid URL, using fallback');
-        finalUrl = FALLBACK_URL;
+        console.warn('Invalid URL, using fallback placeholder');
+        finalUrl = 'https://placeholder.supabase.co';
     }
 
     supabaseInstance = createClient(finalUrl, finalKey);
