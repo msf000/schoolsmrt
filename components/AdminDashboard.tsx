@@ -23,7 +23,7 @@ import {
     Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
     CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
     Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Server, FileJson, Crown, Star,
-    Zap, ZapOff, AlertCircle, BarChart3, PieChart, Activity
+    Zap, ZapOff, AlertCircle, Activity, BarChart3, PieChart
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart as RePieChart, Pie, Legend } from 'recharts';
 
@@ -38,7 +38,7 @@ const AdminOverview = () => {
     });
     
     const [gradeDistribution, setGradeDistribution] = useState<{name: string, value: number}[]>([]);
-    const [subscriptionStats, setSubscriptionStats] = useState<{name: string, value: number}[]>([]);
+    const [subscriptionStats, setSubscriptionStats] = useState<{name: string, value: number, fill: string}[]>([]);
 
     useEffect(() => {
         const schools = getSchools();
@@ -67,14 +67,18 @@ const AdminOverview = () => {
             const g = s.gradeLevel || 'غير محدد';
             grades[g] = (grades[g] || 0) + 1;
         });
-        const gradeData = Object.keys(grades).map(k => ({ name: k, value: grades[k] })).sort((a,b) => b.value - a.value);
+        // Convert to array and sort by count descending
+        const gradeData = Object.keys(grades)
+            .map(k => ({ name: k, value: grades[k] }))
+            .sort((a,b) => b.value - a.value)
+            .slice(0, 7); // Top 7 grades
         setGradeDistribution(gradeData);
 
         // 3. Subscription Stats
         const subs = { FREE: 0, PRO: 0, ENTERPRISE: 0 };
         teachers.forEach(t => {
             const s = t.subscriptionStatus || 'FREE';
-            subs[s] = (subs[s] || 0) + 1;
+            if (subs[s] !== undefined) subs[s]++;
         });
         setSubscriptionStats([
             { name: 'مجاني', value: subs.FREE, fill: '#94a3b8' },
@@ -120,25 +124,29 @@ const AdminOverview = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Grade Distribution Chart */}
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><BarChart3 size={18}/> توزيع الطلاب حسب المراحل</h3>
-                    <div className="h-64">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                    <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                        <BarChart3 size={18} className="text-blue-500"/> توزيع الطلاب حسب المراحل
+                    </h3>
+                    <div className="flex-1 min-h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={gradeDistribution}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{fontSize: 10}} />
-                                <YAxis />
-                                <Tooltip />
-                                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
+                                <YAxis allowDecimals={false} />
+                                <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
                 {/* Subscriptions Chart */}
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><PieChart size={18}/> توزيع اشتراكات المعلمين</h3>
-                    <div className="h-64">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                    <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                        <PieChart size={18} className="text-indigo-500"/> توزيع اشتراكات المعلمين
+                    </h3>
+                    <div className="flex-1 min-h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <RePieChart>
                                 <Pie
@@ -146,7 +154,7 @@ const AdminOverview = () => {
                                     cx="50%"
                                     cy="50%"
                                     innerRadius={60}
-                                    outerRadius={80}
+                                    outerRadius={100}
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
@@ -154,8 +162,8 @@ const AdminOverview = () => {
                                         <Cell key={`cell-${index}`} fill={entry.fill} />
                                     ))}
                                 </Pie>
-                                <Tooltip />
-                                <Legend verticalAlign="middle" align="right" layout="vertical"/>
+                                <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                <Legend verticalAlign="bottom" height={36} iconType="circle"/>
                             </RePieChart>
                         </ResponsiveContainer>
                     </div>
