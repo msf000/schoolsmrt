@@ -25,7 +25,9 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
   }
 
-  const [activeTab, setActiveTab] = useState<'ENTRY' | 'BULK' | 'LOG' | 'ANALYTICS'>('BULK');
+  const isManager = currentUser?.role === 'SCHOOL_MANAGER';
+
+  const [activeTab, setActiveTab] = useState<'ENTRY' | 'BULK' | 'LOG' | 'ANALYTICS'>(isManager ? 'LOG' : 'BULK');
 
   // Single Entry State
   const [studentId, setStudentId] = useState('');
@@ -314,18 +316,22 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4 print:hidden">
         <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm w-full md:w-auto overflow-x-auto">
-            <button 
-                onClick={() => setActiveTab('BULK')}
-                className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
-            >
-                <Users size={18}/> رصد جماعي
-            </button>
-            <button 
-                onClick={() => setActiveTab('ENTRY')}
-                className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'ENTRY' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
-            >
-                <PlusCircle size={18}/> رصد فردي
-            </button>
+            {!isManager && (
+                <>
+                    <button 
+                        onClick={() => setActiveTab('BULK')}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        <Users size={18}/> رصد جماعي
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('ENTRY')}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'ENTRY' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        <PlusCircle size={18}/> رصد فردي
+                    </button>
+                </>
+            )}
             <button 
                 onClick={() => setActiveTab('ANALYTICS')}
                 className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'ANALYTICS' ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
@@ -341,17 +347,19 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
         </div>
 
         <div className="flex gap-2">
-            <button 
-                onClick={() => setIsImportModalOpen(true)}
-                className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold"
-            >
-                <FileSpreadsheet size={18} />
-                <span className="hidden md:inline">استيراد درجات</span>
-            </button>
+            {!isManager && (
+                <button 
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold"
+                >
+                    <FileSpreadsheet size={18} />
+                    <span className="hidden md:inline">استيراد درجات</span>
+                </button>
+            )}
         </div>
       </div>
 
-      {activeTab === 'BULK' && (
+      {activeTab === 'BULK' && !isManager && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full animate-fade-in">
               <div className="flex justify-between items-start mb-6 border-b pb-4">
                   <div>
@@ -451,7 +459,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
           </div>
       )}
 
-      {activeTab === 'ENTRY' && (
+      {activeTab === 'ENTRY' && !isManager && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex justify-between items-center mb-4">
@@ -805,7 +813,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                               <th className="p-3 text-center">الدرجة</th>
                               <th className="p-3">التصنيف</th>
                               <th className="p-3">ملاحظات</th>
-                              <th className="p-3 text-center">إجراءات</th>
+                              {!isManager && <th className="p-3 text-center">إجراءات</th>}
                           </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -821,9 +829,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                                       <td className="p-3 text-center"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-100">{rec.score} / {rec.maxScore}</span></td>
                                       <td className="p-3">{getCategoryBadge(rec.category)}</td>
                                       <td className="p-3 text-xs text-gray-500 max-w-xs truncate">{rec.notes}</td>
+                                      {!isManager && (
                                       <td className="p-3 text-center">
                                           <button onClick={() => handleDelete(rec.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
                                       </td>
+                                      )}
                                   </tr>
                               );
                           }) : (

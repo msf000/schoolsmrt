@@ -342,6 +342,8 @@ const App: React.FC = () => {
                                 <NavItem view="SCHOOL_MANAGEMENT" label="إدارة المدرسة" icon={Settings} />
                                 <NavItem view="STUDENTS" label="قائمة الطلاب" icon={Users} />
                                 <NavItem view="ATTENDANCE" label="سجل الحضور" icon={Calendar} />
+                                <NavItem view="PERFORMANCE" label="سجل الدرجات" icon={CheckSquare} />
+                                <NavItem view="WORKS_TRACKING" label="كشف الرصد (الشبكة)" icon={Table} />
                             </div>
 
                             <div className="pt-4 mt-4 border-t border-gray-100">

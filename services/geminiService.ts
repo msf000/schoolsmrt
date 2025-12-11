@@ -23,7 +23,7 @@ const getConfig = () => {
 // Check if a real key is present
 const hasValidKey = () => {
     const key = process.env.API_KEY;
-    return key && key.length > 20 && !key.includes('AIzaSyDKU3a8J6MxFRI9I-JJu9wY-2HcgVz_YDM'); // Exclude known dummy keys if any
+    return key && key.length > 20;
 };
 
 // --- RETRY LOGIC (New) ---

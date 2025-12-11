@@ -210,8 +210,12 @@ export const saveTeacherAssignment = (item: TeacherAssignment) => { const list =
 export const deleteTeacherAssignment = (id: string) => { save(KEYS.ASSIGNMENTS, getTeacherAssignments().filter(x => x.id !== id)); };
 
 // Works Tracking Assignments (Columns)
-export const getAssignments = (category: string, teacherId?: string): Assignment[] => {
+// Updated to support fetching ALL assignments if includeAll is true (for Manager View)
+export const getAssignments = (category: string, teacherId?: string, includeAll: boolean = false): Assignment[] => {
     const all = get<Assignment>(KEYS.WORKS_ASSIGNMENTS);
+    if (includeAll) {
+        return all.filter(a => a.category === category);
+    }
     return all.filter(a => a.category === category && (a.teacherId === teacherId || !a.teacherId));
 };
 export const saveAssignment = (a: Assignment) => { 

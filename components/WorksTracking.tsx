@@ -33,6 +33,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin text-gray-400" /></div>;
     }
 
+    const isManager = currentUser?.role === 'SCHOOL_MANAGER';
+
     const [activeMode, setActiveMode] = useState<'GRADING' | 'MANAGEMENT'>(() => {
         return localStorage.getItem('works_tracking_mode') as any || 'GRADING';
     });
@@ -327,10 +329,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         // FIX: Fetch assignments including legacy/global ones by passing ID
-        const allAssignments = getAssignments(activeTab, currentUser?.id);
+        // If manager, fetch ALL assignments for this category to see complete picture
+        const allAssignments = getAssignments(activeTab, currentUser?.id, isManager);
         allAssignments.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
         setAssignments(allAssignments);
-    }, [activeTab, masterUrl, activeMode, currentUser]);
+    }, [activeTab, masterUrl, activeMode, currentUser, isManager]);
 
     useEffect(() => {
         if (activeTab === 'YEAR_WORK') return;
@@ -362,6 +365,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     }, [performance, activeTab, selectedSubject, assignments, activeTerm]); // Re-run when activeTerm changes
 
     const handleScoreChange = (studentId: string, assignId: string, val: string) => {
+        if (isManager) return; // Prevent edits for manager
         setGridData(prev => ({
             ...prev,
             [studentId]: { ...prev[studentId], [assignId]: val }
@@ -594,7 +598,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     {nameCell}
                     {visibleAssignments.map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
-                            <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
+                            <input 
+                                type="number" 
+                                className={`w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px] ${isManager ? 'cursor-not-allowed text-gray-600' : ''}`}
+                                value={gridData[student.id]?.[col.id] || ''} 
+                                onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} 
+                                placeholder="-" 
+                                readOnly={isManager}
+                            />
                             {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
                         </td>
                     ))}
@@ -615,7 +626,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     {nameCell}
                     {visibleAssignments.map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
-                            <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
+                            <input 
+                                type="number" 
+                                className={`w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px] ${isManager ? 'cursor-not-allowed text-gray-600' : ''}`}
+                                value={gridData[student.id]?.[col.id] || ''} 
+                                onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} 
+                                placeholder="-" 
+                                readOnly={isManager}
+                            />
                             {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
                         </td>
                     ))}
@@ -640,7 +658,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     {nameCell}
                     {visibleAssignments.map(col => (
                         <td key={col.id} className="p-1 border-l text-center relative">
-                            <input type="number" className="w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px]" value={gridData[student.id]?.[col.id] || ''} onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} placeholder="-" />
+                            <input 
+                                type="number" 
+                                className={`w-full h-full text-center p-2 outline-none focus:bg-blue-50 transition-colors bg-transparent min-w-[60px] ${isManager ? 'cursor-not-allowed text-gray-600' : ''}`}
+                                value={gridData[student.id]?.[col.id] || ''} 
+                                onChange={(e) => handleScoreChange(student.id, col.id, e.target.value)} 
+                                placeholder="-" 
+                                readOnly={isManager}
+                            />
                             {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full hover:scale-150 transition-transform" title="رابط النشاط"></a>}
                         </td>
                     ))}
@@ -658,7 +683,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject && filterByTerm(p));
             // Get Homework Assignments relevant to the term for denominator
-            const hwCols = getAssignments('HOMEWORK', currentUser?.id).filter(a => !activeTerm || !a.termId || a.termId === activeTerm.id);
+            const hwCols = getAssignments('HOMEWORK', currentUser?.id, isManager).filter(a => !activeTerm || !a.termId || a.termId === activeTerm.id);
             const distinctHW = new Set(hwRecs.map(p => p.notes)).size;
             const hwGrade = hwCols.length > 0 ? (distinctHW / hwCols.length) * 10 : 0;
 
@@ -702,16 +727,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                  <button onClick={() => setActiveMode('GRADING')} className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'GRADING' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                      <Table size={18}/> <span className="hidden md:inline">رصد الدرجات</span><span className="md:hidden">الرصد</span>
                  </button>
-                 <button onClick={() => setActiveMode('MANAGEMENT')} className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'MANAGEMENT' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
-                     <Settings size={18}/> <span className="hidden md:inline">إعداد الأعمدة</span><span className="md:hidden">الإعدادات</span>
-                 </button>
+                 {!isManager && (
+                     <button onClick={() => setActiveMode('MANAGEMENT')} className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeMode === 'MANAGEMENT' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                         <Settings size={18}/> <span className="hidden md:inline">إعداد الأعمدة</span><span className="md:hidden">الإعدادات</span>
+                     </button>
+                 )}
              </div>
 
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         {activeMode === 'GRADING' ? <List className="text-primary"/> : <PenTool className="text-purple-600"/>}
-                        {activeMode === 'GRADING' ? 'سجل الرصد والمتابعة' : 'تخصيص الأعمدة والفترات'}
+                        {activeMode === 'GRADING' ? (isManager ? 'سجل متابعة المعلمين (عرض)' : 'سجل الرصد والمتابعة') : 'تخصيص الأعمدة والفترات'}
                     </h2>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -763,7 +790,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none text-sm">
                         {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
                     </select>
-                    {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && (
+                    {activeMode === 'GRADING' && activeTab !== 'YEAR_WORK' && !isManager && (
                         <button onClick={handleSaveGrid} className="bg-green-600 text-white px-6 py-2 rounded-lg flex justify-center items-center gap-2 shadow-md transition-colors font-bold text-sm hover:bg-green-700">
                             {savedSuccess ? <CheckCircle size={18} /> : <Save size={18} />} {savedSuccess ? 'تم الحفظ' : 'حفظ'}
                         </button>
@@ -772,7 +799,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             </div>
 
             {/* --- Management Mode: Connection Settings & Periods --- */}
-            {activeMode === 'MANAGEMENT' && (
+            {activeMode === 'MANAGEMENT' && !isManager && (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-fade-in">
                         {/* 1. Connection Section */}
@@ -894,13 +921,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <div className="flex items-center gap-2 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
                         <Target size={14} className="text-amber-600"/>
                         <span className="text-xs font-bold text-amber-800">هدف الأنشطة:</span>
-                        <input type="number" min="1" value={activityTarget} onChange={(e) => handleActivityTargetChange(e.target.value)} className="w-12 p-1 text-center border rounded text-xs font-bold"/>
+                        <input type="number" min="1" value={activityTarget} onChange={(e) => handleActivityTargetChange(e.target.value)} className="w-12 p-1 text-center border rounded text-xs font-bold" readOnly={isManager}/>
                     </div>
                 </div>
             )}
 
             <div className="flex-1 bg-white rounded-xl shadow border border-gray-200 relative min-h-[400px] flex flex-col overflow-hidden">
-                {activeMode === 'MANAGEMENT' && (
+                {activeMode === 'MANAGEMENT' && !isManager && (
                     <div className="p-6 flex-1 overflow-auto">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-gray-700">الأعمدة الحالية ({activeTab})</h3>
@@ -984,13 +1011,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 <div className="text-xs mb-1 truncate max-w-[120px]" title={col.title}>{col.title}</div>
                                                 <div className="text-[10px] text-gray-400">({col.maxScore})</div>
                                             </div>
-                                            <button 
-                                                onClick={() => setShowQuickFill(col.id)} 
-                                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 text-purple-600 hover:bg-purple-100 rounded"
-                                                title="تعبئة تلقائية"
-                                            >
-                                                <Zap size={10}/>
-                                            </button>
+                                            {!isManager && (
+                                                <button 
+                                                    onClick={() => setShowQuickFill(col.id)} 
+                                                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 text-purple-600 hover:bg-purple-100 rounded"
+                                                    title="تعبئة تلقائية"
+                                                >
+                                                    <Zap size={10}/>
+                                                </button>
+                                            )}
                                             
                                             {showQuickFill === col.id && (
                                                 <div className="absolute top-full left-0 right-0 bg-white border shadow-lg rounded p-2 z-30 flex flex-col gap-2 animate-fade-in">
