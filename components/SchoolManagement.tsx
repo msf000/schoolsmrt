@@ -12,7 +12,8 @@ import {
     getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
     getExams, getLessonPlans, getWeeklyPlans
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight, Plus, Activity } from 'lucide-react';
+import { formatDualDate } from '../services/dateService';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight, Plus, Activity, Edit } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -57,10 +58,17 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [newTermEnd, setNewTermEnd] = useState('');
   const [expandedTermId, setExpandedTermId] = useState<string | null>(null);
   
-  // New Period UI State
+  // Edit Term State
+  const [editingTerm, setEditingTerm] = useState<AcademicTerm | null>(null);
+  const [isTermModalOpen, setIsTermModalOpen] = useState(false);
+
+  // New/Edit Period UI State
   const [newPeriodName, setNewPeriodName] = useState('');
   const [newPeriodStart, setNewPeriodStart] = useState('');
   const [newPeriodEnd, setNewPeriodEnd] = useState('');
+  const [editingPeriod, setEditingPeriod] = useState<TermPeriod | null>(null);
+  const [editingPeriodParentTerm, setEditingPeriodParentTerm] = useState<AcademicTerm | null>(null);
+  const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
 
   // Schedule UI State
   const [scheduleViewMode, setScheduleViewMode] = useState<'CLASS' | 'TEACHER'>('CLASS');
@@ -178,9 +186,15 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   };
 
+  // --- TERM & PERIOD ACTIONS ---
+
   const handleAddTerm = () => {
       if (!newTermName || !newTermStart || !newTermEnd || !currentUser) {
           alert('يرجى تعبئة جميع بيانات الفصل الدراسي');
+          return;
+      }
+      if (newTermStart > newTermEnd) {
+          alert('تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
           return;
       }
       
@@ -198,11 +212,38 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       setNewTermName(''); setNewTermStart(''); setNewTermEnd('');
   };
 
+  const handleEditTerm = (term: AcademicTerm) => {
+      setEditingTerm(term);
+      setIsTermModalOpen(true);
+  };
+
+  const handleUpdateTerm = () => {
+      if (!editingTerm) return;
+      if (editingTerm.startDate > editingTerm.endDate) {
+          alert('تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
+          return;
+      }
+      saveAcademicTerm(editingTerm);
+      setAcademicTerms(getAcademicTerms(currentUser?.id));
+      setIsTermModalOpen(false);
+      setEditingTerm(null);
+  };
+
   const handleAddPeriod = (term: AcademicTerm) => {
       if (!newPeriodName || !newPeriodStart || !newPeriodEnd) {
           alert('يرجى تعبئة بيانات الفترة');
           return;
       }
+      // Date Validation: Must be within Term dates
+      if (newPeriodStart < term.startDate || newPeriodEnd > term.endDate) {
+          alert(`تواريخ الفترة يجب أن تكون ضمن نطاق الفصل الدراسي (${term.startDate} - ${term.endDate})`);
+          return;
+      }
+      if (newPeriodStart > newPeriodEnd) {
+          alert('تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
+          return;
+      }
+
       const period: TermPeriod = {
           id: Date.now().toString() + '_p',
           name: newPeriodName,
@@ -213,6 +254,34 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       saveAcademicTerm(updatedTerm);
       setAcademicTerms(getAcademicTerms(currentUser?.id));
       setNewPeriodName(''); setNewPeriodStart(''); setNewPeriodEnd('');
+  };
+
+  const handleEditPeriod = (term: AcademicTerm, period: TermPeriod) => {
+      setEditingPeriodParentTerm(term);
+      setEditingPeriod(period);
+      setIsPeriodModalOpen(true);
+  };
+
+  const handleUpdatePeriod = () => {
+      if (!editingPeriod || !editingPeriodParentTerm) return;
+      
+      const term = editingPeriodParentTerm;
+      // Date Validation
+      if (editingPeriod.startDate < term.startDate || editingPeriod.endDate > term.endDate) {
+          alert(`تواريخ الفترة يجب أن تكون ضمن نطاق الفصل الدراسي (${term.startDate} - ${term.endDate})`);
+          return;
+      }
+      if (editingPeriod.startDate > editingPeriod.endDate) {
+          alert('تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
+          return;
+      }
+
+      const updatedPeriods = term.periods?.map(p => p.id === editingPeriod.id ? editingPeriod : p) || [];
+      saveAcademicTerm({ ...term, periods: updatedPeriods });
+      setAcademicTerms(getAcademicTerms(currentUser?.id));
+      setIsPeriodModalOpen(false);
+      setEditingPeriod(null);
+      setEditingPeriodParentTerm(null);
   };
 
   const handleDeletePeriod = (term: AcademicTerm, periodId: string) => {
@@ -237,6 +306,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   };
 
+  // --- OTHER ACTIONS ---
   const handleAddQuickClass = () => {
       if (!newClassName || !currentUser || subjects.length === 0) {
           alert('يرجى كتابة اسم الفصل والتأكد من وجود مادة واحدة على الأقل');
@@ -326,30 +396,20 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   };
 
-  // --- NEW: Auto Fill Header Function ---
   const handleAutoFillHeader = () => {
       const newConfig = { ...reportConfig };
-      
-      // Default Ministry Logo (URL to avoid large base64 strings in code)
-      // This is a standard vector URL for the Saudi Ministry of Education logo
       if (!newConfig.logoBase64) {
           newConfig.logoBase64 = "https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg";
       }
-
       if (currentUser) {
-          // Teacher Info
           const tName = teacherProfile?.name || currentUser.name;
           if (tName) newConfig.teacherName = tName;
-
-          // School Info
           if (mySchool) {
               newConfig.schoolName = mySchool.name;
               newConfig.schoolManager = mySchool.managerName;
               if (mySchool.educationAdministration) newConfig.educationAdmin = mySchool.educationAdministration;
           }
       }
-      
-      // Default Academic Year if empty
       if (!newConfig.academicYear) newConfig.academicYear = '1447هـ';
       if (!newConfig.term) newConfig.term = 'الفصل الدراسي الأول';
 
@@ -367,13 +427,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   };
 
-  const handleSaveSchoolData = () => {
-      if (mySchool) {
-          updateSchool(mySchool);
-          alert('تم تحديث بيانات المدرسة بنجاح!');
-      }
-  };
-
   const handleUnlinkSchool = () => {
       if (!teacherProfile) return;
       if (confirm('هل أنت متأكد من مغادرة المدرسة الحالية؟')) {
@@ -388,16 +441,12 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const handleTeacherSaveProfile = async () => {
       if (!teacherProfile) return;
       if (!teacherProfile.nationalId) return alert('رقم الهوية مطلوب.');
-      
       setIsSavingProfile(true);
-      
       try {
           await updateTeacher(teacherProfile);
-          
           if (linkMinistryCode) {
              const schools = getSchools();
              const targetSchool = schools.find(s => s.ministryCode === linkMinistryCode);
-             
              if (targetSchool) {
                  const updated = { ...teacherProfile, schoolId: targetSchool.id, managerId: targetSchool.managerNationalId };
                  await updateTeacher(updated);
@@ -441,7 +490,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
   const handleSendFeedback = () => {
       if (!feedbackMsg || !viewingTeacher || !currentUser) return;
-      
       const feedback: Feedback = {
           id: Date.now().toString(),
           teacherId: viewingTeacher.id,
@@ -450,7 +498,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           date: new Date().toISOString(),
           isRead: false
       };
-      
       addFeedback(feedback);
       setFeedbackList(getFeedback());
       setFeedbackMsg('');
@@ -568,8 +615,8 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 <tr>
                                     <th className="p-3 w-10"></th>
                                     <th className="p-3">الفصل الدراسي</th>
-                                    <th className="p-3">البداية</th>
-                                    <th className="p-3">النهاية</th>
+                                    <th className="p-3">البداية (هجري/ميلادي)</th>
+                                    <th className="p-3">النهاية (هجري/ميلادي)</th>
                                     <th className="p-3 text-center">الحالة</th>
                                     <th className="p-3 text-center">إجراءات</th>
                                 </tr>
@@ -577,13 +624,13 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                             <tbody className="divide-y bg-white">
                                 {academicTerms.map(term => (
                                     <React.Fragment key={term.id}>
-                                        <tr className="hover:bg-gray-50">
+                                        <tr className="hover:bg-gray-50 group">
                                             <td className="p-3 text-center cursor-pointer" onClick={() => setExpandedTermId(expandedTermId === term.id ? null : term.id)}>
                                                 {expandedTermId === term.id ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
                                             </td>
                                             <td className="p-3 font-bold text-gray-800">{term.name} <span className="text-xs text-gray-400 font-normal">({term.periods?.length || 0} فترات)</span></td>
-                                            <td className="p-3 font-mono text-gray-600">{term.startDate}</td>
-                                            <td className="p-3 font-mono text-gray-600">{term.endDate}</td>
+                                            <td className="p-3 text-xs text-gray-600">{formatDualDate(term.startDate)}</td>
+                                            <td className="p-3 text-xs text-gray-600">{formatDualDate(term.endDate)}</td>
                                             <td className="p-3 text-center">
                                                 {term.isCurrent ? (
                                                     <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 mx-auto w-fit">
@@ -596,7 +643,10 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">
-                                                <button onClick={() => handleDeleteTerm(term.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
+                                                <div className="flex justify-center gap-2">
+                                                    <button onClick={() => handleEditTerm(term)} className="text-gray-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50"><Edit size={16}/></button>
+                                                    <button onClick={() => handleDeleteTerm(term.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
+                                                </div>
                                             </td>
                                         </tr>
                                         {/* Sub-Periods Row */}
@@ -623,14 +673,17 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                         </div>
 
                                                         {term.periods && term.periods.length > 0 ? (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                                 {term.periods.map(period => (
                                                                     <div key={period.id} className="flex justify-between items-center bg-white border rounded p-2 text-xs">
                                                                         <div>
                                                                             <span className="font-bold text-gray-800 block">{period.name}</span>
-                                                                            <span className="text-gray-400 font-mono text-[10px]">{period.startDate} {'->'} {period.endDate}</span>
+                                                                            <span className="text-gray-400 text-[10px]">{formatDualDate(period.startDate)} {' -> '} {formatDualDate(period.endDate)}</span>
                                                                         </div>
-                                                                        <button onClick={() => handleDeletePeriod(term, period.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                                                                        <div className="flex gap-1">
+                                                                            <button onClick={() => handleEditPeriod(term, period)} className="text-blue-400 hover:text-blue-600"><Edit size={14}/></button>
+                                                                            <button onClick={() => handleDeletePeriod(term, period.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                                                                        </div>
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -650,6 +703,66 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
+            {/* MODAL: EDIT TERM */}
+            {isTermModalOpen && editingTerm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+                        <h3 className="font-bold text-lg mb-4 text-gray-800">تعديل الفصل الدراسي</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-600 mb-1">الاسم</label>
+                                <input className="w-full p-2 border rounded" value={editingTerm.name} onChange={e => setEditingTerm({...editingTerm, name: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">البداية</label>
+                                    <input type="date" className="w-full p-2 border rounded" value={editingTerm.startDate} onChange={e => setEditingTerm({...editingTerm, startDate: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">النهاية</label>
+                                    <input type="date" className="w-full p-2 border rounded" value={editingTerm.endDate} onChange={e => setEditingTerm({...editingTerm, endDate: e.target.value})} />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTermModalOpen(false)} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded">إلغاء</button>
+                            <button onClick={handleUpdateTerm} className="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700">حفظ التغييرات</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: EDIT PERIOD */}
+            {isPeriodModalOpen && editingPeriod && editingPeriodParentTerm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+                        <h3 className="font-bold text-lg mb-4 text-gray-800">تعديل الفترة</h3>
+                        <p className="text-xs text-gray-500 mb-4">يجب أن تكون التواريخ ضمن: {editingPeriodParentTerm.startDate} إلى {editingPeriodParentTerm.endDate}</p>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-600 mb-1">اسم الفترة</label>
+                                <input className="w-full p-2 border rounded" value={editingPeriod.name} onChange={e => setEditingPeriod({...editingPeriod, name: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">البداية</label>
+                                    <input type="date" className="w-full p-2 border rounded" value={editingPeriod.startDate} onChange={e => setEditingPeriod({...editingPeriod, startDate: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">النهاية</label>
+                                    <input type="date" className="w-full p-2 border rounded" value={editingPeriod.endDate} onChange={e => setEditingPeriod({...editingPeriod, endDate: e.target.value})} />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsPeriodModalOpen(false)} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded">إلغاء</button>
+                            <button onClick={handleUpdatePeriod} className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">حفظ التغييرات</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ... (Existing Teachers & Schedule Tabs remain unchanged) ... */}
             {activeTab === 'TEACHERS' && isManager && (
                 <div className="space-y-4 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
