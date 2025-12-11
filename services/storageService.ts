@@ -152,7 +152,7 @@ export const addSystemUser = (u: SystemUser) => { const list = getSystemUsers();
 export const updateSystemUser = (u: SystemUser) => { const list = getSystemUsers(); const idx = list.findIndex(x => x.id === u.id); if (idx > -1) list[idx] = u; save(KEYS.USERS, list); };
 export const deleteSystemUser = (id: string) => { save(KEYS.USERS, getSystemUsers().filter(x => x.id !== id)); };
 
-// --- UPDATED AUTHENTICATION WITH CLOUD FALLBACK ---
+// --- UPDATED AUTHENTICATION: Local -> Cloud Fallback ---
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
     // 1. Try Local Storage first
     const users = getSystemUsers();
@@ -172,7 +172,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
             .single();
             
         if (data && !error) {
-            // Cache locally for next time
+            // Cache locally for next time to ensure offline capability
             addSystemUser(data);
             return data as SystemUser;
         }

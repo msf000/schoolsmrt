@@ -13,7 +13,7 @@ import {
     getExams, getLessonPlans, getWeeklyPlans
 } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Upload, Clock, Palette, Sun, Cloud, Monitor, Sunset, CheckCircle, Info, PlusCircle, MapPin, Lock, CreditCard, Eye, EyeOff, LogOut, ShieldCheck, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, Check, ListTree, ChevronDown, ChevronRight, Plus, Activity, Edit } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, Send, FileText, BookOpen, Settings, Clock, Palette, Sun, Sunset, CheckCircle, PlusCircle, LogOut, Loader2, Sparkles, LayoutGrid, AlertCircle, CalendarDays, ListTree, ChevronDown, ChevronRight, Plus, Activity, Edit } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -47,7 +47,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [userTheme, setUserTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
 
   // --- UI States ---
-  const [feedbackList, setFeedbackList] = useState<Feedback[]>([]);
   const [viewingTeacher, setViewingTeacher] = useState<Teacher | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [newSubject, setNewSubject] = useState('');
@@ -71,7 +70,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
 
   // Schedule UI State
-  const [scheduleViewMode, setScheduleViewMode] = useState<'CLASS' | 'TEACHER'>('CLASS');
   const [selectedClassForSchedule, setSelectedClassForSchedule] = useState('');
   const [activeSubject, setActiveSubject] = useState('');
   const [activeTeacher, setActiveTeacher] = useState('');
@@ -85,7 +83,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [linkStatus, setLinkStatus] = useState<{success: boolean, msg: string} | null>(null);
   const [showNewSchoolForm, setShowNewSchoolForm] = useState(false);
   const [newSchoolData, setNewSchoolData] = useState({ name: '', managerName: '', managerId: '' });
-  const [showPassword, setShowPassword] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // --- LOAD DATA ---
@@ -110,14 +107,12 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
               school = allSchools[0];
           }
           setMySchool(school || null);
-          setFeedbackList(getFeedback());
       } else {
           // Robustly find the teacher profile
           let me: Teacher | undefined;
           if (currentUser?.id) {
               me = allTeachers.find(t => t.id === currentUser.id);
           }
-          // Fallback to loose matching if ID fails (legacy support)
           if (!me) {
               me = allTeachers.find(t => 
                   (currentUser?.nationalId && t.nationalId === currentUser.nationalId) || 
@@ -145,7 +140,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       return teachers.filter(t => t.schoolId === mySchool.id || t.managerId === currentUser?.nationalId);
   }, [teachers, mySchool, currentUser]);
 
-  // Enhanced Teacher Stats
   const getTeacherStats = (tId: string) => {
       const plans = getWeeklyPlans(tId).length;
       const exams = getExams(tId).length;
@@ -187,7 +181,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   };
 
   // --- TERM & PERIOD ACTIONS ---
-
   const handleAddTerm = () => {
       if (!newTermName || !newTermStart || !newTermEnd || !currentUser) {
           alert('يرجى تعبئة جميع بيانات الفصل الدراسي');
@@ -203,7 +196,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           name: newTermName,
           startDate: newTermStart,
           endDate: newTermEnd,
-          isCurrent: academicTerms.length === 0, // Default to current if first
+          isCurrent: academicTerms.length === 0,
           teacherId: currentUser.id,
           periods: []
       };
@@ -234,7 +227,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           alert('يرجى تعبئة بيانات الفترة');
           return;
       }
-      // Date Validation: Must be within Term dates
       if (newPeriodStart < term.startDate || newPeriodEnd > term.endDate) {
           alert(`تواريخ الفترة يجب أن تكون ضمن نطاق الفصل الدراسي (${term.startDate} - ${term.endDate})`);
           return;
@@ -264,9 +256,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
   const handleUpdatePeriod = () => {
       if (!editingPeriod || !editingPeriodParentTerm) return;
-      
       const term = editingPeriodParentTerm;
-      // Date Validation
       if (editingPeriod.startDate < term.startDate || editingPeriod.endDate > term.endDate) {
           alert(`تواريخ الفترة يجب أن تكون ضمن نطاق الفصل الدراسي (${term.startDate} - ${term.endDate})`);
           return;
@@ -306,7 +296,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   };
 
-  // --- OTHER ACTIONS ---
   const handleAddQuickClass = () => {
       if (!newClassName || !currentUser || subjects.length === 0) {
           alert('يرجى كتابة اسم الفصل والتأكد من وجود مادة واحدة على الأقل');
@@ -326,21 +315,18 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
   const handleRemoveClass = (className: string) => {
       if (!currentUser) return;
-      if (confirm(`هل تريد إزالة الفصل ${className} وجميع المواد المرتبطة به من قائمتك؟\n(لن يتم حذف بيانات الطلاب، فقط ارتباطك بالفصل)`)) {
+      if (confirm(`هل تريد إزالة الفصل ${className} وجميع المواد المرتبطة به من قائمتك؟`)) {
           const toRemove = assignments.filter(a => (a.teacherId === currentUser.id || !a.teacherId) && a.classId === className);
           toRemove.forEach(a => deleteTeacherAssignment(a.id));
-          
           const scheduleToRemove = schedules.filter(s => (s.teacherId === currentUser.id || !s.teacherId) && s.classId === className);
           scheduleToRemove.forEach(s => deleteScheduleItem(s.id));
-
           setAssignments(getTeacherAssignments());
           setSchedules(getSchedules());
       }
-  }
+  };
 
   const handleScheduleCellClick = (day: string, period: number) => {
       if (!selectedClassForSchedule || !activeSubject) return;
-      
       const existingItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period);
 
       if (existingItem && existingItem.subjectName === activeSubject) {
@@ -352,7 +338,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       if (activeTeacher) {
           const concurrentSessions = schedules.filter(s => s.day === day && s.period === period && s.classId !== selectedClassForSchedule);
           const conflict = concurrentSessions.find(s => s.teacherId === activeTeacher || assignments.find(a => a.classId === s.classId && a.subjectName === s.subjectName)?.teacherId === activeTeacher);
-          
           if (conflict) {
               alert(`❌ تعارض: المعلم مشغول في هذا الوقت مع فصل "${conflict.classId}".`);
               return;
@@ -368,20 +353,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           teacherId: activeTeacher || undefined
       };
       saveScheduleItem(newItem);
-
-      if (activeTeacher) {
-          const exists = assignments.find(a => a.classId === selectedClassForSchedule && a.subjectName === activeSubject && a.teacherId === activeTeacher);
-          if (!exists) {
-              const assignment: TeacherAssignment = {
-                  id: `${selectedClassForSchedule}-${activeSubject}-${Date.now()}`,
-                  classId: selectedClassForSchedule,
-                  subjectName: activeSubject,
-                  teacherId: activeTeacher
-              };
-              saveTeacherAssignment(assignment);
-              setAssignments(getTeacherAssignments());
-          }
-      }
       setSchedules(getSchedules());
   };
 
@@ -412,7 +383,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
       if (!newConfig.academicYear) newConfig.academicYear = '1447هـ';
       if (!newConfig.term) newConfig.term = 'الفصل الدراسي الأول';
-
       setReportConfig(newConfig);
       alert('تم تعبئة البيانات والشعار الافتراضي بنجاح.');
   };
@@ -499,7 +469,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           isRead: false
       };
       addFeedback(feedback);
-      setFeedbackList(getFeedback());
       setFeedbackMsg('');
       alert('تم إرسال التوجيه بنجاح');
   };
@@ -535,7 +504,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
         <div className="flex-1 overflow-y-auto custom-scrollbar">
             {activeTab === 'DASHBOARD' && (
                 <div className="space-y-6 animate-fade-in">
-                    {/* Simplified Dashboard View */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="p-4 bg-indigo-50 rounded-full text-indigo-600"><Building2 size={32}/></div>
@@ -649,7 +617,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                 </div>
                                             </td>
                                         </tr>
-                                        {/* Sub-Periods Row */}
                                         {expandedTermId === term.id && (
                                             <tr className="bg-gray-50/50">
                                                 <td colSpan={6} className="p-4 border-t border-b">
@@ -703,7 +670,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
-            {/* MODAL: EDIT TERM */}
             {isTermModalOpen && editingTerm && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
@@ -732,7 +698,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
-            {/* MODAL: EDIT PERIOD */}
             {isPeriodModalOpen && editingPeriod && editingPeriodParentTerm && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
@@ -762,7 +727,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
-            {/* ... (Existing Teachers & Schedule Tabs remain unchanged) ... */}
             {activeTab === 'TEACHERS' && isManager && (
                 <div className="space-y-4 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -810,7 +774,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                             );
                         })}
                     </div>
-                    {/* Feedback Modal */}
                     {viewingTeacher && (
                         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                             <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
@@ -831,10 +794,8 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
 
-            {/* ... (Other Tabs: SUBJECTS, SCHEDULE, SETTINGS remain unchanged) ... */}
             {activeTab === 'SUBJECTS' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-                    {/* My Classes List (For Teacher) */}
                     {!isManager && (
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Users className="text-indigo-600"/> فصولي (إسناد سريع)</h3>
@@ -862,7 +823,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                     )}
 
-                    {/* Subjects Management */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><BookOpen className="text-indigo-600"/> المواد الدراسية</h3>
                         <div className="flex gap-2 mb-4">
@@ -948,8 +908,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
             {activeTab === 'SETTINGS' && (
                 <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
-                    
-                    {/* 1. Header Config */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
                             <FileText className="text-indigo-600"/> إعدادات الترويسة (التقارير)
@@ -1000,7 +958,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                     </div>
 
-                    {/* 2. Personal Profile & School Link (If not manager) */}
                     {!isManager && teacherProfile && (
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
@@ -1026,7 +983,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 </div>
                             </div>
 
-                            {/* School Linking Logic */}
                             <div className="border-t pt-4 mt-4">
                                 {mySchool ? (
                                     <div className="bg-green-50 p-4 rounded-lg border border-green-200 flex justify-between items-center">
@@ -1049,7 +1005,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                         </div>
                                         {linkStatus && !linkStatus.success && <p className="text-red-500 text-xs mt-2">{linkStatus.msg}</p>}
                                         
-                                        {/* Create School Inline Form if not found */}
                                         {showNewSchoolForm && (
                                             <div className="mt-3 space-y-2 animate-fade-in bg-white p-3 rounded border">
                                                 <input className="w-full p-2 border rounded text-xs" placeholder="اسم المدرسة" value={newSchoolData.name} onChange={e => setNewSchoolData({...newSchoolData, name: e.target.value})}/>
@@ -1063,7 +1018,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                     )}
 
-                    {/* 3. Theme Settings */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
                             <Palette className="text-indigo-600"/> مظهر التطبيق
@@ -1078,7 +1032,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                     </div>
                     
-                    {/* Save Button */}
                     <div className="flex justify-end pt-4 pb-8">
                         <button 
                             onClick={() => { handleSaveSettings(); if(!isManager) handleTeacherSaveProfile(); }} 
