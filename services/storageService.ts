@@ -94,6 +94,7 @@ const cleanupTeacherData = async (teacherId: string) => {
         supabase.from('attendance').delete().eq('createdById', teacherId),
         supabase.from('performance').delete().eq('createdById', teacherId),
         supabase.from('assignments').delete().eq('teacherId', teacherId),
+        supabase.from('teacher_assignments').delete().eq('teacherId', teacherId),
         supabase.from('schedules').delete().eq('teacherId', teacherId),
         supabase.from('subjects').delete().eq('teacherId', teacherId),
         supabase.from('lesson_plans').delete().eq('teacherId', teacherId),
@@ -115,6 +116,7 @@ const cleanupTeacherData = async (teacherId: string) => {
     updateCache(KEYS.ATTENDANCE, getAttendance().filter(a => a.createdById !== teacherId));
     updateCache(KEYS.PERFORMANCE, getPerformance().filter(p => p.createdById !== teacherId));
     updateCache(KEYS.WORKS_ASSIGNMENTS, get<Assignment>(KEYS.WORKS_ASSIGNMENTS).filter(a => a.teacherId !== teacherId));
+    updateCache(KEYS.ASSIGNMENTS, getTeacherAssignments().filter(a => a.teacherId !== teacherId));
     updateCache(KEYS.SCHEDULES, getSchedules().filter(s => s.teacherId !== teacherId));
     updateCache(KEYS.SUBJECTS, get<Subject>(KEYS.SUBJECTS).filter(s => s.teacherId !== teacherId));
     updateCache(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.teacherId !== teacherId));
