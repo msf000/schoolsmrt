@@ -47,31 +47,21 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   });
   const [userTheme, setUserTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
 
-  // ... (Rest of state initialization - same as before) ...
-  const [viewingTeacher, setViewingTeacher] = useState<Teacher | null>(null);
+  // UI States
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [newSubject, setNewSubject] = useState('');
+  
+  // Term/Period Modal States
   const [newTermName, setNewTermName] = useState('');
   const [newTermStart, setNewTermStart] = useState('');
   const [newTermEnd, setNewTermEnd] = useState('');
+
   const [expandedTermId, setExpandedTermId] = useState<string | null>(null);
-  const [editingTerm, setEditingTerm] = useState<AcademicTerm | null>(null);
-  const [isTermModalOpen, setIsTermModalOpen] = useState(false);
   const [newPeriodName, setNewPeriodName] = useState('');
   const [newPeriodStart, setNewPeriodStart] = useState('');
   const [newPeriodEnd, setNewPeriodEnd] = useState('');
-  const [editingPeriod, setEditingPeriod] = useState<TermPeriod | null>(null);
-  const [editingPeriodParentTerm, setEditingPeriodParentTerm] = useState<AcademicTerm | null>(null);
-  const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
-  const [selectedClassForSchedule, setSelectedClassForSchedule] = useState('');
-  const [activeSubject, setActiveSubject] = useState('');
-  const [activeTeacher, setActiveTeacher] = useState('');
-  const [newClassName, setNewClassName] = useState('');
+  
   const [teacherProfile, setTeacherProfile] = useState<Teacher | null>(null);
-  const [linkMinistryCode, setLinkMinistryCode] = useState('');
-  const [linkStatus, setLinkStatus] = useState<{success: boolean, msg: string} | null>(null);
-  const [showNewSchoolForm, setShowNewSchoolForm] = useState(false);
-  const [newSchoolData, setNewSchoolData] = useState({ name: '', managerName: '', managerId: '' });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
@@ -85,6 +75,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       setUserTheme(getUserTheme());
       const allTeachers = getTeachers();
       setTeachers(allTeachers);
+      
       if (isManager) {
           const allSchools = getSchools();
           let school = allSchools.find(s => s.managerNationalId === currentUser?.nationalId || s.managerName === currentUser?.name);
@@ -96,7 +87,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           if (!me) me = allTeachers.find(t => (currentUser?.nationalId && t.nationalId === currentUser.nationalId) || (currentUser?.email && t.email === currentUser.email));
           if (me) {
               setTeacherProfile(me);
-              setActiveTeacher(me.id);
               if (me.schoolId) {
                   const schools = getSchools();
                   const school = schools.find(s => s.id === me.schoolId);
@@ -106,60 +96,192 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   }, [currentUser, isManager, activeTab]); 
 
-  // ... (Helpers and Actions - Keeping existing implementation for brevity, only showing changes in Settings render) ...
-  const myTeachers = useMemo(() => { if (!mySchool) return []; return teachers.filter(t => t.schoolId === mySchool.id || t.managerId === currentUser?.nationalId); }, [teachers, mySchool, currentUser]);
-  const getTeacherStats = (tId: string) => { const plans = getWeeklyPlans(tId).length; const exams = getExams(tId).length; const lessons = getLessonPlans(tId).length; return { plans, exams, lessons }; };
-  const uniqueClasses = useMemo(() => { const classes = new Set<string>(); students.forEach(s => s.className && classes.add(s.className)); return Array.from(classes).sort(); }, [students]);
-  const myClassAssignments = useMemo(() => { if (!currentUser) return []; const myAssigns = assignments.filter(a => a.teacherId === currentUser.id || !a.teacherId); const classes = Array.from(new Set(myAssigns.map(a => a.classId))); return classes.sort(); }, [assignments, currentUser]);
+  // Helpers
   const handleAddSubject = () => { if (newSubject.trim() && currentUser) { addSubject({ id: Date.now().toString(), name: newSubject.trim(), teacherId: currentUser.id }); setSubjects(getSubjects(currentUser.id)); setNewSubject(''); } };
   const handleDeleteSubject = (id: string) => { if (confirm('حذف المادة؟') && currentUser) { deleteSubject(id); setSubjects(getSubjects(currentUser.id)); } };
+  
+  // Terms Handlers
   const handleAddTerm = () => { if (!newTermName || !newTermStart || !newTermEnd || !currentUser) return alert('بيانات ناقصة'); const term: AcademicTerm = { id: Date.now().toString(), name: newTermName, startDate: newTermStart, endDate: newTermEnd, isCurrent: academicTerms.length === 0, teacherId: currentUser.id, periods: [] }; saveAcademicTerm(term); setAcademicTerms(getAcademicTerms(currentUser.id)); setNewTermName(''); setNewTermStart(''); setNewTermEnd(''); };
-  const handleEditTerm = (term: AcademicTerm) => { setEditingTerm(term); setIsTermModalOpen(true); };
-  const handleUpdateTerm = () => { if (!editingTerm) return; saveAcademicTerm(editingTerm); setAcademicTerms(getAcademicTerms(currentUser?.id)); setIsTermModalOpen(false); setEditingTerm(null); };
-  const handleAddPeriod = (term: AcademicTerm) => { if (!newPeriodName || !newPeriodStart || !newPeriodEnd) return alert('بيانات ناقصة'); const period: TermPeriod = { id: Date.now().toString() + '_p', name: newPeriodName, startDate: newPeriodStart, endDate: newPeriodEnd }; const updatedTerm = { ...term, periods: [...(term.periods || []), period] }; saveAcademicTerm(updatedTerm); setAcademicTerms(getAcademicTerms(currentUser?.id)); setNewPeriodName(''); setNewPeriodStart(''); setNewPeriodEnd(''); };
-  const handleEditPeriod = (term: AcademicTerm, period: TermPeriod) => { setEditingPeriodParentTerm(term); setEditingPeriod(period); setIsPeriodModalOpen(true); };
-  const handleUpdatePeriod = () => { if (!editingPeriod || !editingPeriodParentTerm) return; const term = editingPeriodParentTerm; const updatedPeriods = term.periods?.map(p => p.id === editingPeriod.id ? editingPeriod : p) || []; saveAcademicTerm({ ...term, periods: updatedPeriods }); setAcademicTerms(getAcademicTerms(currentUser?.id)); setIsPeriodModalOpen(false); setEditingPeriod(null); setEditingPeriodParentTerm(null); };
-  const handleDeletePeriod = (term: AcademicTerm, periodId: string) => { if(confirm('حذف الفترة؟')) { const updatedPeriods = term.periods?.filter(p => p.id !== periodId) || []; saveAcademicTerm({ ...term, periods: updatedPeriods }); setAcademicTerms(getAcademicTerms(currentUser?.id)); } };
   const handleDeleteTerm = (id: string) => { if (confirm('حذف الفصل الدراسي؟')) { deleteAcademicTerm(id); setAcademicTerms(getAcademicTerms(currentUser?.id)); } };
   const handleSetCurrentTerm = (id: string) => { if (currentUser) { setCurrentTerm(id, currentUser.id); setAcademicTerms(getAcademicTerms(currentUser.id)); } };
-  const handleAddQuickClass = () => { if (!newClassName || !currentUser || subjects.length === 0) return alert('بيانات ناقصة'); const subjectName = subjects[0].name; const newAssign: TeacherAssignment = { id: `${newClassName}-${subjectName}-${Date.now()}`, classId: newClassName, subjectName: subjectName, teacherId: currentUser.id }; saveTeacherAssignment(newAssign); setAssignments(getTeacherAssignments()); setNewClassName(''); };
-  const handleRemoveClass = (className: string) => { if (!currentUser) return; if (confirm('إزالة الفصل؟')) { const toRemove = assignments.filter(a => (a.teacherId === currentUser.id || !a.teacherId) && a.classId === className); toRemove.forEach(a => deleteTeacherAssignment(a.id)); const scheduleToRemove = schedules.filter(s => (s.teacherId === currentUser.id || !s.teacherId) && s.classId === className); scheduleToRemove.forEach(s => deleteScheduleItem(s.id)); setAssignments(getTeacherAssignments()); setSchedules(getSchedules()); } };
-  const handleScheduleCellClick = (day: string, period: number) => { if (isSchoolManager) return; if (!selectedClassForSchedule || !activeSubject) return; const existingItem = schedules.find(s => s.classId === selectedClassForSchedule && s.day === day && s.period === period); if (existingItem && existingItem.subjectName === activeSubject) { deleteScheduleItem(existingItem.id); setSchedules(getSchedules()); return; } const newItem: ScheduleItem = { id: `${selectedClassForSchedule}-${day}-${period}`, classId: selectedClassForSchedule, day: day as any, period, subjectName: activeSubject, teacherId: activeTeacher || undefined }; saveScheduleItem(newItem); setSchedules(getSchedules()); };
-  
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { setReportConfig(prev => ({ ...prev, logoBase64: reader.result as string })); }; reader.readAsDataURL(file); } };
-  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { setReportConfig(prev => ({ ...prev, signatureBase64: reader.result as string })); }; reader.readAsDataURL(file); } }; // NEW
+  const handleAddPeriod = (term: AcademicTerm) => { if (!newPeriodName || !newPeriodStart || !newPeriodEnd) return alert('بيانات ناقصة'); const period: TermPeriod = { id: Date.now().toString() + '_p', name: newPeriodName, startDate: newPeriodStart, endDate: newPeriodEnd }; const updatedTerm = { ...term, periods: [...(term.periods || []), period] }; saveAcademicTerm(updatedTerm); setAcademicTerms(getAcademicTerms(currentUser?.id)); setNewPeriodName(''); setNewPeriodStart(''); setNewPeriodEnd(''); };
+  const handleDeletePeriod = (term: AcademicTerm, periodId: string) => { if(confirm('حذف الفترة؟')) { const updatedPeriods = term.periods?.filter(p => p.id !== periodId) || []; saveAcademicTerm({ ...term, periods: updatedPeriods }); setAcademicTerms(getAcademicTerms(currentUser?.id)); } };
 
+  // Settings Handlers
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { setReportConfig(prev => ({ ...prev, logoBase64: reader.result as string })); }; reader.readAsDataURL(file); } };
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { setReportConfig(prev => ({ ...prev, signatureBase64: reader.result as string })); }; reader.readAsDataURL(file); } };
   const handleAutoFillHeader = () => { const newConfig = { ...reportConfig }; if (!newConfig.logoBase64) { newConfig.logoBase64 = "https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg"; } if (currentUser) { const tName = teacherProfile?.name || currentUser.name; if (tName) newConfig.teacherName = tName; if (mySchool) { newConfig.schoolName = mySchool.name; newConfig.schoolManager = mySchool.managerName; if (mySchool.educationAdministration) newConfig.educationAdmin = mySchool.educationAdministration; } } if (!newConfig.academicYear) newConfig.academicYear = '1447هـ'; if (!newConfig.term) newConfig.term = 'الفصل الدراسي الأول'; setReportConfig(newConfig); alert('تم التعبئة التلقائية.'); };
   const handleSaveSettings = () => { if (currentUser) { const configWithId = { ...reportConfig, teacherId: currentUser.id }; saveReportHeaderConfig(configWithId); saveUserTheme(userTheme); if(onUpdateTheme) onUpdateTheme(userTheme); alert('تم الحفظ بنجاح'); } };
-  const handleUnlinkSchool = () => { if (!teacherProfile) return; if (confirm('مغادرة المدرسة؟')) { const updated = { ...teacherProfile, schoolId: undefined, managerId: undefined }; updateTeacher(updated); setTeacherProfile(updated); setMySchool(null); } };
   const handleTeacherSaveProfile = async () => { if (!teacherProfile) return; setIsSavingProfile(true); try { await updateTeacher(teacherProfile); alert('تم الحفظ'); } catch (e) { alert('خطأ'); } finally { setIsSavingProfile(false); } };
-  const handleSendFeedback = () => { if (!feedbackMsg || !viewingTeacher || !currentUser) return; addFeedback({ id: Date.now().toString(), teacherId: viewingTeacher.id, managerId: currentUser.id, content: feedbackMsg, date: new Date().toISOString(), isRead: false }); setFeedbackMsg(''); alert('تم الإرسال'); };
-
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-  const dayNamesAr = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
-
-  // ... (Render Logic same until Settings Tab) ...
 
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
-        {/* ... (Tabs) ... */}
+        {/* Tabs */}
         <div className="mb-6 flex overflow-x-auto gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm">
             <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><LayoutGrid size={16} className="inline mr-2"/> لوحة التحكم</button>
             {isManager && <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'TEACHERS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Users size={16} className="inline mr-2"/> المعلمين</button>}
             <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><BookOpen size={16} className="inline mr-2"/> {isManager ? 'قائمة المواد' : 'موادي وفصولي'}</button>
-            <button onClick={() => setActiveTab('SCHEDULE')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SCHEDULE' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Clock size={16} className="inline mr-2"/> الجدول الدراسي</button>
             <button onClick={() => setActiveTab('CALENDAR')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'CALENDAR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><CalendarDays size={16} className="inline mr-2"/> التقويم الدراسي</button>
             <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Settings size={16} className="inline mr-2"/> {isManager ? 'إعدادات المدرسة' : 'الإعدادات الشخصية'}</button>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {/* ... (Other Tabs Content: DASHBOARD, TEACHERS, SUBJECTS, SCHEDULE, CALENDAR - kept same) ... */}
-            {activeTab !== 'SETTINGS' && activeTab !== 'CALENDAR' && (
-                <div className="text-center p-10 text-gray-400">Content for {activeTab} (See previous implementation if not shown)</div>
+            {/* DASHBOARD TAB */}
+            {activeTab === 'DASHBOARD' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-500 text-xs font-bold mb-1">الطلاب</p>
+                            <h3 className="text-3xl font-black text-gray-800">{students.length}</h3>
+                        </div>
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-full"><Users size={24}/></div>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-500 text-xs font-bold mb-1">المواد الدراسية</p>
+                            <h3 className="text-3xl font-black text-gray-800">{subjects.length}</h3>
+                        </div>
+                        <div className="p-3 bg-purple-50 text-purple-600 rounded-full"><BookOpen size={24}/></div>
+                    </div>
+                    {mySchool && (
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-xs font-bold mb-1">المدرسة</p>
+                                <h3 className="text-lg font-bold text-gray-800 line-clamp-1">{mySchool.name}</h3>
+                                <p className="text-[10px] text-gray-400">كود: {mySchool.ministryCode}</p>
+                            </div>
+                            <div className="p-3 bg-green-50 text-green-600 rounded-full"><Building2 size={24}/></div>
+                        </div>
+                    )}
+                </div>
             )}
-            
-            {/* Re-implementing just CALENDAR for context if needed, but for brevity assuming it's there. Focusing on SETTINGS change */}
-            
+
+            {/* TEACHERS TAB */}
+            {activeTab === 'TEACHERS' && isManager && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                    <table className="w-full text-right text-sm">
+                        <thead className="bg-gray-50 text-gray-700 font-bold border-b">
+                            <tr>
+                                <th className="p-4">الاسم</th>
+                                <th className="p-4">التخصص</th>
+                                <th className="p-4">البريد</th>
+                                <th className="p-4 text-center">الاشتراك</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {teachers.map(t => (
+                                <tr key={t.id} className="hover:bg-gray-50">
+                                    <td className="p-4 font-bold text-gray-800">{t.name}</td>
+                                    <td className="p-4 text-gray-600">{t.subjectSpecialty}</td>
+                                    <td className="p-4 text-gray-600 font-mono text-xs">{t.email}</td>
+                                    <td className="p-4 text-center">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${t.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {t.subscriptionStatus || 'FREE'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* SUBJECTS TAB */}
+            {activeTab === 'SUBJECTS' && (
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm max-w-4xl mx-auto">
+                    <div className="flex gap-2 mb-6">
+                        <input className="flex-1 p-2 border rounded-lg" placeholder="اسم المادة الجديدة..." value={newSubject} onChange={e => setNewSubject(e.target.value)} />
+                        <button onClick={handleAddSubject} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700">إضافة</button>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {subjects.map(s => (
+                            <div key={s.id} className="p-3 bg-gray-50 border rounded-lg flex justify-between items-center group hover:border-indigo-200 transition-colors">
+                                <span className="font-bold text-gray-700">{s.name}</span>
+                                <button onClick={() => handleDeleteSubject(s.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* CALENDAR TAB */}
+            {activeTab === 'CALENDAR' && (
+                <div className="space-y-6">
+                    {/* Add Term */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1">
+                            <label className="block text-xs font-bold text-gray-500 mb-1">اسم الفصل الدراسي</label>
+                            <input className="w-full p-2 border rounded text-sm" placeholder="الفصل الدراسي الأول 1446" value={newTermName} onChange={e => setNewTermName(e.target.value)}/>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">البداية</label>
+                            <input type="date" className="w-full p-2 border rounded text-sm" value={newTermStart} onChange={e => setNewTermStart(e.target.value)}/>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">النهاية</label>
+                            <input type="date" className="w-full p-2 border rounded text-sm" value={newTermEnd} onChange={e => setNewTermEnd(e.target.value)}/>
+                        </div>
+                        <button onClick={handleAddTerm} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center gap-2">
+                            <Plus size={16}/> إضافة فصل
+                        </button>
+                    </div>
+
+                    {/* Terms List */}
+                    <div className="space-y-4">
+                        {academicTerms.map(term => (
+                            <div key={term.id} className={`bg-white border rounded-xl overflow-hidden transition-all ${term.isCurrent ? 'border-green-400 shadow-md ring-1 ring-green-100' : 'border-gray-200'}`}>
+                                <div className="p-4 flex justify-between items-center bg-gray-50 cursor-pointer" onClick={() => setExpandedTermId(expandedTermId === term.id ? null : term.id)}>
+                                    <div className="flex items-center gap-3">
+                                        <button onClick={(e) => {e.stopPropagation(); handleSetCurrentTerm(term.id)}} className={`w-5 h-5 rounded-full border flex items-center justify-center ${term.isCurrent ? 'bg-green-500 border-green-600 text-white' : 'bg-white border-gray-300 hover:border-green-400'}`}>
+                                            {term.isCurrent && <CheckCircle size={12}/>}
+                                        </button>
+                                        <div>
+                                            <h4 className="font-bold text-gray-800">{term.name}</h4>
+                                            <p className="text-xs text-gray-500">{term.startDate} - {term.endDate}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {expandedTermId === term.id ? <ChevronDown size={18} className="text-gray-400"/> : <ChevronRight size={18} className="text-gray-400"/>}
+                                        <button onClick={(e) => {e.stopPropagation(); handleDeleteTerm(term.id)}} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
+                                    </div>
+                                </div>
+                                
+                                {expandedTermId === term.id && (
+                                    <div className="p-4 border-t bg-white animate-slide-up">
+                                        <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><ListTree size={14}/> الفترات (Periods)</h5>
+                                        <div className="space-y-2 mb-4">
+                                            {term.periods?.map(p => (
+                                                <div key={p.id} className="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100 text-sm">
+                                                    <span className="font-medium text-gray-700">{p.name} ({p.startDate} - {p.endDate})</span>
+                                                    <button onClick={() => handleDeletePeriod(term, p.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                                                </div>
+                                            ))}
+                                            {!term.periods?.length && <p className="text-xs text-gray-400 italic">لا توجد فترات مضافة.</p>}
+                                        </div>
+                                        
+                                        <div className="flex gap-2 items-end border-t pt-3">
+                                            <div className="flex-1">
+                                                <input className="w-full p-1.5 border rounded text-xs" placeholder="اسم الفترة (الأولى...)" value={newPeriodName} onChange={e => setNewPeriodName(e.target.value)}/>
+                                            </div>
+                                            <div>
+                                                <input type="date" className="w-full p-1.5 border rounded text-xs" value={newPeriodStart} onChange={e => setNewPeriodStart(e.target.value)}/>
+                                            </div>
+                                            <div>
+                                                <input type="date" className="w-full p-1.5 border rounded text-xs" value={newPeriodEnd} onChange={e => setNewPeriodEnd(e.target.value)}/>
+                                            </div>
+                                            <button onClick={() => handleAddPeriod(term)} className="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
+                                                إضافة فترة
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* SETTINGS TAB */}
             {activeTab === 'SETTINGS' && (
                 <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -192,7 +314,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 </div>
                             </div>
                             
-                            {/* NEW: Signature Upload */}
+                            {/* Signature Upload */}
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1"><PenTool size={14}/> التوقيع الرقمي (للاعتماد)</label>
                                 <div className="flex items-center gap-4">
@@ -209,7 +331,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                     </div>
 
-                    {/* Teacher Profile Section (Same as before) */}
+                    {/* Teacher Profile Section */}
                     {!isManager && teacherProfile && (
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
@@ -221,24 +343,20 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 <div><label className="block text-sm font-bold text-gray-700 mb-1">رقم الجوال</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.phone || ''} onChange={e => setTeacherProfile({...teacherProfile, phone: e.target.value})} /></div>
                                 <div><label className="block text-sm font-bold text-gray-700 mb-1">التخصص</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})} /></div>
                             </div>
+                            <button onClick={handleTeacherSaveProfile} disabled={isSavingProfile} className="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">
+                                {isSavingProfile ? 'جاري الحفظ...' : 'حفظ البيانات'}
+                            </button>
                         </div>
                     )}
 
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800"><Palette className="text-indigo-600"/> مظهر التطبيق</h3>
-                        <div className="flex gap-4">
-                            <button onClick={() => setUserTheme({...userTheme, mode: 'LIGHT'})} className={`p-4 rounded-xl border flex flex-col items-center gap-2 w-24 ${userTheme.mode === 'LIGHT' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-bold' : 'border-gray-200 hover:bg-gray-50'}`}><Sun size={24}/> فاتح</button>
-                            <button onClick={() => setUserTheme({...userTheme, mode: 'DARK'})} className={`p-4 rounded-xl border flex flex-col items-center gap-2 w-24 ${userTheme.mode === 'DARK' ? 'border-indigo-500 bg-gray-800 text-white font-bold' : 'border-gray-200 hover:bg-gray-50'}`}><Sunset size={24}/> داكن</button>
-                        </div>
-                    </div>
-                    
-                    <div className="flex justify-end pt-4 pb-8">
-                        <button onClick={() => { handleSaveSettings(); if(!isManager) handleTeacherSaveProfile(); }} disabled={isSavingProfile} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2 disabled:opacity-50">
-                            {isSavingProfile ? <Loader2 className="animate-spin"/> : <Save size={18}/>} حفظ جميع التغييرات
+                    <div className="flex justify-end">
+                        <button onClick={handleSaveSettings} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2">
+                            <Save size={20}/> حفظ الإعدادات
                         </button>
                     </div>
                 </div>
             )}
         </div>
-    );
+    </div>
+  );
 };
