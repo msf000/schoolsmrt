@@ -287,7 +287,8 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
     if(error) console.error("Cloud Error:", error);
 };
 
-// --- AUTHENTICATION (Cloud Only) ---
+// --- AUTHENTICATION ---
+
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
     // Force Cloud Check for Security
     try {
@@ -304,6 +305,58 @@ export const authenticateUser = async (identifier: string, password: string): Pr
         }
     } catch (e) {
         console.error("Cloud auth failed:", e);
+    }
+    return undefined;
+};
+
+// --- NEW: Authenticate Student (ID + Last 4 digits) ---
+export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
+    try {
+        const cleanId = nationalId.trim();
+        const defaultPass = cleanId.slice(-4); // Last 4 digits
+
+        // 1. Try Local First (Faster & Offline support)
+        const localStudents = getStudents();
+        const localMatch = localStudents.find(s => s.nationalId === cleanId);
+        
+        if (localMatch) {
+             const studentPass = localMatch.password || defaultPass;
+             if (password === studentPass) {
+                 return {
+                     id: localMatch.id,
+                     name: localMatch.name,
+                     role: 'STUDENT',
+                     nationalId: localMatch.nationalId,
+                     schoolId: localMatch.schoolId,
+                     className: localMatch.className,
+                     gradeLevel: localMatch.gradeLevel
+                 };
+             }
+        }
+
+        // 2. Try Cloud (If not found locally or password mismatch)
+        const { data, error } = await supabase
+            .from('students')
+            .select('*')
+            .eq('nationalId', cleanId)
+            .single();
+            
+        if (data && !error) {
+             const studentPass = data.password || defaultPass;
+             if (password === studentPass) {
+                 return {
+                     id: data.id,
+                     name: data.name,
+                     role: 'STUDENT',
+                     nationalId: data.nationalId,
+                     schoolId: data.schoolId,
+                     className: data.className,
+                     gradeLevel: data.gradeLevel
+                 };
+             }
+        }
+    } catch (e) {
+        console.error("Student auth failed:", e);
     }
     return undefined;
 };
@@ -676,6 +729,133 @@ export const resetCloudDatabase = async () => { /* Dangerous, implementation ski
 export const backupCloudDatabase = async () => { return "{}"; };
 export const restoreCloudDatabase = async (json: string) => { };
 
+export const DB_MAP: Record<string, string> = {
+    'schools': 'schools',
+    'teachers': 'teachers',
+    'system_users': 'system_users',
+    'students': 'students',
+    'attendance': 'attendance',
+    'performance': 'performance',
+    'assignments': 'assignments',
+    'schedules': 'schedules',
+    'teacher_assignments': 'teacher_assignments',
+    'subjects': 'subjects',
+    'weekly_plans': 'weekly_plans',
+    'lesson_links': 'lesson_links',
+    'lesson_plans': 'lesson_plans',
+    'custom_tables': 'custom_tables',
+    'message_logs': 'message_logs',
+    'feedback': 'feedback',
+    'exams': 'exams',
+    'exam_results': 'exam_results',
+    'questions': 'questions',
+    'curriculum_units': 'curriculum_units',
+    'curriculum_lessons': 'curriculum_lessons',
+    'micro_concepts': 'micro_concepts',
+    'tracking_sheets': 'tracking_sheets',
+    'academic_terms': 'academic_terms'
+};
+
+export const getTableDisplayName = (table: string): string => {
+    const map: Record<string, string> = {
+        'schools': 'المدارس',
+        'teachers': 'المعلمين',
+        'system_users': 'مستخدمي النظام',
+        'students': 'الطلاب',
+        'attendance': 'الحضور',
+        'performance': 'الأداء (الدرجات)',
+        'assignments': 'التعيينات',
+        'schedules': 'الجداول',
+        'teacher_assignments': 'توزيع المعلمين',
+        'subjects': 'المواد',
+        'weekly_plans': 'الخطط الأسبوعية',
+        'lesson_links': 'روابط الدروس',
+        'lesson_plans': 'خطط الدروس',
+        'custom_tables': 'الجداول المخصصة',
+        'message_logs': 'سجل الرسائل',
+        'feedback': 'الملاحظات',
+        'exams': 'الاختبارات',
+        'exam_results': 'نتائج الاختبارات',
+        'questions': 'بنك الأسئلة',
+        'curriculum_units': 'وحدات المنهج',
+        'curriculum_lessons': 'دروس المنهج',
+        'micro_concepts': 'المفاهيم الدقيقة',
+        'tracking_sheets': 'سجلات الرصد',
+        'academic_terms': 'الفصول الدراسية'
+    };
+    return map[table] || table;
+};
+
+export const getDatabaseUpdateSQL = (): string => {
+    return `
+-- 20. Curriculum Units
+CREATE TABLE IF NOT EXISTS "curriculum_units" (
+  "id" TEXT PRIMARY KEY,
+  "teacherId" TEXT,
+  "subject" TEXT,
+  "gradeLevel" TEXT,
+  "title" TEXT,
+  "orderIndex" INTEGER,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "curriculum_units" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "curriculum_units" FOR ALL USING (true) WITH CHECK (true);
+
+-- 21. Curriculum Lessons
+CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
+  "id" TEXT PRIMARY KEY,
+  "unitId" TEXT,
+  "title" TEXT,
+  "orderIndex" INTEGER,
+  "learningStandards" JSONB,
+  "microConceptIds" JSONB,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "curriculum_lessons" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "curriculum_lessons" FOR ALL USING (true) WITH CHECK (true);
+
+-- 22. Micro Concepts
+CREATE TABLE IF NOT EXISTS "micro_concepts" (
+  "id" TEXT PRIMARY KEY,
+  "teacherId" TEXT,
+  "subject" TEXT,
+  "name" TEXT,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "micro_concepts" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "micro_concepts" FOR ALL USING (true) WITH CHECK (true);
+
+-- 23. Tracking Sheets
+CREATE TABLE IF NOT EXISTS "tracking_sheets" (
+  "id" TEXT PRIMARY KEY,
+  "title" TEXT,
+  "subject" TEXT,
+  "className" TEXT,
+  "teacherId" TEXT,
+  "createdAt" TEXT,
+  "columns" JSONB,
+  "scores" JSONB,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "tracking_sheets" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "tracking_sheets" FOR ALL USING (true) WITH CHECK (true);
+
+-- 24. Academic Terms
+CREATE TABLE IF NOT EXISTS "academic_terms" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "startDate" TEXT,
+  "endDate" TEXT,
+  "isCurrent" BOOLEAN,
+  "teacherId" TEXT,
+  "periods" JSONB,
+  "created_at" TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
+`;
+};
+
 // SQL Generators
 export const getDatabaseSchemaSQL = () => {
     return `
@@ -1047,37 +1227,3 @@ ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
 `;
 };
-
-export const getDatabaseUpdateSQL = () => {
-    return `
--- Enable RLS and Public Access for all tables (Safe to run multiple times)
-do $$
-declare
-  tables text[] := array[
-    'schools', 'teachers', 'system_users', 'students', 'attendance', 'performance', 
-    'assignments', 'schedules', 'teacher_assignments', 'subjects', 'weekly_plans', 
-    'lesson_links', 'lesson_plans', 'custom_tables', 'message_logs', 'feedback', 
-    'exams', 'exam_results', 'questions', 'curriculum_units', 'curriculum_lessons', 
-    'micro_concepts', 'tracking_sheets', 'academic_terms'
-  ];
-  t text;
-begin
-  foreach t in array tables loop
-    -- 2. Enable RLS
-    execute format('ALTER TABLE IF EXISTS "%I" ENABLE ROW LEVEL SECURITY;', t);
-    
-    -- 3. Create Policy (Drop first to avoid error)
-    execute format('DROP POLICY IF EXISTS "Public Access" ON "%I";', t);
-    execute format('CREATE POLICY "Public Access" ON "%I" FOR ALL USING (true) WITH CHECK (true);', t);
-  end loop;
-end $$;
-`;
-};
-
-export const DB_MAP: Record<string, string> = {
-    'schools': 'schools',
-    'teachers': 'teachers',
-    'students': 'students'
-};
-
-export const getTableDisplayName = (table: string) => table;

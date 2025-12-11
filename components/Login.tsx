@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { authenticateUser, getStudents, setSystemMode, clearDatabase } from '../services/storageService';
+import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent } from '../services/storageService';
 import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
@@ -39,7 +39,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         const cleanIdentifier = identifier.trim();
 
         // 1. Parent Login Logic (Needs local students synced or cloud fetch)
-        // Since getStudents() uses cached local data, we rely on initAutoSync having run or fallback
         if (roleMode === 'PARENT') {
             const allStudents = getStudents();
             const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
@@ -55,21 +54,32 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setLoading(false);
                 return;
             } else {
-                // If local cache is empty, we might fail here. 
-                // But typically initAutoSync runs on App load.
                 setError('رقم الجوال غير مسجل كولي أمر لأي طالب (تأكد من المزامنة).');
                 setLoading(false);
                 return;
             }
         }
 
-        // 2. Staff/Student Logic (Cloud Auth)
+        // 2. Student Login Logic (Specific function)
+        if (roleMode === 'STUDENT') {
+            const studentUser = await authenticateStudent(cleanIdentifier, password);
+            if (studentUser) {
+                onLoginSuccess(studentUser, rememberMe);
+                setLoading(false);
+                return;
+            } else {
+                setError('بيانات الطالب غير صحيحة (تأكد من رقم الهوية وآخر 4 أرقام).');
+                setLoading(false);
+                return;
+            }
+        }
+
+        // 3. Staff Logic (Cloud Auth)
+        // roleMode here is effectively 'STAFF'
         const user = await authenticateUser(cleanIdentifier, password);
         
         if (user) {
-            if (roleMode === 'STUDENT' && user.role !== 'STUDENT') {
-                setError('هذا الحساب ليس حساب طالب.');
-            } else if (roleMode === 'STAFF' && user.role === 'STUDENT') {
+            if (user.role === 'STUDENT') {
                 setError('هذا الحساب مخصص للطلاب. الرجاء الدخول من تبويب الطالب.');
             } else {
                 onLoginSuccess(user, rememberMe);
@@ -133,14 +143,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         {roleMode === 'STAFF' ? 'دخول المعلمين والإداريين' : roleMode === 'STUDENT' ? 'دخول الطلاب' : 'دخول أولياء الأمور'}
                     </h2>
                     <p className="text-gray-400 text-sm mt-1">
-                        {roleMode === 'PARENT' ? 'أدخل رقم الجوال المسجل في النظام' : 'أدخل بياناتك للدخول إلى النظام'}
+                        {roleMode === 'PARENT' ? 'أدخل رقم الجوال المسجل في النظام' : 
+                         roleMode === 'STUDENT' ? 'أدخل رقم الهوية للدخول' : 
+                         'أدخل بياناتك للدخول إلى النظام'}
                     </p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                            {roleMode === 'PARENT' ? 'رقم الجوال' : 'البريد الإلكتروني / الهوية'}
+                            {roleMode === 'PARENT' ? 'رقم الجوال' : roleMode === 'STUDENT' ? 'رقم الهوية / السجل' : 'البريد الإلكتروني / الهوية'}
                         </label>
                         <div className="relative">
                             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -150,7 +162,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                                 type={roleMode === 'PARENT' ? "tel" : "text"}
                                 required
                                 className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dir-ltr text-right"
-                                placeholder={roleMode === 'PARENT' ? "05xxxxxxxx" : "user@email.com"}
+                                placeholder={roleMode === 'PARENT' ? "05xxxxxxxx" : roleMode === 'STUDENT' ? "10xxxxxxxx" : "user@email.com"}
                                 value={identifier}
                                 onChange={(e) => setIdentifier(e.target.value)}
                             />
@@ -159,7 +171,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
                     {roleMode !== 'PARENT' && (
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1.5">كلمة المرور</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                                {roleMode === 'STUDENT' ? 'كلمة المرور' : 'كلمة المرور'}
+                            </label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                     <Lock size={18} className="text-gray-400" />
@@ -168,7 +182,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                                     type={showPassword ? 'text' : 'password'}
                                     required
                                     className="w-full pr-10 pl-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dir-ltr text-right"
-                                    placeholder="••••••••"
+                                    placeholder={roleMode === 'STUDENT' ? "كلمة المرور أو آخر 4 أرقام من الهوية" : "••••••••"}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                 />
@@ -180,6 +194,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
+                            {roleMode === 'STUDENT' && <p className="text-[10px] text-gray-400 mt-1 mr-1">* كلمة المرور الافتراضية هي آخر 4 أرقام من الهوية</p>}
                         </div>
                     )}
 
