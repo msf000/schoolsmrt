@@ -81,10 +81,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const current = loadedTerms.find(t => t.isCurrent);
             if (current) {
                 setSelectedTermId(current.id);
-                setSettingTermId(current.id); 
             } else if (loadedTerms.length > 0) {
                 setSelectedTermId(loadedTerms[0].id);
-                setSettingTermId(loadedTerms[0].id);
             }
             
             // Set default subject
@@ -132,10 +130,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !selectedTermId || !a.termId || a.termId === selectedTermId;
+            // Logic: Show General (no period) OR Specific Period
             const periodMatch = !selectedPeriodId || !a.periodId || a.periodId === selectedPeriodId;
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
+
+    // **NEW**: Assignments filtered strictly for Settings Modal Management
+    const settingsAssignments = useMemo(() => {
+        if (activeTab === 'YEAR_WORK') return [];
+        return assignments.filter(a => {
+            const termMatch = !settingTermId || !a.termId || a.termId === settingTermId;
+            // Strict Filter: Show ONLY what matches the dropdown exactly
+            // If settingPeriodId is empty (General), show only assignments with NO periodId
+            // If settingPeriodId is set, show only assignments WITH that periodId
+            const periodMatch = settingPeriodId ? a.periodId === settingPeriodId : !a.periodId;
+            return a.category === activeTab && termMatch && periodMatch;
+        }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+    }, [assignments, settingTermId, settingPeriodId, activeTab]);
 
     // Initialize scores
     useEffect(() => {
@@ -162,6 +174,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     }, [filteredStudents, performance, selectedSubject, filteredAssignments, activeTab]);
 
     // --- Handlers ---
+
+    const handleOpenSettings = () => {
+        setSettingTermId(selectedTermId);
+        setSettingPeriodId(selectedPeriodId);
+        setIsSettingsOpen(true);
+    };
 
     const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
         setScores(prev => ({
@@ -281,6 +299,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const existingAssignment = currentAssignments.find(a => 
                     a.title === title && 
                     a.termId === settingTermId && 
+                    (settingPeriodId ? a.periodId === settingPeriodId : !a.periodId) && // Match strict period
                     a.category === activeTab
                 );
 
@@ -455,18 +474,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const examMax = yearWorkConfig.exam;
 
         // Homework
+        // Filter performance records that match the term/period date range
         const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject && filterByPeriod(p.date));
         
         // Count Homework Columns relevant to this term/period
         const hwCols = getAssignments('HOMEWORK', currentUser?.id, isManager).filter(a => {
             // Match Term
             const termMatch = !activeTerm || !a.termId || a.termId === activeTerm.id;
-            // Match Period if selected
+            // Match Period if selected:
+            // If period selected -> show assignments for that period OR general (no period) if general applies. 
+            // BUT for calculation accuracy, if period selected, we likely only want assignments specifically for that period OR assignments that are general (which apply to whole term).
+            // Logic: !selectedPeriodId (All) OR !a.periodId (General) OR match.
             const periodMatch = !selectedPeriodId || !a.periodId || a.periodId === selectedPeriodId;
             return termMatch && periodMatch;
         });
 
         const distinctHW = new Set(hwRecs.map(p => p.notes || p.title)).size; 
+        // Only calculate based on columns if columns exist, otherwise use records presence
         const hwGrade = hwCols.length > 0 ? Math.min((distinctHW / hwCols.length) * hwMax, hwMax) : (hwRecs.length > 0 ? hwMax : 0);
 
         // Activity
@@ -542,7 +566,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                     <div className="flex gap-2">
                         {/* Always allow settings to configure Year Work or Columns */}
-                        <button onClick={() => { setIsSettingsOpen(true); setSettingTermId(selectedTermId || ''); }} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
+                        <button onClick={handleOpenSettings} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
                             <Settings size={16}/> إعدادات {activeTab === 'YEAR_WORK' ? 'توزيع الدرجات' : 'الأعمدة'}
                         </button>
                         
@@ -783,7 +807,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     {/* Manual Management */}
                                     <div>
                                         <div className="flex justify-between items-center mb-2">
-                                            <h4 className="font-bold text-gray-700">الأعمدة الحالية</h4>
+                                            <h4 className="font-bold text-gray-700">الأعمدة الحالية ({settingsAssignments.length})</h4>
                                             <div className="flex gap-2">
                                                 <select className="text-xs border rounded px-1 outline-none" value={settingPeriodId} onChange={e => setSettingPeriodId(e.target.value)}>
                                                     <option value="">فترة: عام</option>
@@ -795,7 +819,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             </div>
                                         </div>
                                         <div className="space-y-2">
-                                            {filteredAssignments.map(col => (
+                                            {settingsAssignments.map(col => (
                                                 <div key={col.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded border hover:bg-white hover:shadow-sm transition-all">
                                                     <input 
                                                         className="font-bold text-gray-800 bg-transparent outline-none w-1/3 text-sm" 
@@ -809,6 +833,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                         value={col.maxScore} 
                                                         onChange={e => handleUpdateColumn(col, { maxScore: Number(e.target.value) })}
                                                     />
+                                                    
+                                                    {/* Period Selector in Edit Mode */}
+                                                    {settingsPeriods.length > 0 && (
+                                                        <select 
+                                                            className="text-xs border rounded p-1 max-w-[80px]"
+                                                            value={col.periodId || ''}
+                                                            onChange={e => handleUpdateColumn(col, { periodId: e.target.value || undefined })}
+                                                        >
+                                                            <option value="">عام</option>
+                                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                        </select>
+                                                    )}
+
                                                     <div className="flex-1 flex items-center gap-1 bg-white border rounded px-2">
                                                         <LinkIcon size={12} className="text-gray-400"/>
                                                         <input 
@@ -821,7 +858,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                     <button onClick={() => handleDeleteAssignment(col.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
                                                 </div>
                                             ))}
-                                            {filteredAssignments.length === 0 && <p className="text-center text-gray-400 text-xs py-4">لا توجد أعمدة مضافة لهذه الفترة.</p>}
+                                            {settingsAssignments.length === 0 && <p className="text-center text-gray-400 text-xs py-4">لا توجد أعمدة في هذه الفترة.</p>}
                                         </div>
                                     </div>
                                 </>
