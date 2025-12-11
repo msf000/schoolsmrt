@@ -59,8 +59,20 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
+        
+        // --- CHECK NAV CONTEXT ---
+        const navStudentId = localStorage.getItem('nav_context_student_id');
+        if (navStudentId) {
+            const exists = students.find(s => s.id === navStudentId);
+            if (exists) {
+                setSelectedStudentId(navStudentId);
+                setSearchTerm(exists.name);
+            }
+            localStorage.removeItem('nav_context_student_id');
+        }
+
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [currentUser]);
+    }, [currentUser, students]); // Add students to dep to ensure we can find the nav student
 
     const handleTargetChange = (val: string) => {
         const num = parseInt(val);

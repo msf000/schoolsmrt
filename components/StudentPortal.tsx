@@ -606,12 +606,28 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: { st
     );
 };
 
-// ... (StudentProfile, StudentCustomRecords, StudentExamsView unchanged from previous dump) ...
 const StudentProfile = ({ student }: { student: Student }) => {
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [msg, setMsg] = useState('');
+
+    const handleChangePassword = () => {
+        if (!newPassword) return;
+        if (newPassword !== confirmPassword) {
+            setMsg('كلمات المرور غير متطابقة');
+            return;
+        }
+        
+        const updatedStudent = { ...student, password: newPassword };
+        updateStudent(updatedStudent);
+        setMsg('تم تغيير كلمة المرور بنجاح');
+        setNewPassword(''); setConfirmPassword('');
+    };
+
     return (
         <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 animate-fade-in max-w-2xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4 flex items-center gap-2"><User className="text-teal-600"/> الملف الشخصي</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div>
                     <label className="block text-sm text-gray-500 mb-1">الاسم الكامل</label>
                     <div className="font-bold text-gray-800 text-lg">{student.name}</div>
@@ -629,6 +645,34 @@ const StudentProfile = ({ student }: { student: Student }) => {
                     <div className="font-bold text-gray-800 flex items-center gap-2">
                         {student.schoolId ? <span className="text-green-600 flex items-center gap-1"><CheckCircle size={14}/> مسجل</span> : 'غير مرتبط'}
                     </div>
+                </div>
+            </div>
+
+            <div className="border-t pt-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Lock size={16}/> تغيير كلمة المرور</h3>
+                <div className="space-y-3 max-w-sm">
+                    <input 
+                        type="password" 
+                        className="w-full p-2 border rounded-lg text-sm" 
+                        placeholder="كلمة المرور الجديدة"
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                    />
+                    <input 
+                        type="password" 
+                        className="w-full p-2 border rounded-lg text-sm" 
+                        placeholder="تأكيد كلمة المرور"
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                    />
+                    <button 
+                        onClick={handleChangePassword} 
+                        disabled={!newPassword}
+                        className="bg-teal-600 text-white px-4 py-2 rounded-lg font-bold text-sm w-full hover:bg-teal-700 disabled:opacity-50"
+                    >
+                        حفظ التغييرات
+                    </button>
+                    {msg && <p className={`text-xs font-bold ${msg.includes('بنجاح') ? 'text-green-600' : 'text-red-600'}`}>{msg}</p>}
                 </div>
             </div>
         </div>

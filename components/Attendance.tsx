@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser, AcademicTerm } from '../types';
 import { getSchedules, getAcademicTerms } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity, FileBarChart, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity, FileBarChart, ChevronLeft, ChevronRight, CalendarDays, Flame } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
@@ -446,13 +446,23 @@ const Attendance: React.FC<AttendanceProps> = ({
   const getStudentMetrics = (studentId: string) => {
       const myPerf = performance ? performance.filter(p => p.studentId === studentId) : [];
       const myAtt = attendanceHistory ? attendanceHistory.filter(a => a.studentId === studentId) : [];
+      
       const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+      
+      // Calculate CONSECUTIVE Absences from last few records
+      let consecutiveAbsence = 0;
+      const sortedAtt = myAtt.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      for (let rec of sortedAtt) {
+          if (rec.status === AttendanceStatus.ABSENT) consecutiveAbsence++;
+          else break;
+      }
+
       let avgGrade = 0;
       if (myPerf.length > 0) {
           const total = myPerf.reduce((sum, p) => sum + (p.score / p.maxScore), 0);
           avgGrade = Math.round((total / myPerf.length) * 100);
       }
-      return { absentCount, avgGrade, hasPerf: myPerf.length > 0 };
+      return { absentCount, avgGrade, hasPerf: myPerf.length > 0, consecutiveAbsence };
   };
 
   // --- Calculate Individual Report Data ---
@@ -630,7 +640,8 @@ const Attendance: React.FC<AttendanceProps> = ({
                                             <span onClick={() => setViewingStudentReport(student)} className="text-gray-800 font-bold block cursor-pointer hover:text-primary hover:underline">{student.name}</span>
                                             <div className="flex flex-wrap items-center gap-2 mt-1">
                                                 <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
-                                                {metrics.absentCount > 3 && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 font-bold flex gap-1"><AlertCircle size={10}/> غ: {metrics.absentCount}</span>}
+                                                {metrics.consecutiveAbsence >= 3 && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 font-bold flex gap-1 animate-pulse"><Flame size={10}/> غياب متصل</span>}
+                                                {metrics.absentCount > 3 && <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded border border-orange-100 font-bold flex gap-1"><AlertCircle size={10}/> غ: {metrics.absentCount}</span>}
                                             </div>
                                         </div>
                                         <div className="col-span-12 md:col-span-5 flex gap-1">
@@ -674,8 +685,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                                                     {student.name.charAt(0)}
                                                 </div>
                                                 <div className="flex gap-1">
+                                                    {metrics.consecutiveAbsence >= 3 && (
+                                                        <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200 animate-pulse" title="غياب متصل لأكثر من 3 أيام">
+                                                            <Flame size={12}/>
+                                                        </span>
+                                                    )}
                                                     {metrics.absentCount > 3 && (
-                                                        <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200">
+                                                        <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 rounded font-bold border border-orange-200">
                                                             {metrics.absentCount} غ
                                                         </span>
                                                     )}
