@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents } from '../services/storageService';
+import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, CloudDownload, X, Check, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -21,9 +21,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     // --- State ---
     const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>('HOMEWORK');
     
-    // Filters
+    // Filters (Main View)
     const [selectedTermId, setSelectedTermId] = useState('');
-    const [selectedPeriodId, setSelectedPeriodId] = useState(''); // New: Period Filter
+    const [selectedPeriodId, setSelectedPeriodId] = useState(''); 
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedClass, setSelectedClass] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -37,11 +37,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Column Settings Modal
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
     const [activityTarget, setActivityTarget] = useState(15);
 
-    // Google Sheet Sync State
+    // Google Sheet Sync Settings (Inside Modal)
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+    const [targetSheetName, setTargetSheetName] = useState('');
+    const [settingTermId, setSettingTermId] = useState('');
+    const [settingPeriodId, setSettingPeriodId] = useState('');
     const [isSyncingSheet, setIsSyncingSheet] = useState(false);
 
     // --- Effects ---
@@ -51,10 +54,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const loadedTerms = getAcademicTerms(currentUser.id);
             setTerms(loadedTerms);
             
+            // Load saved Master URL
+            const savedUrl = getWorksMasterUrl();
+            if (savedUrl) setGoogleSheetUrl(savedUrl);
+
             // Set default term
             const current = loadedTerms.find(t => t.isCurrent);
-            if (current) setSelectedTermId(current.id);
-            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+            if (current) {
+                setSelectedTermId(current.id);
+                setSettingTermId(current.id); // Default for settings too
+            } else if (loadedTerms.length > 0) {
+                setSelectedTermId(loadedTerms[0].id);
+                setSettingTermId(loadedTerms[0].id);
+            }
             
             // Set default subject
             const subs = getSubjects(currentUser.id);
@@ -63,7 +75,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     }, [currentUser]);
 
     useEffect(() => {
-        // Load assignments (columns) whenever tab, term, or user changes
         if (currentUser) {
             setAssignments(getAssignments(activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab, currentUser.id, isManager));
         }
@@ -72,6 +83,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     // --- Derived Data ---
     const activeTerm = terms.find(t => t.id === selectedTermId);
     const activePeriods = activeTerm?.periods || [];
+    
+    // For Settings Modal
+    const settingsTerm = terms.find(t => t.id === settingTermId);
+    const settingsPeriods = settingsTerm?.periods || [];
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -87,7 +102,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const filteredAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
-        // Filter assignments by Term AND Period
         return assignments.filter(a => {
             const termMatch = !selectedTermId || !a.termId || a.termId === selectedTermId;
             const periodMatch = !selectedPeriodId || !a.periodId || a.periodId === selectedPeriodId;
@@ -164,53 +178,128 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }, 500);
     };
 
-    // --- Column Settings & Sync Handlers ---
+    // --- Google Sync Logic ---
 
     const handleSyncFromGoogleSheet = async () => {
         if (!googleSheetUrl) return alert('يرجى إدخال رابط الملف');
-        if (!selectedTermId) return alert('يرجى اختيار الفصل الدراسي لربط الأعمدة');
+        if (!settingTermId) return alert('يرجى اختيار الفصل الدراسي لربط البيانات');
         
         setIsSyncingSheet(true);
         try {
+            // 1. Save URL for next time
+            saveWorksMasterUrl(googleSheetUrl);
+
+            // 2. Fetch Workbook
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
             
-            const { headers } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            // 3. Determine Sheet
+            const sheetToUse = targetSheetName && sheetNames.includes(targetSheetName) ? targetSheetName : sheetNames[0];
+            if (!targetSheetName) setTargetSheetName(sheetToUse); // Update UI
+
+            const { headers, data } = getSheetHeadersAndData(workbook, sheetToUse);
             
-            // Parse headers: "Title (MaxScore)" e.g., "Homework 1 (10)"
+            // 4. Create Assignments (Columns)
+            let newAssignments: Assignment[] = [];
             let count = 0;
+            
             headers.forEach((header, index) => {
-                // Ignore standard identifying columns
-                if (['name', 'id', 'الاسم', 'الهوية', 'student'].some(k => header.toLowerCase().includes(k))) return;
+                // Ignore standard ID columns
+                if (['name', 'id', 'الاسم', 'الهوية', 'student', 'سجل'].some(k => header.toLowerCase().includes(k))) return;
 
                 let title = header;
-                let maxScore = 10; // Default
+                let maxScore = 10;
 
-                // Regex to extract max score: "Title (10)"
+                // Extract Max Score: "Exam 1 (20)" -> Title: Exam 1, Max: 20
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
                 if (match) {
                     title = match[1].trim();
                     maxScore = parseInt(match[2]);
                 }
 
+                // Check if assignment exists to avoid dupes (by title + term + period)
+                // Actually, we usually want to update if it exists or create new
+                // For simplicity in this Sync, we create/update based on Title matching for this Term
+                
+                const assignId = `google_${settingTermId}_${settingPeriodId || 'all'}_${index}`;
+                
                 const newAssign: Assignment = {
-                    id: Date.now().toString() + index,
+                    id: assignId,
                     title: title,
                     category: activeTab as any,
                     maxScore: maxScore,
                     isVisible: true,
                     teacherId: currentUser?.id,
-                    termId: selectedTermId,
-                    periodId: selectedPeriodId || undefined,
-                    orderIndex: index
+                    termId: settingTermId,
+                    periodId: settingPeriodId || undefined,
+                    orderIndex: index,
+                    sourceMetadata: JSON.stringify({ sheet: sheetToUse, header: header })
                 };
+                
                 saveAssignment(newAssign);
+                newAssignments.push(newAssign);
                 count++;
             });
 
+            // 5. Parse Data Rows & Create Performance Records
+            const performanceRecords: PerformanceRecord[] = [];
+            const today = new Date().toISOString().split('T')[0];
+
+            data.forEach(row => {
+                // Find Student
+                let student: Student | undefined;
+                
+                // Try finding by National ID first
+                const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
+                if (rowNid) {
+                    student = students.find(s => s.nationalId === String(rowNid).trim());
+                }
+                
+                // Fallback to Name
+                if (!student) {
+                    const rowName = row['الاسم'] || row['name'] || row['student'];
+                    if (rowName) {
+                        student = students.find(s => s.name.trim() === String(rowName).trim());
+                    }
+                }
+
+                if (student) {
+                    // Iterate created assignments and find their value in this row
+                    newAssignments.forEach(assign => {
+                        const meta = assign.sourceMetadata ? JSON.parse(assign.sourceMetadata) : {};
+                        const headerName = meta.header || assign.title;
+                        const rawVal = row[headerName];
+                        
+                        if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+                            const numVal = parseFloat(rawVal);
+                            if (!isNaN(numVal)) {
+                                performanceRecords.push({
+                                    id: `${student!.id}_${assign.id}_${today}`,
+                                    studentId: student!.id,
+                                    subject: selectedSubject || 'عام',
+                                    title: assign.title,
+                                    category: assign.category,
+                                    score: numVal,
+                                    maxScore: assign.maxScore,
+                                    date: today,
+                                    notes: assign.id, // Link to assignment
+                                    createdById: currentUser?.id
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            // 6. Save Everything
             setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
-            alert(`تم استيراد ${count} أعمدة بنجاح!`);
+            if (performanceRecords.length > 0) {
+                onAddPerformance(performanceRecords);
+            }
+
+            alert(`تم المزامنة بنجاح!\n- الأعمدة المحدثة: ${count}\n- الدرجات المرصودة: ${performanceRecords.length}`);
             setIsSettingsOpen(false);
+
         } catch (e: any) {
             alert('فشل الاتصال بالملف: ' + e.message);
         } finally {
@@ -230,7 +319,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             maxScore: Number(max) || 10,
             isVisible: true,
             teacherId: currentUser?.id,
-            termId: selectedTermId,
+            termId: selectedTermId || undefined,
             periodId: selectedPeriodId || undefined
         };
         saveAssignment(newAssign);
@@ -280,12 +369,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // --- Calculation Logic ---
     const calculateYearWork = (student: Student) => {
-        // ... (Same calculation logic as before, filters by activeTerm)
         const filterByPeriod = (p: PerformanceRecord) => {
             if (activeTerm) return p.date >= activeTerm.startDate && p.date <= activeTerm.endDate;
             return true;
         };
-        // Simply reusing logic for brevity, ideally extracted to helper
+        
         const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject && filterByPeriod(p));
         const hwCols = getAssignments('HOMEWORK', currentUser?.id, isManager).filter(a => !activeTerm || !a.termId || a.termId === activeTerm.id);
         const distinctHW = new Set(hwRecs.map(p => p.notes || p.title)).size; 
@@ -473,23 +561,58 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
                             {/* Google Sync Section */}
                             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                                <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2"><FileSpreadsheet size={16}/> استيراد من Google Sheets</h4>
-                                <p className="text-xs text-green-700 mb-3">سيتم إنشاء الأعمدة تلقائياً بناءً على عناوين الملف. <br/> (مثال للعنوان: "واجب 1 (10)" سيتم اعتماده كـ عنوان: واجب 1، درجة عظمى: 10)</p>
-                                <div className="flex gap-2">
-                                    <input 
-                                        className="flex-1 p-2 border rounded text-sm dir-ltr" 
-                                        placeholder="https://docs.google.com/spreadsheets/d/..."
-                                        value={googleSheetUrl}
-                                        onChange={e => setGoogleSheetUrl(e.target.value)}
-                                    />
+                                <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2"><FileSpreadsheet size={16}/> استيراد من Google Sheets</h4>
+                                
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-xs font-bold text-green-700 mb-1">الفصل الدراسي *</label>
+                                            <select className="w-full p-2 border rounded text-xs" value={settingTermId} onChange={e => setSettingTermId(e.target.value)}>
+                                                <option value="">اختر الفصل...</option>
+                                                {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-green-700 mb-1">الفترة (اختياري)</label>
+                                            <select className="w-full p-2 border rounded text-xs" value={settingPeriodId} onChange={e => setSettingPeriodId(e.target.value)}>
+                                                <option value="">الكل</option>
+                                                {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-green-700 mb-1">اسم ورقة العمل (Sheet Name)</label>
+                                        <input 
+                                            className="w-full p-2 border rounded text-xs" 
+                                            placeholder="مثال: Sheet1 أو ورقة1 (اتركه فارغاً للأولى)"
+                                            value={targetSheetName}
+                                            onChange={e => setTargetSheetName(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-green-700 mb-1">رابط الملف</label>
+                                        <input 
+                                            className="w-full p-2 border rounded text-xs dir-ltr" 
+                                            placeholder="https://docs.google.com/spreadsheets/d/..."
+                                            value={googleSheetUrl}
+                                            onChange={e => setGoogleSheetUrl(e.target.value)}
+                                        />
+                                    </div>
+
                                     <button 
                                         onClick={handleSyncFromGoogleSheet} 
-                                        disabled={isSyncingSheet}
-                                        className="bg-green-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                                        disabled={isSyncingSheet || !settingTermId}
+                                        className="bg-green-600 text-white w-full py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                                     >
-                                        <DownloadCloud size={16} className={isSyncingSheet ? "animate-bounce" : ""}/> جلب
+                                        {isSyncingSheet ? <Loader2 size={16} className="animate-spin"/> : <CloudDownload size={16}/>}
+                                        جلب البيانات وتحديث الدرجات
                                     </button>
                                 </div>
+                                <p className="text-[10px] text-green-600 mt-2">
+                                    تنبيه: سيتم إنشاء الأعمدة تلقائياً بناءً على عناوين الملف (الصف الأول)، وسيتم رصد الدرجات للطلاب المطابقين (عبر الهوية أو الاسم).
+                                </p>
                             </div>
 
                             {/* Manual Management */}
