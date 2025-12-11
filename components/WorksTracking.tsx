@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, CloudDownload, X, Check, ExternalLink } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -487,7 +487,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         disabled={isSyncingSheet}
                                         className="bg-green-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
                                     >
-                                        <CloudDownload size={16} className={isSyncingSheet ? "animate-bounce" : ""}/> جلب
+                                        <DownloadCloud size={16} className={isSyncingSheet ? "animate-bounce" : ""}/> جلب
                                     </button>
                                 </div>
                             </div>
