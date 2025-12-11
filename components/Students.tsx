@@ -430,9 +430,9 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
 
                               {/* Charts */}
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  <div className="bg-white p-4 rounded-xl border border-gray-200 h-80 flex flex-col">
+                                  <div className="bg-white p-4 rounded-xl border border-gray-200">
                                       <h4 className="font-bold text-gray-700 text-sm mb-4">تحليل المهارات (Radar)</h4>
-                                      <div className="flex-1 min-h-0">
+                                      <div className="h-64 w-full">
                                           <ResponsiveContainer width="100%" height="100%">
                                               <RadarChart cx="50%" cy="50%" outerRadius="70%" data={studentStats.radarData}>
                                                   <PolarGrid />
@@ -444,9 +444,9 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                                           </ResponsiveContainer>
                                       </div>
                                   </div>
-                                  <div className="bg-white p-4 rounded-xl border border-gray-200 h-80 flex flex-col">
+                                  <div className="bg-white p-4 rounded-xl border border-gray-200">
                                       <h4 className="font-bold text-gray-700 text-sm mb-4">تطور الدرجات (آخر 5)</h4>
-                                      <div className="flex-1 min-h-0">
+                                      <div className="h-64 w-full">
                                           <ResponsiveContainer width="100%" height="100%">
                                               <LineChart data={studentStats.recentGrades}>
                                                   <CartesianGrid strokeDasharray="3 3" vertical={false} />

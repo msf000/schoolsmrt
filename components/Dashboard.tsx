@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
 import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans, getAcademicTerms } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table, XCircle, PlusCircle } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table, XCircle, PlusCircle, Filter } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -195,17 +195,21 @@ const SystemAdminDashboard = () => (
 // --- SCHOOL MANAGER DASHBOARD ---
 const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performance, currentUser, onNavigate }) => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
     
     useEffect(() => {
         const allTeachers = getTeachers();
         const mySchoolTeachers = allTeachers.filter(t => t.schoolId === currentUser.schoolId || t.managerId === currentUser.nationalId);
         setTeachers(mySchoolTeachers);
 
-        const terms = getAcademicTerms(currentUser.id);
-        const active = terms.find(t => t.isCurrent) || (terms.length > 0 ? terms[0] : null);
-        setCurrentTerm(active);
+        const loadedTerms = getAcademicTerms(currentUser.id);
+        setTerms(loadedTerms);
+        const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
+        if (active) setSelectedTermId(active.id);
     }, [currentUser]);
+
+    const activeTerm = terms.find(t => t.id === selectedTermId);
 
     const stats = useMemo(() => {
         const totalStudents = students.length;
@@ -218,29 +222,29 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
         const absentToday = todaysRecords.filter((a: any) => a.status === 'ABSENT').length;
         const attendanceRate = totalStudents > 0 && todaysRecords.length > 0 ? Math.round((presentToday / todaysRecords.length) * 100) : 0;
 
-        // Performance Avg (Filtered by Current Term if available)
+        // Performance Avg (Filtered by Selected Term)
         let filteredPerf = performance;
-        if (currentTerm) {
-            filteredPerf = performance.filter((p: PerformanceRecord) => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+        if (activeTerm) {
+            filteredPerf = performance.filter((p: PerformanceRecord) => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
         }
 
         const totalScore = filteredPerf.reduce((acc: number, curr: any) => acc + (curr.score / curr.maxScore), 0);
         const avgPerformance = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
 
         return { totalStudents, totalTeachers, attendanceRate, absentToday, avgPerformance, presentToday };
-    }, [students, attendance, performance, teachers, currentTerm]);
+    }, [students, attendance, performance, teachers, activeTerm]);
 
-    // Chart Data: Attendance by Grade (FILTERED BY CURRENT TERM)
+    // Chart Data: Attendance by Grade (FILTERED BY SELECTED TERM)
     const attendanceByGrade = useMemo(() => {
         const grades = Array.from(new Set(students.map((s: any) => s.gradeLevel))).filter(Boolean);
         return grades.map(grade => {
             const gradeStudents = students.filter((s: any) => s.gradeLevel === grade);
             const studentIds = new Set(gradeStudents.map((s: any) => s.id));
             
-            // Filter attendance by current term dates if available
+            // Filter attendance by selected term dates if available
             let gradeAtt = attendance.filter((a: any) => studentIds.has(a.studentId));
-            if (currentTerm) {
-                gradeAtt = gradeAtt.filter((a: any) => a.date >= currentTerm.startDate && a.date <= currentTerm.endDate);
+            if (activeTerm) {
+                gradeAtt = gradeAtt.filter((a: any) => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
             }
 
             const present = gradeAtt.filter((a: any) => a.status === 'PRESENT').length;
@@ -250,10 +254,25 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
                 rate: total > 0 ? Math.round((present / total) * 100) : 0
             };
         });
-    }, [students, attendance, currentTerm]);
+    }, [students, attendance, activeTerm]);
 
     return (
         <div className="p-6 space-y-6 animate-fade-in">
+            {/* Term Filter */}
+            <div className="flex justify-end">
+                <div className="flex items-center gap-2 bg-white p-2 rounded-lg border shadow-sm">
+                    <Filter size={16} className="text-gray-400"/>
+                    <select 
+                        className="bg-transparent text-sm font-bold text-purple-700 outline-none cursor-pointer"
+                        value={selectedTermId}
+                        onChange={e => setSelectedTermId(e.target.value)}
+                    >
+                        <option value="">كل الفترات</option>
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                </div>
+            </div>
+
             {/* Header Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
@@ -280,7 +299,7 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
                 </div>
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
                     <div>
-                        <p className="text-gray-500 text-xs font-bold mb-1">الأداء العام {currentTerm ? `(${currentTerm.name})` : ''}</p>
+                        <p className="text-gray-500 text-xs font-bold mb-1">الأداء العام {activeTerm ? `(${activeTerm.name})` : ''}</p>
                         <h3 className="text-3xl font-black text-orange-500">{stats.avgPerformance}%</h3>
                     </div>
                     <div className="bg-orange-50 p-3 rounded-full text-orange-600"><Activity size={24}/></div>
@@ -292,9 +311,9 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
                     <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <TrendingUp size={18} className="text-blue-500"/> 
-                        نسبة الحضور حسب الصف {currentTerm ? <span className="text-xs font-normal text-gray-500">({currentTerm.name})</span> : ''}
+                        نسبة الحضور حسب الصف {activeTerm ? <span className="text-xs font-normal text-gray-500">({activeTerm.name})</span> : ''}
                     </h3>
-                    <div className="h-64">
+                    <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={attendanceByGrade}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -362,14 +381,17 @@ const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performan
 const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
-  const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
+  
+  const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<string>('');
 
   useEffect(() => {
       setSchedules(getSchedules());
       
-      const terms = getAcademicTerms(currentUser?.id);
-      const active = terms.find(t => t.isCurrent) || (terms.length > 0 ? terms[0] : null);
-      setCurrentTerm(active);
+      const loadedTerms = getAcademicTerms(currentUser?.id);
+      setTerms(loadedTerms);
+      const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
+      if (active) setSelectedTermId(active.id);
 
       if (currentUser?.role === 'TEACHER') {
           const teachers = getTeachers();
@@ -383,6 +405,8 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
           }
       }
   }, [currentUser]);
+
+  const activeTerm = terms.find(t => t.id === selectedTermId);
 
   // --- Today's Schedule Logic ---
   const todaySchedule = useMemo(() => {
@@ -404,34 +428,34 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
     
     const attendanceRate = totalStudents > 0 ? Math.round((present / totalStudents) * 100) : 0;
 
-    // Filter Performance by Current Term
+    // Filter Performance by Selected Term
     let filteredPerf = performance;
-    if (currentTerm) {
-        filteredPerf = performance.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+    if (activeTerm) {
+        filteredPerf = performance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
     }
 
     const totalScore = filteredPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
     const avgScore = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
 
     return { totalStudents, present, absent, attendanceRate, avgScore };
-  }, [students, attendance, performance, selectedDate, currentTerm]);
+  }, [students, attendance, performance, selectedDate, activeTerm]);
 
   const studentMetrics = useMemo(() => {
     return students.map(student => {
-        // Filter attendance by Current Term if available
+        // Filter attendance by Selected Term
         let studentAttendance = attendance.filter(a => a.studentId === student.id);
-        if (currentTerm) {
-             studentAttendance = studentAttendance.filter(a => a.date >= currentTerm.startDate && a.date <= currentTerm.endDate);
+        if (activeTerm) {
+             studentAttendance = studentAttendance.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
         }
 
         const totalDays = studentAttendance.length;
         const creditDays = studentAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
         const attendanceRate = totalDays > 0 ? (creditDays / totalDays) * 100 : 100;
 
-        // Filter Performance by Current Term if available
+        // Filter Performance by Selected Term
         let studentPerformance = performance.filter(p => p.studentId === student.id);
-        if (currentTerm) {
-             studentPerformance = studentPerformance.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+        if (activeTerm) {
+             studentPerformance = studentPerformance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
         }
 
         const totalScore = studentPerformance.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
@@ -444,7 +468,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
 
         return { id: student.id, name: student.name, grade: student.gradeLevel, attendance: Math.round(attendanceRate), score: Math.round(avgScore), leaderboardScore: Math.round(leaderboardScore) };
     });
-  }, [students, attendance, performance, currentTerm]);
+  }, [students, attendance, performance, activeTerm]);
 
   const topStudents = [...studentMetrics].sort((a,b) => b.leaderboardScore - a.leaderboardScore).slice(0, 5);
 
@@ -485,13 +509,13 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
   const riskAlerts = useMemo(() => {
       const risks: any[] = [];
       students.forEach(s => {
-          // Filter data for Risk Analysis by Current Term
+          // Filter data for Risk Analysis by Active Term
           let sAtt = attendance.filter(a => a.studentId === s.id);
           let sPerf = performance.filter(p => p.studentId === s.id);
           
-          if (currentTerm) {
-              sAtt = sAtt.filter(a => a.date >= currentTerm.startDate && a.date <= currentTerm.endDate);
-              sPerf = sPerf.filter(p => p.date >= currentTerm.startDate && p.date <= currentTerm.endDate);
+          if (activeTerm) {
+              sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+              sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
           }
 
           const absent = sAtt.filter(a => a.status === 'ABSENT').length;
@@ -509,7 +533,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
           }
       });
       return risks.slice(0, 3);
-  }, [students, attendance, performance, currentTerm]);
+  }, [students, attendance, performance, activeTerm]);
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
@@ -534,7 +558,23 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                  <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Calendar size={18} className="text-primary"/> جدول اليوم</h3>
+                  <div className="flex justify-between items-center mb-3">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2"><Calendar size={18} className="text-primary"/> جدول اليوم</h3>
+                      
+                      {/* Term Selector */}
+                      <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
+                          <Filter size={14} className="text-gray-400"/>
+                          <select 
+                              value={selectedTermId}
+                              onChange={(e) => setSelectedTermId(e.target.value)}
+                              className="bg-transparent text-xs font-bold outline-none text-purple-700"
+                          >
+                              <option value="">كل الفترات</option>
+                              {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                      </div>
+                  </div>
+
                   {todaySchedule.length > 0 ? (
                       <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
                           {todaySchedule.map((session, idx) => (
@@ -555,7 +595,7 @@ const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, perf
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الطلاب</p><p className="text-2xl font-black text-gray-800">{stats.totalStudents}</p></div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الحضور</p><p className="text-2xl font-black text-green-600">{stats.attendanceRate}%</p></div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الغياب</p><p className="text-2xl font-black text-red-600">{stats.absent}</p></div>
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الأداء {currentTerm ? `(${currentTerm.name})` : ''}</p><p className="text-2xl font-black text-blue-600">{stats.avgScore}%</p></div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الأداء {activeTerm ? `(${activeTerm.name})` : ''}</p><p className="text-2xl font-black text-blue-600">{stats.avgScore}%</p></div>
               </div>
           </div>
 

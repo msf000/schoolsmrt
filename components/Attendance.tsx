@@ -45,6 +45,8 @@ const Attendance: React.FC<AttendanceProps> = ({
     currentUser,
     onNavigate
 }) => {
+  const isManager = currentUser?.role === 'SCHOOL_MANAGER';
+
   if (!students) {
       return (
           <div className="flex flex-col items-center justify-center h-full p-12 text-center">
@@ -54,7 +56,7 @@ const Attendance: React.FC<AttendanceProps> = ({
       );
   }
 
-  const [activeTab, setActiveTab] = useState<'REGISTER' | 'WEEKLY' | 'LOG'>('REGISTER');
+  const [activeTab, setActiveTab] = useState<'REGISTER' | 'WEEKLY' | 'LOG'>(isManager ? 'LOG' : 'REGISTER');
   const [viewMode, setViewMode] = useState<'LIST' | 'GRID'>('GRID'); // Default to Grid for better UX
 
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
@@ -275,6 +277,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   };
 
   const toggleWeeklyStatus = (studentId: string, date: string) => {
+      if (isManager) return; // Managers can't toggle
       const record = attendanceHistory.find(a => a.studentId === studentId && a.date === date);
       let newStatus = AttendanceStatus.ABSENT; // Default to toggle to Absent
       
@@ -485,9 +488,11 @@ const Attendance: React.FC<AttendanceProps> = ({
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4 print:hidden">
           <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
-              <button onClick={() => setActiveTab('REGISTER')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
-                  <CheckSquare size={18}/> تسجيل الحضور
-              </button>
+              {!isManager && (
+                  <button onClick={() => setActiveTab('REGISTER')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                      <CheckSquare size={18}/> تسجيل الحضور
+                  </button>
+              )}
               <button onClick={() => setActiveTab('WEEKLY')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'WEEKLY' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                   <CalendarDays size={18}/> عرض أسبوعي
               </button>
@@ -502,12 +507,16 @@ const Attendance: React.FC<AttendanceProps> = ({
                 <span className="hidden md:inline">صندوق الأعذار</span>
                 {pendingExcuses.length > 0 && <span className="bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full absolute -top-1 -right-1">{pendingExcuses.length}</span>}
              </button>
-             <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg flex items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
-             <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-bold"><Sparkles size={18} /><span className="hidden md:inline">AI Import</span></button>
+             {!isManager && (
+                 <>
+                    <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg flex items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
+                    <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-bold"><Sparkles size={18} /><span className="hidden md:inline">AI Import</span></button>
+                 </>
+             )}
           </div>
       </div>
 
-      {activeTab === 'REGISTER' && (
+      {activeTab === 'REGISTER' && !isManager && (
           <div className="space-y-6 flex-1 overflow-auto">
               <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex items-center gap-3">
@@ -803,7 +812,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                                   return (
                                                       <td 
                                                           key={day} 
-                                                          className="p-3 border-l border-gray-100 cursor-pointer"
+                                                          className={`p-3 border-l border-gray-100 ${!isManager ? 'cursor-pointer' : ''}`}
                                                           onClick={() => toggleWeeklyStatus(student.id, day)}
                                                       >
                                                           <div className={`mx-auto w-8 h-8 rounded flex items-center justify-center font-bold text-xs transition-all ${
@@ -927,7 +936,7 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {isImportModalOpen && (
+      {isImportModalOpen && !isManager && (
           <div className="fixed inset-0 z-[100] bg-white">
               <DataImport 
                   existingStudents={students}
@@ -944,7 +953,7 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {isAIImportModalOpen && (
+      {isAIImportModalOpen && !isManager && (
           <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
                   <AIDataImport 

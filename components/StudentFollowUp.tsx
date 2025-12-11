@@ -307,7 +307,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 print:hidden">
                         <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
                             <h4 className="font-bold text-gray-700 mb-4 text-center">تحليل الأداء</h4>
-                            <div className="h-64">
+                            <div className="h-64 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={stats.chartData}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} />

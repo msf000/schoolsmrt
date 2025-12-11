@@ -65,7 +65,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [analyticsExam, setAnalyticsExam] = useState('');
 
   useEffect(() => {
-      setTerms(getAcademicTerms(currentUser?.id));
+      const loadedTerms = getAcademicTerms(currentUser?.id);
+      setTerms(loadedTerms);
+      const current = loadedTerms.find(t => t.isCurrent);
+      if (current) setSelectedTermId(current.id);
+      else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
   }, [currentUser]);
 
   const uniqueGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
@@ -97,12 +101,22 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       return students.filter(s => s.className === bulkClass).sort((a,b) => a.name.localeCompare(b.name));
   }, [students, bulkClass]);
 
+  // Filtered Performance for Analytics (Term Based)
+  const filteredAnalyticsPerformance = useMemo(() => {
+      const activeTerm = terms.find(t => t.id === selectedTermId);
+      if (!activeTerm) return performance;
+      return performance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+  }, [performance, selectedTermId, terms]);
+
+  // Distinct Exam Titles from FILTERED performance
+  const distinctExamTitles = useMemo(() => Array.from(new Set(filteredAnalyticsPerformance.map(p => p.title))), [filteredAnalyticsPerformance]);
+
   // Analytics Data
   const analyticsData = useMemo(() => {
       if (!analyticsExam) return null;
       
-      // Find all records for this specific exam title
-      const relevantRecords = performance.filter(p => p.title === analyticsExam && (!analyticsSubject || p.subject === analyticsSubject));
+      // Find all records for this specific exam title (using Filtered Performance)
+      const relevantRecords = filteredAnalyticsPerformance.filter(p => p.title === analyticsExam && (!analyticsSubject || p.subject === analyticsSubject));
       
       if (relevantRecords.length === 0) return null;
 
@@ -140,7 +154,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       return {
           avgScore, maxAchieved, minAchieved, totalPossible, chartData, topStudents, lowStudents, count: scores.length
       };
-  }, [performance, analyticsExam, analyticsSubject, students]);
+  }, [filteredAnalyticsPerformance, analyticsExam, analyticsSubject, students]);
 
   useEffect(() => {
       if (filteredStudentsEntry.length > 0 && !filteredStudentsEntry.find(s => s.id === studentId)) {
@@ -295,8 +309,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const recentPerformance = performance
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
-
-  const distinctExamTitles = useMemo(() => Array.from(new Set(performance.map(p => p.title))), [performance]);
 
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col animate-fade-in">
@@ -606,7 +618,20 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                       </h3>
                       <p className="text-sm text-gray-500">تحليل تفصيلي لدرجات اختبار محدد.</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                      {/* Term Selector */}
+                      <div className="flex items-center gap-2 bg-gray-50 border p-1 rounded-lg">
+                          <Filter size={14} className="text-gray-400"/>
+                          <select 
+                              className="bg-transparent outline-none text-xs font-bold text-purple-700 min-w-[100px]"
+                              value={selectedTermId}
+                              onChange={e => setSelectedTermId(e.target.value)}
+                          >
+                              <option value="">كل الفترات</option>
+                              {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                      </div>
+
                       <select 
                           className="p-2 border rounded-lg bg-gray-50 font-bold text-gray-700"
                           value={analyticsExam}
@@ -642,10 +667,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                       </div>
 
                       {/* Charts */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-64">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="bg-white border rounded-xl p-4 flex flex-col">
                               <h4 className="font-bold text-gray-700 text-sm mb-2">توزيع المستويات</h4>
-                              <div className="flex-1 min-h-0">
+                              <div className="h-64 w-full">
                                   <ResponsiveContainer width="100%" height="100%">
                                       <BarChart data={analyticsData.chartData}>
                                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -663,7 +688,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                           </div>
                           <div className="bg-white border rounded-xl p-4 flex flex-col">
                               <h4 className="font-bold text-gray-700 text-sm mb-2">نسب التحصيل</h4>
-                              <div className="flex-1 min-h-0">
+                              <div className="h-64 w-full">
                                   <ResponsiveContainer width="100%" height="100%">
                                       <PieChart>
                                           <Pie

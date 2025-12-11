@@ -43,7 +43,7 @@ import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import ParentPortal from './components/ParentPortal';
 import CertificatesCenter from './components/CertificatesCenter';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff, Activity, ClipboardList } from 'lucide-react';
 
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
@@ -290,6 +290,8 @@ const App: React.FC = () => {
         </button>
     );
 
+    const isManager = currentUser.role === 'SCHOOL_MANAGER';
+
     return (
         <div className={`flex h-screen overflow-hidden text-right font-sans ${theme.mode === 'DARK' ? 'dark' : ''}`} dir="rtl">
             
@@ -332,30 +334,42 @@ const App: React.FC = () => {
                     
                     {currentUser.role === 'SUPER_ADMIN' && <NavItem view="ADMIN_DASHBOARD" label="إدارة النظام" icon={Settings} />}
                     
-                    {/* Basic Tools */}
-                    {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER') && (
+                    {/* MANAGER SPECIFIC SIDEBAR (MONITORING ONLY) */}
+                    {isManager && (
+                        <>
+                            <div className="pt-4 mt-4 border-t border-gray-100">
+                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الإدارة والمتابعة</label>
+                                <NavItem view="SCHOOL_MANAGEMENT" label="إدارة المدرسة" icon={Settings} />
+                                <NavItem view="STUDENTS" label="قائمة الطلاب" icon={Users} />
+                                <NavItem view="ATTENDANCE" label="سجل الحضور" icon={Calendar} />
+                            </div>
+
+                            <div className="pt-4 mt-4 border-t border-gray-100">
+                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">التقارير والتواصل</label>
+                                <NavItem view="MONTHLY_REPORT" label="التقرير الشامل" icon={Printer} />
+                                <NavItem view="STUDENT_FOLLOWUP" label="بطاقة الطالب" icon={ClipboardList} />
+                                <NavItem view="AI_REPORTS" label="تحليل الذكاء (AI)" icon={BrainCircuit} />
+                                <NavItem view="MESSAGE_CENTER" label="مركز الرسائل" icon={Mail} />
+                            </div>
+                        </>
+                    )}
+
+                    {/* TEACHER SPECIFIC SIDEBAR (FULL TOOLS) */}
+                    {currentUser.role === 'TEACHER' && (
                         <>
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
                             <NavItem view="ATTENDANCE" label="الحضور والغياب" icon={CheckSquare} />
                             <NavItem view="CLASSROOM_MANAGEMENT" label="الإدارة الصفية" icon={MonitorPlay} />
                             <NavItem view="WORKS_TRACKING" label="سجل الرصد (الإلكتروني)" icon={Table} />
-                        </>
-                    )}
-                    
-                    {/* Planning & Curriculum */}
-                    {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER' || currentUser.role === 'SUPER_ADMIN') && (
-                        <div className="pt-4 mt-4 border-t border-gray-100">
-                            <label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط والمناهج</label>
-                            <NavItem view="SCHEDULE_VIEW" label="الجدول الدراسي" icon={Calendar} />
-                            <NavItem view="LESSON_PLANNING" label="تحضير الدروس" icon={PenTool} />
-                            <NavItem view="CURRICULUM_MAP" label="توزيع المنهج" icon={ListTree} />
-                            <NavItem view="RESOURCES_VIEW" label="مكتبة المصادر" icon={BookOpen} />
-                        </div>
-                    )}
+                            
+                            <div className="pt-4 mt-4 border-t border-gray-100">
+                                <label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط والمناهج</label>
+                                <NavItem view="SCHEDULE_VIEW" label="الجدول الدراسي" icon={Calendar} />
+                                <NavItem view="LESSON_PLANNING" label="تحضير الدروس" icon={PenTool} />
+                                <NavItem view="CURRICULUM_MAP" label="توزيع المنهج" icon={ListTree} />
+                                <NavItem view="RESOURCES_VIEW" label="مكتبة المصادر" icon={BookOpen} />
+                            </div>
 
-                    {/* Advanced Tools */}
-                    {(currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'TEACHER') && (
-                        <>
                             <div className="pt-4 mt-4 border-t border-gray-100">
                                 <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الاختبارات والتقييم</label>
                                 <NavItem view="QUESTION_BANK" label="بنك الأسئلة" icon={Library} />
