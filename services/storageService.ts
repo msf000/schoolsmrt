@@ -152,15 +152,32 @@ export const addSystemUser = (u: SystemUser) => { const list = getSystemUsers();
 export const updateSystemUser = (u: SystemUser) => { const list = getSystemUsers(); const idx = list.findIndex(x => x.id === u.id); if (idx > -1) list[idx] = u; save(KEYS.USERS, list); };
 export const deleteSystemUser = (id: string) => { save(KEYS.USERS, getSystemUsers().filter(x => x.id !== id)); };
 
-// --- UPDATED AUTHENTICATION: Local -> Cloud Fallback ---
+// --- UPDATED AUTHENTICATION: Local (Users & Students) -> Cloud Fallback ---
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
-    // 1. Try Local Storage first
+    // 1. Try Local Storage (System Users)
     const users = getSystemUsers();
     const localUser = users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === password && u.status === 'ACTIVE');
     
     if (localUser) return localUser;
 
-    // 2. Try Supabase Cloud Fallback
+    // 2. Try Local Storage (Students)
+    const students = getStudents();
+    const studentUser = students.find(s => (s.email === identifier || s.nationalId === identifier) && s.password === password);
+    
+    if (studentUser) {
+        return {
+            id: studentUser.id,
+            name: studentUser.name,
+            email: studentUser.email || '',
+            nationalId: studentUser.nationalId,
+            password: studentUser.password || '',
+            role: 'STUDENT',
+            schoolId: studentUser.schoolId,
+            status: 'ACTIVE'
+        };
+    }
+
+    // 3. Try Supabase Cloud Fallback
     try {
         console.log("Local auth failed, trying cloud...");
         const { data, error } = await supabase

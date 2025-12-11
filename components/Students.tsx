@@ -148,7 +148,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
 
   // --- Form Handling ---
   const initialFormState = {
-    name: '', nationalId: '', gradeLevel: '', className: '', email: '', phone: '', parentName: '', parentPhone: '', parentEmail: ''
+    name: '', nationalId: '', gradeLevel: '', className: '', email: '', phone: '', parentName: '', parentPhone: '', parentEmail: '', password: ''
   };
   const [formData, setFormData] = useState(initialFormState);
 
@@ -169,7 +169,8 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
           phone: student.phone || '',
           parentName: student.parentName || '',
           parentPhone: student.parentPhone || '',
-          parentEmail: student.parentEmail || ''
+          parentEmail: student.parentEmail || '',
+          password: student.password || ''
       });
       setIsFormModalOpen(true);
   };
@@ -194,7 +195,8 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       parentPhone: formData.parentPhone,
       parentEmail: formData.parentEmail,
       schoolId: finalSchoolId,
-      createdById: editingStudent?.createdById || currentUser?.id
+      createdById: editingStudent?.createdById || currentUser?.id,
+      password: formData.password // Add password
     };
 
     try {
@@ -411,7 +413,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
 
                   {/* Modal Content */}
                   <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar">
-                      
                       {/* 1. OVERVIEW TAB */}
                       {viewModalTab === 'OVERVIEW' && (
                           <div className="space-y-6">
@@ -663,6 +664,20 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                         onChange={(e) => setFormData({...formData, parentPhone: e.target.value})}
                         />
                     </div>
+                   </div>
+               </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                   <h4 className="text-sm font-bold text-purple-700 mb-3">بيانات الدخول (الطالب)</h4>
+                   <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">كلمة المرور (اختياري)</label>
+                        <input 
+                        type="password" 
+                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500/50 outline-none text-sm"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        placeholder="اتركه فارغاً لعدم التغيير"
+                        />
                    </div>
                </div>
 
