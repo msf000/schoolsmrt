@@ -361,11 +361,11 @@ export const authenticateStudent = async (nationalId: string, password: string):
     return undefined;
 };
 
-// --- SYNC ENGINE (Populate Cache from Cloud) ---
+// --- SYNC ENGINE (Smart Sync) ---
 export const initAutoSync = async () => {
     setSyncStatus('SYNCING');
     try {
-        // Parallel fetch all tables
+        // 1. Fetch Cloud Data
         const [
             schools, teachers, users, students, attendance, performance, 
             assignments, subjects, schedules, teacherAssignments, 
@@ -387,20 +387,53 @@ export const initAutoSync = async () => {
             supabase.from('curriculum_lessons').select('*'),
         ]);
 
-        if(schools.data) updateCache(KEYS.SCHOOLS, schools.data);
-        if(teachers.data) updateCache(KEYS.TEACHERS, teachers.data);
-        if(users.data) updateCache(KEYS.USERS, users.data);
-        if(students.data) updateCache(KEYS.STUDENTS, students.data);
-        if(attendance.data) updateCache(KEYS.ATTENDANCE, attendance.data);
-        if(performance.data) updateCache(KEYS.PERFORMANCE, performance.data);
-        if(assignments.data) updateCache(KEYS.WORKS_ASSIGNMENTS, assignments.data);
-        if(subjects.data) updateCache(KEYS.SUBJECTS, subjects.data);
-        if(schedules.data) updateCache(KEYS.SCHEDULES, schedules.data);
-        if(teacherAssignments.data) updateCache(KEYS.ASSIGNMENTS, teacherAssignments.data);
-        if(exams.data) updateCache(KEYS.EXAMS, exams.data);
-        if(questions.data) updateCache(KEYS.QUESTION_BANK, questions.data);
-        if(units.data) updateCache(KEYS.CURRICULUM_UNITS, units.data);
-        if(lessons.data) updateCache(KEYS.CURRICULUM_LESSONS, lessons.data);
+        // Helper for Smart Sync (Push if Cloud Empty & Local Full, else Pull)
+        const smartSync = async (key: string, cloudData: any[] | null, tableName: string) => {
+            const localData = get<any>(key);
+            
+            // Case 1: Cloud has data -> Source of Truth -> Update Local (Overwrite)
+            if (cloudData && cloudData.length > 0) {
+                updateCache(key, cloudData);
+                return;
+            }
+
+            // Case 2: Cloud is Empty AND Local has data -> Push Local to Cloud
+            if ((!cloudData || cloudData.length === 0) && localData.length > 0) {
+                console.log(`Cloud table ${tableName} is empty. Pushing local data...`);
+                const { error } = await supabase.from(tableName).insert(localData);
+                if (error) console.error(`Failed to push local ${tableName} to cloud`, error);
+                // Keep local as is (implicit success until next sync)
+                return;
+            }
+
+            // Case 3: Both empty -> Clear cache to be safe
+            if (cloudData && cloudData.length === 0) {
+                updateCache(key, []);
+            }
+        };
+
+        // Apply Smart Sync to critical tables
+        await smartSync(KEYS.SCHOOLS, schools.data, 'schools');
+        await smartSync(KEYS.TEACHERS, teachers.data, 'teachers');
+        await smartSync(KEYS.USERS, users.data, 'system_users');
+        await smartSync(KEYS.STUDENTS, students.data, 'students');
+        
+        // For transactional data (Attendance/Perf), perform simpler sync
+        if(attendance.data && attendance.data.length > 0) updateCache(KEYS.ATTENDANCE, attendance.data);
+        else if (getAttendance().length > 0) await supabase.from('attendance').insert(getAttendance());
+
+        if(performance.data && performance.data.length > 0) updateCache(KEYS.PERFORMANCE, performance.data);
+        else if (getPerformance().length > 0) await supabase.from('performance').insert(getPerformance());
+
+        // Simple sync for configs and others
+        if(assignments.data && assignments.data.length > 0) updateCache(KEYS.WORKS_ASSIGNMENTS, assignments.data);
+        if(subjects.data && subjects.data.length > 0) updateCache(KEYS.SUBJECTS, subjects.data);
+        if(schedules.data && schedules.data.length > 0) updateCache(KEYS.SCHEDULES, schedules.data);
+        if(teacherAssignments.data && teacherAssignments.data.length > 0) updateCache(KEYS.ASSIGNMENTS, teacherAssignments.data);
+        if(exams.data && exams.data.length > 0) updateCache(KEYS.EXAMS, exams.data);
+        if(questions.data && questions.data.length > 0) updateCache(KEYS.QUESTION_BANK, questions.data);
+        if(units.data && units.data.length > 0) updateCache(KEYS.CURRICULUM_UNITS, units.data);
+        if(lessons.data && lessons.data.length > 0) updateCache(KEYS.CURRICULUM_LESSONS, lessons.data);
 
         setSyncStatus('ONLINE');
     } catch (e) {
