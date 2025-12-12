@@ -1,11 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
+import { getSubjects, getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, bulkAddPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Database } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import DataImport from './DataImport';
+import { Save, Table, Plus, Trash2, Settings, Calendar, CloudLightning, RefreshCw, Calculator, X, CheckSquare } from 'lucide-react';
 
 interface WorksTrackingProps {
     students: Student[];
@@ -14,12 +12,6 @@ interface WorksTrackingProps {
     onAddPerformance: (records: PerformanceRecord[]) => void;
     currentUser?: SystemUser | null;
 }
-
-const IGNORED_COLUMNS = [
-    'name', 'id', 'class', 'grade', 'student', 'section', 'email', 'phone', 'mobile', 'gender', 'national', 'date', 'time', 'timestamp',
-    'الاسم', 'اسم', 'الطالب', 'طالب', 'الفصل', 'الصف', 'الهوية', 'السجل', 'المدني', 'الجوال', 'هاتف', 'بريد', 'ملاحظات', 'ملاحظة', 'جنس', 'تاريخ',
-    'note', 'nationalid', 'student_name', 'full_name', 'الاسم الثلاثي', 'الاسم الرباعي'
-];
 
 const STUDENT_NAME_HEADERS = [
     'الاسم', 'اسم', 'اسم الطالب', 'الطالب', 'اسمك', 'لطالب', 
@@ -40,13 +32,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [selectedPeriodId, setSelectedPeriodId] = useState(''); 
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedClass, setSelectedClass] = useState(''); 
-    const [searchTerm, setSearchTerm] = useState('');
-
+    
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     
-    // Scores Matrix: { [studentId]: { [assignmentId]: "score" } }
+    // Scores Matrix
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
     
     // UI Status
@@ -55,20 +46,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Refs for Safe Auto-Saving (Avoid Stale Closures)
+    // Refs
     const scoresRef = useRef(scores);
     const assignmentsRef = useRef(assignments);
     
     // Sync UI
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSheetSyncing, setIsSheetSyncing] = useState(false);
     const [syncStatusMsg, setSyncStatusMsg] = useState('');
     
     // Modals
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-
-    // Config
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
     
     // --- Initialization ---
@@ -81,13 +68,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const savedUrl = getWorksMasterUrl();
             if (savedUrl) setGoogleSheetUrl(savedUrl);
 
-            // Default selections
             const current = loadedTerms.find(t => t.isCurrent);
-            if (current) {
-                setSelectedTermId(current.id);
-            } else if (loadedTerms.length > 0) {
-                setSelectedTermId(loadedTerms[0].id);
-            }
+            if (current) setSelectedTermId(current.id);
+            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
         }
     }, [currentUser]);
 
@@ -97,7 +80,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [subjects, selectedSubject]);
 
-    // Determine active term & period objects
     const activeTermObj = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
     const termPeriods = useMemo(() => activeTermObj?.periods || [], [activeTermObj]);
 
@@ -106,7 +88,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
     }, [currentUser, isManager]);
 
-    // Update assignments when tab or filters change
     useEffect(() => {
         if (currentUser) {
             const fetched = fetchAssignments(activeTab);
@@ -115,20 +96,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [activeTab, currentUser, isManager, fetchAssignments]);
 
-    // Update Refs constantly
     useEffect(() => { scoresRef.current = scores; }, [scores]);
 
-    // --- Populate Scores Grid ---
+    // --- Populate Scores ---
     useEffect(() => {
         const newScores: Record<string, Record<string, string>> = {};
-        
-        // Filter students for current view
         let targetStudents = students;
         if (selectedClass) targetStudents = targetStudents.filter(s => s.className === selectedClass);
         
         targetStudents.forEach(s => {
             newScores[s.id] = {};
-            // Get relevant performance records
             const studentPerf = performance.filter(p => 
                 p.studentId === s.id && 
                 p.subject === selectedSubject &&
@@ -136,11 +113,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
 
             studentPerf.forEach(p => {
-                // Link record to assignment ID
                 if (p.notes && assignments.some(a => a.id === p.notes)) { 
                      newScores[s.id][p.notes] = p.score.toString();
                 } else { 
-                     // Weak link by Title (Legacy/Imported)
                      const assign = assignments.find(a => a.title === p.title);
                      if (assign) newScores[s.id][assign.id] = p.score.toString();
                 }
@@ -150,17 +125,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     }, [students, selectedClass, performance, selectedSubject, activeTab, assignments]);
 
     // --- Handlers ---
-
-    // 1. Tab Switching (SAFE)
     const handleTabChange = (newTab: typeof activeTab) => {
-        // Force save BEFORE switching to prevent data loss due to state reset
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         handleSaveScores(true); 
         setActiveTab(newTab);
         localStorage.setItem('works_active_tab', newTab);
     };
 
-    // 2. Score Input Change
     const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
         setScores(prev => ({
             ...prev,
@@ -171,24 +142,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
             autoSaveTimerRef.current = setTimeout(() => {
                 handleSaveScores(true); 
-            }, 1000); // Faster save (1s)
+            }, 1000);
         }
     };
 
-    // 3. Save Logic (The Core Fix)
     const handleSaveScores = (silent = false) => {
         if (!selectedSubject) {
             if(!silent && activeTab !== 'YEAR_WORK') alert('الرجاء اختيار المادة');
             return;
         }
-        if (activeTab === 'YEAR_WORK') return; // Year work is read-only calculation
+        if (activeTab === 'YEAR_WORK') return;
 
         setIsSaving(true);
-        
         const recordsToSave: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
         
-        // Use REFS to ensure we have latest state even if closure is stale
         const currentScores = scoresRef.current;
         const currentAssignments = assignmentsRef.current;
 
@@ -198,15 +166,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (val !== undefined && val !== '') {
                     const assignment = currentAssignments.find(a => a.id === assignmentId);
                     if (assignment) {
-                        // Find existing record to preserve ID/Date
-                        const existingRecord = performance.find(p => 
-                            p.studentId === studentId && 
-                            (p.notes === assignmentId || p.title === assignment.title)
-                        );
-                        
+                        const existingRecord = performance.find(p => p.studentId === studentId && (p.notes === assignmentId || p.title === assignment.title));
                         const numVal = parseFloat(val);
-                        
-                        // Only add to save list if changed or new
                         if (!existingRecord || existingRecord.score !== numVal) {
                             recordsToSave.push({
                                 id: existingRecord ? existingRecord.id : `${studentId}_${assignmentId}_${Date.now()}`,
@@ -217,7 +178,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 score: numVal,
                                 maxScore: assignment.maxScore,
                                 date: existingRecord ? existingRecord.date : today,
-                                notes: assignment.id, // Link by ID
+                                notes: assignment.id,
                                 createdById: currentUser?.id
                             });
                         }
@@ -230,22 +191,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             bulkAddPerformance(recordsToSave);
             setLastSaved(new Date());
         }
-        
         setTimeout(() => setIsSaving(false), 500);
     };
 
-    // 4. Google Sheet Sync (Restored Logic)
+    // --- Google Sheet Sync ---
     const findStudentNameInRow = (row: any): string | undefined => {
-        for (const key of STUDENT_NAME_HEADERS) {
-            if (row[key]) return String(row[key]);
-        }
+        for (const key of STUDENT_NAME_HEADERS) if (row[key]) return String(row[key]);
         const rowKeys = Object.keys(row);
-        for (const key of rowKeys) {
-            const lowerKey = key.toLowerCase().trim();
-            if (STUDENT_NAME_HEADERS.some(h => lowerKey === h || lowerKey.includes(h))) {
-                return String(row[key]);
-            }
-        }
+        for (const key of rowKeys) if (STUDENT_NAME_HEADERS.some(h => key.toLowerCase().trim().includes(h))) return String(row[key]);
         return undefined;
     };
 
@@ -255,7 +208,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (!isAuto) alert('لا يوجد رابط ملف مسجل. يرجى إعداده من "إعدادات الأعمدة".');
             return;
         }
-        
         if (!selectedSubject) {
             if (!isAuto) alert('الرجاء اختيار المادة أولاً.');
             return;
@@ -268,18 +220,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(url);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
             
-            // Assume first sheet contains the grades
             const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
-            
-            // Re-fetch assignments inside the function to ensure we have latest (especially if called after add column)
-            // Or rely on assignmentsRef
             const currentAssignments = getAssignments('ALL', currentUser?.id, isManager);
-            
             const updates: PerformanceRecord[] = [];
             let updateCount = 0;
 
             students.forEach(student => {
-                // Find row in Excel
                 const row = data.find(r => {
                     if (r['nationalId'] == student.nationalId) return true;
                     const rName = findStudentNameInRow(r);
@@ -289,9 +235,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                 if (row) {
                     currentAssignments.forEach(assign => {
-                        // Try to find a column with the Assignment Title
                         let val = row[assign.title];
-                        
                         if (val !== undefined) {
                             const numVal = parseFloat(val);
                             if (!isNaN(numVal)) {
@@ -315,12 +259,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             });
 
             if (updates.length > 0) {
-                bulkAddPerformance(updates); // Save to DB
+                bulkAddPerformance(updates);
                 if (!isAuto) alert(`تم تحديث ${updateCount} درجة بنجاح من الملف!`);
             } else {
-                if (!isAuto) alert('لم يتم العثور على درجات مطابقة في الملف. تأكد من تطابق عناوين الأعمدة.');
+                if (!isAuto) alert('لم يتم العثور على درجات مطابقة في الملف.');
             }
-
         } catch (e: any) {
             if (!isAuto) alert('خطأ في المزامنة: ' + e.message);
         } finally {
@@ -329,7 +272,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [currentUser, students, selectedSubject]);
 
-    // --- Manual Column Management ---
+    // --- Column Mgmt ---
     const handleAddManualColumn = () => {
         const title = prompt('عنوان العمود (مثال: واجب 1):');
         if (!title) return;
@@ -342,14 +285,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             periodId: selectedPeriodId || undefined
         };
         saveAssignment(newAssign);
-        // Force refresh assignments locally
         const updated = fetchAssignments(activeTab);
         setAssignments(updated);
         assignmentsRef.current = updated;
     };
 
     const handleDeleteAssignment = (id: string) => {
-        if(confirm('حذف العمود؟ سيتم حذف الدرجات المرتبطة به إذا لم تكن محفوظة مسبقاً.')) {
+        if(confirm('حذف العمود؟')) {
             deleteAssignment(id);
             const updated = fetchAssignments(activeTab);
             setAssignments(updated);
@@ -357,7 +299,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    // --- Filtering ---
+    // --- Data Preparation ---
     const filteredAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
@@ -372,11 +314,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const filteredStudents = useMemo(() => {
         let filtered = students;
         if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass);
-        if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm));
         return filtered.sort((a,b) => a.name.localeCompare(b.name));
-    }, [students, selectedClass, searchTerm]);
+    }, [students, selectedClass]);
 
-    // --- Year Work Calculation ---
     const yearWorkData = useMemo(() => {
         if (activeTab !== 'YEAR_WORK') return [];
         
@@ -388,7 +328,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
             const totalDays = studentAtt.length;
             const present = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
-            const attScore = totalDays > 0 ? (present / totalDays) * 15 : 15; // 15 marks
+            const attScore = totalDays > 0 ? (present / totalDays) * 15 : 15;
 
             // Filter Performance
             let studentPerf = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject);
@@ -396,39 +336,40 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 studentPerf = studentPerf.filter(p => p.date >= activeTermObj.startDate && p.date <= activeTermObj.endDate);
             }
 
-            // Calc Categories
+            // Calculations
             const calcCategory = (cat: string, maxWeight: number) => {
                 const items = studentPerf.filter(p => p.category === cat);
-                if (items.length === 0) return 0; // Or full mark if empty? Standard practice is 0 if no data
-                // Better approach: sum scores vs sum max scores
+                if (items.length === 0) return { score: 0, pct: 0 };
                 let scoreSum = 0;
                 let maxSum = 0;
                 items.forEach(i => { scoreSum += i.score; maxSum += (i.maxScore || 10); });
-                return maxSum > 0 ? (scoreSum / maxSum) * maxWeight : 0;
+                const pct = maxSum > 0 ? (scoreSum / maxSum) : 0;
+                return { score: pct * maxWeight, pct: Math.round(pct * 100) };
             };
 
-            const hwScore = calcCategory('HOMEWORK', 10);
-            const actScore = calcCategory('ACTIVITY', 15);
-            const examScore = calcCategory('PLATFORM_EXAM', 20);
+            const hw = calcCategory('HOMEWORK', 10);
+            const act = calcCategory('ACTIVITY', 15);
+            const exam = calcCategory('PLATFORM_EXAM', 20);
             
-            const total = attScore + hwScore + actScore + examScore;
+            const total = attScore + hw.score + act.score + exam.score;
 
             return {
                 id: student.id,
                 name: student.name,
+                className: student.className,
                 att: Math.round(attScore),
-                hw: Math.round(hwScore),
-                act: Math.round(actScore),
-                exam: Math.round(examScore),
-                total: Math.round(total)
+                hw: Math.round(hw.score),
+                hwPct: hw.pct,
+                act: Math.round(act.score),
+                actPct: act.pct,
+                exam: Math.round(exam.score),
+                total: Math.round(total) // Format 1 decimal
             };
         });
     }, [filteredStudents, attendance, performance, activeTermObj, activeTab, selectedSubject]);
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
-            
-            {/* Sync Indicator */}
             {isSheetSyncing && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-2 rounded-full shadow-xl z-50 flex items-center gap-2 animate-bounce">
                     <RefreshCw size={18} className="animate-spin"/> 
@@ -440,7 +381,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-4">
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Table className="text-purple-600"/> سجل الرصد والمتابعة</h2>
-                        {/* Auto Save Toggle */}
                         {activeTab !== 'YEAR_WORK' && (
                             <div 
                                 className={`flex items-center gap-2 px-3 py-1 rounded-full border cursor-pointer transition-colors text-xs font-bold ${autoSaveEnabled ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-500'}`}
@@ -463,7 +403,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             </select>
                         </div>
                         
-                        {/* PERIOD SELECTOR */}
                         {termPeriods.length > 0 && (
                             <div className="flex items-center bg-gray-50 border rounded-lg px-2 py-1 animate-fade-in">
                                 <span className="text-xs text-gray-400 font-bold ml-1">الفترة:</span>
@@ -496,18 +435,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
 
                     <div className="flex gap-2">
-                        {googleSheetUrl && (
-                            <button 
-                                onClick={() => handleQuickSheetSync(false)}
-                                disabled={isSheetSyncing}
-                                className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200"
-                                title="سحب الدرجات من ملف Excel المرتبط"
-                            >
-                                <CloudLightning size={16}/> تحديث من الملف
-                            </button>
-                        )}
-                        <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
-                            <Settings size={16}/> إعدادات الأعمدة
+                        <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1 bg-white text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-50 border border-green-200">
+                            <CloudLightning size={16}/> استيراد من Sheets
                         </button>
                         <button onClick={() => handleAddManualColumn()} className="flex items-center gap-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 border border-gray-300">
                             <Plus size={16}/> إضافة عمود
@@ -527,29 +456,50 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-center text-sm border-collapse min-w-[800px]">
                             {activeTab === 'YEAR_WORK' ? (
-                                // --- YEAR WORK TABLE ---
+                                // --- YEAR WORK TABLE (Matching Screenshot) ---
                                 <>
-                                    <thead className="bg-teal-50 text-teal-800 font-bold sticky top-0 z-10 shadow-sm">
-                                        <tr>
-                                            <th className="p-3 border-l w-12 bg-teal-50">#</th>
-                                            <th className="p-3 border-l w-64 text-right bg-teal-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
-                                            <th className="p-2 border-l">الحضور (15)</th>
-                                            <th className="p-2 border-l">الواجبات (10)</th>
-                                            <th className="p-2 border-l">الأنشطة (15)</th>
-                                            <th className="p-2 border-l">اختبارات (20)</th>
-                                            <th className="p-2 border-l bg-teal-100 text-teal-900">المجموع (60)</th>
+                                    <thead className="text-gray-700 font-bold sticky top-0 z-10 shadow-sm text-xs">
+                                        <tr className="bg-gray-50 h-10">
+                                            <th className="p-2 border-l w-12">#</th>
+                                            <th className="p-2 border-l w-64 text-right sticky right-0 z-20 bg-gray-50">اسم الطالب</th>
+                                            <th className="p-2 border-l w-24">الفصل</th>
+                                            
+                                            {/* Homework: Blue */}
+                                            <th className="p-2 border-l bg-blue-50 text-blue-800">واجبات (10)</th>
+                                            <th className="p-2 border-l bg-blue-50 text-blue-600">% الإنجاز</th>
+                                            
+                                            {/* Activity: Orange/Brown */}
+                                            <th className="p-2 border-l bg-orange-50 text-orange-900">أنشطة (15)</th>
+                                            <th className="p-2 border-l bg-orange-50 text-orange-600">% الإنجاز</th>
+                                            
+                                            {/* Attendance: Green */}
+                                            <th className="p-2 border-l bg-green-50 text-green-800">حضور (15)</th>
+                                            
+                                            {/* Exams: Purple */}
+                                            <th className="p-2 border-l bg-purple-50 text-purple-800">اختبارات (20)</th>
+                                            
+                                            {/* Total: Dark Blue/Black */}
+                                            <th className="p-2 border-l bg-slate-800 text-white">المجموع (60)</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="text-xs">
                                         {yearWorkData.map((data, idx) => (
-                                            <tr key={data.id} className="hover:bg-gray-50 border-b transition-colors">
-                                                <td className="p-3 border-l text-gray-500">{idx + 1}</td>
-                                                <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{data.name}</td>
-                                                <td className="p-3 border-l font-bold text-gray-600">{data.att}</td>
-                                                <td className="p-3 border-l font-bold text-blue-600">{data.hw}</td>
-                                                <td className="p-3 border-l font-bold text-amber-600">{data.act}</td>
-                                                <td className="p-3 border-l font-bold text-purple-600">{data.exam}</td>
-                                                <td className="p-3 border-l font-black text-teal-800 bg-teal-50">{data.total}</td>
+                                            <tr key={data.id} className="hover:bg-gray-50 border-b transition-colors h-10">
+                                                <td className="p-2 border-l text-gray-500">{idx + 1}</td>
+                                                <td className="p-2 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10">{data.name}</td>
+                                                <td className="p-2 border-l text-gray-500">{data.className}</td>
+                                                
+                                                <td className="p-2 border-l font-bold text-gray-800">{data.hw.toFixed(1)}</td>
+                                                <td className="p-2 border-l font-bold text-blue-600 bg-blue-50/30">{data.hwPct}%</td>
+                                                
+                                                <td className="p-2 border-l font-bold text-gray-800">{data.act.toFixed(1)}</td>
+                                                <td className="p-2 border-l font-bold text-orange-600 bg-orange-50/30">{data.actPct}%</td>
+                                                
+                                                <td className="p-2 border-l font-bold text-gray-800">{data.att.toFixed(1)}</td>
+                                                
+                                                <td className="p-2 border-l font-bold text-gray-800">{data.exam.toFixed(1)}</td>
+                                                
+                                                <td className="p-2 border-l font-black text-white bg-slate-800">{data.total.toFixed(1)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -579,7 +529,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <tr key={student.id} className="hover:bg-gray-50 border-b transition-colors">
                                                 <td className="p-3 border-l text-gray-500">{idx + 1}</td>
                                                 <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
-                                                
                                                 {filteredAssignments.map(assign => (
                                                     <td key={assign.id} className="p-0 border-l relative h-10">
                                                         <input 
@@ -612,48 +561,65 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             )}
 
-            {/* Settings Modal (Restored) */}
+            {/* Styled Settings Modal (Green Theme) */}
             {isSettingsOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
-                        <div className="flex justify-between items-center mb-4 border-b pb-2">
-                            <h3 className="font-bold text-lg">إعدادات الرصد الآلي</h3>
-                            <button onClick={() => setIsSettingsOpen(false)}><X size={20}/></button>
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-fade-in">
+                        <div className="bg-green-50 p-4 border-b border-green-100 flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-green-800 flex items-center gap-2">
+                                <Settings size={20}/> إعدادات الأعمدة ({activeTab})
+                            </h3>
+                            <button onClick={() => setIsSettingsOpen(false)} className="text-green-600 hover:bg-green-100 rounded-full p-1"><X size={20}/></button>
                         </div>
                         
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">رابط ملف الدرجات (Google Sheet / Excel)</label>
-                                <div className="flex gap-2">
+                        <div className="p-6 space-y-6">
+                            <div className="bg-green-50/50 p-4 rounded-xl border border-green-100">
+                                <h4 className="font-bold text-sm text-green-800 mb-3 flex items-center gap-2"><CloudLightning size={16}/> استيراد من Google Sheets</h4>
+                                
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">ورقة العمل</label>
+                                        <select className="w-full p-2 border rounded text-sm bg-white">
+                                            <option>الأنشطة</option>
+                                            <option>الواجبات</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">الفصل الدراسي</label>
+                                        <select className="w-full p-2 border rounded text-sm bg-white">
+                                            <option>الفصل الدراسي الأول</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="mb-3">
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">رابط الملف</label>
                                     <input 
-                                        className="flex-1 p-2 border rounded text-sm dir-ltr" 
+                                        className="w-full p-2 border rounded text-sm dir-ltr bg-white" 
                                         placeholder="https://docs.google.com/..." 
                                         value={googleSheetUrl}
                                         onChange={e => setGoogleSheetUrl(e.target.value)}
                                     />
-                                    <button 
-                                        onClick={() => { saveWorksMasterUrl(googleSheetUrl); alert('تم حفظ الرابط'); }}
-                                        className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-sm"
-                                    >
-                                        حفظ
-                                    </button>
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-1">
-                                    يمكنك استخدام رابط Google Sheet (تأكد من إتاحة العرض للجميع) أو رابط مباشر لملف Excel.
-                                    سيقوم النظام بمطابقة أعمدة الملف مع عناوين الواجبات/الاختبارات التي أنشأتها.
-                                </p>
+                                <button 
+                                    onClick={() => { saveWorksMasterUrl(googleSheetUrl); handleQuickSheetSync(false); }}
+                                    disabled={isSheetSyncing}
+                                    className="w-full bg-green-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex justify-center items-center gap-2"
+                                >
+                                    {isSheetSyncing ? <RefreshCw className="animate-spin" size={16}/> : <CheckSquare size={16}/>} مزامنة وتحديث
+                                </button>
                             </div>
                             
                             <div className="pt-2 border-t">
-                                <h4 className="font-bold text-sm mb-2 text-gray-600">إدارة الأعمدة الحالية</h4>
+                                <h4 className="font-bold text-sm mb-2 text-gray-600">الأعمدة الحالية</h4>
                                 <div className="max-h-40 overflow-y-auto space-y-2 p-2 bg-gray-50 rounded border">
                                     {assignments.map(a => (
                                         <div key={a.id} className="flex justify-between items-center bg-white p-2 rounded border shadow-sm">
-                                            <span className="text-xs font-bold">{a.title} ({a.category})</span>
-                                            <button onClick={() => handleDeleteAssignment(a.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={12}/></button>
+                                            <span className="text-xs font-bold text-gray-700">{a.title} <span className="text-gray-400 font-normal">({a.maxScore})</span></span>
+                                            <button onClick={() => handleDeleteAssignment(a.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
                                         </div>
                                     ))}
-                                    {assignments.length === 0 && <p className="text-center text-xs text-gray-400">لا توجد أعمدة</p>}
+                                    {assignments.length === 0 && <p className="text-center text-xs text-gray-400">لا توجد أعمدة مضافة</p>}
                                 </div>
                             </div>
                         </div>
