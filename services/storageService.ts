@@ -52,7 +52,6 @@ const get = <T>(key: string): T[] => {
 // Update Local Cache Only
 const updateCache = <T>(key: string, data: T[]) => {
     localStorage.setItem(key, JSON.stringify(data));
-    notifyDataChange();
 };
 
 // --- Event Emitter for Sync/Data ---
@@ -104,6 +103,7 @@ const cleanupTeacherData = async (teacherId: string) => {
     updateCache(KEYS.TRACKING_SHEETS, getTrackingSheets().filter(t => t.teacherId !== teacherId));
     updateCache(KEYS.ACADEMIC_TERMS, getAcademicTerms().filter(t => t.teacherId !== teacherId));
     updateCache(KEYS.WEEKLY_PLANS, getWeeklyPlans().filter(p => p.teacherId !== teacherId));
+    notifyDataChange();
 
     // 2. Delete from Cloud Tables (Parallel) in Background
     await Promise.all([
@@ -129,30 +129,84 @@ const cleanupTeacherData = async (teacherId: string) => {
     ]).catch(err => console.error("Cloud cleanup failed", err));
 };
 
+// --- AGGRESSIVE SYNC (Ensures Data Consistency Across Browsers) ---
+export const forceRefreshData = async () => {
+    setSyncStatus('SYNCING');
+    try {
+        console.log("Forcing data refresh from cloud...");
+        const [
+            schools, teachers, users, students, attendance, performance, 
+            assignments, subjects, schedules, teacherAssignments, 
+            exams, questions, units, lessons, terms
+        ] = await Promise.all([
+            supabase.from('schools').select('*'),
+            supabase.from('teachers').select('*'),
+            supabase.from('system_users').select('*'),
+            supabase.from('students').select('*'),
+            supabase.from('attendance').select('*'),
+            supabase.from('performance').select('*'),
+            supabase.from('assignments').select('*'),
+            supabase.from('subjects').select('*'),
+            supabase.from('schedules').select('*'),
+            supabase.from('teacher_assignments').select('*'),
+            supabase.from('exams').select('*'),
+            supabase.from('questions').select('*'),
+            supabase.from('curriculum_units').select('*'),
+            supabase.from('curriculum_lessons').select('*'),
+            supabase.from('academic_terms').select('*'),
+        ]);
+
+        // Overwrite local cache with Cloud Data (Source of Truth)
+        if(schools.data) updateCache(KEYS.SCHOOLS, schools.data);
+        if(teachers.data) updateCache(KEYS.TEACHERS, teachers.data);
+        if(users.data) updateCache(KEYS.USERS, users.data);
+        if(students.data) updateCache(KEYS.STUDENTS, students.data);
+        if(attendance.data) updateCache(KEYS.ATTENDANCE, attendance.data);
+        if(performance.data) updateCache(KEYS.PERFORMANCE, performance.data);
+        if(assignments.data) updateCache(KEYS.WORKS_ASSIGNMENTS, assignments.data);
+        if(subjects.data) updateCache(KEYS.SUBJECTS, subjects.data);
+        if(schedules.data) updateCache(KEYS.SCHEDULES, schedules.data);
+        if(teacherAssignments.data) updateCache(KEYS.ASSIGNMENTS, teacherAssignments.data);
+        if(exams.data) updateCache(KEYS.EXAMS, exams.data);
+        if(questions.data) updateCache(KEYS.QUESTION_BANK, questions.data);
+        if(units.data) updateCache(KEYS.CURRICULUM_UNITS, units.data);
+        if(lessons.data) updateCache(KEYS.CURRICULUM_LESSONS, lessons.data);
+        if(terms.data) updateCache(KEYS.ACADEMIC_TERMS, terms.data);
+
+        notifyDataChange(); // Trigger UI re-render
+        setSyncStatus('ONLINE');
+        return true;
+    } catch (e) {
+        console.error("Force Refresh Failed", e);
+        setSyncStatus('ERROR');
+        return false;
+    }
+};
+
 // --- OPTIMISTIC OPERATIONS (Local First, then Cloud) ---
 
 // 1. Schools
 export const getSchools = (): School[] => get(KEYS.SCHOOLS);
 export const addSchool = async (s: School) => { 
-    const list = getSchools(); list.push(s); updateCache(KEYS.SCHOOLS, list);
+    const list = getSchools(); list.push(s); updateCache(KEYS.SCHOOLS, list); notifyDataChange();
     const { error } = await supabase.from('schools').insert(s);
     if(error) console.error("Cloud Error:", error);
 };
 export const updateSchool = async (s: School) => { 
     const list = getSchools(); const idx = list.findIndex(x => x.id === s.id); 
-    if (idx > -1) list[idx] = s; updateCache(KEYS.SCHOOLS, list);
+    if (idx > -1) list[idx] = s; updateCache(KEYS.SCHOOLS, list); notifyDataChange();
     const { error } = await supabase.from('schools').update(s).eq('id', s.id);
     if(error) console.error("Cloud Error:", error);
 };
 export const deleteSchool = async (id: string) => { 
-    updateCache(KEYS.SCHOOLS, getSchools().filter(x => x.id !== id)); 
+    updateCache(KEYS.SCHOOLS, getSchools().filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('schools').delete().eq('id', id);
 };
 
 // 2. Teachers
 export const getTeachers = (): Teacher[] => get(KEYS.TEACHERS);
 export const addTeacher = async (t: Teacher) => { 
-    const list = getTeachers(); list.push(t); updateCache(KEYS.TEACHERS, list);
+    const list = getTeachers(); list.push(t); updateCache(KEYS.TEACHERS, list); notifyDataChange();
     await addSystemUser({
         id: t.id, name: t.name, email: t.email || t.id, nationalId: t.nationalId, 
         password: t.password || '123456', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE'
@@ -162,7 +216,7 @@ export const addTeacher = async (t: Teacher) => {
 };
 export const updateTeacher = async (t: Teacher) => { 
     const list = getTeachers(); const idx = list.findIndex(x => x.id === t.id); 
-    if (idx > -1) list[idx] = t; updateCache(KEYS.TEACHERS, list); 
+    if (idx > -1) list[idx] = t; updateCache(KEYS.TEACHERS, list); notifyDataChange();
     const { error } = await supabase.from('teachers').update(t).eq('id', t.id);
     if(error) console.error("Cloud Error:", error);
 };
@@ -170,13 +224,13 @@ export const updateTeacher = async (t: Teacher) => {
 // 3. System Users (Admin/Manager)
 export const getSystemUsers = (): SystemUser[] => get(KEYS.USERS);
 export const addSystemUser = async (u: SystemUser) => { 
-    const list = getSystemUsers(); list.push(u); updateCache(KEYS.USERS, list);
+    const list = getSystemUsers(); list.push(u); updateCache(KEYS.USERS, list); notifyDataChange();
     const { error } = await supabase.from('system_users').insert(u);
     if(error) console.error("Cloud Error:", error);
 };
 export const updateSystemUser = async (u: SystemUser) => { 
     const list = getSystemUsers(); const idx = list.findIndex(x => x.id === u.id); 
-    if (idx > -1) list[idx] = u; updateCache(KEYS.USERS, list); 
+    if (idx > -1) list[idx] = u; updateCache(KEYS.USERS, list); notifyDataChange();
     const { error } = await supabase.from('system_users').update(u).eq('id', u.id);
     if(error) console.error("Cloud Error:", error);
 };
@@ -184,14 +238,11 @@ export const updateSystemUser = async (u: SystemUser) => {
 // --- UPDATED DELETE FUNCTIONS (Optimistic) ---
 
 export const deleteTeacher = async (id: string) => { 
-    // 1. Cleanup all related data first (Optimistically)
     await cleanupTeacherData(id);
-
-    // 2. Update local teacher cache
     updateCache(KEYS.TEACHERS, getTeachers().filter(x => x.id !== id)); 
     updateCache(KEYS.USERS, getSystemUsers().filter(x => x.id !== id));
+    notifyDataChange();
 
-    // 3. Cloud Delete
     await Promise.all([
         supabase.from('teachers').delete().eq('id', id),
         supabase.from('system_users').delete().eq('id', id)
@@ -200,55 +251,50 @@ export const deleteTeacher = async (id: string) => {
 
 export const deleteSystemUser = async (id: string) => { 
     const user = getSystemUsers().find(u => u.id === id);
-    // Optimistic UI updates
     if (user && user.role === 'TEACHER') {
         await cleanupTeacherData(id);
         updateCache(KEYS.TEACHERS, getTeachers().filter(x => x.id !== id)); 
-        supabase.from('teachers').delete().eq('id', id); // Fire and forget
+        supabase.from('teachers').delete().eq('id', id); 
     }
     updateCache(KEYS.USERS, getSystemUsers().filter(x => x.id !== id)); 
-    
-    // Cloud Delete
+    notifyDataChange();
     await supabase.from('system_users').delete().eq('id', id);
 };
 
 // 4. Students
 export const getStudents = (): Student[] => get(KEYS.STUDENTS);
 export const addStudent = async (s: Student) => { 
-    const list = getStudents(); list.push(s); updateCache(KEYS.STUDENTS, list);
+    const list = getStudents(); list.push(s); updateCache(KEYS.STUDENTS, list); notifyDataChange();
     const { error } = await supabase.from('students').insert(s);
     if(error) console.error("Cloud Error:", error);
 };
 export const updateStudent = async (s: Student) => { 
     const list = getStudents(); const idx = list.findIndex(x => x.id === s.id); 
-    if (idx > -1) list[idx] = s; updateCache(KEYS.STUDENTS, list); 
+    if (idx > -1) list[idx] = s; updateCache(KEYS.STUDENTS, list); notifyDataChange();
     const { error } = await supabase.from('students').update(s).eq('id', s.id);
     if(error) console.error("Cloud Error:", error);
 };
 export const deleteStudent = async (id: string) => { 
-    updateCache(KEYS.STUDENTS, getStudents().filter(x => x.id !== id)); 
+    updateCache(KEYS.STUDENTS, getStudents().filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('students').delete().eq('id', id);
 };
 export const deleteAllStudents = async () => {
-    updateCache(KEYS.STUDENTS, []);
+    updateCache(KEYS.STUDENTS, []); notifyDataChange();
     await supabase.from('students').delete().neq('id', '0'); 
 };
 export const bulkAddStudents = async (students: Student[]) => { 
-    const list = getStudents(); updateCache(KEYS.STUDENTS, [...list, ...students]); 
+    const list = getStudents(); updateCache(KEYS.STUDENTS, [...list, ...students]); notifyDataChange();
     const { error } = await supabase.from('students').insert(students);
     if(error) console.error("Cloud Error:", error);
 };
 export const bulkUpsertStudents = async (students: Student[], key: keyof Student = 'nationalId') => {
-    // Local Update (Complex upsert logic for optimistic UI)
     let list = getStudents();
     students.forEach(s => {
         const idx = list.findIndex(existing => existing[key] === s[key]);
         if (idx > -1) list[idx] = { ...list[idx], ...s };
         else list.push(s);
     });
-    updateCache(KEYS.STUDENTS, list);
-
-    // Cloud Update
+    updateCache(KEYS.STUDENTS, list); notifyDataChange();
     const { error } = await supabase.from('students').upsert(students, { onConflict: key as string });
     if (error) console.error("Cloud Error:", error);
 };
@@ -256,15 +302,12 @@ export const bulkUpsertStudents = async (students: Student[], key: keyof Student
 // 5. Attendance
 export const getAttendance = (): AttendanceRecord[] => get(KEYS.ATTENDANCE);
 export const saveAttendance = async (records: AttendanceRecord[]) => { 
-    // Optimistic Update
     let list = getAttendance(); 
     records.forEach(r => {
         const idx = list.findIndex(x => x.id === r.id);
         if (idx > -1) list[idx] = r; else list.push(r);
     });
-    updateCache(KEYS.ATTENDANCE, list);
-
-    // Cloud Update
+    updateCache(KEYS.ATTENDANCE, list); notifyDataChange();
     const { error } = await supabase.from('attendance').upsert(records);
     if(error) console.error("Cloud Error:", error);
 };
@@ -272,47 +315,31 @@ export const bulkAddAttendance = saveAttendance;
 
 // 6. Performance
 export const getPerformance = (): PerformanceRecord[] => get(KEYS.PERFORMANCE);
-
-// FIXED: Upsert logic for single performance record
 export const addPerformance = async (p: PerformanceRecord) => { 
     const list = getPerformance(); 
     const idx = list.findIndex(x => x.id === p.id); 
-    if (idx > -1) {
-        list[idx] = p; // Update
-    } else {
-        list.push(p); // Insert
-    }
-    updateCache(KEYS.PERFORMANCE, list); 
-    
-    // Cloud upsert
+    if (idx > -1) list[idx] = p; else list.push(p);
+    updateCache(KEYS.PERFORMANCE, list); notifyDataChange();
     const { error } = await supabase.from('performance').upsert(p);
     if(error) console.error("Cloud Error:", error);
 };
-
 export const deletePerformance = async (id: string) => { 
-    updateCache(KEYS.PERFORMANCE, getPerformance().filter(x => x.id !== id)); 
+    updateCache(KEYS.PERFORMANCE, getPerformance().filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('performance').delete().eq('id', id);
 };
-
-// FIXED: Upsert logic for bulk performance records
 export const bulkAddPerformance = async (records: PerformanceRecord[]) => { 
     const list = getPerformance(); 
-    
     records.forEach(r => {
         const idx = list.findIndex(x => x.id === r.id);
-        if (idx > -1) list[idx] = r;
-        else list.push(r);
+        if (idx > -1) list[idx] = r; else list.push(r);
     });
-    
-    updateCache(KEYS.PERFORMANCE, list); 
+    updateCache(KEYS.PERFORMANCE, list); notifyDataChange();
     const { error } = await supabase.from('performance').upsert(records);
     if(error) console.error("Cloud Error:", error);
 };
 
 // --- AUTHENTICATION ---
-
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
-    // Force Cloud Check for Security
     try {
         const { data, error } = await supabase
             .from('system_users')
@@ -321,42 +348,17 @@ export const authenticateUser = async (identifier: string, password: string): Pr
             .eq('password', password)
             .eq('status', 'ACTIVE')
             .single();
-            
-        if (data && !error) {
-            return data as SystemUser;
-        }
-    } catch (e) {
-        console.error("Cloud auth failed:", e);
-    }
+        if (data && !error) return data as SystemUser;
+    } catch (e) { console.error("Cloud auth failed:", e); }
     return undefined;
 };
 
-// --- NEW: Authenticate Student (ID + Last 4 digits) ---
 export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
     try {
         const cleanId = nationalId.trim();
-        const defaultPass = cleanId.slice(-4); // Last 4 digits
-
-        // 1. Try Local First (Faster & Offline support)
-        const localStudents = getStudents();
-        const localMatch = localStudents.find(s => s.nationalId === cleanId);
+        const defaultPass = cleanId.slice(-4);
         
-        if (localMatch) {
-             const studentPass = localMatch.password || defaultPass;
-             if (password === studentPass) {
-                 return {
-                     id: localMatch.id,
-                     name: localMatch.name,
-                     role: 'STUDENT',
-                     nationalId: localMatch.nationalId,
-                     schoolId: localMatch.schoolId,
-                     className: localMatch.className,
-                     gradeLevel: localMatch.gradeLevel
-                 };
-             }
-        }
-
-        // 2. Try Cloud (If not found locally or password mismatch)
+        // Check Cloud First for security and updates
         const { data, error } = await supabase
             .from('students')
             .select('*')
@@ -377,91 +379,15 @@ export const authenticateStudent = async (nationalId: string, password: string):
                  };
              }
         }
-    } catch (e) {
-        console.error("Student auth failed:", e);
-    }
+    } catch (e) { console.error("Student auth failed:", e); }
     return undefined;
 };
 
 // --- SYNC ENGINE (Smart Sync) ---
 export const initAutoSync = async () => {
-    setSyncStatus('SYNCING');
-    try {
-        // 1. Fetch Cloud Data
-        const [
-            schools, teachers, users, students, attendance, performance, 
-            assignments, subjects, schedules, teacherAssignments, 
-            exams, questions, units, lessons
-        ] = await Promise.all([
-            supabase.from('schools').select('*'),
-            supabase.from('teachers').select('*'),
-            supabase.from('system_users').select('*'),
-            supabase.from('students').select('*'),
-            supabase.from('attendance').select('*'),
-            supabase.from('performance').select('*'),
-            supabase.from('assignments').select('*'),
-            supabase.from('subjects').select('*'),
-            supabase.from('schedules').select('*'),
-            supabase.from('teacher_assignments').select('*'),
-            supabase.from('exams').select('*'),
-            supabase.from('questions').select('*'),
-            supabase.from('curriculum_units').select('*'),
-            supabase.from('curriculum_lessons').select('*'),
-        ]);
-
-        // Helper for Smart Sync (Push if Cloud Empty & Local Full, else Pull)
-        const smartSync = async (key: string, cloudData: any[] | null, tableName: string) => {
-            const localData = get<any>(key);
-            
-            // Case 1: Cloud has data -> Source of Truth -> Update Local (Overwrite)
-            if (cloudData && cloudData.length > 0) {
-                updateCache(key, cloudData);
-                return;
-            }
-
-            // Case 2: Cloud is Empty AND Local has data -> Push Local to Cloud
-            if ((!cloudData || cloudData.length === 0) && localData.length > 0) {
-                console.log(`Cloud table ${tableName} is empty. Pushing local data...`);
-                const { error } = await supabase.from(tableName).insert(localData);
-                if (error) console.error(`Failed to push local ${tableName} to cloud`, error);
-                // Keep local as is (implicit success until next sync)
-                return;
-            }
-
-            // Case 3: Both empty -> Clear cache to be safe
-            if (cloudData && cloudData.length === 0) {
-                updateCache(key, []);
-            }
-        };
-
-        // Apply Smart Sync to critical tables
-        await smartSync(KEYS.SCHOOLS, schools.data, 'schools');
-        await smartSync(KEYS.TEACHERS, teachers.data, 'teachers');
-        await smartSync(KEYS.USERS, users.data, 'system_users');
-        await smartSync(KEYS.STUDENTS, students.data, 'students');
-        
-        // For transactional data (Attendance/Perf), perform simpler sync
-        if(attendance.data && attendance.data.length > 0) updateCache(KEYS.ATTENDANCE, attendance.data);
-        else if (getAttendance().length > 0) await supabase.from('attendance').insert(getAttendance());
-
-        if(performance.data && performance.data.length > 0) updateCache(KEYS.PERFORMANCE, performance.data);
-        else if (getPerformance().length > 0) await supabase.from('performance').insert(getPerformance());
-
-        // Simple sync for configs and others
-        if(assignments.data && assignments.data.length > 0) updateCache(KEYS.WORKS_ASSIGNMENTS, assignments.data);
-        if(subjects.data && subjects.data.length > 0) updateCache(KEYS.SUBJECTS, subjects.data);
-        if(schedules.data && schedules.data.length > 0) updateCache(KEYS.SCHEDULES, schedules.data);
-        if(teacherAssignments.data && teacherAssignments.data.length > 0) updateCache(KEYS.ASSIGNMENTS, teacherAssignments.data);
-        if(exams.data && exams.data.length > 0) updateCache(KEYS.EXAMS, exams.data);
-        if(questions.data && questions.data.length > 0) updateCache(KEYS.QUESTION_BANK, questions.data);
-        if(units.data && units.data.length > 0) updateCache(KEYS.CURRICULUM_UNITS, units.data);
-        if(lessons.data && lessons.data.length > 0) updateCache(KEYS.CURRICULUM_LESSONS, lessons.data);
-
-        setSyncStatus('ONLINE');
-    } catch (e) {
-        console.error("Sync Failed", e);
-        setSyncStatus('ERROR');
-    }
+    // This function can now leverage forceRefreshData if needed, but keeping separate for startup logic
+    // We will reuse forceRefreshData for simplicity and consistency
+    return await forceRefreshData();
 };
 
 // --- READ-ONLY HELPERS (Fetch from Cache for UI) & Optimistic Write ---
@@ -472,11 +398,11 @@ export const getSubjects = (teacherId?: string): Subject[] => {
     return all.filter(s => s.teacherId === teacherId || !s.teacherId);
 };
 export const addSubject = async (s: Subject) => { 
-    const list = get<Subject>(KEYS.SUBJECTS); list.push(s); updateCache(KEYS.SUBJECTS, list); 
+    const list = get<Subject>(KEYS.SUBJECTS); list.push(s); updateCache(KEYS.SUBJECTS, list); notifyDataChange();
     await supabase.from('subjects').insert(s);
 };
 export const deleteSubject = async (id: string) => { 
-    updateCache(KEYS.SUBJECTS, get<Subject>(KEYS.SUBJECTS).filter(x => x.id !== id)); 
+    updateCache(KEYS.SUBJECTS, get<Subject>(KEYS.SUBJECTS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('subjects').delete().eq('id', id);
 };
 
@@ -484,46 +410,35 @@ export const getSchedules = (): ScheduleItem[] => get(KEYS.SCHEDULES);
 export const saveScheduleItem = async (item: ScheduleItem) => { 
     let list = getSchedules(); 
     const idx = list.findIndex(x => x.id === item.id); if (idx > -1) list[idx] = item; else list.push(item);
-    updateCache(KEYS.SCHEDULES, list); 
+    updateCache(KEYS.SCHEDULES, list); notifyDataChange();
     await supabase.from('schedules').upsert(item);
 };
 export const deleteScheduleItem = async (id: string) => { 
-    updateCache(KEYS.SCHEDULES, getSchedules().filter(x => x.id !== id)); 
+    updateCache(KEYS.SCHEDULES, getSchedules().filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('schedules').delete().eq('id', id);
 };
 
 export const getTeacherAssignments = (): TeacherAssignment[] => get(KEYS.ASSIGNMENTS);
 
-// Works Tracking Assignments (Columns)
 export const getAssignments = (category: string, teacherId?: string, includeAll: boolean = false): Assignment[] => {
     const all = get<Assignment>(KEYS.WORKS_ASSIGNMENTS);
     let filtered = all;
-    
-    // Filter by Category
-    if (category !== 'ALL') {
-        filtered = filtered.filter(a => a.category === category);
-    }
-    
-    // Filter by Teacher (if strict mode enabled by lack of includeAll)
-    if (!includeAll && teacherId) {
-        filtered = filtered.filter(a => a.teacherId === teacherId || !a.teacherId);
-    }
-    
+    if (category !== 'ALL') filtered = filtered.filter(a => a.category === category);
+    if (!includeAll && teacherId) filtered = filtered.filter(a => a.teacherId === teacherId || !a.teacherId);
     return filtered;
 };
 
 export const saveAssignment = async (a: Assignment) => { 
     const list = get<Assignment>(KEYS.WORKS_ASSIGNMENTS); 
     const idx = list.findIndex(x => x.id === a.id); if (idx > -1) list[idx] = a; else list.push(a);
-    updateCache(KEYS.WORKS_ASSIGNMENTS, list);
+    updateCache(KEYS.WORKS_ASSIGNMENTS, list); notifyDataChange();
     await supabase.from('assignments').upsert(a);
 };
 export const deleteAssignment = async (id: string) => { 
-    updateCache(KEYS.WORKS_ASSIGNMENTS, get<Assignment>(KEYS.WORKS_ASSIGNMENTS).filter(x => x.id !== id)); 
+    updateCache(KEYS.WORKS_ASSIGNMENTS, get<Assignment>(KEYS.WORKS_ASSIGNMENTS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('assignments').delete().eq('id', id);
 };
 
-// Settings & Config (Keep Local/Hybrid)
 export const getWorksMasterUrl = () => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
 export const getAISettings = (): AISettings => {
@@ -538,42 +453,39 @@ export const getUserTheme = (): UserTheme => {
 export const saveUserTheme = (t: UserTheme) => localStorage.setItem(KEYS.THEME, JSON.stringify(t));
 export const setSystemMode = (isOnline: boolean) => setSyncStatus(isOnline ? 'ONLINE' : 'OFFLINE');
 
-// Feedback
 export const getFeedback = (): Feedback[] => get(KEYS.FEEDBACK);
 export const addFeedback = async (f: Feedback) => { 
-    const list = getFeedback(); list.push(f); updateCache(KEYS.FEEDBACK, list); 
+    const list = getFeedback(); list.push(f); updateCache(KEYS.FEEDBACK, list); notifyDataChange();
     await supabase.from('feedback').insert(f);
 };
 
-// Messages
 export const getMessages = (teacherId?: string): MessageLog[] => {
     const all = get<MessageLog>(KEYS.MESSAGES);
     if (!teacherId) return all;
     return all.filter(m => m.teacherId === teacherId);
 };
 export const saveMessage = async (m: MessageLog) => { 
-    const list = get<MessageLog>(KEYS.MESSAGES); list.unshift(m); updateCache(KEYS.MESSAGES, list); 
+    const list = get<MessageLog>(KEYS.MESSAGES); list.unshift(m); updateCache(KEYS.MESSAGES, list); notifyDataChange();
     await supabase.from('message_logs').insert(m);
 };
 
-// Lesson Plans
 export const getLessonLinks = (): LessonLink[] => get(KEYS.LESSON_LINKS);
 export const saveLessonLink = async (l: LessonLink) => { 
-    const list = getLessonLinks(); list.push(l); updateCache(KEYS.LESSON_LINKS, list); 
+    const list = getLessonLinks(); list.push(l); updateCache(KEYS.LESSON_LINKS, list); notifyDataChange();
     await supabase.from('lesson_links').insert(l);
 };
 export const deleteLessonLink = async (id: string) => { 
-    updateCache(KEYS.LESSON_LINKS, getLessonLinks().filter(x => x.id !== id)); 
+    updateCache(KEYS.LESSON_LINKS, getLessonLinks().filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('lesson_links').delete().eq('id', id);
 };
 
 export const getLessonPlans = (teacherId: string): StoredLessonPlan[] => get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.teacherId === teacherId);
 export const saveLessonPlan = async (p: StoredLessonPlan) => { 
-    const list = get<StoredLessonPlan>(KEYS.LESSON_PLANS); list.push(p); updateCache(KEYS.LESSON_PLANS, list); 
+    const list = get<StoredLessonPlan>(KEYS.LESSON_PLANS); list.push(p); updateCache(KEYS.LESSON_PLANS, list); notifyDataChange();
     await supabase.from('lesson_plans').insert(p);
 };
 export const deleteLessonPlan = async (id: string) => { 
-    updateCache(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(x => x.id !== id)); 
+    updateCache(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('lesson_plans').delete().eq('id', id);
 };
 
@@ -585,18 +497,17 @@ export const getWeeklyPlans = (teacherId?: string): WeeklyPlanItem[] => {
 export const saveWeeklyPlanItem = async (item: WeeklyPlanItem) => {
     const list = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS);
     const idx = list.findIndex(x => x.id === item.id); if (idx > -1) list[idx] = item; else list.push(item);
-    updateCache(KEYS.WEEKLY_PLANS, list);
+    updateCache(KEYS.WEEKLY_PLANS, list); notifyDataChange();
     await supabase.from('weekly_plans').upsert(item);
 };
 
-// Curriculum
 export const getCurriculumUnits = (teacherId: string): CurriculumUnit[] => get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(u => u.teacherId === teacherId);
 export const saveCurriculumUnit = async (u: CurriculumUnit) => { 
-    const list = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS); list.push(u); updateCache(KEYS.CURRICULUM_UNITS, list); 
+    const list = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS); list.push(u); updateCache(KEYS.CURRICULUM_UNITS, list); notifyDataChange();
     await supabase.from('curriculum_units').insert(u);
 };
 export const deleteCurriculumUnit = async (id: string) => { 
-    updateCache(KEYS.CURRICULUM_UNITS, get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(x => x.id !== id)); 
+    updateCache(KEYS.CURRICULUM_UNITS, get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('curriculum_units').delete().eq('id', id);
 };
 
@@ -604,25 +515,24 @@ export const getCurriculumLessons = (): CurriculumLesson[] => get(KEYS.CURRICULU
 export const saveCurriculumLesson = async (l: CurriculumLesson) => { 
     const list = get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS);
     const idx = list.findIndex(x => x.id === l.id); if (idx > -1) list[idx] = l; else list.push(l);
-    updateCache(KEYS.CURRICULUM_LESSONS, list);
+    updateCache(KEYS.CURRICULUM_LESSONS, list); notifyDataChange();
     await supabase.from('curriculum_lessons').upsert(l);
 };
 export const deleteCurriculumLesson = async (id: string) => { 
-    updateCache(KEYS.CURRICULUM_LESSONS, get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS).filter(x => x.id !== id)); 
+    updateCache(KEYS.CURRICULUM_LESSONS, get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
 
 export const getMicroConcepts = (teacherId: string): MicroConcept[] => get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(c => c.teacherId === teacherId);
 export const saveMicroConcept = async (c: MicroConcept) => { 
-    const list = get<MicroConcept>(KEYS.MICRO_CONCEPTS); list.push(c); updateCache(KEYS.MICRO_CONCEPTS, list); 
+    const list = get<MicroConcept>(KEYS.MICRO_CONCEPTS); list.push(c); updateCache(KEYS.MICRO_CONCEPTS, list); notifyDataChange();
     await supabase.from('micro_concepts').insert(c);
 };
 export const deleteMicroConcept = async (id: string) => { 
-    updateCache(KEYS.MICRO_CONCEPTS, get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(x => x.id !== id)); 
+    updateCache(KEYS.MICRO_CONCEPTS, get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('micro_concepts').delete().eq('id', id);
 };
 
-// Exams
 export const getExams = (teacherId?: string): Exam[] => {
     const all = get<Exam>(KEYS.EXAMS);
     if (!teacherId) return all;
@@ -631,11 +541,11 @@ export const getExams = (teacherId?: string): Exam[] => {
 export const saveExam = async (e: Exam) => { 
     const list = get<Exam>(KEYS.EXAMS);
     const idx = list.findIndex(x => x.id === e.id); if (idx > -1) list[idx] = e; else list.push(e);
-    updateCache(KEYS.EXAMS, list);
+    updateCache(KEYS.EXAMS, list); notifyDataChange();
     await supabase.from('exams').upsert(e);
 };
 export const deleteExam = async (id: string) => { 
-    updateCache(KEYS.EXAMS, get<Exam>(KEYS.EXAMS).filter(x => x.id !== id)); 
+    updateCache(KEYS.EXAMS, get<Exam>(KEYS.EXAMS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('exams').delete().eq('id', id);
 };
 
@@ -645,7 +555,7 @@ export const getExamResults = (examId?: string): ExamResult[] => {
     return all.filter(r => r.examId === examId);
 };
 export const saveExamResult = async (r: ExamResult) => { 
-    const list = get<ExamResult>(KEYS.EXAM_RESULTS); list.push(r); updateCache(KEYS.EXAM_RESULTS, list); 
+    const list = get<ExamResult>(KEYS.EXAM_RESULTS); list.push(r); updateCache(KEYS.EXAM_RESULTS, list); notifyDataChange();
     await supabase.from('exam_results').insert(r);
 };
 
@@ -653,15 +563,14 @@ export const getQuestionBank = (teacherId: string): Question[] => get<Question>(
 export const saveQuestionToBank = async (q: Question) => { 
     const list = get<Question>(KEYS.QUESTION_BANK);
     const idx = list.findIndex(x => x.id === q.id); if (idx > -1) list[idx] = q; else list.push(q);
-    updateCache(KEYS.QUESTION_BANK, list);
+    updateCache(KEYS.QUESTION_BANK, list); notifyDataChange();
     await supabase.from('questions').upsert(q);
 };
 export const deleteQuestionFromBank = async (id: string) => { 
-    updateCache(KEYS.QUESTION_BANK, get<Question>(KEYS.QUESTION_BANK).filter(x => x.id !== id)); 
+    updateCache(KEYS.QUESTION_BANK, get<Question>(KEYS.QUESTION_BANK).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('questions').delete().eq('id', id);
 };
 
-// Tracking Sheets
 export const getTrackingSheets = (teacherId?: string): TrackingSheet[] => {
     const all = get<TrackingSheet>(KEYS.TRACKING_SHEETS);
     if (!teacherId) return all;
@@ -670,35 +579,33 @@ export const getTrackingSheets = (teacherId?: string): TrackingSheet[] => {
 export const saveTrackingSheet = async (s: TrackingSheet) => { 
     const list = get<TrackingSheet>(KEYS.TRACKING_SHEETS);
     const idx = list.findIndex(x => x.id === s.id); if (idx > -1) list[idx] = s; else list.push(s);
-    updateCache(KEYS.TRACKING_SHEETS, list);
+    updateCache(KEYS.TRACKING_SHEETS, list); notifyDataChange();
     await supabase.from('tracking_sheets').upsert(s);
 };
 export const deleteTrackingSheet = async (id: string) => { 
-    updateCache(KEYS.TRACKING_SHEETS, get<TrackingSheet>(KEYS.TRACKING_SHEETS).filter(x => x.id !== id)); 
+    updateCache(KEYS.TRACKING_SHEETS, get<TrackingSheet>(KEYS.TRACKING_SHEETS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('tracking_sheets').delete().eq('id', id);
 };
 
-// Custom Tables
 export const getCustomTables = (teacherId?: string): CustomTable[] => {
     const all = get<CustomTable>(KEYS.CUSTOM_TABLES);
     if (!teacherId) return all;
     return all.filter(t => t.teacherId === teacherId);
 };
 export const addCustomTable = async (t: CustomTable) => { 
-    const list = get<CustomTable>(KEYS.CUSTOM_TABLES); list.push(t); updateCache(KEYS.CUSTOM_TABLES, list); 
+    const list = get<CustomTable>(KEYS.CUSTOM_TABLES); list.push(t); updateCache(KEYS.CUSTOM_TABLES, list); notifyDataChange();
     await supabase.from('custom_tables').insert(t);
 };
 export const updateCustomTable = async (t: CustomTable) => { 
     const list = get<CustomTable>(KEYS.CUSTOM_TABLES); const idx = list.findIndex(x => x.id === t.id); if (idx > -1) list[idx] = t; 
-    updateCache(KEYS.CUSTOM_TABLES, list);
+    updateCache(KEYS.CUSTOM_TABLES, list); notifyDataChange();
     await supabase.from('custom_tables').update(t).eq('id', t.id);
 };
 export const deleteCustomTable = async (id: string) => { 
-    updateCache(KEYS.CUSTOM_TABLES, get<CustomTable>(KEYS.CUSTOM_TABLES).filter(x => x.id !== id)); 
+    updateCache(KEYS.CUSTOM_TABLES, get<CustomTable>(KEYS.CUSTOM_TABLES).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('custom_tables').delete().eq('id', id);
 };
 
-// Academic Terms
 export const getAcademicTerms = (teacherId?: string): AcademicTerm[] => {
     const all = get<AcademicTerm>(KEYS.ACADEMIC_TERMS);
     if (!teacherId) return all;
@@ -707,11 +614,11 @@ export const getAcademicTerms = (teacherId?: string): AcademicTerm[] => {
 export const saveAcademicTerm = async (term: AcademicTerm) => {
     const list = get<AcademicTerm>(KEYS.ACADEMIC_TERMS);
     const idx = list.findIndex(t => t.id === term.id); if (idx > -1) list[idx] = term; else list.push(term);
-    updateCache(KEYS.ACADEMIC_TERMS, list);
+    updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
     await supabase.from('academic_terms').upsert(term);
 };
 export const deleteAcademicTerm = async (id: string) => { 
-    updateCache(KEYS.ACADEMIC_TERMS, get<AcademicTerm>(KEYS.ACADEMIC_TERMS).filter(t => t.id !== id)); 
+    updateCache(KEYS.ACADEMIC_TERMS, get<AcademicTerm>(KEYS.ACADEMIC_TERMS).filter(t => t.id !== id)); notifyDataChange();
     await supabase.from('academic_terms').delete().eq('id', id);
 };
 export const setCurrentTerm = async (id: string, teacherId?: string) => {
@@ -721,7 +628,7 @@ export const setCurrentTerm = async (id: string, teacherId?: string) => {
         }
         return t;
     });
-    updateCache(KEYS.ACADEMIC_TERMS, list);
+    updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
     await supabase.from('academic_terms').upsert(list.filter(t => t.teacherId === teacherId));
 };
 
@@ -740,6 +647,7 @@ export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
     if (idx > -1) configs[idx] = config;
     else configs.push(config);
     localStorage.setItem(KEYS.REPORT_CONFIG, JSON.stringify(configs));
+    notifyDataChange();
 };
 
 export const getStorageStatistics = () => {

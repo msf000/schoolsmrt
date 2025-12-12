@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users } from 'lucide-react';
+import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine } from 'recharts';
 
@@ -20,6 +20,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
     }
 
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [selectedSubject, setSelectedSubject] = useState<string>('');
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -40,6 +41,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     // Certificate State
     const [isCertModalOpen, setIsCertModalOpen] = useState(false);
     const [certType, setCertType] = useState<'EXCELLENCE' | 'ATTENDANCE' | 'BEHAVIOR' | 'THANKS'>('EXCELLENCE');
+
+    // AUTO-SYNC ON MOUNT
+    useEffect(() => {
+        const syncData = async () => {
+            setIsRefreshing(true);
+            await forceRefreshData();
+            setIsRefreshing(false);
+        };
+        syncData();
+    }, []);
 
     useEffect(() => {
         const subs = getSubjects(currentUser?.id); 
@@ -79,7 +90,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         }
 
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [currentUser, students]); 
+    }, [currentUser, students]); // Students dependency ensures re-render after sync
 
     const handleTargetChange = (val: string) => {
         const num = parseInt(val);
@@ -326,7 +337,14 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     };
 
     return (
-        <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50 overflow-auto">
+        <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50 overflow-auto relative">
+            {/* Sync Indicator */}
+            {isRefreshing && (
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 flex items-center gap-2 animate-pulse text-sm font-bold">
+                    <RefreshCw size={16} className="animate-spin"/> جاري تحديث البيانات من السحابة...
+                </div>
+            )}
+
             <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden bg-white p-4 rounded-xl shadow-sm border border-gray-200 z-20 relative">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><FileText className="text-teal-600" /> متابعة فردية للطلاب</h2>

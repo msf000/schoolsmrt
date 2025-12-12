@@ -10,7 +10,8 @@ import {
     bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
     initAutoSync, getWorksMasterUrl, getUserTheme, 
     getTeacherAssignments, bulkUpsertStudents,
-    setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus
+    setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
+    forceRefreshData
 } from './services/storageService';
 import { checkAIConnection } from './services/geminiService';
 
@@ -85,13 +86,14 @@ const App: React.FC = () => {
     useEffect(() => {
         if (currentUser) {
             const startUp = async () => {
-                // If data is empty locally, show loader. If we have cache, load immediately then sync in background.
+                // If data is empty locally, show loader.
                 if (getStudents().length === 0) setIsLoading(true);
                 
                 loadData(); // Load local cache first for instant render
                 
                 try {
-                    await initAutoSync();
+                    // Force refresh from cloud on startup to ensure consistency across browsers
+                    await forceRefreshData();
                 } catch (e) {
                     console.error("Initialization Sync Failed:", e);
                 } finally {
@@ -111,9 +113,8 @@ const App: React.FC = () => {
             checkAI();
             
             const unsubSync = subscribeToSyncStatus((status) => setSyncStatus(status));
-            // Subscribe to data changes to auto-update UI when data changes elsewhere (e.g., Attendance component saves data)
+            // Subscribe to data changes to auto-update UI when data changes elsewhere
             const unsubData = subscribeToDataChanges(() => {
-                console.log("Data changed, reloading...");
                 loadData();
             });
 
@@ -177,10 +178,10 @@ const App: React.FC = () => {
         setCurrentView('DASHBOARD');
     };
 
-    const handleManualSync = () => {
-        if (syncStatus === 'OFFLINE' || syncStatus === 'ERROR' || syncStatus === 'IDLE') {
-            initAutoSync();
-        }
+    const handleManualSync = async () => {
+        setIsLoading(true);
+        await forceRefreshData();
+        setIsLoading(false);
     };
 
     const handleCheckAI = async () => {
@@ -423,16 +424,14 @@ const App: React.FC = () => {
                 <div className="p-4 border-t bg-gray-50 space-y-2">
                     <button 
                         onClick={handleManualSync}
-                        disabled={syncStatus === 'SYNCING' || syncStatus === 'ONLINE'}
-                        className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded border transition-colors ${
-                            syncStatus === 'ERROR' || syncStatus === 'OFFLINE' ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'
-                        } ${
+                        disabled={syncStatus === 'SYNCING'}
+                        className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded border transition-colors cursor-pointer ${
                             syncStatus === 'SYNCING' ? 'bg-blue-50 border-blue-200' :
                             syncStatus === 'ONLINE' ? 'bg-green-50 border-green-200' :
                             syncStatus === 'OFFLINE' ? 'bg-gray-100 border-gray-300' :
                             syncStatus === 'ERROR' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
                         }`}
-                        title={syncStatus === 'ERROR' || syncStatus === 'OFFLINE' ? 'اضغط لإعادة المحاولة' : ''}
+                        title="اضغط لتحديث البيانات فوراً"
                     >
                         <span className="text-gray-500 font-bold">حالة المزامنة:</span>
                         <div className="flex items-center gap-1">
@@ -488,7 +487,7 @@ const App: React.FC = () => {
                     </button>
 
                     <div className="text-center mt-2 text-[10px] text-gray-300">
-                        نظام المدرس الذكي v1.1
+                        نظام المدرس الذكي v1.2
                     </div>
                 </div>
             </aside>

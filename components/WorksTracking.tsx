@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance } from '../services/storageService';
+import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -91,6 +91,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [unmatchedStudents, setUnmatchedStudents] = useState<string[]>([]);
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
+
+    // AUTO-SYNC ON MOUNT
+    useEffect(() => {
+        const syncData = async () => {
+            setIsRefreshing(true);
+            // Use forceRefresh to guarantee fresh data from cloud
+            await forceRefreshData();
+            
+            // Check for linked sheet sync
+            const savedUrl = getWorksMasterUrl();
+            if (savedUrl) setTimeout(() => handleQuickSheetSync(true), 1000);
+            
+            setIsRefreshing(false);
+        };
+        syncData();
+    }, []);
 
     const findStudentNameInRow = (row: any): string | undefined => {
         for (const key of STUDENT_NAME_HEADERS) {
@@ -333,24 +349,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         alert('تم تحديث البيانات بنجاح!');
     };
 
-    // ... (Effects for Init, Loading Config, Terms, etc.)
-    useEffect(() => {
-        const initData = async () => {
-            setIsRefreshing(true);
-            try {
-                await downloadFromSupabase();
-                const savedUrl = getWorksMasterUrl();
-                // Trigger FULL SYNC CHECK on load if URL exists
-                if (savedUrl) setTimeout(() => handleQuickSheetSync(true), 1500);
-            } catch (e) {
-                console.error("Auto refresh failed", e);
-            } finally {
-                setIsRefreshing(false);
-            }
-        };
-        initData();
-    }, []); 
-
     useEffect(() => {
         if (currentUser) {
             setSubjects(getSubjects(currentUser.id));
@@ -498,7 +496,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const handleRefreshAll = async () => {
         setIsRefreshing(true);
         try {
-            await downloadFromSupabase();
+            await forceRefreshData();
         } catch (e) {
             console.error(e);
             alert('فشل تحديث البيانات.');
@@ -808,6 +806,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
+            
+            {/* Sync Indicator */}
+            {isRefreshing && (
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 flex items-center gap-2 animate-pulse text-sm font-bold">
+                    <RefreshCw size={16} className="animate-spin"/> جاري تحديث البيانات من السحابة...
+                </div>
+            )}
+
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Table className="text-purple-600"/> سجل الرصد والمتابعة</h2>
