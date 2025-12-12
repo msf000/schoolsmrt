@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine } from 'recharts';
 
@@ -521,6 +521,100 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                     <Users size={14} className="text-gray-500"/> <span>المقارنة مع الزملاء</span>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* DETAILED BREAKDOWN TABLES (ADDED) */}
+                    <div className="mb-8">
+                        <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                            <List size={20} className="text-purple-600"/> تفاصيل الأداء الأكاديمي
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            
+                            {/* 1. Homework Details */}
+                            <div className="border border-blue-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                                <div className="bg-blue-50 p-3 text-center font-bold text-blue-800 border-b border-blue-100">
+                                    الواجبات ({stats.studentHWs.length})
+                                </div>
+                                <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                    <table className="w-full text-right text-xs">
+                                        <thead className="bg-blue-50/50 text-blue-600 font-bold">
+                                            <tr>
+                                                <th className="p-2">العنوان</th>
+                                                <th className="p-2 text-center w-20">الدرجة</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-blue-50">
+                                            {stats.studentHWs.length > 0 ? stats.studentHWs.map((hw, i) => (
+                                                <tr key={i} className="hover:bg-blue-50/30">
+                                                    <td className="p-2">
+                                                        <div className="font-medium text-gray-800">{hw.title}</div>
+                                                        <div className="text-[10px] text-gray-400">{formatDualDate(hw.date).split('|')[0]}</div>
+                                                    </td>
+                                                    <td className="p-2 text-center font-bold text-blue-700 bg-blue-50/20">{hw.score}/{hw.maxScore}</td>
+                                                </tr>
+                                            )) : <tr><td colSpan={2} className="p-6 text-center text-gray-400">لا توجد واجبات</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* 2. Activity Details */}
+                            <div className="border border-amber-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                                <div className="bg-amber-50 p-3 text-center font-bold text-amber-800 border-b border-amber-100">
+                                    الأنشطة والمشاركات ({stats.studentActs.length})
+                                </div>
+                                <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                    <table className="w-full text-right text-xs">
+                                        <thead className="bg-amber-50/50 text-amber-600 font-bold">
+                                            <tr>
+                                                <th className="p-2">العنوان</th>
+                                                <th className="p-2 text-center w-20">الدرجة</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-amber-50">
+                                            {stats.studentActs.length > 0 ? stats.studentActs.map((act, i) => (
+                                                <tr key={i} className="hover:bg-amber-50/30">
+                                                    <td className="p-2">
+                                                        <div className="font-medium text-gray-800">{act.title}</div>
+                                                        <div className="text-[10px] text-gray-400">{formatDualDate(act.date).split('|')[0]}</div>
+                                                    </td>
+                                                    <td className="p-2 text-center font-bold text-amber-700 bg-amber-50/20">{act.score}/{act.maxScore}</td>
+                                                </tr>
+                                            )) : <tr><td colSpan={2} className="p-6 text-center text-gray-400">لا توجد أنشطة</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* 3. Exam Details */}
+                            <div className="border border-purple-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                                <div className="bg-purple-50 p-3 text-center font-bold text-purple-800 border-b border-purple-100">
+                                    الاختبارات ({stats.studentExams.length})
+                                </div>
+                                <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                    <table className="w-full text-right text-xs">
+                                        <thead className="bg-purple-50/50 text-purple-600 font-bold">
+                                            <tr>
+                                                <th className="p-2">العنوان</th>
+                                                <th className="p-2 text-center w-20">الدرجة</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-purple-50">
+                                            {stats.studentExams.length > 0 ? stats.studentExams.map((ex, i) => (
+                                                <tr key={i} className="hover:bg-purple-50/30">
+                                                    <td className="p-2">
+                                                        <div className="font-medium text-gray-800">{ex.title}</div>
+                                                        <div className="text-[10px] text-gray-400">{formatDualDate(ex.date).split('|')[0]}</div>
+                                                    </td>
+                                                    <td className="p-2 text-center font-bold text-purple-700 bg-purple-50/20">{ex.score}/{ex.maxScore}</td>
+                                                </tr>
+                                            )) : <tr><td colSpan={2} className="p-6 text-center text-gray-400">لا توجد اختبارات</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
