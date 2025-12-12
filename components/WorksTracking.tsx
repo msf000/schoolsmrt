@@ -1,9 +1,10 @@
+
 // ... (imports remain the same)
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl } from '../services/storageService';
+import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -42,6 +43,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
     const [isSaving, setIsSaving] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false); // New state for refresh
+    const [isSheetSyncing, setIsSheetSyncing] = useState(false); // New state for sheet sync
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
     const [activityTarget, setActivityTarget] = useState(15);
@@ -218,6 +221,108 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setIsSaving(false);
             // alert('تم حفظ الدرجات بنجاح'); // Optional: Remove alert for smoother flow
         }, 500);
+    };
+
+    // --- NEW: Handle Full Refresh from DB ---
+    const handleRefreshAll = async () => {
+        setIsRefreshing(true);
+        try {
+            await downloadFromSupabase();
+            // Data will update via prop change from parent App component
+        } catch (e) {
+            console.error(e);
+            alert('فشل تحديث البيانات. تأكد من الاتصال بالإنترنت.');
+        } finally {
+            setTimeout(() => setIsRefreshing(false), 800);
+        }
+    };
+
+    // --- NEW: Quick Sync from Google Sheet (without modal) ---
+    const handleQuickSheetSync = async () => {
+        if (!googleSheetUrl) return alert('لا يوجد رابط ملف مسجل. يرجى إعداده من "إعدادات الأعمدة".');
+        if (!selectedTermId) return alert('الرجاء اختيار الفترة الدراسية أولاً.');
+        
+        setIsSheetSyncing(true);
+        try {
+            // 1. Fetch Structure
+            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
+            if (sheetNames.length === 0) throw new Error('الملف فارغ');
+            
+            // Use first sheet or saved logic (Simplified to first sheet for quick sync or prompt)
+            const targetSheet = sheetNames[0]; // Logic could be improved to save preferred sheet name
+            const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
+            
+            // 2. Logic similar to handleConfirmSync
+            let updatedCount = 0;
+            const recordsToUpsert: PerformanceRecord[] = [];
+            const today = new Date().toISOString().split('T')[0];
+            const currentAssignments = getAssignments(activeTab, currentUser?.id, isManager);
+            
+            // Filter headers that match existing assignments titles for this term
+            const relevantHeaders = headers.filter(h => {
+                let cleanH = h;
+                const match = h.match(/(.+)\s*\((\d+)\)$/);
+                if (match) cleanH = match[1].trim();
+                return currentAssignments.some(a => a.title === cleanH && a.termId === selectedTermId);
+            });
+
+            if (relevantHeaders.length === 0) throw new Error('لم يتم العثور على أعمدة في الملف تطابق عناوين الأعمدة الحالية في هذه الفترة.');
+
+            relevantHeaders.forEach(header => {
+                let title = header;
+                const match = header.match(/(.+)\s*\((\d+)\)$/);
+                if (match) title = match[1].trim();
+
+                const targetAssignment = currentAssignments.find(a => a.title === title && a.termId === selectedTermId);
+                
+                if (targetAssignment) {
+                    data.forEach(row => {
+                        let student: Student | undefined;
+                        const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
+                        if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
+                        if (!student) {
+                            const rowName = row['الاسم'] || row['name'] || row['student'];
+                            if (rowName) student = students.find(s => s.name.trim() === String(rowName).trim());
+                        }
+
+                        if (student) {
+                            const rawVal = row[header];
+                            if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+                                const numVal = parseFloat(String(rawVal));
+                                if (!isNaN(numVal)) {
+                                    const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment.id);
+                                    recordsToUpsert.push({
+                                        id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment.id}`,
+                                        studentId: student.id,
+                                        subject: selectedSubject || 'عام',
+                                        title: targetAssignment.title,
+                                        category: targetAssignment.category,
+                                        score: numVal,
+                                        maxScore: targetAssignment.maxScore,
+                                        date: existingRecord ? existingRecord.date : today,
+                                        notes: targetAssignment.id,
+                                        createdById: currentUser?.id
+                                    });
+                                    updatedCount++;
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+
+            if (recordsToUpsert.length > 0) {
+                onAddPerformance(recordsToUpsert);
+                alert(`تم تحديث ${updatedCount} درجة بنجاح من الملف!`);
+            } else {
+                alert('لم يتم العثور على درجات جديدة لتحديثها.');
+            }
+
+        } catch (e: any) {
+            alert('خطأ أثناء المزامنة السريعة: ' + e.message);
+        } finally {
+            setIsSheetSyncing(false);
+        }
     };
 
     // ... (Rest of the component remains exactly the same: Google Sync, Manual Column, Export, Calculation, Render)
@@ -466,6 +571,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
 
                     <div className="flex gap-2">
+                        {googleSheetUrl && (
+                            <button 
+                                onClick={handleQuickSheetSync} 
+                                disabled={isSheetSyncing}
+                                className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200"
+                                title="تحديث الدرجات من ملف Google Sheet المرتبط"
+                            >
+                                {isSheetSyncing ? <Loader2 size={16} className="animate-spin"/> : <CloudLightning size={16}/>} 
+                                تحديث من الملف
+                            </button>
+                        )}
+                        <button 
+                            onClick={handleRefreshAll} 
+                            disabled={isRefreshing}
+                            className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-200"
+                        >
+                            {isRefreshing ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>} تحديث الكل
+                        </button>
                         <button onClick={() => { setIsSettingsOpen(true); setSettingTermId(selectedTermId || ''); }} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
                             <Settings size={16}/> إعدادات {activeTab === 'YEAR_WORK' ? 'توزيع الدرجات' : 'الأعمدة'}
                         </button>
