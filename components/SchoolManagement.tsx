@@ -6,8 +6,7 @@ import {
     getSchools, getSubjects, addSubject, deleteSubject,
     getReportHeaderConfig, saveReportHeaderConfig,
     getUserTheme, saveUserTheme,
-    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
-    getStudents
+    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm
 } from '../services/storageService';
 import { Trash2, User, Building2, Save, Users, FileText, BookOpen, Settings, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles } from 'lucide-react';
 
@@ -464,5 +463,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
         </div>
-    );
+    </div>
+  );
 };

@@ -628,7 +628,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const isAssignmentInScope = (a: Assignment) => {
             if (selectedTermId && a.termId && a.termId !== selectedTermId) return false;
             
-            // Relaxed check: Allow assignments with NO period (General) to appear in ALL periods
+            // RELAXED PERIOD FILTER: Show general assignments (no periodId) in all periods
+            // Only hide if it has a specific period ID that doesn't match selected
             if (selectedPeriodId && a.periodId && a.periodId !== selectedPeriodId) return false;
             
             if (selectedTermId) return a.termId === selectedTermId;
@@ -727,7 +728,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             } else {
                 const filteredAssignments = assignments.filter(a => {
                     const termMatch = !selectedTermId || (a.termId === selectedTermId);
-                    // Relaxed period match for export too
+                    // Relaxed export filter
                     const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
                     return termMatch && periodMatch && a.category === activeTab;
                 });
@@ -798,7 +799,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !selectedTermId || (a.termId === selectedTermId);
-            // RELAXED PERIOD FILTER: Show assignments if period matches OR if assignment has no period (General)
+            // RELAXED FILTER: Include general assignments (no period)
             const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
