@@ -67,6 +67,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
+    // --- NEW: Auto Refresh on Mount ---
+    useEffect(() => {
+        const refreshData = async () => {
+            setIsRefreshing(true);
+            try {
+                await downloadFromSupabase();
+            } catch (e) {
+                console.error("Auto refresh failed", e);
+            } finally {
+                setIsRefreshing(false);
+            }
+        };
+        refreshData();
+    }, []);
+
     // ... (Effects remain same)
     useEffect(() => {
         if (currentUser) {
@@ -573,7 +588,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <div className="flex gap-2">
                         {googleSheetUrl && (
                             <button 
-                                onClick={handleQuickSheetSync} 
+                                onClick={() => handleQuickSheetSync()} 
                                 disabled={isSheetSyncing}
                                 className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200"
                                 title="تحديث الدرجات من ملف Google Sheet المرتبط"
