@@ -2,11 +2,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell, ScatterChart, Scatter, LineChart, Line, AreaChart, Area
+  PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, TeacherAssignment, SystemUser, Feedback, School, Teacher, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
-import { getSchedules, getTeacherAssignments, getFeedback, getTeachers, getSchools, getSystemUsers, getStorageStatistics, getExams, getWeeklyPlans, getAcademicTerms } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Frown, MessageSquare, Sparkles, BrainCircuit, Calendar, BookOpen, Mail, Server, Database, Building2, Loader2, ArrowRight, CheckSquare, Plus, Trash2, Trophy, GraduationCap, Briefcase, TrendingDown, Layout, FileText, CheckCircle, FileQuestion, CalendarDays, PenTool, Table, XCircle, PlusCircle, Filter, MessageCircle } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, SystemUser, WeeklyPlanItem, AcademicTerm, Exam } from '../types';
+import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -18,17 +18,17 @@ interface DashboardProps {
   onNavigate: (view: string) => void;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6']; // Green, Red, Amber, Blue
 
-// --- Widgets Definitions ---
+// --- Widgets ---
 
 const TodoWidget: React.FC = () => {
     const [todos, setTodos] = useState<{id: string, text: string, done: boolean}[]>(() => {
         try {
             const saved = localStorage.getItem('dashboard_todos');
             return saved ? JSON.parse(saved) : [
-                { id: '1', text: 'مراجعة تحضير الغد', done: false },
-                { id: '2', text: 'إدخال درجات الاختبار', done: false }
+                { id: '1', text: 'رصد غياب اليوم', done: false },
+                { id: '2', text: 'إدخال درجات الاختبار القصير', done: false }
             ];
         } catch { return []; }
     });
@@ -55,472 +55,249 @@ const TodoWidget: React.FC = () => {
     return (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
             <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <CheckSquare size={18} className="text-green-600"/> مهامي
+                <CheckSquare size={18} className="text-indigo-600"/> مهامي السريعة
             </h3>
             <div className="flex gap-2 mb-3">
                 <input 
-                    className="flex-1 border rounded px-2 py-1 text-sm outline-none focus:border-blue-500"
+                    className="flex-1 border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-indigo-500 bg-gray-50"
                     placeholder="مهمة جديدة..."
                     value={newTodo}
                     onChange={(e) => setNewTodo(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && addTodo()}
                 />
-                <button onClick={addTodo} className="bg-blue-600 text-white p-1 rounded hover:bg-blue-700"><Plus size={16}/></button>
+                <button onClick={addTodo} className="bg-indigo-600 text-white p-1.5 rounded-lg hover:bg-indigo-700 transition-colors"><Plus size={18}/></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar max-h-40">
                 {todos.map(todo => (
-                    <div key={todo.id} className="flex items-center justify-between group">
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => toggleTodo(todo.id)} className={`text-gray-400 hover:text-green-600 ${todo.done ? 'text-green-600' : ''}`}>
-                                {todo.done ? <CheckCircle size={16}/> : <div className="w-4 h-4 border rounded hover:border-green-600"></div>}
-                            </button>
-                            <span className={`text-sm ${todo.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{todo.text}</span>
+                    <div key={todo.id} className="flex items-center justify-between group p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => toggleTodo(todo.id)}>
+                            <div className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-colors ${todo.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-transparent'}`}>
+                                <CheckCircle size={14} fill="currentColor"/>
+                            </div>
+                            <span className={`text-sm ${todo.done ? 'line-through text-gray-400' : 'text-gray-700 font-medium'}`}>{todo.text}</span>
                         </div>
-                        <button onClick={() => deleteTodo(todo.id)} className="text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600"><Trash2 size={14}/></button>
+                        <button onClick={() => deleteTodo(todo.id)} className="text-red-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"><Trash2 size={16}/></button>
                     </div>
                 ))}
-                {todos.length === 0 && <p className="text-center text-xs text-gray-400 mt-4">لا توجد مهام</p>}
+                {todos.length === 0 && <p className="text-center text-xs text-gray-400 mt-4">لا توجد مهام.. استمتع يومك! 🎉</p>}
             </div>
         </div>
     );
 };
-
-const WeeklyPlanWidget: React.FC<{ teacherId: string, onNavigate: (view: string) => void }> = ({ teacherId, onNavigate }) => {
-    const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
-    
-    useEffect(() => {
-        const allPlans = getWeeklyPlans(teacherId);
-        const d = new Date();
-        const day = d.getDay(); // 0-6
-        const diff = d.getDate() - day; 
-        const sunday = new Date(d.setDate(diff));
-        const weekStart = sunday.toISOString().split('T')[0];
-        
-        setPlans(allPlans.filter(p => p.weekStartDate === weekStart).sort((a,b) => {
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            return days.indexOf(a.day) - days.indexOf(b.day);
-        }));
-    }, [teacherId]);
-
-    const todayDay = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    const todaysPlans = plans.filter(p => p.day === todayDay);
-
-    return (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-3">
-                <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <CalendarDays size={18} className="text-purple-600"/> خطة اليوم
-                </h3>
-                <button onClick={() => onNavigate('SCHEDULE_VIEW')} className="text-xs text-blue-600 hover:underline">الجدول الكامل</button>
-            </div>
-            <div className="space-y-3">
-                {todaysPlans.length > 0 ? todaysPlans.map(plan => (
-                    <div key={plan.id} className="p-2 bg-purple-50 rounded-lg border border-purple-100">
-                        <div className="flex justify-between items-start">
-                            <span className="text-xs font-bold text-purple-800 bg-white px-2 py-0.5 rounded border border-purple-200">حصة {plan.period}</span>
-                            <span className="text-xs text-gray-500 font-bold">{plan.subjectName}</span>
-                        </div>
-                        <p className="text-xs text-gray-700 mt-1 line-clamp-2">{plan.lessonTopic}</p>
-                    </div>
-                )) : <p className="text-center text-xs text-gray-400 py-4">لا توجد خطط مسجلة لليوم</p>}
-            </div>
-        </div>
-    );
-};
-
-const UpcomingExamsWidget: React.FC<{ teacherId: string, onNavigate: (view: string) => void }> = ({ teacherId, onNavigate }) => {
-    const [exams, setExams] = useState<Exam[]>([]);
-
-    useEffect(() => {
-        const allExams = getExams(teacherId);
-        const today = new Date().toISOString().split('T')[0];
-        const upcoming = allExams.filter(e => e.date && e.date >= today).sort((a,b) => a.date!.localeCompare(b.date!)).slice(0, 3);
-        setExams(upcoming);
-    }, [teacherId]);
-
-    return (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-3">
-                <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <FileQuestion size={18} className="text-orange-600"/> اختبارات قادمة
-                </h3>
-                <button onClick={() => onNavigate('EXAMS_MANAGER')} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
-            </div>
-            <div className="space-y-2">
-                {exams.length > 0 ? exams.map(exam => (
-                    <div key={exam.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-200 transition-colors cursor-pointer" onClick={() => onNavigate('EXAMS_MANAGER')}>
-                        <div>
-                            <p className="text-sm font-bold text-gray-800">{exam.title}</p>
-                            <p className="text-xs text-gray-500">{exam.subject} - {exam.gradeLevel}</p>
-                        </div>
-                        <div className="text-center bg-orange-50 px-2 py-1 rounded border border-orange-100">
-                            <span className="block text-xs font-bold text-orange-700">{formatDualDate(exam.date!).split('|')[0]}</span>
-                        </div>
-                    </div>
-                )) : <p className="text-center text-xs text-gray-400 py-4">لا توجد اختبارات قادمة</p>}
-            </div>
-        </div>
-    );
-};
-
-// --- End Widgets Definitions ---
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
-  // Safety Check
-  if (!students || !attendance || !performance) {
-      return <div className="flex items-center justify-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
-  }
-
-  const effectiveDate = selectedDate || new Date().toISOString().split('T')[0];
-  
-  if (currentUser?.role === 'SUPER_ADMIN') {
-      return <SystemAdminDashboard />;
-  }
-
-  if (currentUser?.role === 'SCHOOL_MANAGER') {
-      return <SchoolManagerDashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={onNavigate} />;
-  }
-
-  return <TeacherDashboard students={students} attendance={attendance} performance={performance} selectedDate={effectiveDate} currentUser={currentUser} onNavigate={onNavigate} />;
-};
-
-const SystemAdminDashboard = () => (
-    <div className="p-6 h-full flex flex-col items-center justify-center text-gray-500">
-        <Server size={64} className="mb-4 text-gray-300"/>
-        <h2 className="text-xl font-bold">لوحة تحكم مدير النظام</h2>
-        <p>يرجى الانتقال إلى قائمة "إدارة النظام" للتحكم الكامل.</p>
-    </div>
-);
-
-// --- SCHOOL MANAGER DASHBOARD ---
-const SchoolManagerDashboard: React.FC<any> = ({ students, attendance, performance, currentUser, onNavigate }) => {
-    return <div className="p-6 text-center text-gray-500">لوحة المدير (مختصرة للتحديث)</div>;
-};
-
-const TeacherDashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
-  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
-  const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
-  
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState<string>('');
 
   useEffect(() => {
-      setSchedules(getSchedules());
-      
       const loadedTerms = getAcademicTerms(currentUser?.id);
       setTerms(loadedTerms);
       const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
       if (active) setSelectedTermId(active.id);
-
-      if (currentUser?.role === 'TEACHER') {
-          const teachers = getTeachers();
-          const me = teachers.find(t => 
-              (currentUser.nationalId && t.nationalId === currentUser.nationalId) || 
-              (currentUser.email && t.email === currentUser.email)
-          );
-          if (me) {
-              const allFeedback = getFeedback();
-              setMyFeedback(allFeedback.filter(f => f.teacherId === me.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-          }
-      }
   }, [currentUser]);
 
   const activeTerm = terms.find(t => t.id === selectedTermId);
 
-  // --- Today's Schedule Logic ---
-  const todaySchedule = useMemo(() => {
-      if (!currentUser) return [];
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const today = days[new Date().getDay()]; 
-      
-      return schedules
-          .filter(s => s.day === today && (s.teacherId === currentUser.id || !s.teacherId))
-          .sort((a,b) => a.period - b.period);
-  }, [schedules, currentUser]);
-
+  // --- Statistics Calculation ---
   const stats = useMemo(() => {
     const totalStudents = students.length;
-    const todaysAttendance = attendance.filter(a => a.date === selectedDate);
-    
+    // Today's Attendance
+    const today = new Date().toISOString().split('T')[0];
+    const todaysAttendance = attendance.filter(a => a.date === today);
     const present = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
     const absent = todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
-    
-    const attendanceRate = totalStudents > 0 ? Math.round((present / totalStudents) * 100) : 0;
+    const attendanceRate = totalStudents > 0 && todaysAttendance.length > 0 ? Math.round((present / totalStudents) * 100) : 0;
 
-    // Filter Performance by Selected Term
+    // Performance (Term Based)
     let filteredPerf = performance;
     if (activeTerm) {
         filteredPerf = performance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
     }
-
     const totalScore = filteredPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
     const avgScore = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
 
-    return { totalStudents, present, absent, attendanceRate, avgScore };
-  }, [students, attendance, performance, selectedDate, activeTerm]);
+    // Data for Charts
+    const attendanceData = [
+        { name: 'حاضر', value: present },
+        { name: 'غائب', value: absent },
+    ];
 
-  const studentMetrics = useMemo(() => {
-    return students.map(student => {
-        let studentAttendance = attendance.filter(a => a.studentId === student.id);
-        if (activeTerm) {
-             studentAttendance = studentAttendance.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
-        }
-
-        const totalDays = studentAttendance.length;
-        const creditDays = studentAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
-        const attendanceRate = totalDays > 0 ? (creditDays / totalDays) * 100 : 100;
-
-        let studentPerformance = performance.filter(p => p.studentId === student.id);
-        if (activeTerm) {
-             studentPerformance = studentPerformance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
-        }
-
-        const totalScore = studentPerformance.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
-        const avgScore = studentPerformance.length > 0 ? (totalScore / studentPerformance.length) * 100 : 0;
-
-        const negativeBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
-        const positiveBehaviors = studentAttendance.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
-
-        const leaderboardScore = (attendanceRate * 0.4) + (avgScore * 0.4) + ((positiveBehaviors - negativeBehaviors) * 5);
-
-        return { id: student.id, name: student.name, grade: student.gradeLevel, attendance: Math.round(attendanceRate), score: Math.round(avgScore), leaderboardScore: Math.round(leaderboardScore) };
-    });
+    return { totalStudents, present, absent, attendanceRate, avgScore, attendanceData };
   }, [students, attendance, performance, activeTerm]);
 
-  const topStudents = [...studentMetrics].sort((a,b) => b.leaderboardScore - a.leaderboardScore).slice(0, 5);
-
-  const recentActivity = useMemo(() => {
-      const activities: any[] = [];
-      performance.forEach(p => {
-          activities.push({
-              type: 'PERFORMANCE',
-              date: p.date,
-              studentName: students.find(s => s.id === p.studentId)?.name || 'طالب غير معروف',
-              detail: `حصل على ${p.score}/${p.maxScore} في ${p.title || p.subject}`,
-              timestamp: new Date(p.date).getTime()
-          });
-      });
-      attendance.forEach(a => {
-          if (a.status === 'ABSENT' || a.status === 'LATE') {
-              activities.push({
-                  type: 'ATTENDANCE',
-                  date: a.date,
-                  studentName: students.find(s => s.id === a.studentId)?.name || 'طالب غير معروف',
-                  detail: a.status === 'ABSENT' ? 'تم تسجيل غياب' : 'تم تسجيل تأخر',
-                  timestamp: new Date(a.date).getTime()
-              });
-          }
-          if (a.behaviorStatus && a.behaviorStatus !== 'NEUTRAL') {
-               activities.push({
-                  type: 'BEHAVIOR',
-                  date: a.date,
-                  studentName: students.find(s => s.id === a.studentId)?.name || 'طالب غير معروف',
-                  detail: a.behaviorStatus === 'POSITIVE' ? 'سلوك إيجابي 🌟' : 'ملاحظة سلوكية ⚠️',
-                  timestamp: new Date(a.date).getTime()
-              });
-          }
-      });
-      return activities.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
-  }, [attendance, performance, students]);
-
-  const riskAlerts = useMemo(() => {
-      const risks: any[] = [];
-      students.forEach(s => {
-          let sAtt = attendance.filter(a => a.studentId === s.id);
+  // --- Top Students ---
+  const topStudents = useMemo(() => {
+      return students.map(s => {
           let sPerf = performance.filter(p => p.studentId === s.id);
+          if (activeTerm) sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
           
-          if (activeTerm) {
-              sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
-              sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
-          }
+          const score = sPerf.reduce((acc, p) => acc + (p.score/p.maxScore), 0);
+          const avg = sPerf.length > 0 ? (score / sPerf.length) * 100 : 0;
+          return { ...s, avg: Math.round(avg) };
+      })
+      .sort((a,b) => b.avg - a.avg)
+      .slice(0, 5);
+  }, [students, performance, activeTerm]);
 
-          const absent = sAtt.filter(a => a.status === 'ABSENT').length;
-          const totalDays = sAtt.length;
-          if (totalDays > 0 && (absent / totalDays) > 0.20) {
-              risks.push({ student: s, type: 'ATTENDANCE', msg: `نسبة غياب عالية (${Math.round((absent/totalDays)*100)}%)` });
-          }
-          
-          if (sPerf.length >= 3) {
-              const totalScore = sPerf.reduce((a,b) => a + (b.score/b.maxScore), 0);
-              const avg = totalScore / sPerf.length;
-              if (avg < 0.5) {
-                  risks.push({ student: s, type: 'ACADEMIC', msg: `مستوى متدني (${Math.round(avg*100)}%)` });
-              }
-          }
-      });
-      return risks.slice(0, 3);
-  }, [students, attendance, performance, activeTerm]);
-
-  // Navigation Handler
   const handleRiskClick = (studentId: string) => {
-      // Pass ID via localStorage to communicate with StudentFollowUp component
       localStorage.setItem('nav_context_student_id', studentId);
       onNavigate('STUDENT_FOLLOWUP');
   };
 
-  const handleMessageParent = (e: React.MouseEvent, student: Student, riskMsg: string) => {
-      e.stopPropagation();
-      const phone = student.parentPhone ? student.parentPhone.replace(/\D/g, '') : '';
-      if (!phone) {
-          alert('رقم ولي الأمر غير مسجل');
-          return;
-      }
-      const message = `السلام عليكم، نود التنبيه بشأن الطالب ${student.name}: ${riskMsg}. نرجو المتابعة.`;
-      const formattedPhone = phone.startsWith('966') ? phone : `966${phone.startsWith('0') ? phone.slice(1) : phone}`;
-      window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, '_blank');
-  };
-
   return (
-    <div className="space-y-6 animate-fade-in p-6">
+    <div className="space-y-6 animate-fade-in p-6 bg-gray-50/50 min-h-full">
       
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
-          <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('ATTENDANCE')}> 
-              <div><h3 className="font-bold text-lg mb-1">تسجيل الحضور</h3><p className="text-green-100 text-xs">رصد الغياب والتأخر اليومي</p></div>
-              <div className="bg-white/20 p-2 rounded-lg"><CheckSquare size={24}/></div>
+      {/* Header & Quick Stats */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+          <div>
+              <h1 className="text-2xl font-black text-gray-800">لوحة المتابعة اليومية</h1>
+              <p className="text-gray-500 text-sm mt-1">نظرة شاملة على أداء وحضور الطلاب</p>
           </div>
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('WORKS_TRACKING')}>
-              <div><h3 className="font-bold text-lg mb-1">رصد الدرجات</h3><p className="text-purple-100 text-xs">سجل المتابعة والمهارات</p></div>
-              <div className="bg-white/20 p-2 rounded-lg"><Table size={24}/></div>
-          </div>
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg flex items-center justify-between cursor-pointer hover:shadow-xl transition-transform hover:-translate-y-1" onClick={() => onNavigate('STUDENT_FOLLOWUP')}>
-              <div><h3 className="font-bold text-lg mb-1">متابعة الطلاب</h3><p className="text-blue-100 text-xs">تقارير الأداء الفردي</p></div>
-              <div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div>
+          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm">
+              <Filter size={16} className="text-gray-400 mr-1 ml-1"/>
+              <select 
+                  value={selectedTermId}
+                  onChange={(e) => setSelectedTermId(e.target.value)}
+                  className="bg-transparent text-sm font-bold outline-none text-purple-700 min-w-[150px]"
+              >
+                  <option value="">كل الفترات</option>
+                  {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
           </div>
       </div>
 
-      {/* Today's Schedule & Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                  <div className="flex justify-between items-center mb-3">
-                      <h3 className="font-bold text-gray-800 flex items-center gap-2"><Calendar size={18} className="text-primary"/> جدول اليوم</h3>
-                      
-                      {/* Term Selector */}
-                      <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
-                          <Filter size={14} className="text-gray-400"/>
-                          <select 
-                              value={selectedTermId}
-                              onChange={(e) => setSelectedTermId(e.target.value)}
-                              className="bg-transparent text-xs font-bold outline-none text-purple-700"
-                          >
-                              <option value="">كل الفترات</option>
-                              {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                          </select>
-                      </div>
+      {/* Main KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Students */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden group hover:border-indigo-200 transition-all cursor-pointer" onClick={() => onNavigate('STUDENTS')}>
+              <div className="absolute right-0 top-0 w-2 h-full bg-indigo-500"></div>
+              <div>
+                  <p className="text-gray-500 text-xs font-bold mb-1">إجمالي الطلاب</p>
+                  <h3 className="text-3xl font-black text-gray-800">{stats.totalStudents}</h3>
+                  <span className="text-[10px] text-indigo-500 font-bold bg-indigo-50 px-2 py-0.5 rounded-full mt-2 inline-block">مسجلين في النظام</span>
+              </div>
+              <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                  <Users size={24}/>
+              </div>
+          </div>
+
+          {/* Card 2: Attendance */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden group hover:border-green-200 transition-all cursor-pointer" onClick={() => onNavigate('ATTENDANCE')}>
+              <div className="absolute right-0 top-0 w-2 h-full bg-green-500"></div>
+              <div>
+                  <p className="text-gray-500 text-xs font-bold mb-1">نسبة الحضور اليوم</p>
+                  <h3 className="text-3xl font-black text-gray-800">{stats.attendanceRate}%</h3>
+                  <div className="flex gap-2 mt-2">
+                      <span className="text-[10px] text-green-700 bg-green-50 px-2 py-0.5 rounded font-bold">{stats.present} حاضر</span>
+                      <span className="text-[10px] text-red-700 bg-red-50 px-2 py-0.5 rounded font-bold">{stats.absent} غائب</span>
                   </div>
-
-                  {todaySchedule.length > 0 ? (
-                      <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                          {todaySchedule.map((session, idx) => (
-                              <div key={idx} onClick={() => onNavigate('ATTENDANCE')} className="min-w-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-colors group">
-                                  <div className="flex justify-between items-center mb-2">
-                                      <span className="text-[10px] bg-white border px-2 py-0.5 rounded-full font-bold text-gray-500">حصة {session.period}</span>
-                                      <ArrowRight size={14} className="text-gray-300 group-hover:text-indigo-500"/>
-                                  </div>
-                                  <h4 className="font-bold text-gray-800 text-sm mb-1">{session.subjectName}</h4>
-                                  <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded">{session.classId}</span>
-                              </div>
-                          ))}
-                      </div>
-                  ) : <div className="text-center text-gray-400 py-4 text-sm bg-gray-50 rounded-lg border border-dashed">لا توجد حصص مسجلة اليوم</div>}
               </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الطلاب</p><p className="text-2xl font-black text-gray-800">{stats.totalStudents}</p></div>
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الحضور</p><p className="text-2xl font-black text-green-600">{stats.attendanceRate}%</p></div>
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الغياب</p><p className="text-2xl font-black text-red-600">{stats.absent}</p></div>
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center"><p className="text-xs text-gray-500 font-bold">الأداء {activeTerm ? `(${activeTerm.name})` : ''}</p><p className="text-2xl font-black text-blue-600">{stats.avgScore}%</p></div>
+              <div className="h-16 w-16">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                          <Pie data={stats.attendanceData} cx="50%" cy="50%" innerRadius={15} outerRadius={25} dataKey="value" stroke="none">
+                              <Cell fill="#10b981" />
+                              <Cell fill="#ef4444" />
+                          </Pie>
+                      </PieChart>
+                  </ResponsiveContainer>
               </div>
           </div>
 
-          <div className="lg:col-span-1 flex flex-col gap-4">
-              <TodoWidget />
+          {/* Card 3: Performance */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden group hover:border-purple-200 transition-all cursor-pointer" onClick={() => onNavigate('PERFORMANCE')}>
+              <div className="absolute right-0 top-0 w-2 h-full bg-purple-500"></div>
+              <div>
+                  <p className="text-gray-500 text-xs font-bold mb-1">متوسط الأداء الأكاديمي</p>
+                  <h3 className="text-3xl font-black text-gray-800">{stats.avgScore}%</h3>
+                  <span className="text-[10px] text-purple-500 font-bold bg-purple-50 px-2 py-0.5 rounded-full mt-2 inline-block">للفترة الحالية</span>
+              </div>
+              <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
+                  <Activity size={24}/>
+              </div>
           </div>
-          <div className="lg:col-span-1 flex flex-col gap-4">
-              <WeeklyPlanWidget teacherId={currentUser?.id || ''} onNavigate={onNavigate} />
-              <UpcomingExamsWidget teacherId={currentUser?.id || ''} onNavigate={onNavigate} />
+
+          {/* Card 4: Quick Actions */}
+          <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-5 rounded-2xl shadow-lg text-white flex flex-col justify-center gap-3">
+              <h3 className="font-bold text-sm flex items-center gap-2 text-gray-200"><Clock size={16}/> إجراءات سريعة</h3>
+              <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => onNavigate('ATTENDANCE')} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-xs font-bold transition-colors text-center">
+                      تسجيل الحضور
+                  </button>
+                  <button onClick={() => onNavigate('WORKS_TRACKING')} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-xs font-bold transition-colors text-center">
+                      رصد الدرجات
+                  </button>
+              </div>
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
-            {/* New: Quick Add Students if list is empty */}
-            {students.length === 0 && (
-                <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 text-center animate-bounce-in">
-                    <h3 className="text-purple-800 font-bold mb-2">ابدأ بإضافة طلابك</h3>
-                    <p className="text-sm text-purple-600 mb-4">لا يوجد طلاب في قائمتك. أضفهم الآن لبدء المتابعة.</p>
-                    <button onClick={() => onNavigate('STUDENTS')} className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center justify-center gap-2 mx-auto">
-                        <PlusCircle size={18}/> إضافة طلاب
-                    </button>
-                </div>
-            )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content Area */}
+          <div className="lg:col-span-2 space-y-6">
+              
+              {/* Top Students */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2"><Trophy className="text-yellow-500" size={20}/> لوحة الشرف (الأعلى أداءً)</h3>
+                      <button onClick={() => onNavigate('STUDENT_FOLLOWUP')} className="text-xs text-blue-600 font-bold hover:underline">عرض التفاصيل</button>
+                  </div>
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {topStudents.length > 0 ? topStudents.map((s, idx) => (
+                          <div key={s.id} className="flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-yellow-200 hover:bg-yellow-50/30 transition-all group cursor-pointer" onClick={() => handleRiskClick(s.id)}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shadow-sm ${idx === 0 ? 'bg-yellow-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700' : idx === 2 ? 'bg-orange-300 text-white' : 'bg-blue-100 text-blue-600'}`}>
+                                  {idx + 1}
+                              </div>
+                              <div className="flex-1">
+                                  <h4 className="font-bold text-gray-800 text-sm group-hover:text-yellow-700 transition-colors">{s.name}</h4>
+                                  <p className="text-[10px] text-gray-400">{s.className}</p>
+                              </div>
+                              <div className="text-right">
+                                  <span className="block font-black text-lg text-gray-800">{s.avg}%</span>
+                              </div>
+                          </div>
+                      )) : <div className="col-span-2 text-center py-8 text-gray-400 text-sm">لا توجد بيانات كافية للتقييم</div>}
+                  </div>
+              </div>
 
-            {riskAlerts.length > 0 && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4 animate-bounce-in">
-                    <h3 className="text-red-800 font-bold mb-3 flex items-center gap-2 text-sm"><AlertCircle size={16}/> تنبيهات المتابعة (Risk)</h3>
-                    <div className="space-y-2">
-                        {riskAlerts.map((risk, i) => (
-                            <div 
-                                key={i} 
-                                onClick={() => handleRiskClick(risk.student.id)}
-                                className="bg-white p-3 rounded border border-red-100 flex justify-between items-center text-sm cursor-pointer hover:bg-red-50 hover:shadow-sm transition-all group"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <span className="font-bold text-gray-700">{risk.student.name}</span>
-                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">{risk.msg}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button 
-                                        onClick={(e) => handleMessageParent(e, risk.student, risk.msg)}
-                                        className="p-1.5 bg-green-50 text-green-600 rounded-full hover:bg-green-100 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        title="إرسال لولي الأمر"
-                                    >
-                                        <MessageCircle size={16}/>
-                                    </button>
-                                    <ArrowRight size={14} className="text-gray-400"/>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col h-64">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500"/> لوحة الشرف</h3>
-                    <button onClick={() => onNavigate('STUDENT_FOLLOWUP')} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
-                </div>
-                <div className="flex-1 overflow-auto space-y-3 custom-scrollbar">
-                    {topStudents.length > 0 ? topStudents.map((s, idx) => (
-                        <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
-                            <div className="flex items-center gap-3">
-                                <span className="font-bold text-gray-400 w-4">{idx + 1}</span>
-                                <div className="w-8 h-8 bg-yellow-100 text-yellow-700 rounded-full flex items-center justify-center font-bold text-xs">{s.name.charAt(0)}</div>
-                                <div><p className="text-sm font-bold text-gray-800">{s.name}</p><p className="text-[10px] text-gray-500">{s.grade}</p></div>
-                            </div>
-                            <span className="font-black text-yellow-600 text-sm">{s.score}%</span>
-                        </div>
-                    )) : <p className="text-center text-xs text-gray-400 py-10">لا توجد بيانات كافية</p>}
-                </div>
-            </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full max-h-[500px] flex flex-col">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2"><Activity size={18} className="text-purple-600"/> سجل النشاطات الأخير</h3>
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
-                {recentActivity.length > 0 ? recentActivity.map((activity, idx) => (
-                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors">
-                        <div className={`mt-1 min-w-[24px] h-6 flex items-center justify-center rounded-full ${activity.type === 'ATTENDANCE' ? 'bg-orange-100 text-orange-600' : activity.type === 'BEHAVIOR' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                            {activity.type === 'ATTENDANCE' ? <Clock size={14}/> : activity.type === 'BEHAVIOR' ? <Smile size={14}/> : <Award size={14}/>}
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-gray-800">{activity.studentName}</p>
-                            <p className="text-xs text-gray-600">{activity.detail}</p>
-                            <p className="text-[10px] text-gray-400 mt-1">{formatDualDate(activity.date)}</p>
-                        </div>
-                    </div>
-                )) : <div className="text-center text-gray-400 py-10">لا توجد نشاطات حديثة</div>}
-            </div>
-        </div>
+              {/* Attendance Chart Place holder (Simplified) */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><CalendarDays className="text-teal-600"/> ملخص الحضور الأسبوعي</h3>
+                  <div className="h-48 w-full bg-gray-50 rounded-xl flex items-center justify-center border border-dashed border-gray-200">
+                      <p className="text-gray-400 text-sm flex items-col gap-2 flex-col items-center">
+                          <TrendingUp size={24}/>
+                          يتم تجميع البيانات تلقائياً عند تسجيل الحضور اليومي
+                      </p>
+                  </div>
+              </div>
+          </div>
+
+          {/* Sidebar Area */}
+          <div className="lg:col-span-1 space-y-6">
+              <TodoWidget />
+              
+              {/* Quick Navigation Panel */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                  <h3 className="font-bold text-gray-800 mb-4 text-sm">روابط سريعة</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => onNavigate('STUDENTS')} className="flex flex-col items-center justify-center p-3 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors">
+                          <Users size={20} className="mb-2"/>
+                          <span className="text-xs font-bold">الطلاب</span>
+                      </button>
+                      <button onClick={() => onNavigate('PERFORMANCE')} className="flex flex-col items-center justify-center p-3 bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100 transition-colors">
+                          <Award size={20} className="mb-2"/>
+                          <span className="text-xs font-bold">الدرجات</span>
+                      </button>
+                      <button onClick={() => onNavigate('AI_REPORTS')} className="flex flex-col items-center justify-center p-3 bg-teal-50 text-teal-700 rounded-xl hover:bg-teal-100 transition-colors">
+                          <FileQuestion size={20} className="mb-2"/>
+                          <span className="text-xs font-bold">تقارير AI</span>
+                      </button>
+                      <button onClick={() => onNavigate('MESSAGE_CENTER')} className="flex flex-col items-center justify-center p-3 bg-orange-50 text-orange-700 rounded-xl hover:bg-orange-100 transition-colors">
+                          <MessageCircle size={20} className="mb-2"/>
+                          <span className="text-xs font-bold">الرسائل</span>
+                      </button>
+                  </div>
+              </div>
+          </div>
       </div>
     </div>
   );

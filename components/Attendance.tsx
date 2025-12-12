@@ -552,10 +552,20 @@ const Attendance: React.FC<AttendanceProps> = ({
                         {isSaving && <span className="text-xs font-bold text-blue-600 flex items-center gap-1"><RefreshCw size={12} className="animate-spin"/> جاري الحفظ...</span>}
                         {saved && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><Check size={12}/> تم الحفظ</span>}
                         
-                        <div className="flex bg-gray-50 rounded-lg border text-xs overflow-hidden">
-                            <div className="px-3 py-1 bg-green-100 text-green-800 font-bold border-l border-green-200">{stats.present} حاضر</div>
-                            <div className="px-3 py-1 bg-red-100 text-red-800 font-bold border-l border-red-200">{stats.absent} غائب</div>
-                            <div className="px-3 py-1 bg-yellow-100 text-yellow-800 font-bold">{stats.late} متأخر</div>
+                        {/* --- VISUAL SUMMARY HEADER --- */}
+                        <div className="flex bg-gray-50 rounded-lg border text-xs overflow-hidden shadow-inner">
+                            <div className="px-4 py-1 bg-green-100 text-green-800 font-bold border-l border-green-200 flex flex-col items-center">
+                                <span className="text-lg leading-none">{stats.present}</span>
+                                <span className="text-[9px] uppercase opacity-75">حاضر</span>
+                            </div>
+                            <div className="px-4 py-1 bg-red-100 text-red-800 font-bold border-l border-red-200 flex flex-col items-center">
+                                <span className="text-lg leading-none">{stats.absent}</span>
+                                <span className="text-[9px] uppercase opacity-75">غائب</span>
+                            </div>
+                            <div className="px-4 py-1 bg-yellow-100 text-yellow-800 font-bold flex flex-col items-center">
+                                <span className="text-lg leading-none">{stats.late}</span>
+                                <span className="text-[9px] uppercase opacity-75">تأخر</span>
+                            </div>
                         </div>
                     </div>
                 )}
