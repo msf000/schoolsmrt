@@ -32,6 +32,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     // Terms State
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [selectedTermId, setSelectedTermId] = useState<string>('');
+    const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
     
     // Header Config for Print
     const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
@@ -55,6 +56,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         // Set default to current term if available
         const current = loadedTerms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
+        else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
         
         setHeaderConfig(getReportHeaderConfig(currentUser?.id));
 
@@ -77,7 +79,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         }
 
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [currentUser, students]); // Add students to dep to ensure we can find the nav student
+    }, [currentUser, students]); 
 
     const handleTargetChange = (val: string) => {
         const num = parseInt(val);
@@ -85,6 +87,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             setActivityTarget(num);
             localStorage.setItem('works_activity_target', num.toString());
         }
+    };
+
+    const handleTermChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedTermId(e.target.value);
+        setSelectedPeriodId(''); // Reset period when term changes
     };
 
     const sortedStudents = useMemo(() => {
@@ -114,45 +121,60 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
     const student = students.find(s => s.id === selectedStudentId);
     
-    // Determine active term for filtering
+    // Determine active term & period for filtering
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
+    const activePeriod = useMemo(() => activeTerm?.periods?.find(p => p.id === selectedPeriodId), [activeTerm, selectedPeriodId]);
 
-    // Fetch assignments and filter by visibility and term
-    const rawActivityCols = useMemo(() => {
-        return getAssignments('ACTIVITY', currentUser?.id).filter(c => c.isVisible && (!activeTerm || !c.termId || c.termId === activeTerm.id));
-    }, [currentUser, activeTerm]);
+    // Fetch assignments and filter by visibility, term, and period
+    const filterAssignments = (category: string) => {
+        return getAssignments(category, currentUser?.id).filter(c => {
+            if (!c.isVisible) return false;
+            // Term Check
+            if (activeTerm && c.termId && c.termId !== activeTerm.id) return false;
+            // Period Check (Strict if period selected)
+            if (selectedPeriodId && c.periodId && c.periodId !== selectedPeriodId) return false;
+            // If period is selected, only show general columns OR columns matching period
+            if (selectedPeriodId) return !c.periodId || c.periodId === selectedPeriodId;
+            
+            return true;
+        });
+    };
 
-    const activityCols = useMemo(() => {
-        return rawActivityCols.filter(c => !c.title.includes('حضور') && !c.title.toLowerCase().includes('attendance') && !c.title.includes('غياب'));
-    }, [rawActivityCols]);
-
-    const homeworkCols = useMemo(() => {
-        return getAssignments('HOMEWORK', currentUser?.id).filter(c => c.isVisible && (!activeTerm || !c.termId || c.termId === activeTerm.id));
-    }, [currentUser, activeTerm]);
-
-    const examCols = useMemo(() => {
-        return getAssignments('PLATFORM_EXAM', currentUser?.id).filter(c => c.isVisible && (!activeTerm || !c.termId || c.termId === activeTerm.id));
-    }, [currentUser, activeTerm]);
+    const activityCols = useMemo(() => filterAssignments('ACTIVITY'), [currentUser, activeTerm, selectedPeriodId]);
+    const homeworkCols = useMemo(() => filterAssignments('HOMEWORK'), [currentUser, activeTerm, selectedPeriodId]);
+    const examCols = useMemo(() => filterAssignments('PLATFORM_EXAM'), [currentUser, activeTerm, selectedPeriodId]);
 
     const calculateStats = () => {
         if (!student) return null;
         
-        // Filter attendance by Term if selected
-        let studentAtt = attendance.filter(a => a.studentId === student.id);
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+
         if (activeTerm) {
-            studentAtt = studentAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+            startDate = activeTerm.startDate;
+            endDate = activeTerm.endDate;
+            
+            if (activePeriod) {
+                startDate = activePeriod.startDate;
+                endDate = activePeriod.endDate;
+            }
         }
+
+        const filterByDate = (date: string) => {
+            if (!startDate || !endDate) return true;
+            return date >= startDate && date <= endDate;
+        };
+
+        // Filter attendance
+        let studentAtt = attendance.filter(a => a.studentId === student.id && filterByDate(a.date));
 
         const creditCount = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
         const totalDays = studentAtt.length;
         const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
         const gradePart = (attPercent / 100) * 15;
 
-        // Filter Performance by Term if selected
-        let myPerformance = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject);
-        if (activeTerm) {
-            myPerformance = myPerformance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
-        }
+        // Filter Performance
+        let myPerformance = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject && filterByDate(p.date));
 
         const studentHWs = myPerformance.filter(p => p.category === 'HOMEWORK');
         const totalHWCount = homeworkCols.length; 
@@ -160,22 +182,20 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         // Count HWs that match the current columns (to align with term filtering)
         const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
         
-        const hwPercent = totalHWCount > 0 ? (distinctHWs / totalHWCount) * 100 : 
-                          studentHWs.length > 0 ? 100 : 0; // Fallback
+        // If we have defined columns, use them as max. If not, assume manual entry is 100% if exists.
+        const hwPercent = totalHWCount > 0 ? Math.min(Math.round((distinctHWs / totalHWCount) * 100), 100) : 
+                          studentHWs.length > 0 ? 100 : 0; 
         const gradeHW = (hwPercent / 100) * 10;
 
         const studentActs = myPerformance.filter(p => p.category === 'ACTIVITY');
         let actSum = 0;
-        // Only sum activities that match current valid columns
-        const validColKeys = new Set(activityCols.map(c => c.id));
+        // Only sum activities that match current valid columns (if columns exist)
+        const validActColKeys = new Set(activityCols.map(c => c.id));
         
         studentActs.forEach(p => { 
-            // If we have column keys, validate. If p.notes matches an ID or p.title matches a title.
-            // Simplified: If notes is ID, check ID. Else accept.
-            if (p.notes && validColKeys.has(p.notes)) {
-                actSum += p.score; 
-            } else if (!p.notes) {
-                // Fallback for manual entries without column link
+            if (activityCols.length > 0) {
+                if (p.notes && validActColKeys.has(p.notes)) actSum += p.score;
+            } else {
                 actSum += p.score;
             }
         });
@@ -186,7 +206,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
         const studentExams = myPerformance.filter(p => p.category === 'PLATFORM_EXAM');
         let examScoreSum = 0; let examMaxSum = 0;
-        studentExams.forEach(p => { examScoreSum += p.score; examMaxSum += p.maxScore > 0 ? p.maxScore : 20; });
+        
+        // Filter exams to match columns if columns exist
+        const validExamColKeys = new Set(examCols.map(c => c.id));
+        
+        studentExams.forEach(p => { 
+             if (examCols.length > 0 && p.notes && !validExamColKeys.has(p.notes)) return;
+             examScoreSum += p.score; 
+             examMaxSum += p.maxScore > 0 ? p.maxScore : 20; 
+        });
+        
         const examWeightedRaw = examMaxSum > 0 ? (examScoreSum / examMaxSum) * 20 : 0;
         const examWeighted = Math.min(examWeightedRaw, 20);
 
@@ -202,7 +231,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             let totalClassScore = 0;
             let scoredStudents = 0;
             classStudents.forEach(cs => {
-                const sPerf = performance.filter(p => p.studentId === cs.id && p.subject === selectedSubject && (!activeTerm || (p.date >= activeTerm.startDate && p.date <= activeTerm.endDate)));
+                const sPerf = performance.filter(p => p.studentId === cs.id && p.subject === selectedSubject && filterByDate(p.date));
                 if (sPerf.length > 0) {
                     const sTotal = sPerf.reduce((acc, p) => acc + (p.score/p.maxScore), 0);
                     totalClassScore += (sTotal / sPerf.length);
@@ -256,7 +285,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const message = `
 تقرير الطالب: ${student.name}
 المادة: ${selectedSubject}
-الفترة: ${activeTerm ? activeTerm.name : 'الحالية'}
+الفترة: ${activePeriod ? activePeriod.name : (activeTerm ? activeTerm.name : 'الحالية')}
 
 📊 الملخص:
 - نسبة الحضور: ${Math.round(stats.attPercent)}%
@@ -284,12 +313,27 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         <select 
                             className="bg-transparent text-sm font-bold text-gray-700 outline-none w-32"
                             value={selectedTermId}
-                            onChange={(e) => setSelectedTermId(e.target.value)}
+                            onChange={handleTermChange}
                         >
                             <option value="">كل الفترات</option>
                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                     </div>
+
+                    {/* Period Selector (New) */}
+                    {activeTerm && activeTerm.periods && activeTerm.periods.length > 0 && (
+                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200 animate-slide-in-right">
+                            <span className="text-xs font-bold text-gray-500">الفترة:</span>
+                            <select 
+                                className="bg-transparent text-sm font-bold text-gray-700 outline-none w-24"
+                                value={selectedPeriodId}
+                                onChange={(e) => setSelectedPeriodId(e.target.value)}
+                            >
+                                <option value="">الكل</option>
+                                {activeTerm.periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                    )}
 
                     <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
                         <Target size={16} className="text-amber-600"/><span className="text-xs font-bold text-amber-800">هدف الأنشطة:</span>
@@ -354,13 +398,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         <div className="text-left text-xs font-bold leading-loose w-1/3 flex flex-col items-end">
                             <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
                             <p>{headerConfig?.academicYear || '1447هـ'}</p>
-                            <p>{headerConfig?.term || 'الفصل الدراسي ....'}</p>
+                            <p>{activePeriod ? `${activeTerm?.name} - ${activePeriod.name}` : (headerConfig?.term || 'الفصل الدراسي ....')}</p>
                         </div>
                     </div>
 
                     <div className="text-center mb-8 print:hidden">
                         <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject}</h1>
-                        {activeTerm && <p className="text-sm text-gray-500 mt-1">({activeTerm.name})</p>}
+                        {activeTerm && <p className="text-sm text-gray-500 mt-1">({activeTerm.name} {activePeriod ? ` - ${activePeriod.name}` : ''})</p>}
                     </div>
 
                     <div className="overflow-x-auto mb-8">
