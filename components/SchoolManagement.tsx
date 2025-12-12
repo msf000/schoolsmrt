@@ -353,7 +353,8 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     <div className="p-4 border-t bg-white animate-slide-up">
                                         <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><ListTree size={14}/> الفترات (Periods)</h5>
                                         <div className="space-y-2 mb-4">
-                                            {term.periods?.map(p => (
+                                            {/* SORTED PERIODS FOR DISPLAY */}
+                                            {term.periods?.sort((a,b) => a.startDate.localeCompare(b.startDate)).map(p => (
                                                 <div key={p.id} className="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100 text-sm">
                                                     <span className="font-medium text-gray-700">{p.name} ({p.startDate} - {p.endDate})</span>
                                                     <button onClick={() => handleDeletePeriod(term, p.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
@@ -460,6 +461,5 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
         </div>
-    </div>
-  );
+    );
 };

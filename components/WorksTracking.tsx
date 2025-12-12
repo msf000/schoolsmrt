@@ -15,7 +15,6 @@ interface WorksTrackingProps {
     currentUser?: SystemUser | null;
 }
 
-// Expanded ignore list to prevent metadata columns from becoming assignments
 const IGNORED_COLUMNS = [
     'name', 'id', 'class', 'grade', 'student', 'section', 'email', 'phone', 'mobile', 'gender', 'national', 'date', 'time', 'timestamp',
     'الاسم', 'اسم', 'الطالب', 'طالب', 'الفصل', 'الصف', 'الهوية', 'السجل', 'المدني', 'الجوال', 'هاتف', 'بريد', 'ملاحظات', 'ملاحظة', 'جنس', 'تاريخ',
@@ -28,15 +27,14 @@ const STUDENT_NAME_HEADERS = [
     'name', 'student', 'student name', 'full name', 'student_name'
 ];
 
-// Structure to hold detected changes
 interface SyncDiff {
     type: 'NEW_SCORE' | 'UPDATE_SCORE' | 'DELETE_SCORE' | 'NEW_COLUMN';
     details: string;
     studentName?: string;
     oldVal?: string | number;
     newVal?: string | number;
-    record?: PerformanceRecord; // The record to save/delete
-    assignment?: Assignment; // The assignment to save
+    record?: PerformanceRecord; 
+    assignment?: Assignment; 
 }
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
@@ -74,7 +72,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
     const [activityTarget, setActivityTarget] = useState(15);
 
-    // Sync Audit State
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
     const [syncDiffs, setSyncDiffs] = useState<SyncDiff[]>([]);
 
@@ -82,7 +79,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         hw: 10, act: 15, att: 15, exam: 20
     });
 
-    // Google Sheet Sync Settings
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
     const [sheetNames, setSheetNames] = useState<string[]>([]);
     const [selectedSheetName, setSelectedSheetName] = useState('');
@@ -96,7 +92,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
-    // AUTO-SYNC ON MOUNT
     useEffect(() => {
         const syncData = async () => {
             setIsRefreshing(true);
@@ -126,7 +121,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
     }, [currentUser, isManager]);
 
-    // --- ANALYZE SYNC LOGIC (Diff Generation) ---
     const analyzeCategorySync = async (targetCategory: string, workbook: any, sheetNames: string[], termToUse: string): Promise<SyncDiff[]> => {
         let targetSheet = sheetNames[0]; 
         const tabKeywords: Record<string, string[]> = {
@@ -187,7 +181,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 });
             }
 
-            // Sync Data Rows
             data.forEach(row => {
                 let student: Student | undefined;
                 const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
@@ -238,7 +231,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             }
                         }
                     } else {
-                        // Empty in Excel => Delete in DB (Mirroring)
                         if (existingRecord) {
                             diffs.push({
                                 type: 'DELETE_SCORE',
@@ -283,7 +275,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             
             let allDiffs: SyncDiff[] = [];
 
-            // Sync ALL categories
             const categoriesToSync = ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'];
 
             for (const cat of categoriesToSync) {
@@ -324,17 +315,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
         });
 
-        // 1. Save new columns first
         for (const assign of assignmentsToSave) {
             await saveAssignment(assign);
         }
 
-        // 2. Upsert Records
         if (recordsToUpsert.length > 0) {
             await bulkAddPerformance(recordsToUpsert);
         }
 
-        // 3. Delete Records
         if (idsToDelete.length > 0) {
             for (const id of idsToDelete) {
                 await deletePerformance(id);
@@ -378,7 +366,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId, fetchAssignments]);
 
-    // Initialize scores
     useEffect(() => {
         const newScores: Record<string, Record<string, string>> = {};
         
@@ -394,9 +381,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
 
             studentPerf.forEach(p => {
-                if (p.notes) { // Use ID matching first
+                if (p.notes) { 
                      newScores[s.id][p.notes] = p.score.toString();
-                } else { // Fallback title
+                } else { 
                      const assign = assignments.find(a => a.title === p.title);
                      if (assign) newScores[s.id][assign.id] = p.score.toString();
                 }
@@ -405,7 +392,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setScores(newScores);
     }, [students, selectedClass, performance, selectedSubject, activeTab, assignments]);
 
-    // --- AUTO SAVE LOGIC ---
     const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
         setScores(prev => ({
             ...prev,
@@ -415,8 +401,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (autoSaveEnabled) {
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
             autoSaveTimerRef.current = setTimeout(() => {
-                handleSaveScores(true); // Silent save
-            }, 2000); // 2 seconds debounce
+                handleSaveScores(true); 
+            }, 2000); 
         }
     };
 
@@ -435,10 +421,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (val !== undefined && val !== '') {
                     const assignment = assignments.find(a => a.id === assignmentId);
                     if (assignment) {
-                        // Check if existing record
                         const existingRecord = performance.find(p => p.studentId === studentId && p.notes === assignmentId);
                         
-                        // Only add if value changed or new
                         if (!existingRecord || existingRecord.score !== parseFloat(val)) {
                             recordsToSave.push({
                                 id: existingRecord ? existingRecord.id : `${studentId}_${assignmentId}`,
@@ -641,7 +625,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
         const filterByPeriod = (date: string) => { if (!startDate || !endDate) return true; return date >= startDate && date <= endDate; };
         
-        // Strict filtering of Assignments
         const isAssignmentInScope = (a: Assignment) => {
             if (selectedTermId && a.termId && a.termId !== selectedTermId) return false;
             if (selectedPeriodId && a.periodId && a.periodId !== selectedPeriodId) return false;
@@ -650,7 +633,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return true;
         };
 
-        // Filter Performance Records (Scores)
         const isRecordInScope = (p: PerformanceRecord, validIds: Set<string>) => {
             if (p.studentId !== student.id) return false;
             if (selectedSubject && p.subject !== selectedSubject) return false;
@@ -672,7 +654,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const actRecs = performance.filter(p => p.category === 'ACTIVITY' && isRecordInScope(p, validActIds));
         const examRecs = performance.filter(p => p.category === 'PLATFORM_EXAM' && isRecordInScope(p, validExamIds));
 
-        // --- HOMEWORK CALCULATIONS ---
         const hwMax = yearWorkConfig.hw;
         let hwGrade = 0;
         let hwCompletion = 0;
@@ -681,18 +662,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const totalEarned = hwRecs.reduce((sum, r) => sum + r.score, 0);
             const totalPossible = hwCols.reduce((sum, c) => sum + c.maxScore, 0);
             
-            // Calculate completion based on score percentage
             hwCompletion = totalPossible > 0 ? Math.min(Math.round((totalEarned / totalPossible) * 100), 100) : 0;
             
-            // Grade derived from Completion %
             hwGrade = (hwCompletion / 100) * hwMax;
         } else if (hwRecs.length > 0) {
-             // Fallback
              hwGrade = hwMax; 
              hwCompletion = 100;
         }
 
-        // --- ACTIVITY CALCULATIONS ---
         const actMax = yearWorkConfig.act;
         let actGrade = 0;
         let actCompletion = 0;
@@ -703,13 +680,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
              actCompletion = totalPossible > 0 ? Math.min(Math.round((totalEarned / totalPossible) * 100), 100) : 0;
         } else {
-             // Fallback if no columns defined (manual entry vs Target)
              let actSumVal = 0; 
              actRecs.forEach(p => actSumVal += p.score);
              actCompletion = activityTarget > 0 ? Math.min(Math.round((actSumVal / activityTarget) * 100), 100) : 0;
         }
         
-        // Grade derived from Completion %
         actGrade = (actCompletion / 100) * actMax;
 
         const attMax = yearWorkConfig.att;
@@ -755,7 +730,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 });
 
                 filteredAssignments.forEach(a => { rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || ''; });
-                // Add totals for export if Homework/Activity
                 if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
                     let sum = 0;
                     let max = 0;
@@ -776,10 +750,20 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
-    const activePeriods = activeTerm?.periods || [];
+    
+    // SORT PERIODS HERE: Use Memo to sort periods chronologically by startDate
+    const activePeriods = useMemo(() => {
+        if (!activeTerm?.periods) return [];
+        return [...activeTerm.periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
+    }, [activeTerm]);
     
     const settingsTerm = terms.find(t => t.id === settingTermId);
-    const settingsPeriods = settingsTerm?.periods || [];
+    
+    // SORT SETTINGS PERIODS
+    const settingsPeriods = useMemo(() => {
+        if (!settingsTerm?.periods) return [];
+        return [...settingsTerm.periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
+    }, [settingsTerm]);
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -1058,7 +1042,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             )}
 
-            {/* Column Settings Modal */}
             {isSettingsOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-bounce-in">

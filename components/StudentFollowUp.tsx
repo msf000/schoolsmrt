@@ -134,7 +134,14 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     
     // Determine active term & period for filtering
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
-    const activePeriod = useMemo(() => activeTerm?.periods?.find(p => p.id === selectedPeriodId), [activeTerm, selectedPeriodId]);
+    
+    // Sorted Periods
+    const activeTermPeriods = useMemo(() => {
+        if (!activeTerm?.periods) return [];
+        return [...activeTerm.periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
+    }, [activeTerm]);
+
+    const activePeriod = useMemo(() => activeTermPeriods.find(p => p.id === selectedPeriodId), [activeTermPeriods, selectedPeriodId]);
 
     // Fetch assignments and filter strictly by Term AND Period
     const filterAssignments = (category: string) => {
@@ -365,7 +372,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     </div>
 
                     {/* Period Selector (New) */}
-                    {activeTerm && activeTerm.periods && activeTerm.periods.length > 0 && (
+                    {activeTermPeriods.length > 0 && (
                         <div className="flex items-center gap-2 bg-purple-50 p-2 rounded-lg border border-purple-200 animate-slide-in-right">
                             <span className="text-xs font-bold text-purple-700">الفترة:</span>
                             <select 
@@ -374,7 +381,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                 onChange={(e) => setSelectedPeriodId(e.target.value)}
                             >
                                 <option value="">كامل الفصل</option>
-                                {activeTerm.periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {activeTermPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </div>
                     )}
