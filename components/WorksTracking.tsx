@@ -27,8 +27,10 @@ const STUDENT_NAME_HEADERS = [
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
+    // Tab State: Cast strictly to allowed values for type safety
     const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>(() => {
-        return (localStorage.getItem('works_active_tab') as any) || 'HOMEWORK';
+        const saved = localStorage.getItem('works_active_tab');
+        return (saved === 'HOMEWORK' || saved === 'ACTIVITY' || saved === 'PLATFORM_EXAM' || saved === 'YEAR_WORK') ? saved : 'HOMEWORK';
     });
 
     useEffect(() => {
@@ -88,6 +90,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return undefined;
     };
 
+    const fetchAssignments = (category: string) => {
+        // Use 'ALL' to fetch everything and filter locally if needed, or pass specific category
+        // The updated storage service handles 'ALL' correctly now.
+        return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
+    };
+
     // --- UPDATED: Quick Sync from Google Sheet ---
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
         const url = getWorksMasterUrl();
@@ -96,7 +104,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return;
         }
         
-        // Fetch fresh terms to avoid stale state during auto-mount
         const freshTerms = getAcademicTerms(currentUser?.id);
         let termToUse = selectedTermId;
         
@@ -113,12 +120,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         
         setIsSheetSyncing(true);
         try {
-            // 1. Fetch Structure
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(url);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
             
-            // --- SMART SHEET SELECTION ---
-            // Try to match sheet name with active tab category
             let targetSheet = sheetNames[0]; 
             const tabKeywords: Record<string, string[]> = {
                 'HOMEWORK': ['homework', 'wa واجب', 'واجبات', 'منزل', 'home'],
@@ -139,16 +143,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
             
-            // 2. Logic: Iterate ALL headers (except ignored) -> Create Assignment if missing -> Upsert Scores
             let newAssignmentsCount = 0;
             let updatedCount = 0;
             const recordsToUpsert: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
             
-            // Re-fetch current assignments to ensure up-to-date state
-            const currentAssignments = getAssignments(activeTab, currentUser?.id, isManager);
+            const currentAssignments = fetchAssignments(activeTab);
             
-            // Filter potential data headers
             const potentialHeaders = headers.filter(h => !IGNORED_COLUMNS.some(ig => h.toLowerCase().includes(ig)));
 
             if (potentialHeaders.length === 0 && !isAuto) throw new Error('لم يتم العثور على أعمدة بيانات صالحة في الملف.');
@@ -156,19 +157,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             for (const header of potentialHeaders) {
                 let title = header;
                 let maxScore = 10;
-                // Try to extract max score from header like "Test (20)"
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
                 if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
 
                 let targetAssignment = currentAssignments.find(a => a.title === title && a.termId === termToUse);
                 
-                // Create if missing
                 if (!targetAssignment) {
                     const newId = `gs_${Date.now()}_${Math.floor(Math.random()*1000)}`;
                     targetAssignment = {
                         id: newId,
                         title: title,
-                        category: activeTab as any,
+                        category: activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab, // Fallback if year work selected during sync (unlikely)
                         maxScore: maxScore,
                         isVisible: true,
                         teacherId: currentUser?.id,
@@ -181,14 +180,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     newAssignmentsCount++;
                 }
 
-                // Process Scores
                 data.forEach(row => {
                     let student: Student | undefined;
-                    // ID Match
                     const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
                     if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
                     
-                    // Name Match (Using Helper)
                     if (!student) {
                         const rowName = findStudentNameInRow(row);
                         if (rowName) {
@@ -204,7 +200,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             if (!isNaN(numVal)) {
                                 const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
                                 
-                                // Only update if changed or new
                                 if (!existingRecord || existingRecord.score !== numVal) {
                                     recordsToUpsert.push({
                                         id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
@@ -230,8 +225,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 await bulkAddPerformance(recordsToUpsert);
             }
 
-            // Update UI State for assignments immediately
-            setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
+            setAssignments(fetchAssignments(activeTab));
 
             if (!isAuto) {
                 if (newAssignmentsCount > 0 || updatedCount > 0) {
@@ -254,12 +248,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const initData = async () => {
             setIsRefreshing(true);
             try {
-                // 1. Sync DB
                 await downloadFromSupabase();
-                
-                // 2. Sync Google Sheet (if configured)
                 const savedUrl = getWorksMasterUrl();
-                // Delay slightly to ensure terms are loaded
                 if (savedUrl) {
                     setTimeout(() => handleQuickSheetSync(true), 1500);
                 }
@@ -270,9 +260,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
         };
         initData();
-    }, []); // Empty dep array: run once on mount
+    }, []); 
 
-    // ... (Effects remain same)
     useEffect(() => {
         if (currentUser) {
             setSubjects(getSubjects(currentUser.id));
@@ -301,7 +290,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         if (currentUser) {
-            setAssignments(getAssignments(activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab, currentUser.id, isManager));
+            setAssignments(fetchAssignments(activeTab));
         }
     }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId]);
 
@@ -354,7 +343,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         
         filteredStudents.forEach(s => {
             newScores[s.id] = {};
-            // Filter existing performance records for this student and subject
             const studentPerf = performance.filter(p => 
                 p.studentId === s.id && 
                 p.subject === selectedSubject &&
@@ -362,7 +350,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
 
             studentPerf.forEach(p => {
-                // Link score to assignment via ID stored in 'notes' OR title match
                 if (p.notes && filteredAssignments.some(a => a.id === p.notes)) {
                     newScores[s.id][p.notes] = p.score.toString();
                 } else {
@@ -423,7 +410,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }, 500);
     };
 
-    // --- NEW: Handle Full Refresh from DB ---
     const handleRefreshAll = async () => {
         setIsRefreshing(true);
         try {
@@ -436,9 +422,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    // ... (Rest of the component remains exactly the same: Google Sync, Manual Column, Export, Calculation, Render)
     const handleFetchSheetStructure = async () => {
-        // ... (existing code)
         if (!googleSheetUrl) return alert('يرجى إدخال رابط الملف');
         setIsFetchingStructure(true);
         try {
@@ -491,7 +475,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             let updatedScoresCount = 0;
             const recordsToUpsert: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
-            const currentAssignments = getAssignments(activeTab, currentUser?.id, isManager);
+            const currentAssignments = fetchAssignments(activeTab);
             
             selectedHeaders.forEach((header, index) => {
                 let title = header;
@@ -524,7 +508,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
                             const numVal = parseFloat(String(rawVal));
                             if (!isNaN(numVal)) {
-                                // Find existing record to upsert correctly
                                 const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
                                 
                                 recordsToUpsert.push({
@@ -547,7 +530,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             });
 
             if (recordsToUpsert.length > 0) onAddPerformance(recordsToUpsert);
-            setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
+            setAssignments(fetchAssignments(activeTab));
             alert(`تمت العملية بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات مرصودة/محدثة: ${updatedScoresCount}`);
             setIsSettingsOpen(false);
             setSyncStep('URL');
@@ -574,36 +557,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             title, category: activeTab as any, maxScore: Number(max) || 10, isVisible: true, teacherId: currentUser?.id, termId: settingTermId || undefined, periodId: settingPeriodId || undefined
         };
         saveAssignment(newAssign);
-        setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
+        setAssignments(fetchAssignments(activeTab));
     };
 
     const handleUpdateColumn = (assign: Assignment, updates: Partial<Assignment>) => {
         saveAssignment({ ...assign, ...updates });
-        setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
+        setAssignments(fetchAssignments(activeTab));
     };
 
     const handleDeleteAssignment = (id: string) => {
         if(confirm('حذف العمود؟ سيتم حذف جميع الدرجات المرتبطة به.')) {
             deleteAssignment(id);
-            setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
+            setAssignments(fetchAssignments(activeTab));
         }
-    };
-
-    const handleExport = () => {
-        const rows = filteredStudents.map(s => {
-            const rowData: any = { 'الاسم': s.name, 'الصف': s.gradeLevel, 'الفصل': s.className };
-            if (activeTab === 'YEAR_WORK') {
-                const yw = calculateYearWork(s);
-                rowData['واجبات'] = yw.hwGrade; rowData['أنشطة'] = yw.actGrade; rowData['حضور'] = yw.attGrade; rowData['اختبارات'] = yw.examGrade; rowData['المجموع'] = yw.total;
-            } else {
-                filteredAssignments.forEach(a => { rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || ''; });
-            }
-            return rowData;
-        });
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Scores");
-        XLSX.writeFile(wb, `Tracking_${activeTab}_${selectedClass || 'All'}.xlsx`);
     };
 
     const calculateYearWork = (student: Student) => {
@@ -643,6 +609,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const total = hwGrade + actGrade + attGrade + examGrade;
         const totalMax = hwMax + actMax + attMax + examMax;
         return { hwGrade, actGrade, attGrade, examGrade, total, totalMax };
+    };
+
+    const handleExport = () => {
+        const rows = filteredStudents.map(s => {
+            const rowData: any = { 'الاسم': s.name, 'الصف': s.gradeLevel, 'الفصل': s.className };
+            if (activeTab === 'YEAR_WORK') {
+                const yw = calculateYearWork(s);
+                rowData['واجبات'] = yw.hwGrade; rowData['أنشطة'] = yw.actGrade; rowData['حضور'] = yw.attGrade; rowData['اختبارات'] = yw.examGrade; rowData['المجموع'] = yw.total;
+            } else {
+                filteredAssignments.forEach(a => { rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || ''; });
+            }
+            return rowData;
+        });
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Scores");
+        XLSX.writeFile(wb, `Tracking_${activeTab}_${selectedClass || 'All'}.xlsx`);
     };
 
     return (

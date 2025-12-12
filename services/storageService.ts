@@ -1,3 +1,4 @@
+
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Subject, ScheduleItem, TeacherAssignment, Assignment, WeeklyPlanItem, 
@@ -496,9 +497,21 @@ export const getTeacherAssignments = (): TeacherAssignment[] => get(KEYS.ASSIGNM
 // Works Tracking Assignments (Columns)
 export const getAssignments = (category: string, teacherId?: string, includeAll: boolean = false): Assignment[] => {
     const all = get<Assignment>(KEYS.WORKS_ASSIGNMENTS);
-    if (includeAll) return all.filter(a => a.category === category);
-    return all.filter(a => a.category === category && (a.teacherId === teacherId || !a.teacherId));
+    let filtered = all;
+    
+    // Filter by Category
+    if (category !== 'ALL') {
+        filtered = filtered.filter(a => a.category === category);
+    }
+    
+    // Filter by Teacher (if strict mode enabled by lack of includeAll)
+    if (!includeAll && teacherId) {
+        filtered = filtered.filter(a => a.teacherId === teacherId || !a.teacherId);
+    }
+    
+    return filtered;
 };
+
 export const saveAssignment = async (a: Assignment) => { 
     const list = get<Assignment>(KEYS.WORKS_ASSIGNMENTS); 
     const idx = list.findIndex(x => x.id === a.id); if (idx > -1) list[idx] = a; else list.push(a);
