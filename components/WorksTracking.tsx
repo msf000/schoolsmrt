@@ -2,7 +2,7 @@
 // ... (imports remain the same)
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase } from '../services/storageService';
+import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -17,7 +17,7 @@ interface WorksTrackingProps {
     currentUser?: SystemUser | null;
 }
 
-const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone'];
+const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone', 'timestamp'];
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     // ... (State definitions remain same)
@@ -67,19 +67,27 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
-    // --- NEW: Auto Refresh on Mount ---
+    // --- Auto Refresh & Sync on Mount ---
     useEffect(() => {
-        const refreshData = async () => {
+        const initData = async () => {
             setIsRefreshing(true);
             try {
+                // 1. Sync DB
                 await downloadFromSupabase();
+                
+                // 2. Sync Google Sheet (if configured)
+                const savedUrl = getWorksMasterUrl();
+                // Delay slightly to ensure terms are loaded
+                if (savedUrl) {
+                    setTimeout(() => handleQuickSheetSync(true), 1000);
+                }
             } catch (e) {
                 console.error("Auto refresh failed", e);
             } finally {
                 setIsRefreshing(false);
             }
         };
-        refreshData();
+        initData();
     }, []);
 
     // ... (Effects remain same)
@@ -205,15 +213,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (val !== undefined && val !== '') {
                     const assignment = assignments.find(a => a.id === assignmentId);
                     if (assignment) {
-                        // CRITICAL FIX: Find existing record ID to enable UPDATE instead of INSERT
-                        // We use assignment ID stored in 'notes' to link them
                         const existingRecord = performance.find(p => 
                             p.studentId === studentId && 
-                            p.notes === assignmentId // Matches assignment ID
+                            p.notes === assignmentId
                         );
 
                         recordsToSave.push({
-                            // Use existing ID if found to update, else create stable new ID based on Student+Assignment
                             id: existingRecord ? existingRecord.id : `${studentId}_${assignmentId}`,
                             studentId,
                             subject: selectedSubject,
@@ -221,8 +226,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             category: assignment.category,
                             score: parseFloat(val),
                             maxScore: assignment.maxScore,
-                            date: existingRecord ? existingRecord.date : today, // Keep original date or use today
-                            notes: assignment.id, // Store assignment ID for linking
+                            date: existingRecord ? existingRecord.date : today,
+                            notes: assignment.id,
                             createdById: currentUser?.id
                         });
                     }
@@ -230,11 +235,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             });
         });
 
-        // onAddPerformance now calls bulkAddPerformance which supports upsert
-        onAddPerformance(recordsToSave);
+        // Use bulkAddPerformance which supports upsert
+        bulkAddPerformance(recordsToSave);
         setTimeout(() => {
             setIsSaving(false);
-            // alert('تم حفظ الدرجات بنجاح'); // Optional: Remove alert for smoother flow
         }, 500);
     };
 
@@ -243,7 +247,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setIsRefreshing(true);
         try {
             await downloadFromSupabase();
-            // Data will update via prop change from parent App component
         } catch (e) {
             console.error(e);
             alert('فشل تحديث البيانات. تأكد من الاتصال بالإنترنت.');
@@ -252,89 +255,130 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    // --- NEW: Quick Sync from Google Sheet (without modal) ---
-    const handleQuickSheetSync = async () => {
-        if (!googleSheetUrl) return alert('لا يوجد رابط ملف مسجل. يرجى إعداده من "إعدادات الأعمدة".');
-        if (!selectedTermId) return alert('الرجاء اختيار الفترة الدراسية أولاً.');
+    // --- UPDATED: Quick Sync from Google Sheet ---
+    const handleQuickSheetSync = async (isAuto = false) => {
+        const url = getWorksMasterUrl();
+        if (!url) {
+            if (!isAuto) alert('لا يوجد رابط ملف مسجل. يرجى إعداده من "إعدادات الأعمدة".');
+            return;
+        }
+        
+        // Term check - Try to get selected or current
+        let termToUse = selectedTermId;
+        if (!termToUse) {
+             const current = terms.find(t => t.isCurrent);
+             if (current) termToUse = current.id;
+        }
+        if (!termToUse) {
+            if (!isAuto) alert('الرجاء اختيار الفترة الدراسية أولاً.');
+            return;
+        }
         
         setIsSheetSyncing(true);
         try {
             // 1. Fetch Structure
-            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
+            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(url);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
             
-            // Use first sheet or saved logic (Simplified to first sheet for quick sync or prompt)
-            const targetSheet = sheetNames[0]; // Logic could be improved to save preferred sheet name
+            // Use first sheet
+            const targetSheet = sheetNames[0]; 
             const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
             
-            // 2. Logic similar to handleConfirmSync
+            // 2. Logic: Iterate ALL headers (except ignored) -> Create Assignment if missing -> Upsert Scores
+            let newAssignmentsCount = 0;
             let updatedCount = 0;
             const recordsToUpsert: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
+            
+            // Re-fetch current assignments to ensure up-to-date state
             const currentAssignments = getAssignments(activeTab, currentUser?.id, isManager);
             
-            // Filter headers that match existing assignments titles for this term
-            const relevantHeaders = headers.filter(h => {
-                let cleanH = h;
-                const match = h.match(/(.+)\s*\((\d+)\)$/);
-                if (match) cleanH = match[1].trim();
-                return currentAssignments.some(a => a.title === cleanH && a.termId === selectedTermId);
-            });
+            // Filter potential data headers
+            const potentialHeaders = headers.filter(h => !IGNORED_COLUMNS.some(ig => h.toLowerCase().includes(ig)));
 
-            if (relevantHeaders.length === 0) throw new Error('لم يتم العثور على أعمدة في الملف تطابق عناوين الأعمدة الحالية في هذه الفترة.');
+            if (potentialHeaders.length === 0 && !isAuto) throw new Error('لم يتم العثور على أعمدة بيانات صالحة في الملف.');
 
-            relevantHeaders.forEach(header => {
+            for (const header of potentialHeaders) {
                 let title = header;
+                let maxScore = 10;
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
-                if (match) title = match[1].trim();
+                if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
 
-                const targetAssignment = currentAssignments.find(a => a.title === title && a.termId === selectedTermId);
+                let targetAssignment = currentAssignments.find(a => a.title === title && a.termId === termToUse);
                 
-                if (targetAssignment) {
-                    data.forEach(row => {
-                        let student: Student | undefined;
-                        const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
-                        if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
-                        if (!student) {
-                            const rowName = row['الاسم'] || row['name'] || row['student'];
-                            if (rowName) student = students.find(s => s.name.trim() === String(rowName).trim());
-                        }
+                // Create if missing
+                if (!targetAssignment) {
+                    const newId = `gs_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                    targetAssignment = {
+                        id: newId,
+                        title: title,
+                        category: activeTab as any,
+                        maxScore: maxScore,
+                        isVisible: true,
+                        teacherId: currentUser?.id,
+                        termId: termToUse,
+                        periodId: selectedPeriodId || undefined,
+                        orderIndex: 100 + currentAssignments.length + newAssignmentsCount,
+                        sourceMetadata: JSON.stringify({ sheet: targetSheet, header: header })
+                    };
+                    await saveAssignment(targetAssignment);
+                    newAssignmentsCount++;
+                }
 
-                        if (student) {
-                            const rawVal = row[header];
-                            if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
-                                const numVal = parseFloat(String(rawVal));
-                                if (!isNaN(numVal)) {
-                                    const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment.id);
-                                    recordsToUpsert.push({
-                                        id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment.id}`,
-                                        studentId: student.id,
-                                        subject: selectedSubject || 'عام',
-                                        title: targetAssignment.title,
-                                        category: targetAssignment.category,
-                                        score: numVal,
-                                        maxScore: targetAssignment.maxScore,
-                                        date: existingRecord ? existingRecord.date : today,
-                                        notes: targetAssignment.id,
-                                        createdById: currentUser?.id
-                                    });
-                                    updatedCount++;
-                                }
+                // Process Scores
+                data.forEach(row => {
+                    let student: Student | undefined;
+                    const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
+                    if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
+                    if (!student) {
+                        const rowName = row['الاسم'] || row['name'] || row['student'];
+                        if (rowName) student = students.find(s => s.name.trim() === String(rowName).trim());
+                    }
+
+                    if (student) {
+                        const rawVal = row[header];
+                        if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+                            const numVal = parseFloat(String(rawVal));
+                            if (!isNaN(numVal)) {
+                                const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
+                                recordsToUpsert.push({
+                                    id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
+                                    studentId: student.id,
+                                    subject: selectedSubject || 'عام',
+                                    title: targetAssignment!.title,
+                                    category: targetAssignment!.category,
+                                    score: numVal,
+                                    maxScore: targetAssignment!.maxScore,
+                                    date: existingRecord ? existingRecord.date : today,
+                                    notes: targetAssignment!.id,
+                                    createdById: currentUser?.id
+                                });
+                                updatedCount++;
                             }
                         }
-                    });
-                }
-            });
+                    }
+                });
+            }
 
             if (recordsToUpsert.length > 0) {
-                onAddPerformance(recordsToUpsert);
-                alert(`تم تحديث ${updatedCount} درجة بنجاح من الملف!`);
-            } else {
-                alert('لم يتم العثور على درجات جديدة لتحديثها.');
+                // Using bulkAddPerformance (which uses UPSERT internally in storageService)
+                await bulkAddPerformance(recordsToUpsert);
+            }
+
+            // Update UI State for assignments immediately
+            setAssignments(getAssignments(activeTab, currentUser?.id, isManager));
+
+            if (!isAuto) {
+                if (newAssignmentsCount > 0 || updatedCount > 0) {
+                    alert(`تم التحديث بنجاح!\n- أعمدة جديدة تم إنشاؤها: ${newAssignmentsCount}\n- درجات تم رصدها/تحديثها: ${updatedCount}`);
+                } else {
+                    alert('تم فحص الملف. لم يتم العثور على درجات جديدة أو تغييرات.');
+                }
             }
 
         } catch (e: any) {
-            alert('خطأ أثناء المزامنة السريعة: ' + e.message);
+            console.error(e);
+            if (!isAuto) alert('خطأ أثناء المزامنة السريعة: ' + e.message);
         } finally {
             setIsSheetSyncing(false);
         }
@@ -396,18 +440,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
                 if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
 
-                const existingAssignment = currentAssignments.find(a => a.title === title && a.termId === settingTermId && a.category === activeTab);
-                let targetAssignment: Assignment;
+                let targetAssignment = currentAssignments.find(a => a.title === title && a.termId === settingTermId && a.category === activeTab);
 
-                if (!existingAssignment) {
+                if (!targetAssignment) {
                     const newId = `gs_${Date.now()}_${index}`;
-                    const newAssignment: Assignment = {
+                    targetAssignment = {
                         id: newId, title: title, category: activeTab as any, maxScore: Number(maxScore), isVisible: true, teacherId: currentUser?.id, termId: settingTermId, periodId: settingPeriodId || undefined, orderIndex: Number(index) + 100, sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: header })
                     };
-                    saveAssignment(newAssignment);
+                    saveAssignment(targetAssignment);
                     newAssignmentsCount++;
-                    targetAssignment = newAssignment;
-                } else { targetAssignment = existingAssignment; }
+                }
 
                 data.forEach(row => {
                     let student: Student | undefined;
@@ -424,18 +466,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             const numVal = parseFloat(String(rawVal));
                             if (!isNaN(numVal)) {
                                 // Find existing record to upsert correctly
-                                const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment.id);
+                                const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
                                 
                                 recordsToUpsert.push({
-                                    id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment.id}`,
+                                    id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
                                     studentId: student.id,
                                     subject: selectedSubject || 'عام',
-                                    title: targetAssignment.title,
-                                    category: targetAssignment.category,
+                                    title: targetAssignment!.title,
+                                    category: targetAssignment!.category,
                                     score: numVal,
-                                    maxScore: targetAssignment.maxScore,
+                                    maxScore: targetAssignment!.maxScore,
                                     date: existingRecord ? existingRecord.date : today,
-                                    notes: targetAssignment.id, 
+                                    notes: targetAssignment!.id, 
                                     createdById: currentUser?.id
                                 });
                                 updatedScoresCount++;
@@ -588,7 +630,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <div className="flex gap-2">
                         {googleSheetUrl && (
                             <button 
-                                onClick={() => handleQuickSheetSync()} 
+                                onClick={() => handleQuickSheetSync(false)} 
                                 disabled={isSheetSyncing}
                                 className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200"
                                 title="تحديث الدرجات من ملف Google Sheet المرتبط"
