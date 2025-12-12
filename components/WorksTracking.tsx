@@ -751,10 +751,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
     
-    // SORT PERIODS HERE: Use Memo to sort periods chronologically by startDate
+    // SORT PERIODS HERE: Use Memo to sort periods chronologically by startDate or name
     const activePeriods = useMemo(() => {
         if (!activeTerm?.periods) return [];
-        return [...activeTerm.periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
+        return [...activeTerm.periods].sort((a, b) => {
+            const dateA = a.startDate || '';
+            const dateB = b.startDate || '';
+            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
+            // Fallback to name sort
+            return a.name.localeCompare(b.name, 'ar');
+        });
     }, [activeTerm]);
     
     const settingsTerm = terms.find(t => t.id === settingTermId);
@@ -762,7 +768,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     // SORT SETTINGS PERIODS
     const settingsPeriods = useMemo(() => {
         if (!settingsTerm?.periods) return [];
-        return [...settingsTerm.periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
+        return [...settingsTerm.periods].sort((a, b) => {
+            const dateA = a.startDate || '';
+            const dateB = b.startDate || '';
+            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
+            return a.name.localeCompare(b.name, 'ar');
+        });
     }, [settingsTerm]);
 
     const uniqueClasses = useMemo(() => {

@@ -251,7 +251,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                             <div>
                                 <p className="text-gray-500 text-xs font-bold mb-1">المدرسة</p>
                                 <h3 className="text-lg font-bold text-gray-800 line-clamp-1">{mySchool.name}</h3>
-                                <p className="text-[10px] text-gray-400">كود: {mySchool.ministryCode}</p>
+                                <p className="text-xs text-gray-400">كود: {mySchool.ministryCode}</p>
                             </div>
                             <div className="p-3 bg-green-50 text-green-600 rounded-full"><Building2 size={24}/></div>
                         </div>
@@ -353,8 +353,11 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     <div className="p-4 border-t bg-white animate-slide-up">
                                         <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><ListTree size={14}/> الفترات (Periods)</h5>
                                         <div className="space-y-2 mb-4">
-                                            {/* SORTED PERIODS FOR DISPLAY */}
-                                            {term.periods?.sort((a,b) => a.startDate.localeCompare(b.startDate)).map(p => (
+                                            {/* SORTED PERIODS FOR DISPLAY: Chronologically or Name based */}
+                                            {term.periods?.sort((a,b) => {
+                                                if (a.startDate && b.startDate && a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+                                                return a.name.localeCompare(b.name, 'ar');
+                                            }).map(p => (
                                                 <div key={p.id} className="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100 text-sm">
                                                     <span className="font-medium text-gray-700">{p.name} ({p.startDate} - {p.endDate})</span>
                                                     <button onClick={() => handleDeletePeriod(term, p.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>

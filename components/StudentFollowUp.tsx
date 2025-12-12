@@ -135,10 +135,17 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     // Determine active term & period for filtering
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
     
-    // Sorted Periods
+    // Sorted Periods (Fix: Sort chronologically or alphabetically)
     const activeTermPeriods = useMemo(() => {
         if (!activeTerm?.periods) return [];
-        return [...activeTerm.periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
+        return [...activeTerm.periods].sort((a, b) => {
+            const dateA = a.startDate || '';
+            const dateB = b.startDate || '';
+            // Prefer Date Sort
+            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
+            // Fallback to Name Sort (works for "First" vs "Second" in Arabic usually because of Alif vs Tha)
+            return a.name.localeCompare(b.name, 'ar'); 
+        });
     }, [activeTerm]);
 
     const activePeriod = useMemo(() => activeTermPeriods.find(p => p.id === selectedPeriodId), [activeTermPeriods, selectedPeriodId]);
