@@ -1,5 +1,4 @@
 
-// ... (imports remain the same)
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance } from '../services/storageService';
@@ -8,7 +7,6 @@ import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, S
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
-// ... (Interface and consts remain same)
 interface WorksTrackingProps {
     students: Student[];
     performance: PerformanceRecord[];
@@ -17,10 +15,16 @@ interface WorksTrackingProps {
     currentUser?: SystemUser | null;
 }
 
-const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone', 'timestamp'];
+const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone', 'timestamp', 'email', 'بريد'];
+
+// Expanded list of possible headers for Student Name
+const STUDENT_NAME_HEADERS = [
+    'الاسم', 'اسم', 'اسم الطالب', 'الطالب', 'اسمك', 'لطالب', 
+    'الاسم الثلاثي', 'الاسم الرباعي', 'الاسم الكامل',
+    'name', 'student', 'student name', 'full name', 'student_name'
+];
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
-    // ... (State definitions remain same)
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
     const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>(() => {
@@ -43,8 +47,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
     const [isSaving, setIsSaving] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false); // New state for refresh
-    const [isSheetSyncing, setIsSheetSyncing] = useState(false); // New state for sheet sync
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isSheetSyncing, setIsSheetSyncing] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
     const [activityTarget, setActivityTarget] = useState(15);
@@ -67,8 +71,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
+    // Helper to find student name in a row using multiple variations
+    const findStudentNameInRow = (row: any): string | undefined => {
+        // 1. Try exact matches from list
+        for (const key of STUDENT_NAME_HEADERS) {
+            if (row[key]) return String(row[key]);
+        }
+        // 2. Try partial key match (slower but safer)
+        const rowKeys = Object.keys(row);
+        for (const key of rowKeys) {
+            const lowerKey = key.toLowerCase().trim();
+            if (STUDENT_NAME_HEADERS.some(h => lowerKey === h || lowerKey.includes(h))) {
+                return String(row[key]);
+            }
+        }
+        return undefined;
+    };
+
     // --- UPDATED: Quick Sync from Google Sheet ---
-    // Defined using useCallback to be stable for useEffect
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
         const url = getWorksMasterUrl();
         if (!url) {
@@ -114,8 +134,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (matchedSheet) {
                 targetSheet = matchedSheet;
             } else if (sheetNames.length > 1 && !isAuto) {
-                // If manual sync and ambiguous, maybe warn or pick first?
-                // We'll stick to first for now but log it
                 console.log("No smart match for sheet, using first:", targetSheet);
             }
 
@@ -166,11 +184,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 // Process Scores
                 data.forEach(row => {
                     let student: Student | undefined;
-                    const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
+                    // ID Match
+                    const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
                     if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
+                    
+                    // Name Match (Using Helper)
                     if (!student) {
-                        const rowName = row['الاسم'] || row['name'] || row['student'];
-                        if (rowName) student = students.find(s => s.name.trim() === String(rowName).trim());
+                        const rowName = findStudentNameInRow(row);
+                        if (rowName) {
+                            const cleanName = String(rowName).trim();
+                            student = students.find(s => s.name.trim() === cleanName || cleanName.includes(s.name) || s.name.includes(cleanName));
+                        }
                     }
 
                     if (student) {
@@ -203,7 +227,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
 
             if (recordsToUpsert.length > 0) {
-                // Using bulkAddPerformance (which uses UPSERT internally in storageService)
                 await bulkAddPerformance(recordsToUpsert);
             }
 
@@ -443,11 +466,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const unmatched: string[] = [];
         data.forEach(row => {
             const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
-            const rowName = row['الاسم'] || row['name'] || row['student'];
+            
             let found = false;
             if (rowNid && students.some(s => s.nationalId === String(rowNid).trim())) found = true;
-            else if (rowName && students.some(s => s.name.trim() === String(rowName).trim())) found = true;
-            if (!found && rowName) unmatched.push(String(rowName));
+            else {
+                const rowName = findStudentNameInRow(row);
+                if (rowName && students.some(s => s.name.trim() === String(rowName).trim())) found = true;
+            }
+            
+            if (!found) {
+                const name = findStudentNameInRow(row) || 'Unknown';
+                unmatched.push(String(name));
+            }
         });
         setUnmatchedStudents(unmatched.slice(0, 10));
     };
@@ -485,7 +515,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
                     if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
                     if (!student) {
-                        const rowName = row['الاسم'] || row['name'] || row['student'];
+                        const rowName = findStudentNameInRow(row);
                         if (rowName) student = students.find(s => s.name.trim() === String(rowName).trim());
                     }
 

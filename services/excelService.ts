@@ -1,4 +1,5 @@
 
+// ... (existing code imports)
 import * as XLSX from 'xlsx';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
 
@@ -29,11 +30,18 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
     // Common search for National ID
     const nidHeader = findHeader(['id', 'identity', 'national', 'هوية', 'سجل', 'مدني', 'إقامة', 'اقامة']);
 
+    // Extended list of keywords for Student Name
+    const nameKeywords = [
+        'name', 'student', 'الاسم', 'الطالب', 'اسمك', 'لطالب', 
+        'الاسم الثلاثي', 'الاسم الرباعي', 'الاسم الكامل', 'full name', 
+        'اسم الطالب', 'student_name'
+    ];
+
     if (fieldType === 'STUDENTS') {
         if (nidHeader) mapping['nationalId'] = nidHeader;
 
         // 2. Student Name
-        const nameHeader = findHeader(['name', 'student', 'الاسم', 'الطالب'], ['parent', 'father', 'ولي']);
+        const nameHeader = findHeader(nameKeywords, ['parent', 'father', 'ولي']);
         if (nameHeader) mapping['name'] = nameHeader;
 
         // 3. Grade / Stage
@@ -68,7 +76,7 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
         // Allow matching by ID
         if (nidHeader) mapping['nationalId'] = nidHeader;
 
-        const nameHeader = findHeader(['name', 'student', 'الاسم', 'الطالب']);
+        const nameHeader = findHeader(nameKeywords);
         if (nameHeader) mapping['studentName'] = nameHeader;
 
         const subjectHeader = findHeader(['subject', 'course', 'المادة', 'المقرر']);
@@ -87,7 +95,7 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
         // Allow matching by ID
         if (nidHeader) mapping['nationalId'] = nidHeader;
 
-        const nameHeader = findHeader(['name', 'student', 'الاسم', 'الطالب']);
+        const nameHeader = findHeader(nameKeywords);
         if (nameHeader) mapping['studentName'] = nameHeader;
 
         const statusHeader = findHeader(['status', 'type', 'الحالة', 'الوضع']);
@@ -106,6 +114,7 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
     return mapping;
 };
 
+// ... (rest of file remains the same: parseDate, processMappedData, etc)
 // Helper to parse date from various formats
 const parseDate = (dateStr: string | undefined): string => {
     if (!dateStr) return new Date().toISOString().split('T')[0];
@@ -182,7 +191,7 @@ export const processMappedData = (
             
             // 2. Fallback to Name if ID not provided or not found
             if (!student && studentName) {
-                student = existingStudents.find(s => s.name.trim() === studentName);
+                student = existingStudents.find(s => s.name.trim() === studentName || s.name.includes(studentName) || studentName.includes(s.name));
             }
 
             if (student) {
