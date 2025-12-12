@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Database } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -70,7 +70,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // Config
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
-    const [settingTermId, setSettingTermId] = useState('');
     
     // --- Initialization ---
     useEffect(() => {
@@ -86,10 +85,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const current = loadedTerms.find(t => t.isCurrent);
             if (current) {
                 setSelectedTermId(current.id);
-                setSettingTermId(current.id);
             } else if (loadedTerms.length > 0) {
                 setSelectedTermId(loadedTerms[0].id);
-                setSettingTermId(loadedTerms[0].id);
             }
         }
     }, [currentUser]);
@@ -99,6 +96,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setSelectedSubject(subjects[0].name);
         }
     }, [subjects, selectedSubject]);
+
+    // Determine active term & period objects
+    const activeTermObj = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
+    const termPeriods = useMemo(() => activeTermObj?.periods || [], [activeTermObj]);
 
     // --- Data Fetching ---
     const fetchAssignments = useCallback((category: string) => {
@@ -137,7 +138,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             studentPerf.forEach(p => {
                 // Link record to assignment ID
                 if (p.notes && assignments.some(a => a.id === p.notes)) { 
-                     // Strong link by ID
                      newScores[s.id][p.notes] = p.score.toString();
                 } else { 
                      // Weak link by Title (Legacy/Imported)
@@ -171,16 +171,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
             autoSaveTimerRef.current = setTimeout(() => {
                 handleSaveScores(true); 
-            }, 2000); 
+            }, 1000); // Faster save (1s)
         }
     };
 
     // 3. Save Logic (The Core Fix)
     const handleSaveScores = (silent = false) => {
         if (!selectedSubject) {
-            if(!silent) alert('الرجاء اختيار المادة');
+            if(!silent && activeTab !== 'YEAR_WORK') alert('الرجاء اختيار المادة');
             return;
         }
+        if (activeTab === 'YEAR_WORK') return; // Year work is read-only calculation
+
         setIsSaving(true);
         
         const recordsToSave: PerformanceRecord[] = [];
@@ -196,7 +198,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (val !== undefined && val !== '') {
                     const assignment = currentAssignments.find(a => a.id === assignmentId);
                     if (assignment) {
-                        // Smart Upsert: Find existing record to preserve ID/Date
+                        // Find existing record to preserve ID/Date
                         const existingRecord = performance.find(p => 
                             p.studentId === studentId && 
                             (p.notes === assignmentId || p.title === assignment.title)
@@ -215,7 +217,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 score: numVal,
                                 maxScore: assignment.maxScore,
                                 date: existingRecord ? existingRecord.date : today,
-                                notes: assignment.id, // CRITICAL: Link by ID
+                                notes: assignment.id, // Link by ID
                                 createdById: currentUser?.id
                             });
                         }
@@ -227,9 +229,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (recordsToSave.length > 0) {
             bulkAddPerformance(recordsToSave);
             setLastSaved(new Date());
-            if(!silent) {
-                // Optional: visual feedback
-            }
         }
         
         setTimeout(() => setIsSaving(false), 500);
@@ -272,7 +271,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             // Assume first sheet contains the grades
             const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
             
-            const currentAssignments = assignmentsRef.current; // Use ref for safety
+            // Re-fetch assignments inside the function to ensure we have latest (especially if called after add column)
+            // Or rely on assignmentsRef
+            const currentAssignments = getAssignments('ALL', currentUser?.id, isManager);
+            
             const updates: PerformanceRecord[] = [];
             let updateCount = 0;
 
@@ -314,12 +316,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             if (updates.length > 0) {
                 bulkAddPerformance(updates); // Save to DB
-                // Since this runs async, the UI might not update instantly unless we force a reload or rely on subscriptions.
-                // WorksTracking listens to 'performance' prop from App.tsx which listens to storage changes.
-                // So UI should update automatically.
                 if (!isAuto) alert(`تم تحديث ${updateCount} درجة بنجاح من الملف!`);
             } else {
-                if (!isAuto) alert('لم يتم العثور على درجات مطابقة في الملف.');
+                if (!isAuto) alert('لم يتم العثور على درجات مطابقة في الملف. تأكد من تطابق عناوين الأعمدة.');
             }
 
         } catch (e: any) {
@@ -328,7 +327,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setIsSheetSyncing(false);
             setSyncStatusMsg('');
         }
-    }, [currentUser, students, selectedSubject, terms, selectedTermId]); // Dependencies
+    }, [currentUser, students, selectedSubject]);
 
     // --- Manual Column Management ---
     const handleAddManualColumn = () => {
@@ -362,7 +361,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const filteredAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
-            // RELAXED FILTER: Show matching term OR general items to prevent disappearing
             const termMatch = !selectedTermId || !a.termId || (a.termId === selectedTermId);
             const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
             return termMatch && periodMatch;
@@ -377,6 +375,55 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm));
         return filtered.sort((a,b) => a.name.localeCompare(b.name));
     }, [students, selectedClass, searchTerm]);
+
+    // --- Year Work Calculation ---
+    const yearWorkData = useMemo(() => {
+        if (activeTab !== 'YEAR_WORK') return [];
+        
+        return filteredStudents.map(student => {
+            // Filter Attendance
+            let studentAtt = attendance.filter(a => a.studentId === student.id);
+            if (activeTermObj) {
+                studentAtt = studentAtt.filter(a => a.date >= activeTermObj.startDate && a.date <= activeTermObj.endDate);
+            }
+            const totalDays = studentAtt.length;
+            const present = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
+            const attScore = totalDays > 0 ? (present / totalDays) * 15 : 15; // 15 marks
+
+            // Filter Performance
+            let studentPerf = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject);
+            if (activeTermObj) {
+                studentPerf = studentPerf.filter(p => p.date >= activeTermObj.startDate && p.date <= activeTermObj.endDate);
+            }
+
+            // Calc Categories
+            const calcCategory = (cat: string, maxWeight: number) => {
+                const items = studentPerf.filter(p => p.category === cat);
+                if (items.length === 0) return 0; // Or full mark if empty? Standard practice is 0 if no data
+                // Better approach: sum scores vs sum max scores
+                let scoreSum = 0;
+                let maxSum = 0;
+                items.forEach(i => { scoreSum += i.score; maxSum += (i.maxScore || 10); });
+                return maxSum > 0 ? (scoreSum / maxSum) * maxWeight : 0;
+            };
+
+            const hwScore = calcCategory('HOMEWORK', 10);
+            const actScore = calcCategory('ACTIVITY', 15);
+            const examScore = calcCategory('PLATFORM_EXAM', 20);
+            
+            const total = attScore + hwScore + actScore + examScore;
+
+            return {
+                id: student.id,
+                name: student.name,
+                att: Math.round(attScore),
+                hw: Math.round(hwScore),
+                act: Math.round(actScore),
+                exam: Math.round(examScore),
+                total: Math.round(total)
+            };
+        });
+    }, [filteredStudents, attendance, performance, activeTermObj, activeTab, selectedSubject]);
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
@@ -411,10 +458,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         <div className="flex items-center bg-gray-50 border rounded-lg px-2 py-1">
                             <Calendar size={16} className="text-gray-400 ml-2"/>
                             <select className="bg-transparent text-sm font-bold text-gray-700 outline-none min-w-[120px]" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
-                                <option value="">كل الفترات</option>
+                                <option value="">كل الفصول الدراسية</option>
                                 {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
                         </div>
+                        
+                        {/* PERIOD SELECTOR */}
+                        {termPeriods.length > 0 && (
+                            <div className="flex items-center bg-gray-50 border rounded-lg px-2 py-1 animate-fade-in">
+                                <span className="text-xs text-gray-400 font-bold ml-1">الفترة:</span>
+                                <select className="bg-transparent text-sm font-bold text-gray-700 outline-none" value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)}>
+                                    <option value="">الكل (عام)</option>
+                                    {termPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+
                         <select className="p-2 border rounded-lg bg-gray-50 text-sm font-bold min-w-[120px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
                             <option value="">-- المادة --</option>
                             {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -431,6 +490,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         <button onClick={() => handleTabChange('HOMEWORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'HOMEWORK' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>الواجبات</button>
                         <button onClick={() => handleTabChange('ACTIVITY')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'ACTIVITY' ? 'bg-amber-100 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}>الأنشطة</button>
                         <button onClick={() => handleTabChange('PLATFORM_EXAM')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'PLATFORM_EXAM' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-100'}`}>الاختبارات</button>
+                        <button onClick={() => handleTabChange('YEAR_WORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${activeTab === 'YEAR_WORK' ? 'bg-teal-100 text-teal-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+                            <Calculator size={14}/> أعمال السنة (تجميعي)
+                        </button>
                     </div>
 
                     <div className="flex gap-2">
@@ -450,9 +512,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         <button onClick={() => handleAddManualColumn()} className="flex items-center gap-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 border border-gray-300">
                             <Plus size={16}/> إضافة عمود
                         </button>
-                        <button onClick={() => handleSaveScores(false)} disabled={isSaving} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold hover:opacity-90 shadow-md">
-                            {isSaving ? <Settings size={16} className="animate-spin"/> : <Save size={16}/>} حفظ
-                        </button>
+                        {activeTab !== 'YEAR_WORK' && (
+                            <button onClick={() => handleSaveScores(false)} disabled={isSaving} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold hover:opacity-90 shadow-md">
+                                {isSaving ? <Settings size={16} className="animate-spin"/> : <Save size={16}/>} حفظ
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -462,43 +526,76 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 overflow-hidden flex flex-col">
                     <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-center text-sm border-collapse min-w-[800px]">
-                            <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="p-3 border-l w-12 bg-gray-50">#</th>
-                                    <th className="p-3 border-l w-64 text-right bg-gray-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
-                                    {filteredAssignments.map(assign => (
-                                        <th key={assign.id} className="p-2 border-l min-w-[120px] group relative">
-                                            <div className="flex flex-col items-center">
-                                                <span className="flex items-center gap-1">
-                                                    {assign.title}
-                                                    <button onClick={() => handleDeleteAssignment(assign.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>
-                                                </span>
-                                                <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
-                                            </div>
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredStudents.map((student, idx) => (
-                                    <tr key={student.id} className="hover:bg-gray-50 border-b transition-colors">
-                                        <td className="p-3 border-l text-gray-500">{idx + 1}</td>
-                                        <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
-                                        
-                                        {filteredAssignments.map(assign => (
-                                            <td key={assign.id} className="p-0 border-l relative h-10">
-                                                <input 
-                                                    type="number"
-                                                    className={`w-full h-full p-2 text-center outline-none bg-transparent focus:bg-indigo-50 font-medium ${scores[student.id]?.[assign.id] ? 'text-indigo-700 font-bold' : 'text-gray-400'}`}
-                                                    value={scores[student.id]?.[assign.id] || ''}
-                                                    onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
-                                                    placeholder="-"
-                                                />
-                                            </td>
+                            {activeTab === 'YEAR_WORK' ? (
+                                // --- YEAR WORK TABLE ---
+                                <>
+                                    <thead className="bg-teal-50 text-teal-800 font-bold sticky top-0 z-10 shadow-sm">
+                                        <tr>
+                                            <th className="p-3 border-l w-12 bg-teal-50">#</th>
+                                            <th className="p-3 border-l w-64 text-right bg-teal-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
+                                            <th className="p-2 border-l">الحضور (15)</th>
+                                            <th className="p-2 border-l">الواجبات (10)</th>
+                                            <th className="p-2 border-l">الأنشطة (15)</th>
+                                            <th className="p-2 border-l">اختبارات (20)</th>
+                                            <th className="p-2 border-l bg-teal-100 text-teal-900">المجموع (60)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {yearWorkData.map((data, idx) => (
+                                            <tr key={data.id} className="hover:bg-gray-50 border-b transition-colors">
+                                                <td className="p-3 border-l text-gray-500">{idx + 1}</td>
+                                                <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{data.name}</td>
+                                                <td className="p-3 border-l font-bold text-gray-600">{data.att}</td>
+                                                <td className="p-3 border-l font-bold text-blue-600">{data.hw}</td>
+                                                <td className="p-3 border-l font-bold text-amber-600">{data.act}</td>
+                                                <td className="p-3 border-l font-bold text-purple-600">{data.exam}</td>
+                                                <td className="p-3 border-l font-black text-teal-800 bg-teal-50">{data.total}</td>
+                                            </tr>
                                         ))}
-                                    </tr>
-                                ))}
-                            </tbody>
+                                    </tbody>
+                                </>
+                            ) : (
+                                // --- STANDARD TRACKING TABLE ---
+                                <>
+                                    <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
+                                        <tr>
+                                            <th className="p-3 border-l w-12 bg-gray-50">#</th>
+                                            <th className="p-3 border-l w-64 text-right bg-gray-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
+                                            {filteredAssignments.map(assign => (
+                                                <th key={assign.id} className="p-2 border-l min-w-[120px] group relative">
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="flex items-center gap-1">
+                                                            {assign.title}
+                                                            <button onClick={() => handleDeleteAssignment(assign.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
+                                                    </div>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredStudents.map((student, idx) => (
+                                            <tr key={student.id} className="hover:bg-gray-50 border-b transition-colors">
+                                                <td className="p-3 border-l text-gray-500">{idx + 1}</td>
+                                                <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
+                                                
+                                                {filteredAssignments.map(assign => (
+                                                    <td key={assign.id} className="p-0 border-l relative h-10">
+                                                        <input 
+                                                            type="number"
+                                                            className={`w-full h-full p-2 text-center outline-none bg-transparent focus:bg-indigo-50 font-medium ${scores[student.id]?.[assign.id] ? 'text-indigo-700 font-bold' : 'text-gray-400'}`}
+                                                            value={scores[student.id]?.[assign.id] || ''}
+                                                            onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
+                                                            placeholder="-"
+                                                        />
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </>
+                            )}
                         </table>
                         {activeTab !== 'YEAR_WORK' && filteredAssignments.length === 0 && (
                             <div className="p-10 text-center text-gray-400">
