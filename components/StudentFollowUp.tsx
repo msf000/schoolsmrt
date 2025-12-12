@@ -23,7 +23,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [selectedSubject, setSelectedSubject] = useState<string>('');
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [activityTarget, setActivityTarget] = useState<number>(13); 
+    const [activityTarget, setActivityTarget] = useState<number>(15); 
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -125,16 +125,21 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
     const activePeriod = useMemo(() => activeTerm?.periods?.find(p => p.id === selectedPeriodId), [activeTerm, selectedPeriodId]);
 
-    // Fetch assignments and filter by visibility, term, and period
+    // Fetch assignments and filter strictly by Term AND Period
     const filterAssignments = (category: string) => {
         return getAssignments(category, currentUser?.id).filter(c => {
             if (!c.isVisible) return false;
-            // Term Check
+            // 1. Term Check
             if (activeTerm && c.termId && c.termId !== activeTerm.id) return false;
-            // Period Check (Strict if period selected)
-            if (selectedPeriodId && c.periodId && c.periodId !== selectedPeriodId) return false;
-            // If period is selected, only show general columns OR columns matching period
-            if (selectedPeriodId) return !c.periodId || c.periodId === selectedPeriodId;
+            
+            // 2. Period Check (If period is selected, only show assignments for that period OR global ones if permitted logic)
+            // Strict Mode: If period selected, Assignment MUST match periodId.
+            if (selectedPeriodId) {
+                if (c.periodId && c.periodId !== selectedPeriodId) return false;
+                // Optional: If assignment has NO periodId, do we include it? Usually yes if it's Term-wide.
+                // But for "Period 1", we usually want only "Period 1" columns.
+                if (!c.periodId) return false; // Strict: Must match period
+            }
             
             return true;
         });
@@ -153,7 +158,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         if (activeTerm) {
             startDate = activeTerm.startDate;
             endDate = activeTerm.endDate;
-            
+            // Narrow down if period selected
             if (activePeriod) {
                 startDate = activePeriod.startDate;
                 endDate = activePeriod.endDate;
@@ -165,66 +170,82 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             return date >= startDate && date <= endDate;
         };
 
-        // Filter attendance
+        // --- ATTENDANCE ---
         let studentAtt = attendance.filter(a => a.studentId === student.id && filterByDate(a.date));
-
         const creditCount = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
         const totalDays = studentAtt.length;
         const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
-        const gradePart = (attPercent / 100) * 15;
+        const gradePart = (attPercent / 100) * 15; // 15 Marks for Attendance
 
-        // Filter Performance
+        // --- PERFORMANCE BASE ---
         let myPerformance = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject && filterByDate(p.date));
 
+        // --- HOMEWORK CALCULATIONS ---
         const studentHWs = myPerformance.filter(p => p.category === 'HOMEWORK');
-        const totalHWCount = homeworkCols.length; 
+        let hwScoreSum = 0;
+        let hwMaxSum = 0;
         
-        // Count HWs that match the current columns (to align with term filtering)
-        const distinctHWs = new Set(studentHWs.filter(p => p.score > 0).map(p => p.notes)).size;
+        if (homeworkCols.length > 0) {
+            // Calculated based on Columns defined for this Period
+            homeworkCols.forEach(col => {
+                const rec = studentHWs.find(p => p.notes === col.id || p.title === col.title);
+                hwMaxSum += col.maxScore;
+                if (rec) hwScoreSum += rec.score;
+            });
+        } else {
+            // Fallback: Sum whatever records exist if no columns defined
+            studentHWs.forEach(p => { hwScoreSum += p.score; hwMaxSum += p.maxScore || 10; });
+        }
         
-        // If we have defined columns, use them as max. If not, assume manual entry is 100% if exists.
-        const hwPercent = totalHWCount > 0 ? Math.min(Math.round((distinctHWs / totalHWCount) * 100), 100) : 
-                          studentHWs.length > 0 ? 100 : 0; 
-        const gradeHW = (hwPercent / 100) * 10;
+        const hwPercent = hwMaxSum > 0 ? Math.round((hwScoreSum / hwMaxSum) * 100) : (homeworkCols.length > 0 ? 0 : 100);
+        const gradeHW = (hwPercent / 100) * 10; // 10 Marks for Homework
 
+        // --- ACTIVITY CALCULATIONS ---
         const studentActs = myPerformance.filter(p => p.category === 'ACTIVITY');
-        let actSum = 0;
-        // Only sum activities that match current valid columns (if columns exist)
-        const validActColKeys = new Set(activityCols.map(c => c.id));
-        
-        studentActs.forEach(p => { 
-            if (activityCols.length > 0) {
-                if (p.notes && validActColKeys.has(p.notes)) actSum += p.score;
-            } else {
-                actSum += p.score;
-            }
-        });
+        let actScoreSum = 0;
+        let actMaxSum = 0;
 
-        const activityRatio = activityTarget > 0 ? (actSum / activityTarget) : 0;
-        const gradeAct = Math.min(activityRatio * 15, 15);
-        const actPercent = Math.min(activityRatio * 100, 100);
+        if (activityCols.length > 0) {
+             activityCols.forEach(col => {
+                const rec = studentActs.find(p => p.notes === col.id || p.title === col.title);
+                actMaxSum += col.maxScore;
+                if (rec) actScoreSum += rec.score;
+             });
+        } else {
+             // Fallback
+             studentActs.forEach(p => { actScoreSum += p.score; actMaxSum += p.maxScore || 10; });
+             // Adjust max if target is set manually
+             if (activityTarget > 0 && activityCols.length === 0) actMaxSum = activityTarget;
+        }
 
+        const actPercent = actMaxSum > 0 ? Math.round((actScoreSum / actMaxSum) * 100) : (activityCols.length > 0 ? 0 : 100);
+        const gradeAct = (actPercent / 100) * 15; // 15 Marks for Activities
+
+        // --- EXAM CALCULATIONS ---
         const studentExams = myPerformance.filter(p => p.category === 'PLATFORM_EXAM');
-        let examScoreSum = 0; let examMaxSum = 0;
-        
-        // Filter exams to match columns if columns exist
-        const validExamColKeys = new Set(examCols.map(c => c.id));
-        
-        studentExams.forEach(p => { 
-             if (examCols.length > 0 && p.notes && !validExamColKeys.has(p.notes)) return;
-             examScoreSum += p.score; 
-             examMaxSum += p.maxScore > 0 ? p.maxScore : 20; 
-        });
-        
-        const examWeightedRaw = examMaxSum > 0 ? (examScoreSum / examMaxSum) * 20 : 0;
-        const examWeighted = Math.min(examWeightedRaw, 20);
+        let examScoreSum = 0;
+        let examMaxSum = 0;
 
+        if (examCols.length > 0) {
+            examCols.forEach(col => {
+                const rec = studentExams.find(p => p.notes === col.id || p.title === col.title);
+                examMaxSum += col.maxScore;
+                if (rec) examScoreSum += rec.score;
+            });
+        } else {
+            studentExams.forEach(p => { examScoreSum += p.score; examMaxSum += p.maxScore || 20; });
+        }
+        
+        const examPercent = examMaxSum > 0 ? Math.round((examScoreSum / examMaxSum) * 100) : 0;
+        const examWeighted = (examPercent / 100) * 20; // 20 Marks for Exams
+
+        // Total
         const totalTasks = gradeHW + gradeAct + gradePart;
         const totalPeriod = totalTasks + examWeighted;
 
         const behaviorLogs = studentAtt.filter(a => (a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL) || a.behaviorNote).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        // --- Class Average Calculation ---
+        // Class Avg
         let classAvg = 0;
         const classStudents = students.filter(s => s.className === student.className);
         if (classStudents.length > 0) {
@@ -245,12 +266,15 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             { name: 'الحضور', value: Math.round(attPercent), full: 100, fill: '#10b981' }, 
             { name: 'الواجبات', value: Math.round(hwPercent), full: 100, fill: '#3b82f6' }, 
             { name: 'الأنشطة', value: Math.round(actPercent), full: 100, fill: '#f59e0b' }, 
-            { name: 'الاختبارات', value: Math.round((examWeighted / 20) * 100), full: 100, fill: '#8b5cf6' }
+            { name: 'الاختبارات', value: Math.round(examPercent), full: 100, fill: '#8b5cf6' }
         ];
 
         return { 
-            attPercent, gradePart, hwPercent, distinctHWs, totalHWCount, gradeHW, 
-            actSum, gradeAct, actPercent, examWeighted, totalTasks, totalPeriod, 
+            attPercent, gradePart, 
+            hwPercent, hwScoreSum, hwMaxSum, gradeHW, 
+            actPercent, actScoreSum, actMaxSum, gradeAct, 
+            examPercent, examScoreSum, examMaxSum, examWeighted,
+            totalTasks, totalPeriod, 
             studentActs, studentHWs, studentExams, behaviorLogs, chartData,
             classAvg 
         };
@@ -288,9 +312,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 الفترة: ${activePeriod ? activePeriod.name : (activeTerm ? activeTerm.name : 'الحالية')}
 
 📊 الملخص:
-- نسبة الحضور: ${Math.round(stats.attPercent)}%
-- إنجاز الواجبات: ${Math.round(stats.hwPercent)}%
-- مجموع الدرجات: ${stats.totalPeriod.toFixed(1)} / 60
+- الحضور: ${Math.round(stats.attPercent)}%
+- الواجبات: ${stats.hwScoreSum}/${stats.hwMaxSum} (${Math.round(stats.hwPercent)}%)
+- الأنشطة: ${stats.actScoreSum}/${stats.actMaxSum} (${Math.round(stats.actPercent)}%)
+- الاختبارات: ${stats.examScoreSum}/${stats.examMaxSum}
+- المجموع الكلي: ${stats.totalPeriod.toFixed(1)} / 60
 
 ملاحظة: هذا تقرير تلقائي من نظام المتابعة.
         `.trim();
@@ -322,23 +348,18 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
                     {/* Period Selector (New) */}
                     {activeTerm && activeTerm.periods && activeTerm.periods.length > 0 && (
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200 animate-slide-in-right">
-                            <span className="text-xs font-bold text-gray-500">الفترة:</span>
+                        <div className="flex items-center gap-2 bg-purple-50 p-2 rounded-lg border border-purple-200 animate-slide-in-right">
+                            <span className="text-xs font-bold text-purple-700">الفترة:</span>
                             <select 
-                                className="bg-transparent text-sm font-bold text-gray-700 outline-none w-24"
+                                className="bg-transparent text-sm font-bold text-purple-800 outline-none w-24"
                                 value={selectedPeriodId}
                                 onChange={(e) => setSelectedPeriodId(e.target.value)}
                             >
-                                <option value="">الكل</option>
+                                <option value="">كامل الفصل</option>
                                 {activeTerm.periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </div>
                     )}
-
-                    <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                        <Target size={16} className="text-amber-600"/><span className="text-xs font-bold text-amber-800">هدف الأنشطة:</span>
-                        <input type="number" min="1" value={activityTarget} onChange={(e) => handleTargetChange(e.target.value)} className="w-16 p-1 text-center border rounded text-sm font-bold bg-white focus:ring-1 focus:ring-amber-500"/>
-                    </div>
 
                     <div className="relative w-64" ref={dropdownRef}>
                         <div className="relative">
@@ -427,13 +448,27 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                      <td className="p-2 border border-gray-300 font-bold">{student.name}</td>
                                      <td className="p-2 border border-gray-300">{student.className}</td>
                                      <td className="p-2 border border-gray-300 dir-ltr">{Math.round(stats.attPercent)}%</td>
-                                     <td className="p-2 border border-gray-300 dir-ltr">{Math.round(stats.hwPercent)}%</td>
-                                     <td className="p-2 border border-gray-300 font-bold text-teal-700">{stats.actSum}</td>
+                                     
+                                     {/* Enhanced Homework Cell */}
+                                     <td className="p-2 border border-gray-300 dir-ltr font-bold text-blue-700">
+                                         {Math.round(stats.hwPercent)}% <span className="text-[10px] text-gray-400 block">({stats.hwScoreSum}/{stats.hwMaxSum})</span>
+                                     </td>
+                                     
+                                     {/* Enhanced Activity Cell */}
+                                     <td className="p-2 border border-gray-300 font-bold text-amber-700">
+                                         {stats.actScoreSum} / {stats.actMaxSum}
+                                     </td>
+                                     
                                      <td className="p-2 border border-gray-300 font-bold">{stats.gradeHW.toFixed(1)}</td>
                                      <td className="p-2 border border-gray-300 font-bold">{stats.gradeAct.toFixed(1)}</td>
                                      <td className="p-2 border border-gray-300 font-bold">{stats.gradePart.toFixed(1)}</td>
                                      <td className="p-2 border border-gray-300 font-black bg-gray-100">#####</td>
-                                     <td className="p-2 border border-gray-300 font-bold">{stats.examWeighted.toFixed(1)}</td>
+                                     
+                                     {/* Enhanced Exam Cell */}
+                                     <td className="p-2 border border-gray-300 font-bold">
+                                         {stats.examWeighted.toFixed(1)} <span className="text-[10px] text-gray-400 block">({stats.examScoreSum}/{stats.examMaxSum})</span>
+                                     </td>
+                                     
                                      <td className="p-2 border border-gray-300 font-black bg-gray-800 text-white">{stats.totalPeriod.toFixed(1)}</td>
                                 </tr>
                             </thead>
