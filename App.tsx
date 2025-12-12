@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
 } from './types';
@@ -8,8 +7,7 @@ import {
     addStudent, updateStudent, deleteStudent, 
     saveAttendance, addPerformance, deletePerformance, 
     bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
-    initAutoSync, getWorksMasterUrl, getUserTheme, 
-    getTeacherAssignments, bulkUpsertStudents,
+    getUserTheme, bulkUpsertStudents,
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
     forceRefreshData
 } from './services/storageService';
@@ -25,7 +23,6 @@ import StudentFollowUp from './components/StudentFollowUp';
 import AIReports from './components/AIReports';
 import ClassroomScreen from './components/ClassroomScreen';
 import ClassroomManager from './components/ClassroomManager';
-import DataImport from './components/DataImport';
 import AdminDashboard from './components/AdminDashboard';
 import CustomTablesView from './components/CustomTablesView';
 import MessageCenter from './components/MessageCenter';
@@ -72,6 +69,7 @@ const App: React.FC = () => {
     
     // Sync State
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
+    const bgSyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
     // AI Status State
     const [aiStatus, setAiStatus] = useState<'IDLE' | 'CHECKING' | 'CONNECTED' | 'ERROR'>('IDLE');
@@ -86,18 +84,14 @@ const App: React.FC = () => {
     useEffect(() => {
         if (currentUser) {
             const startUp = async () => {
-                // If data is empty locally, show loader.
                 if (getStudents().length === 0) setIsLoading(true);
-                
-                loadData(); // Load local cache first for instant render
-                
+                loadData(); 
                 try {
-                    // Force refresh from cloud on startup to ensure consistency across browsers
                     await forceRefreshData();
                 } catch (e) {
                     console.error("Initialization Sync Failed:", e);
                 } finally {
-                    loadData(); // Reload after sync
+                    loadData(); 
                     setIsLoading(false);
                 }
             };
@@ -113,14 +107,20 @@ const App: React.FC = () => {
             checkAI();
             
             const unsubSync = subscribeToSyncStatus((status) => setSyncStatus(status));
-            // Subscribe to data changes to auto-update UI when data changes elsewhere
             const unsubData = subscribeToDataChanges(() => {
                 loadData();
             });
 
+            // --- BACKGROUND SYNC (Every 2 Minutes) ---
+            bgSyncTimerRef.current = setInterval(() => {
+                console.log("Running background sync...");
+                forceRefreshData().catch(e => console.error("BG Sync Failed", e));
+            }, 2 * 60 * 1000);
+
             return () => {
                 unsubSync();
                 unsubData();
+                if (bgSyncTimerRef.current) clearInterval(bgSyncTimerRef.current);
             };
         }
     }, [currentUser]);
@@ -143,7 +143,6 @@ const App: React.FC = () => {
                      allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
                  }
              } else if (currentUser.role === 'TEACHER') {
-                 // Teachers see students they created OR students in their school (if linked) OR generic students
                  allStudents = allStudents.filter(s => 
                      (currentUser.schoolId && s.schoolId === currentUser.schoolId) || 
                      s.createdById === currentUser.id || 
@@ -176,6 +175,7 @@ const App: React.FC = () => {
         setSystemMode(false);
         setShowClassroomScreen(false);
         setCurrentView('DASHBOARD');
+        if (bgSyncTimerRef.current) clearInterval(bgSyncTimerRef.current);
     };
 
     const handleManualSync = async () => {
@@ -487,7 +487,7 @@ const App: React.FC = () => {
                     </button>
 
                     <div className="text-center mt-2 text-[10px] text-gray-300">
-                        نظام المدرس الذكي v1.2
+                        نظام المدرس الذكي v1.2.1
                     </div>
                 </div>
             </aside>
