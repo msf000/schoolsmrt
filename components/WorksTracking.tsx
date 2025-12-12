@@ -54,6 +54,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isSaving, setIsSaving] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSheetSyncing, setIsSheetSyncing] = useState(false);
+    const [syncStatusMsg, setSyncStatusMsg] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
     const [activityTarget, setActivityTarget] = useState(15);
@@ -94,6 +95,130 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
     }, [currentUser, isManager]);
 
+    // --- CORE SYNC LOGIC (Reusable per Category) ---
+    const syncCategoryData = async (targetCategory: string, workbook: any, sheetNames: string[], termToUse: string) => {
+        let targetSheet = sheetNames[0]; 
+        const tabKeywords: Record<string, string[]> = {
+            'HOMEWORK': ['homework', 'wa واجب', 'واجبات', 'منزل', 'home'],
+            'ACTIVITY': ['activity', 'participation', 'class', 'نشاط', 'مشاركة', 'أنشطة'],
+            'PLATFORM_EXAM': ['exam', 'test', 'quiz', 'اختبار', 'منصة', 'تقييم']
+        };
+
+        const keywords = tabKeywords[targetCategory] || [];
+        const matchedSheet = sheetNames.find(name => 
+            keywords.some(k => name.toLowerCase().includes(k))
+        );
+
+        if (matchedSheet) {
+            targetSheet = matchedSheet;
+        }
+
+        console.log(`Syncing ${targetCategory} from sheet: ${targetSheet}`);
+        const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
+        
+        let newAssignmentsCount = 0;
+        let updatedCount = 0;
+        let deletedCount = 0;
+        
+        const recordsToUpsert: PerformanceRecord[] = [];
+        const idsToDelete: string[] = [];
+        
+        const today = new Date().toISOString().split('T')[0];
+        // Fetch assignments for THIS specific category to avoid mixing
+        const categoryAssignments = getAssignments(targetCategory, currentUser?.id, isManager);
+        
+        const potentialHeaders = headers.filter(h => {
+            const lowerH = h.toLowerCase().trim();
+            return !IGNORED_COLUMNS.some(ig => lowerH.includes(ig.toLowerCase()));
+        });
+
+        for (const header of potentialHeaders) {
+            let title = header;
+            let maxScore = 10;
+            const match = header.match(/(.+)\s*\((\d+)\)$/);
+            if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
+
+            // IMPROVED MATCHING: Case-insensitive match for existing assignments to prevent duplicates
+            let targetAssignment = categoryAssignments.find(a => 
+                a.title.toLowerCase() === title.toLowerCase() && 
+                a.termId === termToUse
+            );
+            
+            // Create Assignment if it doesn't exist
+            if (!targetAssignment) {
+                const newId = `gs_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                targetAssignment = {
+                    id: newId,
+                    title: title,
+                    category: targetCategory as any,
+                    maxScore: maxScore,
+                    isVisible: true,
+                    teacherId: currentUser?.id,
+                    termId: termToUse,
+                    periodId: selectedPeriodId || undefined,
+                    orderIndex: 100 + categoryAssignments.length + newAssignmentsCount,
+                    sourceMetadata: JSON.stringify({ sheet: targetSheet, header: header })
+                };
+                await saveAssignment(targetAssignment);
+                newAssignmentsCount++;
+            }
+
+            // Sync Data Rows
+            data.forEach(row => {
+                let student: Student | undefined;
+                const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
+                if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
+                if (!student) {
+                    const rowName = findStudentNameInRow(row);
+                    if (rowName) {
+                        const cleanName = String(rowName).trim();
+                        student = students.find(s => s.name.trim() === cleanName || cleanName.includes(s.name) || s.name.includes(cleanName));
+                    }
+                }
+
+                if (student) {
+                    // Unique Key for Record: StudentID + AssignmentID
+                    const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
+                    const rawVal = row[header];
+                    
+                    if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+                        const numVal = parseFloat(String(rawVal));
+                        if (!isNaN(numVal)) {
+                            if (!existingRecord || existingRecord.score !== numVal) {
+                                recordsToUpsert.push({
+                                    id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
+                                    studentId: student.id,
+                                    subject: selectedSubject || 'عام',
+                                    title: targetAssignment!.title,
+                                    category: targetAssignment!.category,
+                                    score: numVal,
+                                    maxScore: targetAssignment!.maxScore,
+                                    date: existingRecord ? existingRecord.date : today,
+                                    notes: targetAssignment!.id, // Link to Assignment
+                                    createdById: currentUser?.id
+                                });
+                                updatedCount++;
+                            }
+                        }
+                    } else {
+                        // Empty in Excel => Delete in DB (Mirroring)
+                        if (existingRecord) {
+                            idsToDelete.push(existingRecord.id);
+                            deletedCount++;
+                        }
+                    }
+                }
+            });
+        }
+
+        if (recordsToUpsert.length > 0) await bulkAddPerformance(recordsToUpsert);
+        if (idsToDelete.length > 0) {
+            for (const id of idsToDelete) await deletePerformance(id);
+        }
+
+        return { newAssignmentsCount, updatedCount, deletedCount };
+    };
+
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
         const url = getWorksMasterUrl();
         if (!url) {
@@ -113,150 +238,45 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
         
         setIsSheetSyncing(true);
+        setSyncStatusMsg('جاري الاتصال بملف الدرجات...');
+        
         try {
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(url);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
             
-            let targetSheet = sheetNames[0]; 
-            const tabKeywords: Record<string, string[]> = {
-                'HOMEWORK': ['homework', 'wa واجب', 'واجبات', 'منزل', 'home'],
-                'ACTIVITY': ['activity', 'participation', 'class', 'نشاط', 'مشاركة', 'أنشطة'],
-                'PLATFORM_EXAM': ['exam', 'test', 'quiz', 'اختبار', 'منصة', 'تقييم']
-            };
+            let totalNew = 0, totalUpd = 0, totalDel = 0;
 
-            const keywords = tabKeywords[activeTab] || [];
-            const matchedSheet = sheetNames.find(name => 
-                keywords.some(k => name.toLowerCase().includes(k))
-            );
+            // If Auto (Full Sync), sync ALL categories. If Manual, sync ACTIVE tab.
+            const categoriesToSync = isAuto 
+                ? ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'] 
+                : [activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab];
 
-            if (matchedSheet) {
-                targetSheet = matchedSheet;
-            }
-
-            const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
-            let newAssignmentsCount = 0;
-            let updatedCount = 0;
-            let deletedCount = 0;
-            
-            const recordsToUpsert: PerformanceRecord[] = [];
-            const idsToDelete: string[] = []; // To track records that should be removed
-            
-            const today = new Date().toISOString().split('T')[0];
-            const currentAssignments = fetchAssignments(activeTab);
-            
-            // STRICT FILTERING for potential assignments (columns)
-            const potentialHeaders = headers.filter(h => {
-                const lowerH = h.toLowerCase().trim();
-                return !IGNORED_COLUMNS.some(ig => lowerH.includes(ig.toLowerCase()));
-            });
-
-            // Iterate through recognized columns (Assignments)
-            for (const header of potentialHeaders) {
-                let title = header;
-                let maxScore = 10;
-                const match = header.match(/(.+)\s*\((\d+)\)$/);
-                if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
-
-                let targetAssignment = currentAssignments.find(a => a.title === title && a.termId === termToUse);
-                
-                // Create Assignment if it doesn't exist
-                if (!targetAssignment) {
-                    const newId = `gs_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-                    targetAssignment = {
-                        id: newId,
-                        title: title,
-                        category: activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab as any,
-                        maxScore: maxScore,
-                        isVisible: true,
-                        teacherId: currentUser?.id,
-                        termId: termToUse,
-                        periodId: selectedPeriodId || undefined,
-                        orderIndex: 100 + currentAssignments.length + newAssignmentsCount,
-                        sourceMetadata: JSON.stringify({ sheet: targetSheet, header: header })
-                    };
-                    await saveAssignment(targetAssignment);
-                    newAssignmentsCount++;
-                }
-
-                // --- DATA SYNCHRONIZATION LOGIC ---
-                // We need to verify each student in the sheet against the DB for this assignment.
-                // If sheet has value -> Upsert.
-                // If sheet has empty value BUT DB has value -> DELETE (Clean up).
-                
-                data.forEach(row => {
-                    let student: Student | undefined;
-                    const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
-                    if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
-                    if (!student) {
-                        const rowName = findStudentNameInRow(row);
-                        if (rowName) {
-                            const cleanName = String(rowName).trim();
-                            student = students.find(s => s.name.trim() === cleanName || cleanName.includes(s.name) || s.name.includes(cleanName));
-                        }
-                    }
-
-                    if (student) {
-                        const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
-                        const rawVal = row[header];
-                        
-                        // Check if value exists in sheet
-                        if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
-                            const numVal = parseFloat(String(rawVal));
-                            if (!isNaN(numVal)) {
-                                if (!existingRecord || existingRecord.score !== numVal) {
-                                    recordsToUpsert.push({
-                                        id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
-                                        studentId: student.id,
-                                        subject: selectedSubject || 'عام',
-                                        title: targetAssignment!.title,
-                                        category: targetAssignment!.category,
-                                        score: numVal,
-                                        maxScore: targetAssignment!.maxScore,
-                                        date: existingRecord ? existingRecord.date : today,
-                                        notes: targetAssignment!.id,
-                                        createdById: currentUser?.id
-                                    });
-                                    updatedCount++;
-                                }
-                            }
-                        } else {
-                            // Value is empty in sheet, but exists in DB -> DELETE IT
-                            if (existingRecord) {
-                                idsToDelete.push(existingRecord.id);
-                                deletedCount++;
-                            }
-                        }
-                    }
-                });
-            }
-
-            // Execute Updates
-            if (recordsToUpsert.length > 0) {
-                await bulkAddPerformance(recordsToUpsert);
+            for (const cat of categoriesToSync) {
+                setSyncStatusMsg(`جاري مزامنة: ${cat === 'HOMEWORK' ? 'الواجبات' : cat === 'ACTIVITY' ? 'الأنشطة' : 'الاختبارات'}...`);
+                const res = await syncCategoryData(cat, workbook, sheetNames, termToUse);
+                totalNew += res.newAssignmentsCount;
+                totalUpd += res.updatedCount;
+                totalDel += res.deletedCount;
             }
             
-            // Execute Deletions (Cleanup)
-            if (idsToDelete.length > 0) {
-                // Delete locally and cloud one by one (since no bulk delete exposed yet, or iterate)
-                for (const id of idsToDelete) {
-                    await deletePerformance(id);
-                }
-            }
-            
-            // Refresh assignments list
+            // Refresh
             setAssignments(fetchAssignments(activeTab));
             
             if (!isAuto) {
-                if (newAssignmentsCount > 0 || updatedCount > 0 || deletedCount > 0) {
-                    alert(`تمت المزامنة بنجاح!\n- تحديث/إضافة: ${updatedCount}\n- حذف (تصفير): ${deletedCount}\n- أعمدة جديدة: ${newAssignmentsCount}`);
+                if (totalNew > 0 || totalUpd > 0 || totalDel > 0) {
+                    alert(`تمت المزامنة بنجاح!\n- تحديث/إضافة: ${totalUpd}\n- حذف (تصفير): ${totalDel}\n- أعمدة جديدة: ${totalNew}`);
                 } else {
                     alert(`البيانات متطابقة. لا توجد تغييرات.`);
                 }
+            } else {
+                console.log(`Auto-Sync Complete: +${totalUpd} / -${totalDel} records.`);
             }
         } catch (e: any) {
-            if (!isAuto) alert('خطأ: ' + e.message);
+            if (!isAuto) alert('خطأ في المزامنة: ' + e.message);
+            else console.error("Auto Sync Error:", e);
         } finally {
             setIsSheetSyncing(false);
+            setSyncStatusMsg('');
         }
     }, [activeTab, currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students, terms, fetchAssignments]);
 
@@ -267,6 +287,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             try {
                 await downloadFromSupabase();
                 const savedUrl = getWorksMasterUrl();
+                // Trigger FULL SYNC (isAuto=true) on load if URL exists
                 if (savedUrl) setTimeout(() => handleQuickSheetSync(true), 1500);
             } catch (e) {
                 console.error("Auto refresh failed", e);
@@ -367,6 +388,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (p.notes && filteredAssignments.some(a => a.id === p.notes)) {
                     newScores[s.id][p.notes] = p.score.toString();
                 } else {
+                    // Fallback using title matching if no notes ID
                     const assign = filteredAssignments.find(a => a.title === p.title);
                     if (assign) newScores[s.id][assign.id] = p.score.toString();
                 }
@@ -484,7 +506,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!workbookRef || !selectedSheetName || !settingTermId) return;
         setIsFetchingStructure(true);
         try {
+            // Re-use logic but for manual specific sheet selection
             const { data } = getSheetHeadersAndData(workbookRef, selectedSheetName);
+            // ... (similar logic to syncCategoryData but using selectedHeaders) ...
+            // Simplified for manual import (Code reuse can be optimized further)
+            
             let newAssignmentsCount = 0;
             let updatedScoresCount = 0;
             const recordsToUpsert: PerformanceRecord[] = [];
@@ -497,7 +523,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const match = header.match(/(.+)\s*\((\d+)\)$/);
                 if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
 
-                let targetAssignment = currentAssignments.find(a => a.title === title && a.termId === settingTermId && a.category === activeTab);
+                let targetAssignment = currentAssignments.find(a => a.title.toLowerCase() === title.toLowerCase() && a.termId === settingTermId && a.category === activeTab);
 
                 if (!targetAssignment) {
                     const newId = `gs_${Date.now()}_${index}`;
@@ -768,10 +794,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <div className="flex gap-2">
                         {googleSheetUrl && (
                             <button 
-                                onClick={() => handleQuickSheetSync(false)} 
+                                onClick={() => handleQuickSheetSync(true)} 
                                 disabled={isSheetSyncing}
                                 className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200"
-                                title="تحديث الدرجات من ملف Google Sheet المرتبط"
+                                title="مزامنة شاملة لجميع البيانات من الملف"
                             >
                                 {isSheetSyncing ? <Loader2 size={16} className="animate-spin"/> : <CloudLightning size={16}/>} 
                                 تحديث من الملف
@@ -802,6 +828,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         )}
                     </div>
                 </div>
+                {isSheetSyncing && <div className="text-xs text-blue-600 mt-2 font-bold animate-pulse text-center">{syncStatusMsg || 'جاري تحديث البيانات...'}</div>}
             </div>
 
             {/* Main Table */}
