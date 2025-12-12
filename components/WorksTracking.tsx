@@ -291,11 +291,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const filteredAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
-            // Strict check: if Term selected, must match. If Period selected, must match.
             const termMatch = !selectedTermId || (a.termId === selectedTermId);
             const periodMatch = !selectedPeriodId || (a.periodId === selectedPeriodId);
-            // Allow global assignments if no specific term selected? Usually no for strict grading.
-            // Logic: Show if matches filters.
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
@@ -581,18 +578,26 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         // Calculations
         const hwMax = yearWorkConfig.hw;
         let hwGrade = 0;
+        let hwCompletion = 0;
+        
         if (hwCols.length > 0) {
             const totalEarned = hwRecs.reduce((sum, r) => sum + r.score, 0);
             const totalPossible = hwCols.reduce((sum, c) => sum + c.maxScore, 0);
             hwGrade = totalPossible > 0 ? (totalEarned / totalPossible) * hwMax : 0;
+            
+            // Calculate completion based on number of submitted assignments vs total required columns
+            const distinctHWSubmitted = new Set(hwRecs.map(r => r.notes)).size;
+            hwCompletion = Math.min(Math.round((distinctHWSubmitted / hwCols.length) * 100), 100);
         } else if (hwRecs.length > 0) {
              hwGrade = hwMax; 
+             hwCompletion = 100;
         }
 
         const actMax = yearWorkConfig.act;
         let actSumVal = 0; 
         actRecs.forEach(p => actSumVal += p.score);
         const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * actMax, actMax) : 0;
+        const actCompletion = activityTarget > 0 ? Math.min(Math.round((actSumVal / activityTarget) * 100), 100) : 0;
 
         const attMax = yearWorkConfig.att;
         const termAtt = attendance.filter(a => a.studentId === student.id && filterByPeriod(a.date));
@@ -614,7 +619,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const examGrade = examMaxTotal > 0 ? (examScoreTotal / examMaxTotal) * examMax : 0;
 
         const total = hwGrade + actGrade + attGrade + examGrade;
-        return { hwGrade, actGrade, attGrade, examGrade, total };
+        return { hwGrade, actGrade, attGrade, examGrade, total, hwCompletion, actCompletion };
     };
 
     const handleExport = () => {
@@ -622,7 +627,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const rowData: any = { 'الاسم': s.name, 'الصف': s.gradeLevel, 'الفصل': s.className };
             if (activeTab === 'YEAR_WORK') {
                 const yw = calculateYearWork(s);
-                rowData['واجبات'] = yw.hwGrade; rowData['أنشطة'] = yw.actGrade; rowData['حضور'] = yw.attGrade; rowData['اختبارات'] = yw.examGrade; rowData['المجموع'] = yw.total;
+                rowData['واجبات'] = yw.hwGrade.toFixed(1); 
+                rowData['نسبة الواجبات'] = yw.hwCompletion + '%';
+                rowData['أنشطة'] = yw.actGrade.toFixed(1);
+                rowData['نسبة الأنشطة'] = yw.actCompletion + '%';
+                rowData['حضور'] = yw.attGrade.toFixed(1); 
+                rowData['اختبارات'] = yw.examGrade.toFixed(1); 
+                rowData['المجموع'] = yw.total.toFixed(1);
             } else {
                 filteredAssignments.forEach(a => { rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || ''; });
             }
@@ -728,7 +739,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     {activeTab === 'YEAR_WORK' ? (
                                         <>
                                             <th className="p-3 border-l bg-blue-50 text-blue-800">واجبات ({yearWorkConfig.hw})</th>
+                                            <th className="p-3 border-l bg-blue-50 text-blue-600 font-normal">% الإنجاز</th>
                                             <th className="p-3 border-l bg-amber-50 text-amber-800">أنشطة ({yearWorkConfig.act})</th>
+                                            <th className="p-3 border-l bg-amber-50 text-amber-600 font-normal">% الإنجاز</th>
                                             <th className="p-3 border-l bg-green-50 text-green-800">حضور ({yearWorkConfig.att})</th>
                                             <th className="p-3 border-l bg-purple-50 text-purple-800">اختبارات ({yearWorkConfig.exam})</th>
                                             <th className="p-3 border-l bg-gray-800 text-white">المجموع ({yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam})</th>
@@ -758,7 +771,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
                                                 {!selectedClass && <td className="p-3 border-l text-gray-500 text-xs">{student.className}</td>}
                                                 <td className="p-3 border-l font-bold bg-blue-50/30">{yw.hwGrade.toFixed(1)}</td>
+                                                <td className="p-3 border-l text-xs">
+                                                    <span className={`px-2 py-1 rounded font-bold ${yw.hwCompletion >= 80 ? 'bg-green-100 text-green-700' : yw.hwCompletion >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {yw.hwCompletion}%
+                                                    </span>
+                                                </td>
                                                 <td className="p-3 border-l font-bold bg-amber-50/30">{yw.actGrade.toFixed(1)}</td>
+                                                <td className="p-3 border-l text-xs">
+                                                    <span className={`px-2 py-1 rounded font-bold ${yw.actCompletion >= 80 ? 'bg-green-100 text-green-700' : yw.actCompletion >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {yw.actCompletion}%
+                                                    </span>
+                                                </td>
                                                 <td className="p-3 border-l font-bold bg-green-50/30">{yw.attGrade.toFixed(1)}</td>
                                                 <td className="p-3 border-l font-bold bg-purple-50/30">{yw.examGrade.toFixed(1)}</td>
                                                 <td className="p-3 border-l font-black text-white bg-gray-800">{yw.total.toFixed(1)}</td>

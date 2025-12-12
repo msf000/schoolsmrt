@@ -298,9 +298,12 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           let enrichedRow = { ...row };
           let matchedStudent = null;
 
+          // Clean ID for better matching
+          const cleanRowId = enrichedRow.nationalId ? String(enrichedRow.nationalId).trim() : null;
+
           // 1. MATCH STUDENT ID (If missing)
           // If nationalId is missing, try to find student by Name in existingStudents
-          if ((!enrichedRow.nationalId || enrichedRow.nationalId === 'undefined') && (enrichedRow.studentName || enrichedRow.name)) {
+          if (!cleanRowId && (enrichedRow.studentName || enrichedRow.name)) {
               const nameToSearch = (enrichedRow.studentName || enrichedRow.name).trim();
               if (nameToSearch) {
                   // Try Exact
@@ -313,9 +316,9 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                       enrichedRow._autoMatchedStudent = true; // Flag for UI
                   }
               }
-          } else if (enrichedRow.nationalId) {
+          } else if (cleanRowId) {
               // If we have nationalId, assume we matched the student (find object for context)
-              matchedStudent = existingStudents.find(s => s.nationalId === String(enrichedRow.nationalId));
+              matchedStudent = existingStudents.find(s => s.nationalId === cleanRowId);
           }
 
           // 2. MATCH SCHEDULE (Subject/Period) based on Date + Teacher + Student Class
@@ -399,7 +402,6 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       }, 500);
   };
 
-  // ... (Rest of the file follows same pattern)
   // --- Custom Mode Logic ---
   const toggleCustomColumn = (header: string) => {
       const newSet = new Set(selectedCustomColumns);
@@ -506,9 +508,13 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           let _simulatedResult: any = { ...row };
 
           if (dataType === 'STUDENTS') {
-              const rowNid = row.nationalId ? String(row.nationalId).trim() : null;
+              // ROBUST MATCHING: Strip all spaces and non-printable chars from ID for matching
+              const rowNid = row.nationalId ? String(row.nationalId).replace(/\s/g, '').trim() : null;
+              
               if (rowNid) {
-                  _existingMatch = existingStudents.find(s => s.nationalId === rowNid);
+                  _existingMatch = existingStudents.find(s => 
+                      s.nationalId && String(s.nationalId).replace(/\s/g, '').trim() === rowNid
+                  );
               }
 
               if (_existingMatch) {
@@ -560,8 +566,10 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
     const finalVal = row._simulatedResult[key];
     const existingVal = row._existingMatch ? row._existingMatch[key] : undefined;
     
+    // If it's a NEW record, just show value
     if (!row._existingMatch) return <span className="font-bold text-gray-800">{finalVal || '-'}</span>;
 
+    // Check if value actually changes
     const hasChanged = String(finalVal || '').trim() !== String(existingVal || '').trim();
     const wasEmpty = !existingVal || String(existingVal).trim() === '';
 
@@ -569,7 +577,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
         return (
             <div className="flex flex-col relative group">
                 <span className="font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200 w-fit">{finalVal}</span>
-                {!wasEmpty && <span className="text-[10px] text-gray-400 line-through mt-0.5">{existingVal}</span>}
+                {!wasEmpty && <span className="text-[10px] text-gray-400 line-through mt-0.5" title="القيمة القديمة">{existingVal}</span>}
             </div>
         );
     }
@@ -582,7 +590,13 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       try {
           const finalData = analyzedData
               .filter((item) => selectedRowIndices.has(item._originalIndex))
-              .map(({ _status, _existingMatch, _originalIndex, _simulatedResult, ...rest }) => rest);
+              .map(({ _status, _existingMatch, _originalIndex, _simulatedResult, ...rest }) => {
+                  // If UPDATE strategy, use the simulated result (merged data)
+                  // If NEW strategy, use the raw data (rest)
+                  // If SKIP, we typically shouldn't be here if filtered correctly, but safe to use match
+                  if (_status === 'UPDATE') return _simulatedResult;
+                  return rest;
+              });
           
           if (finalData.length === 0) throw new Error("لم يتم اختيار أي سجلات للاستيراد.");
 
@@ -789,7 +803,8 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
             )}
 
             {/* ... other steps ... */}
-            {step === 'SHEET_SELECT' && (/* ... */ <div className="max-w-2xl mx-auto mt-10 animate-fade-in">
+            {step === 'SHEET_SELECT' && (
+                <div className="max-w-2xl mx-auto mt-10 animate-fade-in">
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
                          <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <FileSpreadsheet className="text-green-600"/>
@@ -822,7 +837,8 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                              </button>
                          </div>
                     </div>
-                </div>)}
+                </div>
+            )}
             {step === 'MAPPING' && importMode === 'SYSTEM' && !onDataReady && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                     <div className="p-4 border-b bg-gray-50 flex items-center justify-between gap-4">
@@ -872,7 +888,8 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                 </div>
             )}
             
-            {step === 'PREVIEW_SELECT' && (/* ... */ <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
+            {step === 'PREVIEW_SELECT' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
                     <div className="p-4 border-b bg-gray-50 flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
                         <div className="flex gap-4">
                             <div className="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1.5 rounded-lg border border-green-200">
@@ -918,6 +935,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                                         Object.keys(processedData[0] || {}).filter(k => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(k => (
                                             <th key={k} className="p-3 border-b bg-gray-100 font-bold whitespace-nowrap min-w-[120px]">
                                                 {FIELD_DEFINITIONS[dataType].find(f => f.key === k)?.label || k}
+                                                {/* Allow user to skip updating this specific column if needed in future (not implemented yet) */}
                                             </th>
                                         )) 
                                     : 
@@ -974,7 +992,8 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                             </tbody>
                         </table>
                     </div>
-                </div>)}
+                </div>
+            )}
         </div>
         
         {/* Messages Toast */}
