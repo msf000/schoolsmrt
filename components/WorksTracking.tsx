@@ -19,7 +19,7 @@ interface WorksTrackingProps {
 const IGNORED_COLUMNS = [
     'name', 'id', 'class', 'grade', 'student', 'section', 'email', 'phone', 'mobile', 'gender', 'national', 'date', 'time', 'timestamp',
     'الاسم', 'اسم', 'الطالب', 'طالب', 'الفصل', 'الصف', 'الهوية', 'السجل', 'المدني', 'الجوال', 'هاتف', 'بريد', 'ملاحظات', 'ملاحظة', 'جنس', 'تاريخ',
-    'note', 'nationalid'
+    'note', 'nationalid', 'student_name', 'full_name', 'الاسم الثلاثي', 'الاسم الرباعي'
 ];
 
 const STUDENT_NAME_HEADERS = [
@@ -94,7 +94,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
     }, [currentUser, isManager]);
 
-    // ... (Sync Logic Omitted for brevity - same as before)
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
         const url = getWorksMasterUrl();
         if (!url) {
@@ -144,6 +143,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             // STRICT FILTERING for potential assignments (columns)
             const potentialHeaders = headers.filter(h => {
                 const lowerH = h.toLowerCase().trim();
+                // Check if the header contains any ignored keywords
                 return !IGNORED_COLUMNS.some(ig => lowerH.includes(ig.toLowerCase()));
             });
 
