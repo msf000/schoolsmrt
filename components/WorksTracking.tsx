@@ -585,9 +585,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let hwCompletion = 0;
         
         if (hwCols.length > 0) {
-            // Calculate completion based on number of submitted assignments vs total required columns
-            const distinctHWSubmitted = new Set(hwRecs.map(r => r.notes)).size;
-            hwCompletion = Math.min(Math.round((distinctHWSubmitted / hwCols.length) * 100), 100);
+            const totalEarned = hwRecs.reduce((sum, r) => sum + r.score, 0);
+            const totalPossible = hwCols.reduce((sum, c) => sum + c.maxScore, 0);
+            
+            // Calculate completion based on score percentage
+            hwCompletion = totalPossible > 0 ? Math.min(Math.round((totalEarned / totalPossible) * 100), 100) : 0;
             
             // Grade derived from Completion %
             hwGrade = (hwCompletion / 100) * hwMax;
@@ -603,8 +605,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let actCompletion = 0;
         
         if (actCols.length > 0) {
-             const distinctActSubmitted = new Set(actRecs.map(r => r.notes)).size;
-             actCompletion = Math.min(Math.round((distinctActSubmitted / actCols.length) * 100), 100);
+             const totalEarned = actRecs.reduce((sum, r) => sum + r.score, 0);
+             const totalPossible = actCols.reduce((sum, c) => sum + c.maxScore, 0);
+
+             actCompletion = totalPossible > 0 ? Math.min(Math.round((totalEarned / totalPossible) * 100), 100) : 0;
         } else {
              // Fallback if no columns defined (manual entry vs Target)
              let actSumVal = 0; 
@@ -842,7 +846,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             }
                                             totalMax += a.maxScore;
                                         });
-                                        completionRate = total > 0 ? Math.round((solved / total) * 100) : 100;
+                                        completionRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : (filteredAssignments.length === 0 ? 100 : 0);
                                     }
 
                                     return (
