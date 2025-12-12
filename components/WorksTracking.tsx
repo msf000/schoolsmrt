@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, ArrowRightCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -27,6 +27,16 @@ const STUDENT_NAME_HEADERS = [
     'الاسم الثلاثي', 'الاسم الرباعي', 'الاسم الكامل',
     'name', 'student', 'student name', 'full name', 'student_name'
 ];
+
+interface SyncDiff {
+    type: 'NEW_SCORE' | 'UPDATE_SCORE' | 'DELETE_SCORE' | 'NEW_COLUMN';
+    details: string;
+    studentName?: string;
+    oldVal?: string | number;
+    newVal?: string | number;
+    record?: PerformanceRecord; // The record to save/delete
+    assignment?: Assignment; // The assignment to save
+}
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
@@ -58,6 +68,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
     const [activityTarget, setActivityTarget] = useState(15);
+
+    // Sync Audit State
+    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+    const [syncDiffs, setSyncDiffs] = useState<SyncDiff[]>([]);
 
     const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
         hw: 10, act: 15, att: 15, exam: 20
@@ -95,8 +109,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
     }, [currentUser, isManager]);
 
-    // --- CORE SYNC LOGIC (Reusable per Category) ---
-    const syncCategoryData = async (targetCategory: string, workbook: any, sheetNames: string[], termToUse: string) => {
+    // --- ANALYZE SYNC LOGIC (Diff Generation) ---
+    const analyzeCategorySync = async (targetCategory: string, workbook: any, sheetNames: string[], termToUse: string): Promise<SyncDiff[]> => {
         let targetSheet = sheetNames[0]; 
         const tabKeywords: Record<string, string[]> = {
             'HOMEWORK': ['homework', 'wa واجب', 'واجبات', 'منزل', 'home'],
@@ -113,18 +127,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             targetSheet = matchedSheet;
         }
 
-        console.log(`Syncing ${targetCategory} from sheet: ${targetSheet}`);
         const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
-        
-        let newAssignmentsCount = 0;
-        let updatedCount = 0;
-        let deletedCount = 0;
-        
-        const recordsToUpsert: PerformanceRecord[] = [];
-        const idsToDelete: string[] = [];
+        const diffs: SyncDiff[] = [];
         
         const today = new Date().toISOString().split('T')[0];
-        // Fetch assignments for THIS specific category to avoid mixing
         const categoryAssignments = getAssignments(targetCategory, currentUser?.id, isManager);
         
         const potentialHeaders = headers.filter(h => {
@@ -138,13 +144,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const match = header.match(/(.+)\s*\((\d+)\)$/);
             if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
 
-            // IMPROVED MATCHING: Case-insensitive match for existing assignments to prevent duplicates
             let targetAssignment = categoryAssignments.find(a => 
                 a.title.toLowerCase() === title.toLowerCase() && 
                 a.termId === termToUse
             );
             
-            // Create Assignment if it doesn't exist
+            let isNewAssignment = false;
             if (!targetAssignment) {
                 const newId = `gs_${Date.now()}_${Math.floor(Math.random()*1000)}`;
                 targetAssignment = {
@@ -156,11 +161,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     teacherId: currentUser?.id,
                     termId: termToUse,
                     periodId: selectedPeriodId || undefined,
-                    orderIndex: 100 + categoryAssignments.length + newAssignmentsCount,
+                    orderIndex: 100 + categoryAssignments.length,
                     sourceMetadata: JSON.stringify({ sheet: targetSheet, header: header })
                 };
-                await saveAssignment(targetAssignment);
-                newAssignmentsCount++;
+                diffs.push({ 
+                    type: 'NEW_COLUMN', 
+                    details: `عمود جديد: ${title}`, 
+                    assignment: targetAssignment 
+                });
+                isNewAssignment = true;
             }
 
             // Sync Data Rows
@@ -177,46 +186,59 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 }
 
                 if (student) {
-                    // Unique Key for Record: StudentID + AssignmentID
                     const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
                     const rawVal = row[header];
                     
                     if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
                         const numVal = parseFloat(String(rawVal));
                         if (!isNaN(numVal)) {
-                            if (!existingRecord || existingRecord.score !== numVal) {
-                                recordsToUpsert.push({
-                                    id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
-                                    studentId: student.id,
-                                    subject: selectedSubject || 'عام',
-                                    title: targetAssignment!.title,
-                                    category: targetAssignment!.category,
-                                    score: numVal,
-                                    maxScore: targetAssignment!.maxScore,
-                                    date: existingRecord ? existingRecord.date : today,
-                                    notes: targetAssignment!.id, // Link to Assignment
-                                    createdById: currentUser?.id
+                            if (!existingRecord) {
+                                diffs.push({
+                                    type: 'NEW_SCORE',
+                                    details: `درجة جديدة: ${student.name} - ${title} (${numVal})`,
+                                    studentName: student.name,
+                                    newVal: numVal,
+                                    record: {
+                                        id: `${student.id}_${targetAssignment!.id}`,
+                                        studentId: student.id,
+                                        subject: selectedSubject || 'عام',
+                                        title: targetAssignment!.title,
+                                        category: targetAssignment!.category,
+                                        score: numVal,
+                                        maxScore: targetAssignment!.maxScore,
+                                        date: today,
+                                        notes: targetAssignment!.id,
+                                        createdById: currentUser?.id
+                                    }
                                 });
-                                updatedCount++;
+                            } else if (existingRecord.score !== numVal) {
+                                diffs.push({
+                                    type: 'UPDATE_SCORE',
+                                    details: `تحديث درجة: ${student.name} - ${title} (${existingRecord.score} -> ${numVal})`,
+                                    studentName: student.name,
+                                    oldVal: existingRecord.score,
+                                    newVal: numVal,
+                                    record: { ...existingRecord, score: numVal }
+                                });
                             }
                         }
                     } else {
                         // Empty in Excel => Delete in DB (Mirroring)
                         if (existingRecord) {
-                            idsToDelete.push(existingRecord.id);
-                            deletedCount++;
+                            diffs.push({
+                                type: 'DELETE_SCORE',
+                                details: `حذف درجة (فارغة في الملف): ${student.name} - ${title}`,
+                                studentName: student.name,
+                                oldVal: existingRecord.score,
+                                record: existingRecord
+                            });
                         }
                     }
                 }
             });
         }
 
-        if (recordsToUpsert.length > 0) await bulkAddPerformance(recordsToUpsert);
-        if (idsToDelete.length > 0) {
-            for (const id of idsToDelete) await deletePerformance(id);
-        }
-
-        return { newAssignmentsCount, updatedCount, deletedCount };
+        return diffs;
     };
 
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
@@ -238,39 +260,38 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
         
         setIsSheetSyncing(true);
-        setSyncStatusMsg('جاري الاتصال بملف الدرجات...');
+        setSyncStatusMsg('جاري الاتصال بملف الدرجات وتحليل التغييرات...');
         
         try {
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(url);
             if (sheetNames.length === 0) throw new Error('الملف فارغ');
             
-            let totalNew = 0, totalUpd = 0, totalDel = 0;
+            let allDiffs: SyncDiff[] = [];
 
-            // If Auto (Full Sync), sync ALL categories. If Manual, sync ACTIVE tab.
-            const categoriesToSync = isAuto 
-                ? ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'] 
-                : [activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab];
+            // Sync ALL categories
+            const categoriesToSync = ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'];
 
             for (const cat of categoriesToSync) {
-                setSyncStatusMsg(`جاري مزامنة: ${cat === 'HOMEWORK' ? 'الواجبات' : cat === 'ACTIVITY' ? 'الأنشطة' : 'الاختبارات'}...`);
-                const res = await syncCategoryData(cat, workbook, sheetNames, termToUse);
-                totalNew += res.newAssignmentsCount;
-                totalUpd += res.updatedCount;
-                totalDel += res.deletedCount;
+                const catDiffs = await analyzeCategorySync(cat, workbook, sheetNames, termToUse);
+                allDiffs = [...allDiffs, ...catDiffs];
             }
             
-            // Refresh
-            setAssignments(fetchAssignments(activeTab));
-            
-            if (!isAuto) {
-                if (totalNew > 0 || totalUpd > 0 || totalDel > 0) {
-                    alert(`تمت المزامنة بنجاح!\n- تحديث/إضافة: ${totalUpd}\n- حذف (تصفير): ${totalDel}\n- أعمدة جديدة: ${totalNew}`);
+            if (allDiffs.length > 0) {
+                // If Auto and diffs < 5, just do it. Else show modal for safety.
+                // Actually, for better UX, let's always show modal for manual, and do auto for small changes only on load.
+                // For this request, user wants confirmation. Let's show modal.
+                
+                if (isAuto && allDiffs.length < 5) {
+                    await commitSync(allDiffs);
+                    console.log(`Auto-synced ${allDiffs.length} changes.`);
                 } else {
-                    alert(`البيانات متطابقة. لا توجد تغييرات.`);
+                    setSyncDiffs(allDiffs);
+                    setIsSyncModalOpen(true);
                 }
             } else {
-                console.log(`Auto-Sync Complete: +${totalUpd} / -${totalDel} records.`);
+                if (!isAuto) alert('البيانات متطابقة تماماً. لا توجد تغييرات.');
             }
+
         } catch (e: any) {
             if (!isAuto) alert('خطأ في المزامنة: ' + e.message);
             else console.error("Auto Sync Error:", e);
@@ -278,7 +299,56 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setIsSheetSyncing(false);
             setSyncStatusMsg('');
         }
-    }, [activeTab, currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students, terms, fetchAssignments]);
+    }, [currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students, terms]);
+
+    const commitSync = async (diffs: SyncDiff[]) => {
+        const assignmentsToSave: Assignment[] = [];
+        const recordsToUpsert: PerformanceRecord[] = [];
+        const idsToDelete: string[] = [];
+
+        diffs.forEach(diff => {
+            if (diff.type === 'NEW_COLUMN' && diff.assignment) {
+                assignmentsToSave.push(diff.assignment);
+            }
+            if ((diff.type === 'NEW_SCORE' || diff.type === 'UPDATE_SCORE') && diff.record) {
+                recordsToUpsert.push(diff.record);
+            }
+            if (diff.type === 'DELETE_SCORE' && diff.record) {
+                idsToDelete.push(diff.record.id);
+            }
+        });
+
+        // 1. Save new columns first
+        for (const assign of assignmentsToSave) {
+            await saveAssignment(assign);
+        }
+
+        // 2. Upsert Records
+        if (recordsToUpsert.length > 0) {
+            await bulkAddPerformance(recordsToUpsert);
+        }
+
+        // 3. Delete Records
+        if (idsToDelete.length > 0) {
+            for (const id of idsToDelete) {
+                await deletePerformance(id);
+            }
+        }
+
+        setAssignments(fetchAssignments(activeTab));
+        return true;
+    };
+
+    const handleConfirmSync = async () => {
+        setIsSheetSyncing(true);
+        setSyncStatusMsg('جاري تطبيق التغييرات...');
+        await commitSync(syncDiffs);
+        setIsSyncModalOpen(false);
+        setSyncDiffs([]);
+        setIsSheetSyncing(false);
+        setSyncStatusMsg('');
+        alert('تم تحديث البيانات بنجاح!');
+    };
 
     // ... (Effects for Init, Loading Config, Terms, etc.)
     useEffect(() => {
@@ -502,15 +572,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setUnmatchedStudents(unmatched.slice(0, 10));
     };
 
-    const handleConfirmSync = () => {
+    const handleConfirmManualSync = () => {
         if (!workbookRef || !selectedSheetName || !settingTermId) return;
         setIsFetchingStructure(true);
         try {
-            // Re-use logic but for manual specific sheet selection
             const { data } = getSheetHeadersAndData(workbookRef, selectedSheetName);
-            // ... (similar logic to syncCategoryData but using selectedHeaders) ...
-            // Simplified for manual import (Code reuse can be optimized further)
-            
             let newAssignmentsCount = 0;
             let updatedScoresCount = 0;
             const recordsToUpsert: PerformanceRecord[] = [];
@@ -1092,7 +1158,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 <div className="flex gap-2">
                                                     <button onClick={() => setSyncStep('URL')} className="flex-1 py-2 border rounded text-xs font-bold text-gray-600 hover:bg-gray-50">عودة</button>
                                                     <button 
-                                                        onClick={handleConfirmSync} 
+                                                        onClick={handleConfirmManualSync} 
                                                         disabled={isFetchingStructure || selectedHeaders.size === 0 || !settingTermId}
                                                         className="flex-2 w-full bg-green-600 text-white py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
                                                     >
@@ -1167,6 +1233,84 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                         <div className="p-4 border-t bg-gray-50 text-right">
                             <button onClick={() => { setIsSettingsOpen(false); setSyncStep('URL'); }} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-black">إغلاق</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Sync Audit Modal (NEW) */}
+            {isSyncModalOpen && (
+                <div className="fixed inset-0 z-[110] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-bounce-in overflow-hidden">
+                        <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
+                            <div>
+                                <h3 className="font-bold text-xl text-gray-800 flex items-center gap-2"><RefreshCw size={22} className="text-blue-600"/> مراجعة التغييرات (Sync Audit)</h3>
+                                <p className="text-sm text-gray-500 mt-1">يرجى مراجعة التغييرات التي تم اكتشافها في الملف قبل الاعتماد.</p>
+                            </div>
+                            <button onClick={() => setIsSyncModalOpen(false)} className="text-gray-400 hover:text-red-500 bg-white p-2 rounded-full border border-gray-200 hover:border-red-200"><X size={20}/></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+                            {/* Summary */}
+                            <div className="flex gap-4 mb-6">
+                                <div className="flex-1 bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-center gap-3">
+                                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Plus size={24}/></div>
+                                    <div>
+                                        <div className="text-2xl font-black text-blue-800">{syncDiffs.filter(d => d.type === 'NEW_SCORE' || d.type === 'NEW_COLUMN').length}</div>
+                                        <div className="text-xs text-blue-600 font-bold">عناصر جديدة</div>
+                                    </div>
+                                </div>
+                                <div className="flex-1 bg-yellow-50 border border-yellow-200 p-4 rounded-xl flex items-center gap-3">
+                                    <div className="bg-yellow-100 p-2 rounded-lg text-yellow-600"><RefreshCw size={24}/></div>
+                                    <div>
+                                        <div className="text-2xl font-black text-yellow-800">{syncDiffs.filter(d => d.type === 'UPDATE_SCORE').length}</div>
+                                        <div className="text-xs text-yellow-600 font-bold">تحديثات</div>
+                                    </div>
+                                </div>
+                                <div className="flex-1 bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3">
+                                    <div className="bg-red-100 p-2 rounded-lg text-red-600"><Trash2 size={24}/></div>
+                                    <div>
+                                        <div className="text-2xl font-black text-red-800">{syncDiffs.filter(d => d.type === 'DELETE_SCORE').length}</div>
+                                        <div className="text-xs text-red-600 font-bold">حذوفات (تصفير)</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Detailed List */}
+                            <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                                <table className="w-full text-sm text-right">
+                                    <thead className="bg-gray-100 text-gray-700 font-bold">
+                                        <tr>
+                                            <th className="p-3 w-16 text-center">النوع</th>
+                                            <th className="p-3">التفاصيل</th>
+                                            <th className="p-3 w-32 text-center">القيمة القديمة</th>
+                                            <th className="p-3 w-32 text-center">القيمة الجديدة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {syncDiffs.map((diff, idx) => (
+                                            <tr key={idx} className="hover:bg-gray-50">
+                                                <td className="p-3 text-center">
+                                                    {diff.type === 'NEW_COLUMN' && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">عمود جديد</span>}
+                                                    {diff.type === 'NEW_SCORE' && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">درجة جديدة</span>}
+                                                    {diff.type === 'UPDATE_SCORE' && <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">تعديل</span>}
+                                                    {diff.type === 'DELETE_SCORE' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">حذف</span>}
+                                                </td>
+                                                <td className="p-3 text-gray-700">{diff.details}</td>
+                                                <td className="p-3 text-center font-mono text-gray-500">{diff.oldVal !== undefined ? diff.oldVal : '-'}</td>
+                                                <td className="p-3 text-center font-bold text-gray-800">{diff.newVal !== undefined ? diff.newVal : '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="p-5 border-t bg-white flex justify-end gap-3">
+                            <button onClick={() => setIsSyncModalOpen(false)} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-600 font-bold hover:bg-gray-50 transition-colors">إلغاء</button>
+                            <button onClick={handleConfirmSync} className="px-8 py-2.5 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 shadow-lg flex items-center gap-2 transition-transform hover:scale-105">
+                                <Check size={18}/> اعتماد وتطبيق التغييرات
+                            </button>
                         </div>
                     </div>
                 </div>
