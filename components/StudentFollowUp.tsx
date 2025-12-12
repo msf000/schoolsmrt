@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine, PieChart, Pie } from 'recharts';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -16,69 +16,26 @@ interface StudentFollowUpProps {
 
 const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance, currentUser, onSaveAttendance }) => {
     // Safety check
-    if (!students || !performance || !attendance) {
+    if (!students) {
         return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
     }
 
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
-    const [selectedSubject, setSelectedSubject] = useState<string>('');
-    const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [activityTarget, setActivityTarget] = useState<number>(15); 
-
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Terms State
-    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    // Filter State
     const [selectedTermId, setSelectedTermId] = useState<string>('');
-    const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
-    
-    // Header Config for Print
-    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
-
-    // Certificate State
-    const [isCertModalOpen, setIsCertModalOpen] = useState(false);
-    const [certType, setCertType] = useState<'EXCELLENCE' | 'ATTENDANCE' | 'BEHAVIOR' | 'THANKS'>('EXCELLENCE');
-
-    // AUTO-SYNC ON MOUNT
-    useEffect(() => {
-        const syncData = async () => {
-            setIsRefreshing(true);
-            await forceRefreshData();
-            setIsRefreshing(false);
-        };
-        syncData();
-    }, []);
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
 
     useEffect(() => {
-        const subs = getSubjects(currentUser?.id); 
-        setSubjects(subs);
-        if (subs.length > 0) setSelectedSubject(subs[0].name);
-        else setSelectedSubject('عام');
-
-        const savedTarget = localStorage.getItem('works_activity_target');
-        if (savedTarget) setActivityTarget(parseInt(savedTarget));
-
-        // Load Terms
         const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
-        // Set default to current term if available
         const current = loadedTerms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
-        
-        setHeaderConfig(getReportHeaderConfig(currentUser?.id));
 
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsDropdownOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        
-        // --- CHECK NAV CONTEXT ---
         const navStudentId = localStorage.getItem('nav_context_student_id');
         if (navStudentId) {
             const exists = students.find(s => s.id === navStudentId);
@@ -88,569 +45,284 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             }
             localStorage.removeItem('nav_context_student_id');
         }
+    }, [currentUser, students]);
 
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [currentUser, students]); // Students dependency ensures re-render after sync
+    const activeTerm = terms.find(t => t.id === selectedTermId);
 
-    const handleTargetChange = (val: string) => {
-        const num = parseInt(val);
-        if (!isNaN(num) && num > 0) {
-            setActivityTarget(num);
-            localStorage.setItem('works_activity_target', num.toString());
-        }
-    };
+    const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
 
-    const handleTermChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setSelectedTermId(e.target.value);
-        setSelectedPeriodId(''); // Reset period when term changes
-    };
-
-    const sortedStudents = useMemo(() => {
-        return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-    }, [students]);
-
-    const filteredStudents = useMemo(() => {
-        if (!searchTerm) return sortedStudents;
-        return sortedStudents.filter(s => 
-            s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            (s.nationalId && s.nationalId.includes(searchTerm))
-        );
-    }, [sortedStudents, searchTerm]);
-
-    const handleStudentSelect = (student: Student) => {
-        setSelectedStudentId(student.id);
-        setSearchTerm(student.name);
-        setIsDropdownOpen(false);
-    };
-
-    const clearSelection = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setSelectedStudentId('');
-        setSearchTerm('');
-        setIsDropdownOpen(true);
-    };
-
-    const student = students.find(s => s.id === selectedStudentId);
-    
-    // Determine active term & period for filtering
-    const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
-    
-    // Sorted Periods (Fix: Sort chronologically or alphabetically)
-    const activeTermPeriods = useMemo(() => {
-        if (!activeTerm?.periods) return [];
-        return [...activeTerm.periods].sort((a, b) => {
-            const dateA = a.startDate || '';
-            const dateB = b.startDate || '';
-            // Prefer Date Sort
-            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
-            // Fallback to Name Sort (works for "First" vs "Second" in Arabic usually because of Alif vs Tha)
-            return a.name.localeCompare(b.name, 'ar'); 
-        });
-    }, [activeTerm]);
-
-    const activePeriod = useMemo(() => activeTermPeriods.find(p => p.id === selectedPeriodId), [activeTermPeriods, selectedPeriodId]);
-
-    // Fetch assignments and filter strictly by Term AND Period
-    const filterAssignments = (category: string) => {
-        return getAssignments(category, currentUser?.id).filter(c => {
-            if (!c.isVisible) return false;
-            // 1. Term Check - RELAXED: allow legacy (no termId)
-            const termMatch = !activeTerm || !c.termId || (c.termId === activeTerm.id);
-            if (!termMatch) return false;
-            
-            // 2. Period Check - RELAXED: allow legacy (no periodId)
-            if (selectedPeriodId) {
-                if (c.periodId && c.periodId !== selectedPeriodId) return false;
-            }
-            
-            return true;
-        });
-    };
-
-    const activityCols = useMemo(() => filterAssignments('ACTIVITY'), [currentUser, activeTerm, selectedPeriodId]);
-    const homeworkCols = useMemo(() => filterAssignments('HOMEWORK'), [currentUser, activeTerm, selectedPeriodId]);
-    const examCols = useMemo(() => filterAssignments('PLATFORM_EXAM'), [currentUser, activeTerm, selectedPeriodId]);
-
-    const calculateStats = () => {
+    // --- CALCULATE STATS ---
+    const stats = useMemo(() => {
         if (!student) return null;
-        
-        let startDate: string | undefined;
-        let endDate: string | undefined;
+
+        let sAtt = attendance.filter(a => a.studentId === student.id);
+        let sPerf = performance.filter(p => p.studentId === student.id);
 
         if (activeTerm) {
-            startDate = activeTerm.startDate;
-            endDate = activeTerm.endDate;
-            // Narrow down if period selected
-            if (activePeriod) {
-                startDate = activePeriod.startDate;
-                endDate = activePeriod.endDate;
-            }
+            sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+            sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
         }
 
-        const filterByDate = (date: string) => {
-            if (!startDate || !endDate) return true;
-            return date >= startDate && date <= endDate;
-        };
+        // Attendance
+        const totalDays = sAtt.length;
+        const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+        const late = sAtt.filter(a => a.status === AttendanceStatus.LATE).length;
+        const attRate = totalDays > 0 ? Math.round(((present + late) / totalDays) * 100) : 100;
 
-        // --- ATTENDANCE ---
-        let studentAtt = attendance.filter(a => a.studentId === student.id && filterByDate(a.date));
-        const creditCount = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
-        const totalDays = studentAtt.length;
-        const attPercent = totalDays > 0 ? (creditCount / totalDays) * 100 : 100;
-        const gradePart = (attPercent / 100) * 15; // 15 Marks for Attendance
+        // Behavior
+        const posBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
+        const negBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
 
-        // --- PERFORMANCE BASE ---
-        let myPerformance = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject && filterByDate(p.date));
+        // Performance
+        const totalScore = sPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
+        const avgScore = sPerf.length > 0 ? Math.round((totalScore / sPerf.length) * 100) : 0;
 
-        // --- HOMEWORK CALCULATIONS ---
-        const studentHWs = myPerformance.filter(p => p.category === 'HOMEWORK');
-        let hwScoreSum = 0;
-        let hwMaxSum = 0;
+        // Trends (Last 5 grades)
+        const recentPerf = [...sPerf].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(-5);
+        const trendData = recentPerf.map(p => ({
+            name: p.title || p.subject,
+            score: Math.round((p.score / p.maxScore) * 100)
+        }));
+
+        // Subject Breakdown
+        const subjectStats: Record<string, {total: number, count: number}> = {};
+        sPerf.forEach(p => {
+            if (!subjectStats[p.subject]) subjectStats[p.subject] = { total: 0, count: 0 };
+            subjectStats[p.subject].total += (p.score / p.maxScore);
+            subjectStats[p.subject].count += 1;
+        });
         
-        if (homeworkCols.length > 0) {
-            // Calculated based on Columns defined for this Period
-            homeworkCols.forEach(col => {
-                const rec = studentHWs.find(p => p.notes === col.id || p.title === col.title);
-                hwMaxSum += col.maxScore;
-                if (rec) hwScoreSum += rec.score;
-            });
-        } else {
-            // Fallback: Sum whatever records exist if no columns defined
-            studentHWs.forEach(p => { hwScoreSum += p.score; hwMaxSum += p.maxScore || 10; });
-        }
-        
-        const hwPercent = hwMaxSum > 0 ? Math.round((hwScoreSum / hwMaxSum) * 100) : (homeworkCols.length > 0 ? 0 : 100);
-        const gradeHW = (hwPercent / 100) * 10; // 10 Marks for Homework
+        const subjectsData = Object.keys(subjectStats).map(sub => ({
+            name: sub,
+            avg: Math.round((subjectStats[sub].total / subjectStats[sub].count) * 100)
+        })).sort((a,b) => b.avg - a.avg);
 
-        // --- ACTIVITY CALCULATIONS ---
-        const studentActs = myPerformance.filter(p => p.category === 'ACTIVITY');
-        let actScoreSum = 0;
-        let actMaxSum = 0;
-
-        if (activityCols.length > 0) {
-             activityCols.forEach(col => {
-                const rec = studentActs.find(p => p.notes === col.id || p.title === col.title);
-                actMaxSum += col.maxScore;
-                if (rec) actScoreSum += rec.score;
-             });
-        } else {
-             // Fallback
-             studentActs.forEach(p => { actScoreSum += p.score; actMaxSum += p.maxScore || 10; });
-             // Adjust max if target is set manually
-             if (activityTarget > 0 && activityCols.length === 0) actMaxSum = activityTarget;
-        }
-
-        const actPercent = actMaxSum > 0 ? Math.round((actScoreSum / actMaxSum) * 100) : (activityCols.length > 0 ? 0 : 100);
-        const gradeAct = (actPercent / 100) * 15; // 15 Marks for Activities
-
-        // --- EXAM CALCULATIONS ---
-        const studentExams = myPerformance.filter(p => p.category === 'PLATFORM_EXAM');
-        let examScoreSum = 0;
-        let examMaxSum = 0;
-
-        if (examCols.length > 0) {
-            examCols.forEach(col => {
-                const rec = studentExams.find(p => p.notes === col.id || p.title === col.title);
-                examMaxSum += col.maxScore;
-                if (rec) examScoreSum += rec.score;
-            });
-        } else {
-            studentExams.forEach(p => { examScoreSum += p.score; examMaxSum += p.maxScore || 20; });
-        }
-        
-        const examPercent = examMaxSum > 0 ? Math.round((examScoreSum / examMaxSum) * 100) : 0;
-        const examWeighted = (examPercent / 100) * 20; // 20 Marks for Exams
-
-        // Total
-        const totalTasks = gradeHW + gradeAct + gradePart;
-        const totalPeriod = totalTasks + examWeighted;
-
-        const behaviorLogs = studentAtt.filter(a => (a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL) || a.behaviorNote).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        // Class Avg
-        let classAvg = 0;
-        const classStudents = students.filter(s => s.className === student.className);
-        if (classStudents.length > 0) {
-            let totalClassScore = 0;
-            let scoredStudents = 0;
-            classStudents.forEach(cs => {
-                const sPerf = performance.filter(p => p.studentId === cs.id && p.subject === selectedSubject && filterByDate(p.date));
-                if (sPerf.length > 0) {
-                    const sTotal = sPerf.reduce((acc, p) => acc + (p.score/p.maxScore), 0);
-                    totalClassScore += (sTotal / sPerf.length);
-                    scoredStudents++;
-                }
-            });
-            if (scoredStudents > 0) classAvg = Math.round((totalClassScore / scoredStudents) * 100);
-        }
-
-        const chartData = [
-            { name: 'الحضور', value: Math.round(attPercent), full: 100, fill: '#10b981' }, 
-            { name: 'الواجبات', value: Math.round(hwPercent), full: 100, fill: '#3b82f6' }, 
-            { name: 'الأنشطة', value: Math.round(actPercent), full: 100, fill: '#f59e0b' }, 
-            { name: 'الاختبارات', value: Math.round(examPercent), full: 100, fill: '#8b5cf6' }
-        ];
-
-        return { 
-            attPercent, gradePart, 
-            hwPercent, hwScoreSum, hwMaxSum, gradeHW, 
-            actPercent, actScoreSum, actMaxSum, gradeAct, 
-            examPercent, examScoreSum, examMaxSum, examWeighted,
-            totalTasks, totalPeriod, 
-            studentActs, studentHWs, studentExams, behaviorLogs, chartData,
-            classAvg 
-        };
-    };
-
-    const stats = calculateStats();
-
-    const handlePrint = () => {
-        if (onSaveAttendance && student) {
-            const record: AttendanceRecord = {
-                id: `${student.id}-cert-${Date.now()}`,
-                studentId: student.id,
-                date: new Date().toISOString().split('T')[0],
-                status: AttendanceStatus.PRESENT,
-                behaviorStatus: BehaviorStatus.POSITIVE,
-                behaviorNote: `تم منح شهادة: ${certType === 'EXCELLENCE' ? 'تفوق' : certType === 'ATTENDANCE' ? 'مواظبة' : certType === 'BEHAVIOR' ? 'سلوك' : 'شكر'}`,
-                createdById: currentUser?.id
-            };
-            onSaveAttendance([record]);
-        }
-        window.print();
-    };
+        return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf };
+    }, [student, attendance, performance, activeTerm]);
 
     const handleShareWhatsApp = () => {
         if (!student || !stats) return;
         const phone = student.parentPhone ? student.parentPhone.replace(/\D/g, '') : '';
-        if (!phone) {
-            alert('رقم ولي الأمر غير مسجل');
-            return;
-        }
+        if (!phone) return alert('رقم ولي الأمر غير مسجل');
         
         const message = `
 تقرير الطالب: ${student.name}
-المادة: ${selectedSubject}
-الفترة: ${activePeriod ? activePeriod.name : (activeTerm ? activeTerm.name : 'الحالية')}
+الفترة: ${activeTerm ? activeTerm.name : 'الحالية'}
 
 📊 الملخص:
-- الحضور: ${Math.round(stats.attPercent)}%
-- الواجبات: ${stats.hwScoreSum}/${stats.hwMaxSum} (${Math.round(stats.hwPercent)}%)
-- الأنشطة: ${stats.actScoreSum}/${stats.actMaxSum} (${Math.round(stats.actPercent)}%)
-- الاختبارات: ${stats.examScoreSum}/${stats.examMaxSum}
-- المجموع الكلي: ${stats.totalPeriod.toFixed(1)} / 60
+- نسبة الحضور: ${stats.attRate}% (${stats.absent} غياب)
+- المستوى الأكاديمي: ${stats.avgScore}%
+- السلوك: ${stats.posBeh} إيجابي / ${stats.negBeh} ملاحظات
 
-ملاحظة: هذا تقرير تلقائي من نظام المتابعة.
+نأمل منكم المتابعة والدعم. شكراً لكم.
         `.trim();
 
         const formattedPhone = phone.startsWith('966') ? phone : `966${phone.startsWith('0') ? phone.slice(1) : phone}`;
         window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, '_blank');
     };
 
+    const handleSearchSelect = (s: Student) => {
+        setSelectedStudentId(s.id);
+        setSearchTerm(s.name);
+        setIsDropdownOpen(false);
+    };
+
+    const filteredList = students.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
     return (
-        <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50 overflow-auto relative">
-            {/* Sync Indicator */}
-            {isRefreshing && (
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 flex items-center gap-2 animate-pulse text-sm font-bold">
-                    <RefreshCw size={16} className="animate-spin"/> جاري تحديث البيانات من السحابة...
-                </div>
-            )}
-
-            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden bg-white p-4 rounded-xl shadow-sm border border-gray-200 z-20 relative">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><FileText className="text-teal-600" /> متابعة فردية للطلاب</h2>
-                </div>
-                
-                <div className="flex flex-wrap gap-3 items-center">
-                    {/* Term Selector */}
-                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
-                        <Calendar size={16} className="text-gray-500"/>
-                        <select 
-                            className="bg-transparent text-sm font-bold text-gray-700 outline-none w-32"
-                            value={selectedTermId}
-                            onChange={handleTermChange}
-                        >
-                            <option value="">كل الفترات</option>
-                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
+        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-auto">
+            
+            {/* Header / Search */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex items-center gap-3">
+                    <div className="bg-purple-100 p-2 rounded-lg text-purple-600"><FileText size={24}/></div>
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800">ملف الطالب الشامل</h2>
+                        <p className="text-sm text-gray-500">تحليل تفصيلي للأداء والسلوك</p>
                     </div>
+                </div>
 
-                    {/* Period Selector (New) */}
-                    {activeTermPeriods.length > 0 && (
-                        <div className="flex items-center gap-2 bg-purple-50 p-2 rounded-lg border border-purple-200 animate-slide-in-right">
-                            <span className="text-xs font-bold text-purple-700">الفترة:</span>
-                            <select 
-                                className="bg-transparent text-sm font-bold text-purple-800 outline-none w-24"
-                                value={selectedPeriodId}
-                                onChange={(e) => setSelectedPeriodId(e.target.value)}
-                            >
-                                <option value="">الكل (عام)</option>
-                                {activeTermPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                        </div>
-                    )}
-
-                    <div className="relative w-64" ref={dropdownRef}>
-                        <div className="relative">
-                            <input type="text" placeholder="ابحث باسم الطالب..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setIsDropdownOpen(true); if(selectedStudentId) setSelectedStudentId(''); }} onFocus={() => setIsDropdownOpen(true)} className={`w-full p-2 pl-8 pr-3 border rounded-lg shadow-sm outline-none focus:ring-2 focus:ring-teal-500 text-sm ${selectedStudentId ? 'bg-teal-50 border-teal-200 font-bold text-teal-800' : 'bg-white'}`}/>
-                            {selectedStudentId ? <button onClick={clearSelection} className="absolute left-2 top-2.5 text-teal-600 hover:text-red-500"><X size={16} /></button> : <Search className="absolute left-2 top-2.5 text-gray-400" size={16} />}
-                        </div>
+                <div className="flex gap-2 w-full md:w-auto relative" ref={dropdownRef}>
+                    <div className="relative flex-1 md:w-64">
+                        <input 
+                            className="w-full pl-8 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-bold"
+                            placeholder="ابحث عن طالب..."
+                            value={searchTerm}
+                            onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }}
+                            onFocus={() => setIsDropdownOpen(true)}
+                        />
+                        <Search className="absolute left-2 top-2.5 text-gray-400" size={16}/>
+                        
                         {isDropdownOpen && (
-                            <div className="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-50 animate-fade-in custom-scrollbar">
-                                {filteredStudents.length > 0 ? filteredStudents.map(s => (
-                                    <div key={s.id} onClick={() => handleStudentSelect(s)} className="px-4 py-2 hover:bg-teal-50 cursor-pointer flex justify-between items-center text-sm border-b border-gray-50 last:border-0">
-                                        <div><div className="font-bold text-gray-800">{s.name}</div><div className="text-xs text-gray-400">{s.className}</div></div>
-                                        {selectedStudentId === s.id && <Check size={14} className="text-teal-600"/>}
+                            <div className="absolute top-full right-0 w-full bg-white border rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto z-50">
+                                {filteredList.length > 0 ? filteredList.map(s => (
+                                    <div key={s.id} onClick={() => handleSearchSelect(s)} className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-0 text-sm">
+                                        <div className="font-bold text-gray-800">{s.name}</div>
+                                        <div className="text-xs text-gray-500">{s.className}</div>
                                     </div>
-                                )) : <div className="p-3 text-center text-gray-400 text-xs">لا توجد نتائج مطابقة</div>}
+                                )) : <div className="p-3 text-center text-gray-400 text-xs">لا يوجد نتائج</div>}
                             </div>
                         )}
                     </div>
-
-                    <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="p-2 border rounded-lg bg-white shadow-sm font-bold text-gray-700 outline-none text-sm">
-                        {subjects.length > 0 ? subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>) : <option value="عام">عام</option>}
-                    </select>
                     
-                    {selectedStudentId && (
-                        <>
-                            <button onClick={handleShareWhatsApp} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-green-700 text-sm font-bold" title="مشاركة التقرير عبر واتساب">
-                                <Share2 size={16}/>
-                            </button>
-                            <button onClick={() => setIsCertModalOpen(true)} className="bg-yellow-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-yellow-600 text-sm font-bold animate-pulse">
-                                <Gift size={16}/> شهادة
-                            </button>
-                        </>
-                    )}
-
-                    <button onClick={() => window.print()} disabled={!selectedStudentId} className="bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-black disabled:opacity-50 text-sm font-bold">
-                        <Printer size={16}/> طباعة
-                    </button>
+                    <select 
+                        className="bg-gray-50 border rounded-lg px-3 py-2 text-sm font-bold outline-none"
+                        value={selectedTermId}
+                        onChange={e => setSelectedTermId(e.target.value)}
+                    >
+                        <option value="">كل الفترات</option>
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
                 </div>
             </div>
 
             {student && stats ? (
-                <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 print:shadow-none print:border-none print:p-0 w-full max-w-5xl mx-auto z-0 print:m-0">
-                    
-                    {/* PRINT HEADER - Visible only in Print */}
-                    <div className="hidden print:flex justify-between items-center h-28 border-b-2 border-gray-800 mb-6">
-                        <div className="text-right text-xs font-bold leading-loose w-1/3">
-                            <p>المملكة العربية السعودية</p>
-                            <p>وزارة التعليم</p>
-                            <p>{headerConfig?.educationAdmin ? `إدارة التعليم بـ${headerConfig.educationAdmin}` : '.........'}</p>
-                            <p>{headerConfig?.schoolName ? `مدرسة ${headerConfig.schoolName}` : '.........'}</p>
-                        </div>
-                        <div className="text-center flex-1 flex flex-col items-center justify-center">
-                            {headerConfig?.logoBase64 ? (
-                                <img src={headerConfig.logoBase64} alt="شعار" className="h-16 object-contain mb-2" />
-                            ) : <div className="w-16 h-16 bg-gray-100 rounded-full border mb-1"></div>}
-                            <h1 className="font-black text-lg text-gray-900">تقرير متابعة طالب</h1>
-                        </div>
-                        <div className="text-left text-xs font-bold leading-loose w-1/3 flex flex-col items-end">
-                            <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
-                            <p>{headerConfig?.academicYear || '1447هـ'}</p>
-                            <p>{activePeriod ? `${activeTerm?.name} - ${activePeriod.name}` : (headerConfig?.term || 'الفصل الدراسي ....')}</p>
+                <div className="space-y-6">
+                    {/* Student Info Card */}
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-purple-500 to-indigo-600"></div>
+                        <div className="flex flex-col md:flex-row justify-between gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-3xl font-bold text-gray-600 border-4 border-white shadow-md">
+                                    {student.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black text-gray-800">{student.name}</h1>
+                                    <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                        <span className="bg-gray-100 px-2 py-0.5 rounded flex items-center gap-1"><Users size={12}/> {student.gradeLevel} - {student.className}</span>
+                                        <span className="bg-gray-100 px-2 py-0.5 rounded flex items-center gap-1"><MapPin size={12}/> ID: {student.nationalId}</span>
+                                    </div>
+                                    {student.parentPhone && (
+                                        <div className="flex items-center gap-2 mt-2 text-green-600 text-xs font-bold bg-green-50 w-fit px-2 py-1 rounded cursor-pointer hover:bg-green-100" onClick={handleShareWhatsApp}>
+                                            <Phone size={12}/> ولي الأمر: {student.parentPhone} (مراسلة)
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* High Level Stats */}
+                            <div className="flex gap-4 items-center">
+                                <div className="text-center px-4 border-l">
+                                    <div className={`text-3xl font-black ${stats.attRate >= 90 ? 'text-green-600' : 'text-red-600'}`}>{stats.attRate}%</div>
+                                    <div className="text-xs text-gray-400 font-bold">الحضور</div>
+                                </div>
+                                <div className="text-center px-4 border-l">
+                                    <div className="text-3xl font-black text-blue-600">{stats.avgScore}</div>
+                                    <div className="text-xs text-gray-400 font-bold">المعدل</div>
+                                </div>
+                                <div className="text-center px-4">
+                                    <div className="text-3xl font-black text-yellow-500">{stats.posBeh}</div>
+                                    <div className="text-xs text-gray-400 font-bold">نقاط</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="text-center mb-8 print:hidden">
-                        <h1 className="text-2xl font-bold text-gray-900">متابعة فردية للطلاب في مادة {selectedSubject}</h1>
-                        {activeTerm && <p className="text-sm text-gray-500 mt-1">({activeTerm.name} {activePeriod ? ` - ${activePeriod.name}` : ''})</p>}
-                    </div>
-
-                    <div className="overflow-x-auto mb-8">
-                        <table className="w-full text-center border-collapse text-sm">
-                            <thead>
-                                <tr className="bg-[#008080] text-white">
-                                    <th className="p-2 border border-teal-600 w-1/4">اسم الطالب</th>
-                                    <th className="p-2 border border-teal-600">الفصل</th>
-                                    <th className="p-2 border border-teal-600">نسبة الحضور</th>
-                                    <th className="p-2 border border-teal-600">نسبة حل الواجبات</th>
-                                    <th className="p-2 border border-teal-600">مجموع الأنشطة</th>
-                                    <th className="p-2 border border-teal-600">درجة الواجبات</th>
-                                    <th className="p-2 border border-teal-600">درجة الأنشطة</th>
-                                    <th className="p-2 border border-teal-600">درجة المشاركة</th>
-                                    <th className="p-2 border border-teal-600">مجموع أعمال الفترة</th>
-                                    <th className="p-2 border border-teal-600">مجموع اختبارات المنصة</th>
-                                    <th className="p-2 border border-teal-600 bg-[#004d4d]">المجموع الكلي</th>
-                                </tr>
-                                <tr className="bg-white text-gray-800 text-xs">
-                                     <td className="p-2 border border-gray-300 font-bold">{student.name}</td>
-                                     <td className="p-2 border border-gray-300">{student.className}</td>
-                                     <td className="p-2 border border-gray-300 dir-ltr">{Math.round(stats.attPercent)}%</td>
-                                     
-                                     {/* Enhanced Homework Cell */}
-                                     <td className="p-2 border border-gray-300 dir-ltr font-bold text-blue-700">
-                                         {Math.round(stats.hwPercent)}% <span className="text-[10px] text-gray-400 block">({stats.hwScoreSum}/{stats.hwMaxSum})</span>
-                                     </td>
-                                     
-                                     {/* Enhanced Activity Cell */}
-                                     <td className="p-2 border border-gray-300 font-bold text-amber-700">
-                                         {stats.actScoreSum} / {stats.actMaxSum}
-                                     </td>
-                                     
-                                     <td className="p-2 border border-gray-300 font-bold">{stats.gradeHW.toFixed(1)}</td>
-                                     <td className="p-2 border border-gray-300 font-bold">{stats.gradeAct.toFixed(1)}</td>
-                                     <td className="p-2 border border-gray-300 font-bold">{stats.gradePart.toFixed(1)}</td>
-                                     <td className="p-2 border border-gray-300 font-black bg-gray-100">#####</td>
-                                     
-                                     {/* Enhanced Exam Cell */}
-                                     <td className="p-2 border border-gray-300 font-bold">
-                                         {stats.examWeighted.toFixed(1)} <span className="text-[10px] text-gray-400 block">({stats.examScoreSum}/{stats.examMaxSum})</span>
-                                     </td>
-                                     
-                                     <td className="p-2 border border-gray-300 font-black bg-gray-800 text-white">{stats.totalPeriod.toFixed(1)}</td>
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
-                    {/* Charts & Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 print:hidden">
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                            <h4 className="font-bold text-gray-700 mb-4 text-center">تحليل الأداء</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Grade Trend Chart */}
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى الأكاديمي</h3>
                             <div className="h-64 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stats.chartData}>
+                                    <AreaChart data={stats.trendData}>
+                                        <defs>
+                                            <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                                                <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="name" tick={{fontSize: 10}} />
+                                        <XAxis dataKey="name" tick={{fontSize: 10}} hide />
                                         <YAxis domain={[0, 100]} />
                                         <Tooltip />
-                                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                            {stats.chartData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                                            ))}
-                                        </Bar>
-                                        {/* Comparison Line */}
-                                        <ReferenceLine y={stats.classAvg} label="معدل الفصل" stroke="red" strokeDasharray="3 3" />
-                                    </BarChart>
+                                        <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
+                                    </AreaChart>
                                 </ResponsiveContainer>
                             </div>
-                            <div className="flex justify-center gap-6 mt-2 text-xs">
-                                <div className="flex items-center gap-1">
-                                    <div className="w-3 h-3 bg-red-500 rounded-full"></div> <span>معدل الفصل ({stats.classAvg}%)</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <Users size={14} className="text-gray-500"/> <span>المقارنة مع الزملاء</span>
-                                </div>
+                        </div>
+
+                        {/* Subject Performance */}
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><BookOpen size={18}/> الأداء حسب المادة</h3>
+                            <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                {stats.subjectsData.map((sub, idx) => (
+                                    <div key={idx} className="flex items-center gap-3">
+                                        <div className="w-24 text-xs font-bold text-gray-600 truncate">{sub.name}</div>
+                                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full rounded-full ${sub.avg >= 90 ? 'bg-green-500' : sub.avg >= 75 ? 'bg-blue-500' : sub.avg >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                style={{width: `${sub.avg}%`}}
+                                            ></div>
+                                        </div>
+                                        <div className="w-10 text-xs font-bold text-gray-800 text-left">{sub.avg}%</div>
+                                    </div>
+                                ))}
+                                {stats.subjectsData.length === 0 && <p className="text-center text-gray-400 text-sm py-10">لا توجد بيانات</p>}
                             </div>
                         </div>
                     </div>
 
-                    {/* DETAILED BREAKDOWN TABLES (ADDED) */}
-                    <div className="mb-8">
-                        <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
-                            <List size={20} className="text-purple-600"/> تفاصيل الأداء الأكاديمي
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            
-                            {/* 1. Homework Details */}
-                            <div className="border border-blue-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                                <div className="bg-blue-50 p-3 text-center font-bold text-blue-800 border-b border-blue-100">
-                                    الواجبات ({stats.studentHWs.length})
-                                </div>
-                                <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                    {/* Detailed Lists */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Attendance Log */}
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                            <div className="p-4 bg-teal-50 border-b border-teal-100 font-bold text-teal-800 flex justify-between">
+                                <span>سجل الغياب والتأخر</span>
+                                <span className="bg-white px-2 rounded text-xs border text-teal-600">{stats.absent + stats.late} حالة</span>
+                            </div>
+                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                {stats.sAtt.filter(a => a.status !== 'PRESENT').length > 0 ? (
                                     <table className="w-full text-right text-xs">
-                                        <thead className="bg-blue-50/50 text-blue-600 font-bold">
-                                            <tr>
-                                                <th className="p-2">العنوان</th>
-                                                <th className="p-2 text-center w-20">الدرجة</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-blue-50">
-                                            {stats.studentHWs.length > 0 ? stats.studentHWs.map((hw, i) => (
-                                                <tr key={i} className="hover:bg-blue-50/30">
+                                        <thead className="bg-gray-50 text-gray-500"><tr><th className="p-2">التاريخ</th><th className="p-2">الحالة</th><th className="p-2">عذر</th></tr></thead>
+                                        <tbody className="divide-y">
+                                            {stats.sAtt.filter(a => a.status !== 'PRESENT').map(a => (
+                                                <tr key={a.id}>
+                                                    <td className="p-2">{formatDualDate(a.date)}</td>
                                                     <td className="p-2">
-                                                        <div className="font-medium text-gray-800">{hw.title}</div>
-                                                        <div className="text-[10px] text-gray-400">{formatDualDate(hw.date).split('|')[0]}</div>
+                                                        <span className={`px-2 py-0.5 rounded font-bold ${a.status === 'ABSENT' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                            {a.status === 'ABSENT' ? 'غائب' : 'تأخر'}
+                                                        </span>
                                                     </td>
-                                                    <td className="p-2 text-center font-bold text-blue-700 bg-blue-50/20">{hw.score}/{hw.maxScore}</td>
+                                                    <td className="p-2 text-gray-500">{a.excuseNote || '-'}</td>
                                                 </tr>
-                                            )) : <tr><td colSpan={2} className="p-6 text-center text-gray-400">لا توجد واجبات</td></tr>}
+                                            ))}
                                         </tbody>
                                     </table>
-                                </div>
+                                ) : <div className="p-8 text-center text-gray-400 text-sm">سجل الحضور ممتاز! لا غياب.</div>}
                             </div>
+                        </div>
 
-                            {/* 2. Activity Details */}
-                            <div className="border border-amber-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                                <div className="bg-amber-50 p-3 text-center font-bold text-amber-800 border-b border-amber-100">
-                                    الأنشطة والمشاركات ({stats.studentActs.length})
-                                </div>
-                                <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                                    <table className="w-full text-right text-xs">
-                                        <thead className="bg-amber-50/50 text-amber-600 font-bold">
-                                            <tr>
-                                                <th className="p-2">العنوان</th>
-                                                <th className="p-2 text-center w-20">الدرجة</th>
+                        {/* Recent Grades */}
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                            <div className="p-4 bg-blue-50 border-b border-blue-100 font-bold text-blue-800">آخر الدرجات المرصودة</div>
+                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                <table className="w-full text-right text-xs">
+                                    <thead className="bg-gray-50 text-gray-500"><tr><th className="p-2">المادة/العنوان</th><th className="p-2">الدرجة</th></tr></thead>
+                                    <tbody className="divide-y">
+                                        {stats.sPerf.slice().reverse().slice(0, 10).map(p => (
+                                            <tr key={p.id}>
+                                                <td className="p-2">
+                                                    <div className="font-bold text-gray-700">{p.title}</div>
+                                                    <div className="text-[10px] text-gray-400">{p.subject}</div>
+                                                </td>
+                                                <td className="p-2">
+                                                    <span className="font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-100">{p.score} / {p.maxScore}</span>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-amber-50">
-                                            {stats.studentActs.length > 0 ? stats.studentActs.map((act, i) => (
-                                                <tr key={i} className="hover:bg-amber-50/30">
-                                                    <td className="p-2">
-                                                        <div className="font-medium text-gray-800">{act.title}</div>
-                                                        <div className="text-[10px] text-gray-400">{formatDualDate(act.date).split('|')[0]}</div>
-                                                    </td>
-                                                    <td className="p-2 text-center font-bold text-amber-700 bg-amber-50/20">{act.score}/{act.maxScore}</td>
-                                                </tr>
-                                            )) : <tr><td colSpan={2} className="p-6 text-center text-gray-400">لا توجد أنشطة</td></tr>}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-
-                            {/* 3. Exam Details */}
-                            <div className="border border-purple-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                                <div className="bg-purple-50 p-3 text-center font-bold text-purple-800 border-b border-purple-100">
-                                    الاختبارات ({stats.studentExams.length})
-                                </div>
-                                <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                                    <table className="w-full text-right text-xs">
-                                        <thead className="bg-purple-50/50 text-purple-600 font-bold">
-                                            <tr>
-                                                <th className="p-2">العنوان</th>
-                                                <th className="p-2 text-center w-20">الدرجة</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-purple-50">
-                                            {stats.studentExams.length > 0 ? stats.studentExams.map((ex, i) => (
-                                                <tr key={i} className="hover:bg-purple-50/30">
-                                                    <td className="p-2">
-                                                        <div className="font-medium text-gray-800">{ex.title}</div>
-                                                        <div className="text-[10px] text-gray-400">{formatDualDate(ex.date).split('|')[0]}</div>
-                                                    </td>
-                                                    <td className="p-2 text-center font-bold text-purple-700 bg-purple-50/20">{ex.score}/{ex.maxScore}</td>
-                                                </tr>
-                                            )) : <tr><td colSpan={2} className="p-6 text-center text-gray-400">لا توجد اختبارات</td></tr>}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
                         </div>
                     </div>
 
-                    {/* Footer Signature */}
-                    <div className="hidden print:flex justify-between items-end mt-12 pt-8 border-t break-inside-avoid">
-                        <div className="text-center flex flex-col items-center">
-                            <p className="font-bold text-gray-600 mb-2">معلم المادة</p>
-                            {headerConfig?.signatureBase64 ? (
-                                <img src={headerConfig.signatureBase64} alt="Sig" className="h-16 object-contain mb-1"/>
-                            ) : <div className="h-16"></div>}
-                            <p className="font-bold">{headerConfig?.teacherName || '................'}</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="font-bold text-gray-600 mb-8">مدير المدرسة</p>
-                            <p className="font-bold">{headerConfig?.schoolManager || '................'}</p>
-                        </div>
-                    </div>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                    <div className="bg-gray-100 p-6 rounded-full mb-4">
-                        <Search size={48} className="text-gray-300"/>
-                    </div>
-                    <p className="text-xl font-bold text-gray-500">اختر طالباً لعرض التقرير</p>
-                    <p className="text-sm">يمكنك البحث بالاسم أو الهوية أعلاه</p>
+                <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl bg-white">
+                    <Search size={64} className="mb-6 opacity-20"/>
+                    <p className="text-xl font-bold">ابحث عن طالب لعرض ملفه</p>
+                    <p className="text-sm">استخدم مربع البحث أعلاه</p>
                 </div>
             )}
         </div>

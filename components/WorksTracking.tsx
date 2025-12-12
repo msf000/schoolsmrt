@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, TrendingDown, TrendingUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -13,28 +13,6 @@ interface WorksTrackingProps {
     attendance: AttendanceRecord[];
     onAddPerformance: (records: PerformanceRecord[]) => void;
     currentUser?: SystemUser | null;
-}
-
-const IGNORED_COLUMNS = [
-    'name', 'id', 'class', 'grade', 'student', 'section', 'email', 'phone', 'mobile', 'gender', 'national', 'date', 'time', 'timestamp',
-    'الاسم', 'اسم', 'الطالب', 'طالب', 'الفصل', 'الصف', 'الهوية', 'السجل', 'المدني', 'الجوال', 'هاتف', 'بريد', 'ملاحظات', 'ملاحظة', 'جنس', 'تاريخ',
-    'note', 'nationalid', 'student_name', 'full_name', 'الاسم الثلاثي', 'الاسم الرباعي'
-];
-
-const STUDENT_NAME_HEADERS = [
-    'الاسم', 'اسم', 'اسم الطالب', 'الطالب', 'اسمك', 'لطالب', 
-    'الاسم الثلاثي', 'الاسم الرباعي', 'الاسم الكامل',
-    'name', 'student', 'student name', 'full name', 'student_name'
-];
-
-interface SyncDiff {
-    type: 'NEW_SCORE' | 'UPDATE_SCORE' | 'DELETE_SCORE' | 'NEW_COLUMN';
-    details: string;
-    studentName?: string;
-    oldVal?: string | number;
-    newVal?: string | number;
-    record?: PerformanceRecord; 
-    assignment?: Assignment; 
 }
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
@@ -66,274 +44,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [isSheetSyncing, setIsSheetSyncing] = useState(false);
-    const [syncStatusMsg, setSyncStatusMsg] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
-    const [activityTarget, setActivityTarget] = useState(15);
-
-    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-    const [syncDiffs, setSyncDiffs] = useState<SyncDiff[]>([]);
 
     const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
         hw: 10, act: 15, att: 15, exam: 20
     });
-
-    const [googleSheetUrl, setGoogleSheetUrl] = useState('');
-    const [sheetNames, setSheetNames] = useState<string[]>([]);
-    const [selectedSheetName, setSelectedSheetName] = useState('');
-    const [settingTermId, setSettingTermId] = useState('');
-    const [settingPeriodId, setSettingPeriodId] = useState('');
-    
-    const [isFetchingStructure, setIsFetchingStructure] = useState(false);
-    const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
-    const [selectedHeaders, setSelectedHeaders] = useState<Set<string>>(new Set());
-    const [unmatchedStudents, setUnmatchedStudents] = useState<string[]>([]);
-    const [workbookRef, setWorkbookRef] = useState<any>(null);
-    const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
-
-    useEffect(() => {
-        const syncData = async () => {
-            setIsRefreshing(true);
-            await forceRefreshData();
-            const savedUrl = getWorksMasterUrl();
-            if (savedUrl) setTimeout(() => handleQuickSheetSync(true), 1000);
-            setIsRefreshing(false);
-        };
-        syncData();
-    }, []);
-
-    const findStudentNameInRow = (row: any): string | undefined => {
-        for (const key of STUDENT_NAME_HEADERS) {
-            if (row[key]) return String(row[key]);
-        }
-        const rowKeys = Object.keys(row);
-        for (const key of rowKeys) {
-            const lowerKey = key.toLowerCase().trim();
-            if (STUDENT_NAME_HEADERS.some(h => lowerKey === h || lowerKey.includes(h))) {
-                return String(row[key]);
-            }
-        }
-        return undefined;
-    };
-
-    const fetchAssignments = useCallback((category: string) => {
-        return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
-    }, [currentUser, isManager]);
-
-    const analyzeCategorySync = async (targetCategory: string, workbook: any, sheetNames: string[], termToUse: string): Promise<SyncDiff[]> => {
-        let targetSheet = sheetNames[0]; 
-        const tabKeywords: Record<string, string[]> = {
-            'HOMEWORK': ['homework', 'wa واجب', 'واجبات', 'منزل', 'home'],
-            'ACTIVITY': ['activity', 'participation', 'class', 'نشاط', 'مشاركة', 'أنشطة'],
-            'PLATFORM_EXAM': ['exam', 'test', 'quiz', 'اختبار', 'منصة', 'تقييم']
-        };
-
-        const keywords = tabKeywords[targetCategory] || [];
-        const matchedSheet = sheetNames.find(name => 
-            keywords.some(k => name.toLowerCase().includes(k))
-        );
-
-        if (matchedSheet) {
-            targetSheet = matchedSheet;
-        }
-
-        const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
-        const diffs: SyncDiff[] = [];
-        
-        const today = new Date().toISOString().split('T')[0];
-        const categoryAssignments = getAssignments(targetCategory, currentUser?.id, isManager);
-        
-        const potentialHeaders = headers.filter(h => {
-            const lowerH = h.toLowerCase().trim();
-            return !IGNORED_COLUMNS.some(ig => lowerH.includes(ig.toLowerCase()));
-        });
-
-        for (const header of potentialHeaders) {
-            let title = header;
-            let maxScore = 10;
-            const match = header.match(/(.+)\s*\((\d+)\)$/);
-            if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
-
-            let targetAssignment = categoryAssignments.find(a => 
-                a.title.toLowerCase() === title.toLowerCase() && 
-                a.termId === termToUse
-            );
-            
-            if (!targetAssignment) {
-                const newId = `gs_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-                targetAssignment = {
-                    id: newId,
-                    title: title,
-                    category: targetCategory as any,
-                    maxScore: maxScore,
-                    isVisible: true,
-                    teacherId: currentUser?.id,
-                    termId: termToUse,
-                    periodId: selectedPeriodId || undefined,
-                    orderIndex: 100 + categoryAssignments.length,
-                    sourceMetadata: JSON.stringify({ sheet: targetSheet, header: header })
-                };
-                diffs.push({ 
-                    type: 'NEW_COLUMN', 
-                    details: `عمود جديد: ${title}`, 
-                    assignment: targetAssignment 
-                });
-            }
-
-            data.forEach(row => {
-                let student: Student | undefined;
-                const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
-                if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
-                if (!student) {
-                    const rowName = findStudentNameInRow(row);
-                    if (rowName) {
-                        const cleanName = String(rowName).trim();
-                        student = students.find(s => s.name.trim() === cleanName || cleanName.includes(s.name) || s.name.includes(cleanName));
-                    }
-                }
-
-                if (student) {
-                    const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
-                    const rawVal = row[header];
-                    
-                    if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
-                        const numVal = parseFloat(String(rawVal));
-                        if (!isNaN(numVal)) {
-                            if (!existingRecord) {
-                                diffs.push({
-                                    type: 'NEW_SCORE',
-                                    details: `درجة جديدة: ${student.name} - ${title} (${numVal})`,
-                                    studentName: student.name,
-                                    newVal: numVal,
-                                    record: {
-                                        id: `${student.id}_${targetAssignment!.id}`,
-                                        studentId: student.id,
-                                        subject: selectedSubject || 'عام',
-                                        title: targetAssignment!.title,
-                                        category: targetAssignment!.category,
-                                        score: numVal,
-                                        maxScore: targetAssignment!.maxScore,
-                                        date: today,
-                                        notes: targetAssignment!.id,
-                                        createdById: currentUser?.id
-                                    }
-                                });
-                            } else if (existingRecord.score !== numVal) {
-                                diffs.push({
-                                    type: 'UPDATE_SCORE',
-                                    details: `تحديث درجة: ${student.name} - ${title} (${existingRecord.score} -> ${numVal})`,
-                                    studentName: student.name,
-                                    oldVal: existingRecord.score,
-                                    newVal: numVal,
-                                    record: { ...existingRecord, score: numVal }
-                                });
-                            }
-                        }
-                    } else {
-                        if (existingRecord) {
-                            diffs.push({
-                                type: 'DELETE_SCORE',
-                                details: `حذف درجة (فارغة في الملف): ${student.name} - ${title}`,
-                                studentName: student.name,
-                                oldVal: existingRecord.score,
-                                record: existingRecord
-                            });
-                        }
-                    }
-                }
-            });
-        }
-
-        return diffs;
-    };
-
-    const handleQuickSheetSync = useCallback(async (isAuto = false) => {
-        const url = getWorksMasterUrl();
-        if (!url) {
-            if (!isAuto) alert('لا يوجد رابط ملف مسجل. يرجى إعداده من "إعدادات الأعمدة".');
-            return;
-        }
-        
-        let termToUse = selectedTermId;
-        if (!termToUse && terms.length > 0) {
-             const current = terms.find(t => t.isCurrent);
-             termToUse = current ? current.id : terms[0].id;
-        }
-        
-        if (!termToUse) {
-            if (!isAuto) alert('الرجاء اختيار الفترة الدراسية أولاً.');
-            return;
-        }
-        
-        setIsSheetSyncing(true);
-        setSyncStatusMsg('جاري الاتصال بملف الدرجات وتحليل التغييرات...');
-        
-        try {
-            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(url);
-            if (sheetNames.length === 0) throw new Error('الملف فارغ');
-            
-            let allDiffs: SyncDiff[] = [];
-
-            const categoriesToSync = ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'];
-
-            for (const cat of categoriesToSync) {
-                const catDiffs = await analyzeCategorySync(cat, workbook, sheetNames, termToUse);
-                allDiffs = [...allDiffs, ...catDiffs];
-            }
-            
-            if (allDiffs.length > 0) {
-                setSyncDiffs(allDiffs);
-                setIsSyncModalOpen(true);
-            } else {
-                if (!isAuto) alert('البيانات متطابقة تماماً. لا توجد تغييرات.');
-            }
-
-        } catch (e: any) {
-            if (!isAuto) alert('خطأ في المزامنة: ' + e.message);
-            else console.error("Auto Sync Error:", e);
-        } finally {
-            setIsSheetSyncing(false);
-            setSyncStatusMsg('');
-        }
-    }, [currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students, terms]);
-
-    const commitSync = async () => {
-        const assignmentsToSave: Assignment[] = [];
-        const recordsToUpsert: PerformanceRecord[] = [];
-        const idsToDelete: string[] = [];
-
-        syncDiffs.forEach(diff => {
-            if (diff.type === 'NEW_COLUMN' && diff.assignment) {
-                assignmentsToSave.push(diff.assignment);
-            }
-            if ((diff.type === 'NEW_SCORE' || diff.type === 'UPDATE_SCORE') && diff.record) {
-                recordsToUpsert.push(diff.record);
-            }
-            if (diff.type === 'DELETE_SCORE' && diff.record) {
-                idsToDelete.push(diff.record.id);
-            }
-        });
-
-        for (const assign of assignmentsToSave) {
-            await saveAssignment(assign);
-        }
-
-        if (recordsToUpsert.length > 0) {
-            await bulkAddPerformance(recordsToUpsert);
-        }
-
-        if (idsToDelete.length > 0) {
-            for (const id of idsToDelete) {
-                await deletePerformance(id);
-            }
-        }
-
-        setAssignments(fetchAssignments(activeTab));
-        setIsSyncModalOpen(false);
-        setSyncDiffs([]);
-        alert('تم تحديث البيانات بنجاح!');
-    };
 
     useEffect(() => {
         if (currentUser) {
@@ -341,24 +57,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const loadedTerms = getAcademicTerms(currentUser.id);
             setTerms(loadedTerms);
             
-            const savedUrl = getWorksMasterUrl();
-            if (savedUrl) setGoogleSheetUrl(savedUrl);
-
-            const savedConfig = localStorage.getItem('works_year_config');
-            if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
-
             const current = loadedTerms.find(t => t.isCurrent);
-            if (current) {
-                setSelectedTermId(current.id);
-                setSettingTermId(current.id); 
-            } else if (loadedTerms.length > 0) {
-                setSelectedTermId(loadedTerms[0].id);
-                setSettingTermId(loadedTerms[0].id);
-            }
+            if (current) setSelectedTermId(current.id);
+            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+            
             const subs = getSubjects(currentUser.id);
             if(subs.length > 0) setSelectedSubject(subs[0].name);
         }
     }, [currentUser]);
+
+    const fetchAssignments = useCallback((category: string) => {
+        return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
+    }, [currentUser, isManager]);
 
     useEffect(() => {
         if (currentUser) {
@@ -402,7 +112,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
             autoSaveTimerRef.current = setTimeout(() => {
                 handleSaveScores(true); 
-            }, 2000); 
+            }, 1500); 
         }
     };
 
@@ -443,342 +153,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
 
         if (recordsToSave.length > 0) {
-            bulkAddPerformance(recordsToSave);
+            onAddPerformance(recordsToSave); // Use parent handler to ensure state update
             setLastSaved(new Date());
         }
         
         setTimeout(() => setIsSaving(false), 500);
     };
-
-    const handleRefreshAll = async () => {
-        setIsRefreshing(true);
-        await forceRefreshData();
-        const savedUrl = getWorksMasterUrl();
-        if (savedUrl) await handleQuickSheetSync(true);
-        setIsRefreshing(false);
-    };
-
-    const analyzeSheet = (wb: any, sheetName: string) => {
-        if (!wb || !sheetName) return;
-        const { headers, data } = getSheetHeadersAndData(wb, sheetName);
-        
-        const potentialHeaders = headers.filter(h => {
-            const lowerH = h.toLowerCase().trim();
-            return !IGNORED_COLUMNS.some(ig => lowerH.includes(ig.toLowerCase()));
-        });
-        
-        setAvailableHeaders(potentialHeaders);
-        setSelectedHeaders(new Set()); 
-
-        const unmatched: string[] = [];
-        
-        data.forEach(row => {
-            let student: Student | undefined;
-            const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
-            if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
-            if (!student) {
-                const rowName = findStudentNameInRow(row);
-                if (rowName) {
-                    const cleanName = String(rowName).trim();
-                    student = students.find(s => s.name.trim() === cleanName);
-                    if (!student) unmatched.push(cleanName);
-                }
-            }
-        });
-        
-        setUnmatchedStudents(Array.from(new Set(unmatched)).slice(0, 50));
-    };
-
-    const handleFetchSheetStructure = async () => {
-        if (!googleSheetUrl) return alert('يرجى إدخال رابط الملف');
-        setIsFetchingStructure(true);
-        try {
-            saveWorksMasterUrl(googleSheetUrl);
-            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
-            if (sheetNames.length === 0) throw new Error('الملف فارغ');
-            setWorkbookRef(workbook);
-            setSheetNames(sheetNames);
-            const targetSheet = selectedSheetName && sheetNames.includes(selectedSheetName) ? selectedSheetName : sheetNames[0];
-            setSelectedSheetName(targetSheet);
-            analyzeSheet(workbook, targetSheet);
-            setSyncStep('SELECTION');
-        } catch (e: any) {
-            alert('فشل الاتصال بالملف: ' + e.message);
-        } finally {
-            setIsFetchingStructure(false);
-        }
-    };
-
-    const handleConfirmManualSync = () => {
-        if (!workbookRef || !selectedSheetName || !settingTermId) return;
-        setIsFetchingStructure(true);
-        try {
-            const { data } = getSheetHeadersAndData(workbookRef, selectedSheetName);
-            
-            let newAssignmentsCount = 0;
-            let updatedScoresCount = 0;
-            const recordsToUpsert: PerformanceRecord[] = [];
-            const today = new Date().toISOString().split('T')[0];
-            const currentAssignments = fetchAssignments(activeTab);
-            
-            selectedHeaders.forEach((header, index) => {
-                let title = header;
-                let maxScore = 10;
-                const match = header.match(/(.+)\s*\((\d+)\)$/);
-                if (match) { title = match[1].trim(); maxScore = parseInt(match[2], 10); }
-
-                let targetAssignment = currentAssignments.find(a => a.title.toLowerCase() === title.toLowerCase() && a.termId === settingTermId && a.category === activeTab);
-
-                if (!targetAssignment) {
-                    const newId = `gs_${Date.now()}_${index}`;
-                    targetAssignment = {
-                        id: newId, title: title, category: activeTab as any, maxScore: Number(maxScore), isVisible: true, teacherId: currentUser?.id, termId: settingTermId, periodId: settingPeriodId || undefined, orderIndex: Number(index) + 100, sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: header })
-                    };
-                    saveAssignment(targetAssignment);
-                    newAssignmentsCount++;
-                }
-
-                data.forEach(row => {
-                    let student: Student | undefined;
-                    const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
-                    if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
-                    if (!student) {
-                        const rowName = findStudentNameInRow(row);
-                        if (rowName) student = students.find(s => s.name.trim() === String(rowName).trim());
-                    }
-
-                    if (student) {
-                        const rawVal = row[header];
-                        if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
-                            const numVal = parseFloat(String(rawVal));
-                            if (!isNaN(numVal)) {
-                                const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
-                                recordsToUpsert.push({
-                                    id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
-                                    studentId: student.id,
-                                    subject: selectedSubject || 'عام',
-                                    title: targetAssignment!.title,
-                                    category: targetAssignment!.category,
-                                    score: numVal,
-                                    maxScore: targetAssignment!.maxScore,
-                                    date: existingRecord ? existingRecord.date : today,
-                                    notes: targetAssignment!.id, 
-                                    createdById: currentUser?.id
-                                });
-                                updatedScoresCount++;
-                            }
-                        }
-                    }
-                });
-            });
-
-            if (recordsToUpsert.length > 0) onAddPerformance(recordsToUpsert); 
-            setAssignments(fetchAssignments(activeTab));
-            alert(`تمت العملية بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات محدثة: ${updatedScoresCount}`);
-            setIsSettingsOpen(false);
-            setSyncStep('URL');
-        } catch (e: any) {
-            alert('حدث خطأ أثناء المعالجة: ' + e.message);
-        } finally {
-            setIsFetchingStructure(false);
-        }
-    };
-
-    const toggleHeaderSelection = (header: string) => {
-        const newSet = new Set(selectedHeaders);
-        if (newSet.has(header)) newSet.delete(header);
-        else newSet.add(header);
-        setSelectedHeaders(newSet);
-    };
-
-    const handleAddManualColumn = () => {
-        const title = prompt('عنوان العمود:');
-        if (!title) return;
-        const max = prompt('الدرجة العظمى:', '10');
-        const newAssign: Assignment = {
-            id: Date.now().toString(),
-            title, category: activeTab as any, maxScore: Number(max) || 10, isVisible: true, teacherId: currentUser?.id, termId: settingTermId || undefined, periodId: settingPeriodId || undefined
-        };
-        saveAssignment(newAssign);
-        setAssignments(fetchAssignments(activeTab));
-    };
-
-    const handleUpdateColumn = (assign: Assignment, updates: Partial<Assignment>) => {
-        saveAssignment({ ...assign, ...updates });
-        setAssignments(fetchAssignments(activeTab));
-    };
-
-    const handleDeleteAssignment = (id: string) => {
-        if(confirm('حذف العمود؟ سيتم حذف جميع الدرجات المرتبطة به.')) {
-            deleteAssignment(id);
-            setAssignments(fetchAssignments(activeTab));
-        }
-    };
-
-    const calculateYearWork = (student: Student) => {
-        let startDate: string | undefined;
-        let endDate: string | undefined;
-        if (selectedPeriodId) {
-            const period = activeTerm?.periods?.find(p => p.id === selectedPeriodId);
-            if (period) { startDate = period.startDate; endDate = period.endDate; }
-        } else if (activeTerm) { startDate = activeTerm.startDate; endDate = activeTerm.endDate; }
-
-        const filterByPeriod = (date: string) => { if (!startDate || !endDate) return true; return date >= startDate && date <= endDate; };
-        
-        const isAssignmentInScope = (a: Assignment) => {
-            if (selectedTermId && a.termId && a.termId !== selectedTermId) return false;
-            
-            // RELAXED PERIOD FILTER: Show general assignments (no periodId) in all periods
-            // Only hide if it has a specific period ID that doesn't match selected
-            if (selectedPeriodId && a.periodId && a.periodId !== selectedPeriodId) return false;
-            
-            if (selectedTermId) return a.termId === selectedTermId;
-            return true;
-        };
-
-        const isRecordInScope = (p: PerformanceRecord, validIds: Set<string>) => {
-            if (p.studentId !== student.id) return false;
-            if (selectedSubject && p.subject !== selectedSubject) return false;
-            if (p.notes && validIds.has(p.notes)) return true;
-            if (!p.notes && filterByPeriod(p.date)) return true;
-            return false;
-        };
-
-        const allAssignments = getAssignments('ALL', currentUser?.id, isManager);
-        const hwCols = allAssignments.filter(a => a.category === 'HOMEWORK' && isAssignmentInScope(a));
-        const actCols = allAssignments.filter(a => a.category === 'ACTIVITY' && isAssignmentInScope(a));
-        const examCols = allAssignments.filter(a => a.category === 'PLATFORM_EXAM' && isAssignmentInScope(a));
-
-        const validHWIds = new Set(hwCols.map(a => a.id));
-        const validActIds = new Set(actCols.map(a => a.id));
-        const validExamIds = new Set(examCols.map(a => a.id));
-
-        const hwRecs = performance.filter(p => p.category === 'HOMEWORK' && isRecordInScope(p, validHWIds));
-        const actRecs = performance.filter(p => p.category === 'ACTIVITY' && isRecordInScope(p, validActIds));
-        const examRecs = performance.filter(p => p.category === 'PLATFORM_EXAM' && isRecordInScope(p, validExamIds));
-
-        const hwMax = yearWorkConfig.hw;
-        let hwGrade = 0;
-        let hwCompletion = 0;
-        
-        if (hwCols.length > 0) {
-            const totalEarned = hwRecs.reduce((sum, r) => sum + r.score, 0);
-            const totalPossible = hwCols.reduce((sum, c) => sum + c.maxScore, 0);
-            
-            hwCompletion = totalPossible > 0 ? Math.min(Math.round((totalEarned / totalPossible) * 100), 100) : 0;
-            
-            hwGrade = (hwCompletion / 100) * hwMax;
-        } else if (hwRecs.length > 0) {
-             hwGrade = hwMax; 
-             hwCompletion = 100;
-        }
-
-        const actMax = yearWorkConfig.act;
-        let actGrade = 0;
-        let actCompletion = 0;
-        
-        if (actCols.length > 0) {
-             const totalEarned = actRecs.reduce((sum, r) => sum + r.score, 0);
-             const totalPossible = actCols.reduce((sum, c) => sum + c.maxScore, 0);
-
-             actCompletion = totalPossible > 0 ? Math.min(Math.round((totalEarned / totalPossible) * 100), 100) : 0;
-        } else {
-             let actSumVal = 0; 
-             actRecs.forEach(p => actSumVal += p.score);
-             actCompletion = activityTarget > 0 ? Math.min(Math.round((actSumVal / activityTarget) * 100), 100) : 0;
-        }
-        
-        actGrade = (actCompletion / 100) * actMax;
-
-        const attMax = yearWorkConfig.att;
-        const termAtt = attendance.filter(a => a.studentId === student.id && filterByPeriod(a.date));
-        const present = termAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
-        const attGrade = termAtt.length > 0 ? (present / termAtt.length) * attMax : attMax;
-
-        const examMax = yearWorkConfig.exam;
-        let examScoreTotal = 0; 
-        let examMaxTotal = 0;
-        if (examCols.length > 0) {
-             examCols.forEach(col => {
-                 const rec = examRecs.find(r => r.notes === col.id);
-                 examMaxTotal += col.maxScore;
-                 if (rec) examScoreTotal += rec.score;
-             });
-        } else {
-             examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
-        }
-        const examGrade = examMaxTotal > 0 ? (examScoreTotal / examMaxTotal) * examMax : 0;
-
-        const total = hwGrade + actGrade + attGrade + examGrade;
-        return { hwGrade, actGrade, attGrade, examGrade, total, hwCompletion, actCompletion };
-    };
-
-    const handleExport = () => {
-        const rows = filteredStudents.map(s => {
-            const rowData: any = { 'الاسم': s.name, 'الصف': s.gradeLevel, 'الفصل': s.className };
-            if (activeTab === 'YEAR_WORK') {
-                const yw = calculateYearWork(s);
-                rowData['واجبات'] = yw.hwGrade.toFixed(1); 
-                rowData['نسبة الواجبات'] = yw.hwCompletion + '%';
-                rowData['أنشطة'] = yw.actGrade.toFixed(1);
-                rowData['نسبة الأنشطة'] = yw.actCompletion + '%';
-                rowData['حضور'] = yw.attGrade.toFixed(1); 
-                rowData['اختبارات'] = yw.examGrade.toFixed(1); 
-                rowData['المجموع'] = yw.total.toFixed(1);
-            } else {
-                const filteredAssignments = assignments.filter(a => {
-                    const termMatch = !selectedTermId || (a.termId === selectedTermId);
-                    // Relaxed export filter
-                    const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
-                    return termMatch && periodMatch && a.category === activeTab;
-                });
-
-                filteredAssignments.forEach(a => { rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || ''; });
-                if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
-                    let sum = 0;
-                    let max = 0;
-                    filteredAssignments.forEach(a => {
-                        const val = scores[s.id]?.[a.id];
-                        if (val && !isNaN(parseFloat(val))) sum += parseFloat(val);
-                        max += a.maxScore;
-                    });
-                    rowData['المجموع'] = `${sum} / ${max}`;
-                }
-            }
-            return rowData;
-        });
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Scores");
-        XLSX.writeFile(wb, `Tracking_${activeTab}_${selectedClass || 'All'}.xlsx`);
-    };
-
-    const activeTerm = terms.find(t => t.id === selectedTermId);
-    
-    // SORT PERIODS HERE: Use Memo to sort periods chronologically by startDate or name
-    const activePeriods = useMemo(() => {
-        if (!activeTerm?.periods) return [];
-        return [...activeTerm.periods].sort((a, b) => {
-            const dateA = a.startDate || '';
-            const dateB = b.startDate || '';
-            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
-            // Fallback to name sort
-            return a.name.localeCompare(b.name, 'ar');
-        });
-    }, [activeTerm]);
-    
-    const settingsTerm = terms.find(t => t.id === settingTermId);
-    
-    // SORT SETTINGS PERIODS
-    const settingsPeriods = useMemo(() => {
-        if (!settingsTerm?.periods) return [];
-        return [...settingsTerm.periods].sort((a, b) => {
-            const dateA = a.startDate || '';
-            const dateB = b.startDate || '';
-            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
-            return a.name.localeCompare(b.name, 'ar');
-        });
-    }, [settingsTerm]);
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -789,76 +169,57 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let filtered = students;
         if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass);
         if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm));
-        return filtered.sort((a,b) => {
-            if (a.className === b.className) return a.name.localeCompare(b.name);
-            return (a.className || '').localeCompare(b.className || '');
-        });
+        return filtered.sort((a,b) => a.name.localeCompare(b.name));
     }, [students, selectedClass, searchTerm]);
 
     const filteredAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !selectedTermId || (a.termId === selectedTermId);
-            // RELAXED FILTER: Include general assignments (no period)
             const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
 
-    const settingsAssignments = useMemo(() => {
-        if (activeTab === 'YEAR_WORK') return [];
-        return assignments.filter(a => {
-            const termMatch = !settingTermId || a.termId === settingTermId;
-            const periodMatch = !settingPeriodId || !a.periodId || a.periodId === settingPeriodId;
-            return termMatch && periodMatch;
-        }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-    }, [assignments, settingTermId, settingPeriodId, activeTab]);
+    const handleAddColumn = () => {
+        const title = prompt('عنوان العمود الجديد (مثال: واجب 5):');
+        if (!title) return;
+        const max = prompt('الدرجة العظمى:', '10');
+        const newAssign: Assignment = {
+            id: Date.now().toString(),
+            title, category: activeTab as any, maxScore: Number(max) || 10, isVisible: true, teacherId: currentUser?.id, termId: selectedTermId || undefined
+        };
+        saveAssignment(newAssign);
+        setAssignments(fetchAssignments(activeTab));
+    };
+
+    // Render Logic for Score Cell
+    const getScoreStyle = (score: number, max: number) => {
+        const ratio = score / max;
+        if (ratio === 1) return 'bg-green-50 text-green-700 font-bold border-green-200'; // Full Mark
+        if (ratio < 0.5) return 'bg-red-50 text-red-700 font-bold border-red-200'; // Fail
+        return 'text-gray-800';
+    };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
+        <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
             
-            {/* Sync Indicator */}
-            {isRefreshing && (
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg z-50 flex items-center gap-2 animate-pulse text-sm font-bold">
-                    <RefreshCw size={16} className="animate-spin"/> جاري تحديث البيانات من السحابة...
-                </div>
-            )}
-
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Table className="text-purple-600"/> سجل الرصد والمتابعة</h2>
-                        {/* Auto Save Toggle */}
-                        {activeTab !== 'YEAR_WORK' && (
-                            <div 
-                                className={`flex items-center gap-2 px-3 py-1 rounded-full border cursor-pointer transition-colors text-xs font-bold ${autoSaveEnabled ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-500'}`}
-                                onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
-                            >
-                                <div className={`w-3 h-3 rounded-full ${autoSaveEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-                                {autoSaveEnabled ? 'الحفظ التلقائي مفعل' : 'الحفظ التلقائي معطل'}
-                            </div>
-                        )}
+                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Table className="text-purple-600"/> سجل الدرجات الإلكتروني</h2>
                         {isSaving && <span className="text-xs text-blue-600 font-bold flex items-center gap-1"><RefreshCw size={10} className="animate-spin"/> جاري الحفظ...</span>}
-                        {!isSaving && lastSaved && <span className="text-[10px] text-gray-400">آخر حفظ: {lastSaved.toLocaleTimeString()}</span>}
+                        {!isSaving && lastSaved && <span className="text-[10px] text-gray-400">محفوظ: {lastSaved.toLocaleTimeString()}</span>}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                         <div className="flex items-center bg-gray-50 border rounded-lg px-2 py-1">
-                            <Calendar size={16} className="text-gray-400 ml-2"/>
-                            <select className="bg-transparent text-sm font-bold text-gray-700 outline-none min-w-[120px]" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
+                            <Filter size={16} className="text-gray-400 ml-2"/>
+                            <select className="bg-transparent text-sm font-bold text-gray-700 outline-none min-w-[100px]" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
                                 <option value="">كل الفترات</option>
                                 {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
                         </div>
-                        {activePeriods.length > 0 && (
-                            <div className="flex items-center bg-gray-50 border rounded-lg px-2 py-1">
-                                <span className="text-xs text-gray-400 ml-1">الفترة:</span>
-                                <select className="bg-transparent text-sm font-bold text-gray-700 outline-none" value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)}>
-                                    <option value="">الكل (عام)</option>
-                                    {activePeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
-                            </div>
-                        )}
                         <select className="p-2 border rounded-lg bg-gray-50 text-sm font-bold min-w-[120px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
                             <option value="">-- المادة --</option>
                             {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -875,50 +236,20 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         <button onClick={() => setActiveTab('HOMEWORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'HOMEWORK' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>الواجبات</button>
                         <button onClick={() => setActiveTab('ACTIVITY')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'ACTIVITY' ? 'bg-amber-100 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}>الأنشطة</button>
                         <button onClick={() => setActiveTab('PLATFORM_EXAM')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'PLATFORM_EXAM' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-100'}`}>الاختبارات</button>
-                        <button onClick={() => setActiveTab('YEAR_WORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'YEAR_WORK' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>أعمال السنة (تجميعي)</button>
                     </div>
 
                     <div className="flex gap-2">
-                        {googleSheetUrl && (
-                            <button 
-                                onClick={() => handleQuickSheetSync(false)} 
-                                disabled={isSheetSyncing}
-                                className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200"
-                                title="تحديث الدرجات من ملف Google Sheet المرتبط"
-                            >
-                                {isSheetSyncing ? <Loader2 size={16} className="animate-spin"/> : <CloudLightning size={16}/>} 
-                                تحديث من الملف
-                            </button>
-                        )}
-                        <button 
-                            onClick={handleRefreshAll} 
-                            disabled={isRefreshing}
-                            className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-200"
-                        >
-                            {isRefreshing ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>} تحديث الكل
+                        <button onClick={handleAddColumn} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
+                            <Plus size={16}/> عمود جديد
                         </button>
-                        <button onClick={() => { setIsSettingsOpen(true); setSettingTermId(selectedTermId || ''); }} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
-                            <Settings size={16}/> إعدادات {activeTab === 'YEAR_WORK' ? 'توزيع الدرجات' : 'الأعمدة'}
+                        <button onClick={() => handleSaveScores(false)} disabled={isSaving} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold hover:opacity-90 shadow-md transition-transform hover:scale-105">
+                            {isSaving ? <Settings size={16} className="animate-spin"/> : <Save size={16}/>} حفظ التغييرات
                         </button>
-                        {activeTab !== 'YEAR_WORK' && (
-                            <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200">
-                                <FileSpreadsheet size={16}/> استيراد درجات
-                            </button>
-                        )}
-                        <button onClick={handleExport} className="flex items-center gap-1 bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-100 border border-gray-200">
-                            <Download size={16}/> تصدير
-                        </button>
-                        {activeTab !== 'YEAR_WORK' && (
-                            <button onClick={() => handleSaveScores(false)} disabled={isSaving} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold hover:opacity-90 shadow-md">
-                                {isSaving ? <Settings size={16} className="animate-spin"/> : <Save size={16}/>} حفظ
-                            </button>
-                        )}
                     </div>
                 </div>
-                {isSheetSyncing && <div className="text-xs text-blue-600 mt-2 font-bold animate-pulse text-center">{syncStatusMsg || 'جاري تحديث البيانات...'}</div>}
             </div>
 
-            {/* Main Table */}
+            {/* Grid Area */}
             {filteredStudents.length > 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 overflow-hidden flex flex-col">
                     <div className="flex-1 overflow-auto custom-scrollbar">
@@ -927,430 +258,86 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <tr>
                                     <th className="p-3 border-l w-12 bg-gray-50">#</th>
                                     <th className="p-3 border-l w-64 text-right bg-gray-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
-                                    {!selectedClass && <th className="p-3 border-l w-32 bg-gray-50">الفصل</th>}
                                     
-                                    {activeTab === 'YEAR_WORK' ? (
-                                        <>
-                                            <th className="p-3 border-l bg-blue-50 text-blue-800">واجبات ({yearWorkConfig.hw})</th>
-                                            <th className="p-3 border-l bg-blue-50 text-blue-600 font-normal">% الإنجاز</th>
-                                            <th className="p-3 border-l bg-amber-50 text-amber-800">أنشطة ({yearWorkConfig.act})</th>
-                                            <th className="p-3 border-l bg-amber-50 text-amber-600 font-normal">% الإنجاز</th>
-                                            <th className="p-3 border-l bg-green-50 text-green-800">حضور ({yearWorkConfig.att})</th>
-                                            <th className="p-3 border-l bg-purple-50 text-purple-800">اختبارات ({yearWorkConfig.exam})</th>
-                                            <th className="p-3 border-l bg-gray-800 text-white">المجموع ({yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam})</th>
-                                        </>
-                                    ) : (
-                                        <>
-                                            {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
-                                                <>
-                                                    <th className="p-2 border-l w-24 bg-gray-100 font-bold text-gray-600">% الإنجاز</th>
-                                                    <th className="p-2 border-l w-24 bg-gray-200 font-bold text-gray-800">المجموع</th>
-                                                </>
-                                            )}
-                                            {filteredAssignments.map(assign => (
-                                                <th key={assign.id} className="p-2 border-l min-w-[120px] group relative">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="flex items-center gap-1">
-                                                            {assign.title}
-                                                            {assign.url && <a href={assign.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><ExternalLink size={12}/></a>}
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
-                                                    </div>
-                                                </th>
-                                            ))}
-                                        </>
-                                    )}
+                                    {/* Completion Stats */}
+                                    <th className="p-2 border-l w-24 bg-gray-100 font-bold text-gray-600">% الإنجاز</th>
+                                    <th className="p-2 border-l w-24 bg-gray-200 font-bold text-gray-800">المجموع</th>
+
+                                    {/* Dynamic Columns */}
+                                    {filteredAssignments.map(assign => (
+                                        <th key={assign.id} className="p-2 border-l min-w-[100px] group relative">
+                                            <div className="flex flex-col items-center">
+                                                <span className="flex items-center gap-1 truncate max-w-[120px]" title={assign.title}>{assign.title}</span>
+                                                <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
+                                            </div>
+                                            <button onClick={() => {if(confirm('حذف العمود؟')) {deleteAssignment(assign.id); setAssignments(fetchAssignments(activeTab))}}} className="absolute top-1 left-1 text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={12}/></button>
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredStudents.map((student, idx) => {
-                                    if (activeTab === 'YEAR_WORK') {
-                                        const yw = calculateYearWork(student);
-                                        return (
-                                            <tr key={student.id} className="hover:bg-gray-50 border-b">
-                                                <td className="p-3 border-l text-gray-500">{idx + 1}</td>
-                                                <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
-                                                {!selectedClass && <td className="p-3 border-l text-gray-500 text-xs">{student.className}</td>}
-                                                <td className="p-3 border-l font-bold bg-blue-50/30">{yw.hwGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l text-xs">
-                                                    <span className={`px-2 py-1 rounded font-bold ${yw.hwCompletion >= 80 ? 'bg-green-100 text-green-700' : yw.hwCompletion >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                                        {yw.hwCompletion}%
-                                                    </span>
-                                                </td>
-                                                <td className="p-3 border-l font-bold bg-amber-50/30">{yw.actGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l text-xs">
-                                                    <span className={`px-2 py-1 rounded font-bold ${yw.actCompletion >= 80 ? 'bg-green-100 text-green-700' : yw.actCompletion >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                                        {yw.actCompletion}%
-                                                    </span>
-                                                </td>
-                                                <td className="p-3 border-l font-bold bg-green-50/30">{yw.attGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l font-bold bg-purple-50/30">{yw.examGrade.toFixed(1)}</td>
-                                                <td className="p-3 border-l font-black text-white bg-gray-800">{yw.total.toFixed(1)}</td>
-                                            </tr>
-                                        );
-                                    }
-
-                                    // Completion Rate & Total Score Calculation
-                                    let completionRate = 0;
+                                    // Calculations
                                     let totalScore = 0;
                                     let totalMax = 0;
-
-                                    if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
-                                        const total = filteredAssignments.length;
-                                        // Count only existing assignments in score
-                                        filteredAssignments.forEach(a => {
-                                            const rawVal = scores[student.id]?.[a.id];
-                                            if (rawVal !== undefined && rawVal !== '') {
-                                                if (!isNaN(parseFloat(rawVal))) {
-                                                    totalScore += parseFloat(rawVal);
-                                                }
-                                            }
-                                            totalMax += a.maxScore;
-                                        });
-                                        completionRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
-                                    }
+                                    filteredAssignments.forEach(a => {
+                                        const rawVal = scores[student.id]?.[a.id];
+                                        if (rawVal && !isNaN(parseFloat(rawVal))) totalScore += parseFloat(rawVal);
+                                        totalMax += a.maxScore;
+                                    });
+                                    const completionRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
 
                                     return (
                                         <tr key={student.id} className="hover:bg-gray-50 border-b transition-colors">
                                             <td className="p-3 border-l text-gray-500">{idx + 1}</td>
                                             <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
-                                            {!selectedClass && <td className="p-3 border-l text-gray-500 text-xs">{student.className}</td>}
                                             
-                                            {/* Completion & Total Columns */}
-                                            {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
-                                                <>
-                                                    <td className="p-3 border-l">
-                                                        <span className={`px-2 py-1 rounded font-bold text-xs ${completionRate >= 80 ? 'bg-green-100 text-green-700' : completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                                            {completionRate}%
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-3 border-l font-bold text-gray-800 bg-gray-50">
-                                                        {totalScore} <span className="text-gray-400 text-[10px]">/ {totalMax}</span>
-                                                    </td>
-                                                </>
-                                            )}
+                                            {/* Stats Cells */}
+                                            <td className="p-3 border-l">
+                                                <div className={`px-2 py-1 rounded font-bold text-xs ${completionRate >= 80 ? 'bg-green-100 text-green-700' : completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {completionRate}%
+                                                </div>
+                                            </td>
+                                            <td className="p-3 border-l font-black text-gray-800 bg-gray-50">
+                                                {totalScore}
+                                            </td>
 
-                                            {filteredAssignments.map(assign => (
-                                                <td key={assign.id} className="p-0 border-l relative h-10">
-                                                    <input 
-                                                        type="number"
-                                                        className={`w-full h-full p-2 text-center outline-none bg-transparent focus:bg-indigo-50 font-medium ${scores[student.id]?.[assign.id] ? 'text-indigo-700 font-bold' : 'text-gray-400'}`}
-                                                        value={scores[student.id]?.[assign.id] || ''}
-                                                        onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
-                                                        placeholder="-"
-                                                    />
-                                                </td>
-                                            ))}
+                                            {/* Input Cells */}
+                                            {filteredAssignments.map(assign => {
+                                                const val = scores[student.id]?.[assign.id];
+                                                const numVal = parseFloat(val || '0');
+                                                const cellStyle = val ? getScoreStyle(numVal, assign.maxScore) : 'text-gray-400';
+
+                                                return (
+                                                    <td key={assign.id} className="p-0 border-l relative h-10">
+                                                        <input 
+                                                            type="number"
+                                                            className={`w-full h-full p-2 text-center outline-none bg-transparent focus:bg-indigo-50 font-medium transition-colors ${cellStyle}`}
+                                                            value={val || ''}
+                                                            onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
+                                                            placeholder="-"
+                                                        />
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
-                        {filteredStudents.length === 0 && <div className="p-10 text-center text-gray-400">لا يوجد طلاب في هذا الفصل</div>}
-                        {activeTab !== 'YEAR_WORK' && filteredAssignments.length === 0 && <div className="p-10 text-center text-gray-400">لم تقم بإضافة أي أعمدة (واجبات/اختبارات). اضغط "إعدادات الأعمدة"</div>}
+                        {filteredAssignments.length === 0 && (
+                            <div className="p-12 text-center text-gray-400 flex flex-col items-center">
+                                <Table size={48} className="mb-4 opacity-20"/>
+                                <p>لم تقم بإضافة أي أعمدة (واجبات/اختبارات) لهذا التصنيف بعد.</p>
+                                <button onClick={handleAddColumn} className="mt-4 text-blue-600 hover:underline">إضافة عمود الآن</button>
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
                     <Table size={48} className="mb-4 opacity-20"/>
-                    <p>لا توجد بيانات للعرض. تأكد من اختيار الفلتر المناسب.</p>
-                </div>
-            )}
-
-            {isSettingsOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-bounce-in">
-                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Settings size={18}/> {activeTab === 'YEAR_WORK' ? 'توزيع درجات أعمال السنة' : `إعدادات الأعمدة (${activeTab})`}</h3>
-                            <button onClick={() => { setIsSettingsOpen(false); setSyncStep('URL'); }} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            {/* Year Work Configuration */}
-                            {activeTab === 'YEAR_WORK' ? (
-                                <div className="space-y-6">
-                                    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-                                        <h4 className="font-bold text-indigo-800 mb-4 flex items-center gap-2"><Calculator size={16}/> توزيع الدرجات (Weighting)</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-1">الواجبات</label>
-                                                <input type="number" className="w-full p-2 border rounded" value={yearWorkConfig.hw} onChange={e => setYearWorkConfig({...yearWorkConfig, hw: Number(e.target.value)})} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-1">الأنشطة</label>
-                                                <input type="number" className="w-full p-2 border rounded" value={yearWorkConfig.act} onChange={e => setYearWorkConfig({...yearWorkConfig, act: Number(e.target.value)})} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-1">الحضور</label>
-                                                <input type="number" className="w-full p-2 border rounded" value={yearWorkConfig.att} onChange={e => setYearWorkConfig({...yearWorkConfig, att: Number(e.target.value)})} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-1">الاختبارات</label>
-                                                <input type="number" className="w-full p-2 border rounded" value={yearWorkConfig.exam} onChange={e => setYearWorkConfig({...yearWorkConfig, exam: Number(e.target.value)})} />
-                                            </div>
-                                        </div>
-                                        <div className="mt-4 pt-4 border-t border-indigo-200 flex justify-between items-center">
-                                            <span className="font-bold text-gray-700">المجموع الكلي: {yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam}</span>
-                                            <button onClick={() => { setIsSettingsOpen(false); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold hover:bg-indigo-700">حفظ الإعدادات</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Google Sync Section */}
-                                    <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                                        <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2"><FileSpreadsheet size={16}/> استيراد من Google Sheets</h4>
-                                        
-                                        {syncStep === 'URL' ? (
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-xs font-bold text-green-700 mb-1">رابط الملف</label>
-                                                    <input 
-                                                        className="w-full p-2 border rounded text-xs dir-ltr" 
-                                                        placeholder="https://docs.google.com/spreadsheets/d/..."
-                                                        value={googleSheetUrl}
-                                                        onChange={e => setGoogleSheetUrl(e.target.value)}
-                                                    />
-                                                </div>
-                                                <button 
-                                                    onClick={handleFetchSheetStructure} 
-                                                    disabled={isFetchingStructure}
-                                                    className="bg-green-600 text-white w-full py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
-                                                >
-                                                    {isFetchingStructure ? <Loader2 size={16} className="animate-spin"/> : <Search size={16}/>}
-                                                    فحص الملف
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4 animate-fade-in">
-                                                {/* Setup Section */}
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-green-700 mb-1">ورقة العمل</label>
-                                                        <select className="w-full p-2 border rounded text-xs" value={selectedSheetName} onChange={e => { setSelectedSheetName(e.target.value); analyzeSheet(workbookRef, e.target.value); }}>
-                                                            {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-green-700 mb-1">للفصل الدراسي:</label>
-                                                        <select className="w-full p-2 border rounded text-xs" value={settingTermId} onChange={e => setSettingTermId(e.target.value)}>
-                                                            <option value="">اختر الفصل...</option>
-                                                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-green-700 mb-1">للفترة (اختياري):</label>
-                                                        <select className="w-full p-2 border rounded text-xs" value={settingPeriodId} onChange={e => setSettingPeriodId(e.target.value)}>
-                                                            <option value="">عام / كامل الفصل</option>
-                                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                {/* Unmatched Warning */}
-                                                {unmatchedStudents.length > 0 && (
-                                                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-xs">
-                                                        <div className="flex items-center gap-2 text-amber-800 font-bold mb-1">
-                                                            <AlertTriangle size={14}/> تنبيه: طلاب غير موجودين ({unmatchedStudents.length})
-                                                        </div>
-                                                        <div className="max-h-20 overflow-y-auto text-amber-700 px-2">
-                                                            {unmatchedStudents.join(', ')}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Column Selection */}
-                                                <div>
-                                                    <label className="block text-xs font-bold text-green-700 mb-2">اختر الأعمدة لإضافتها/تحديثها:</label>
-                                                    <div className="max-h-40 overflow-y-auto border rounded bg-white p-2 grid grid-cols-2 gap-2">
-                                                        {availableHeaders.length > 0 ? availableHeaders.map(h => (
-                                                            <label key={h} className="flex items-center gap-2 p-1.5 hover:bg-green-50 rounded cursor-pointer text-xs">
-                                                                <div onClick={() => toggleHeaderSelection(h)} className={`w-4 h-4 border rounded flex items-center justify-center ${selectedHeaders.has(h) ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300'}`}>
-                                                                    {selectedHeaders.has(h) && <Check size={10}/>}
-                                                                </div>
-                                                                <span className={selectedHeaders.has(h) ? 'font-bold text-green-800' : 'text-gray-600'}>{h}</span>
-                                                            </label>
-                                                        )) : <p className="col-span-2 text-center text-gray-400">لا توجد أعمدة صالحة</p>}
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => setSyncStep('URL')} className="flex-1 py-2 border rounded text-xs font-bold text-gray-600 hover:bg-gray-50">عودة</button>
-                                                    <button 
-                                                        onClick={handleConfirmManualSync} 
-                                                        disabled={isFetchingStructure || selectedHeaders.size === 0 || !settingTermId}
-                                                        className="flex-2 w-full bg-green-600 text-white py-2 rounded font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50"
-                                                    >
-                                                        {isFetchingStructure ? <Loader2 size={16} className="animate-spin"/> : <DownloadCloud size={16}/>}
-                                                        مزامنة وتحديث ({selectedHeaders.size})
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Manual Management */}
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="font-bold text-gray-700">الأعمدة الحالية ({settingsAssignments.length})</h4>
-                                            <div className="flex gap-2">
-                                                <select className="text-xs border rounded px-1 outline-none" value={settingPeriodId} onChange={e => setSettingPeriodId(e.target.value)}>
-                                                    <option value="">فترة: عام</option>
-                                                    {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                </select>
-                                                <button onClick={handleAddManualColumn} className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded border border-indigo-200 font-bold flex items-center gap-1 hover:bg-indigo-100">
-                                                    <Plus size={14}/> إضافة يدوي
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            {settingsAssignments.map(col => (
-                                                <div key={col.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded border hover:bg-white hover:shadow-sm transition-all">
-                                                    <input 
-                                                        className="font-bold text-gray-800 bg-transparent outline-none w-1/3 text-sm" 
-                                                        value={col.title} 
-                                                        onChange={e => handleUpdateColumn(col, { title: e.target.value })}
-                                                    />
-                                                    <span className="text-xs text-gray-400">Max:</span>
-                                                    <input 
-                                                        type="number" 
-                                                        className="w-12 p-1 border rounded text-center text-xs font-bold" 
-                                                        value={col.maxScore} 
-                                                        onChange={e => handleUpdateColumn(col, { maxScore: Number(e.target.value) })}
-                                                    />
-                                                    
-                                                    {/* Period Selector in Edit Mode */}
-                                                    {settingsPeriods.length > 0 && (
-                                                        <select 
-                                                            className="text-xs border rounded p-1 max-w-[80px]"
-                                                            value={col.periodId || ''}
-                                                            onChange={e => handleUpdateColumn(col, { periodId: e.target.value || undefined })}
-                                                        >
-                                                            <option value="">عام</option>
-                                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                        </select>
-                                                    )}
-
-                                                    <div className="flex-1 flex items-center gap-1 bg-white border rounded px-2">
-                                                        <LinkIcon size={12} className="text-gray-400"/>
-                                                        <input 
-                                                            className="w-full p-1 text-xs outline-none text-blue-600 dir-ltr" 
-                                                            placeholder="رابط إثرائي (اختياري)"
-                                                            value={col.url || ''}
-                                                            onChange={e => handleUpdateColumn(col, { url: e.target.value })}
-                                                        />
-                                                    </div>
-                                                    <button onClick={() => handleDeleteAssignment(col.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
-                                                </div>
-                                            ))}
-                                            {settingsAssignments.length === 0 && <p className="text-center text-gray-400 text-xs py-4">لا توجد أعمدة في هذه الفترة.</p>}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="p-4 border-t bg-gray-50 text-right">
-                            <button onClick={() => { setIsSettingsOpen(false); setSyncStep('URL'); }} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-black">إغلاق</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Sync Audit Modal (NEW) */}
-            {isSyncModalOpen && (
-                <div className="fixed inset-0 z-[110] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-bounce-in overflow-hidden">
-                        <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
-                            <div>
-                                <h3 className="font-bold text-xl text-gray-800 flex items-center gap-2"><RefreshCw size={22} className="text-blue-600"/> مراجعة التغييرات (Sync Audit)</h3>
-                                <p className="text-sm text-gray-500 mt-1">يرجى مراجعة التغييرات التي تم اكتشافها في الملف قبل الاعتماد.</p>
-                            </div>
-                            <button onClick={() => setIsSyncModalOpen(false)} className="text-gray-400 hover:text-red-500 bg-white p-2 rounded-full border border-gray-200 hover:border-red-200"><X size={20}/></button>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
-                            {/* Summary */}
-                            <div className="flex gap-4 mb-6">
-                                <div className="flex-1 bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-center gap-3">
-                                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Plus size={24}/></div>
-                                    <div>
-                                        <div className="text-2xl font-black text-blue-800">{syncDiffs.filter(d => d.type === 'NEW_SCORE' || d.type === 'NEW_COLUMN').length}</div>
-                                        <div className="text-xs text-blue-600 font-bold">عناصر جديدة</div>
-                                    </div>
-                                </div>
-                                <div className="flex-1 bg-yellow-50 border border-yellow-200 p-4 rounded-xl flex items-center gap-3">
-                                    <div className="bg-yellow-100 p-2 rounded-lg text-yellow-600"><RefreshCw size={24}/></div>
-                                    <div>
-                                        <div className="text-2xl font-black text-yellow-800">{syncDiffs.filter(d => d.type === 'UPDATE_SCORE').length}</div>
-                                        <div className="text-xs text-yellow-600 font-bold">تحديثات</div>
-                                    </div>
-                                </div>
-                                <div className="flex-1 bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3">
-                                    <div className="bg-red-100 p-2 rounded-lg text-red-600"><Trash2 size={24}/></div>
-                                    <div>
-                                        <div className="text-2xl font-black text-red-800">{syncDiffs.filter(d => d.type === 'DELETE_SCORE').length}</div>
-                                        <div className="text-xs text-red-600 font-bold">حذوفات (تصفير)</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Detailed List */}
-                            <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
-                                <table className="w-full text-sm text-right">
-                                    <thead className="bg-gray-100 text-gray-700 font-bold">
-                                        <tr>
-                                            <th className="p-3 w-16 text-center">النوع</th>
-                                            <th className="p-3">التفاصيل</th>
-                                            <th className="p-3 w-32 text-center">القيمة القديمة</th>
-                                            <th className="p-3 w-32 text-center">القيمة الجديدة</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {syncDiffs.map((diff, idx) => (
-                                            <tr key={idx} className="hover:bg-gray-50">
-                                                <td className="p-3 text-center">
-                                                    {diff.type === 'NEW_COLUMN' && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">عمود جديد</span>}
-                                                    {diff.type === 'NEW_SCORE' && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">درجة جديدة</span>}
-                                                    {diff.type === 'UPDATE_SCORE' && <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">تعديل</span>}
-                                                    {diff.type === 'DELETE_SCORE' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">حذف</span>}
-                                                </td>
-                                                <td className="p-3 text-gray-700">{diff.details}</td>
-                                                <td className="p-3 text-center font-mono text-gray-500">{diff.oldVal !== undefined ? diff.oldVal : '-'}</td>
-                                                <td className="p-3 text-center font-bold text-gray-800">{diff.newVal !== undefined ? diff.newVal : '-'}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div className="p-5 border-t bg-white flex justify-end gap-3">
-                            <button onClick={() => setIsSyncModalOpen(false)} className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-600 font-bold hover:bg-gray-50 transition-colors">إلغاء</button>
-                            <button onClick={commitSync} className="px-8 py-2.5 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 shadow-lg flex items-center gap-2 transition-transform hover:scale-105">
-                                <Check size={18}/> اعتماد وتطبيق التغييرات
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Import Modal */}
-            {isImportModalOpen && !isManager && (
-                <div className="fixed inset-0 z-[100] bg-white">
-                    <DataImport 
-                        existingStudents={students}
-                        onImportStudents={() => {}}
-                        onImportAttendance={() => {}} 
-                        onImportPerformance={(records) => {
-                            onAddPerformance(records);
-                            setIsImportModalOpen(false);
-                            alert('تم استيراد الدرجات بنجاح');
-                        }}
-                        forcedType="PERFORMANCE"
-                        onClose={() => setIsImportModalOpen(false)}
-                        currentUser={currentUser}
-                    />
+                    <p>اختر الفصل والمادة لعرض السجل.</p>
                 </div>
             )}
         </div>
