@@ -579,37 +579,41 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const actRecs = performance.filter(p => p.category === 'ACTIVITY' && isRecordInScope(p, validActIds));
         const examRecs = performance.filter(p => p.category === 'PLATFORM_EXAM' && isRecordInScope(p, validExamIds));
 
-        // Calculations
+        // --- HOMEWORK CALCULATIONS ---
         const hwMax = yearWorkConfig.hw;
         let hwGrade = 0;
         let hwCompletion = 0;
         
         if (hwCols.length > 0) {
-            const totalEarned = hwRecs.reduce((sum, r) => sum + r.score, 0);
-            const totalPossible = hwCols.reduce((sum, c) => sum + c.maxScore, 0);
-            hwGrade = totalPossible > 0 ? (totalEarned / totalPossible) * hwMax : 0;
-            
             // Calculate completion based on number of submitted assignments vs total required columns
             const distinctHWSubmitted = new Set(hwRecs.map(r => r.notes)).size;
             hwCompletion = Math.min(Math.round((distinctHWSubmitted / hwCols.length) * 100), 100);
+            
+            // Grade derived from Completion %
+            hwGrade = (hwCompletion / 100) * hwMax;
         } else if (hwRecs.length > 0) {
+             // Fallback
              hwGrade = hwMax; 
              hwCompletion = 100;
         }
 
+        // --- ACTIVITY CALCULATIONS ---
         const actMax = yearWorkConfig.act;
-        let actSumVal = 0; 
-        actRecs.forEach(p => actSumVal += p.score);
-        const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * actMax, actMax) : 0;
-        // Activity Completion: Based on assignments count if possible, or just raw activity count vs target
+        let actGrade = 0;
         let actCompletion = 0;
+        
         if (actCols.length > 0) {
              const distinctActSubmitted = new Set(actRecs.map(r => r.notes)).size;
              actCompletion = Math.min(Math.round((distinctActSubmitted / actCols.length) * 100), 100);
         } else {
-             // Fallback if no columns defined (manual entry)
+             // Fallback if no columns defined (manual entry vs Target)
+             let actSumVal = 0; 
+             actRecs.forEach(p => actSumVal += p.score);
              actCompletion = activityTarget > 0 ? Math.min(Math.round((actSumVal / activityTarget) * 100), 100) : 0;
         }
+        
+        // Grade derived from Completion %
+        actGrade = (actCompletion / 100) * actMax;
 
         const attMax = yearWorkConfig.att;
         const termAtt = attendance.filter(a => a.studentId === student.id && filterByPeriod(a.date));
