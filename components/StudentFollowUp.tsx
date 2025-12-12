@@ -158,12 +158,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             if (activeTerm && c.termId && c.termId !== activeTerm.id) return false;
             
             // 2. Period Check (If period is selected, only show assignments for that period OR global ones if permitted logic)
-            // Strict Mode: If period selected, Assignment MUST match periodId.
+            // Strict Mode: If period selected, Assignment MUST match periodId OR be general (no period)
             if (selectedPeriodId) {
                 if (c.periodId && c.periodId !== selectedPeriodId) return false;
-                // Optional: If assignment has NO periodId, do we include it? Usually yes if it's Term-wide.
-                // But for "Period 1", we usually want only "Period 1" columns.
-                if (!c.periodId) return false; // Strict: Must match period
+                // RELAXED: allow null periodId to show up in all periods
+                // if (!c.periodId) return false; 
             }
             
             return true;
@@ -387,7 +386,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                 value={selectedPeriodId}
                                 onChange={(e) => setSelectedPeriodId(e.target.value)}
                             >
-                                <option value="">كامل الفصل</option>
+                                <option value="">الكل (عام)</option>
                                 {activeTermPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </div>

@@ -627,8 +627,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         
         const isAssignmentInScope = (a: Assignment) => {
             if (selectedTermId && a.termId && a.termId !== selectedTermId) return false;
+            
+            // Relaxed check: Allow assignments with NO period (General) to appear in ALL periods
             if (selectedPeriodId && a.periodId && a.periodId !== selectedPeriodId) return false;
-            if (selectedPeriodId) return a.periodId === selectedPeriodId;
+            
             if (selectedTermId) return a.termId === selectedTermId;
             return true;
         };
@@ -725,7 +727,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             } else {
                 const filteredAssignments = assignments.filter(a => {
                     const termMatch = !selectedTermId || (a.termId === selectedTermId);
-                    const periodMatch = !selectedPeriodId || (a.periodId === selectedPeriodId);
+                    // Relaxed period match for export too
+                    const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
                     return termMatch && periodMatch && a.category === activeTab;
                 });
 
@@ -795,7 +798,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !selectedTermId || (a.termId === selectedTermId);
-            const periodMatch = !selectedPeriodId || (a.periodId === selectedPeriodId);
+            // RELAXED PERIOD FILTER: Show assignments if period matches OR if assignment has no period (General)
+            const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
@@ -804,7 +808,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !settingTermId || a.termId === settingTermId;
-            const periodMatch = !settingPeriodId || a.periodId === settingPeriodId;
+            const periodMatch = !settingPeriodId || !a.periodId || a.periodId === settingPeriodId;
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, settingTermId, settingPeriodId, activeTab]);
@@ -849,7 +853,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <div className="flex items-center bg-gray-50 border rounded-lg px-2 py-1">
                                 <span className="text-xs text-gray-400 ml-1">الفترة:</span>
                                 <select className="bg-transparent text-sm font-bold text-gray-700 outline-none" value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)}>
-                                    <option value="">الكل</option>
+                                    <option value="">الكل (عام)</option>
                                     {activePeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                 </select>
                             </div>
@@ -992,18 +996,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                                     if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
                                         const total = filteredAssignments.length;
-                                        let solved = 0;
+                                        // Count only existing assignments in score
                                         filteredAssignments.forEach(a => {
                                             const rawVal = scores[student.id]?.[a.id];
                                             if (rawVal !== undefined && rawVal !== '') {
-                                                solved++;
                                                 if (!isNaN(parseFloat(rawVal))) {
                                                     totalScore += parseFloat(rawVal);
                                                 }
                                             }
                                             totalMax += a.maxScore;
                                         });
-                                        completionRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : (filteredAssignments.length === 0 ? 100 : 0);
+                                        completionRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
                                     }
 
                                     return (
