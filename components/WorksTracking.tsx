@@ -17,7 +17,6 @@ interface WorksTrackingProps {
 
 const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone', 'timestamp', 'email', 'بريد'];
 
-// Expanded list of possible headers for Student Name
 const STUDENT_NAME_HEADERS = [
     'الاسم', 'اسم', 'اسم الطالب', 'الطالب', 'اسمك', 'لطالب', 
     'الاسم الثلاثي', 'الاسم الرباعي', 'الاسم الكامل',
@@ -27,7 +26,6 @@ const STUDENT_NAME_HEADERS = [
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
-    // Tab State: Cast strictly to allowed values for type safety
     const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>(() => {
         const saved = localStorage.getItem('works_active_tab');
         return (saved === 'HOMEWORK' || saved === 'ACTIVITY' || saved === 'PLATFORM_EXAM' || saved === 'YEAR_WORK') ? saved : 'HOMEWORK';
@@ -73,13 +71,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
-    // Helper to find student name in a row using multiple variations
     const findStudentNameInRow = (row: any): string | undefined => {
-        // 1. Try exact matches from list
         for (const key of STUDENT_NAME_HEADERS) {
             if (row[key]) return String(row[key]);
         }
-        // 2. Try partial key match (slower but safer)
         const rowKeys = Object.keys(row);
         for (const key of rowKeys) {
             const lowerKey = key.toLowerCase().trim();
@@ -90,13 +85,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return undefined;
     };
 
-    const fetchAssignments = (category: string) => {
-        // Use 'ALL' to fetch everything and filter locally if needed, or pass specific category
-        // The updated storage service handles 'ALL' correctly now.
+    const fetchAssignments = useCallback((category: string) => {
         return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
-    };
+    }, [currentUser, isManager]);
 
-    // --- UPDATED: Quick Sync from Google Sheet ---
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
         const url = getWorksMasterUrl();
         if (!url) {
@@ -104,17 +96,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return;
         }
         
-        const freshTerms = getAcademicTerms(currentUser?.id);
         let termToUse = selectedTermId;
-        
-        if (!termToUse) {
-             const current = freshTerms.find(t => t.isCurrent);
-             if (current) termToUse = current.id;
-             else if (freshTerms.length > 0) termToUse = freshTerms[0].id;
+        if (!termToUse && terms.length > 0) {
+             const current = terms.find(t => t.isCurrent);
+             termToUse = current ? current.id : terms[0].id;
         }
         
         if (!termToUse) {
-            if (!isAuto) alert('الرجاء اختيار الفترة الدراسية أولاً (أو تعيين فترة حالية).');
+            if (!isAuto) alert('الرجاء اختيار الفترة الدراسية أولاً.');
             return;
         }
         
@@ -137,22 +126,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             if (matchedSheet) {
                 targetSheet = matchedSheet;
-            } else if (sheetNames.length > 1 && !isAuto) {
-                console.log("No smart match for sheet, using first:", targetSheet);
             }
 
             const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
-            
             let newAssignmentsCount = 0;
             let updatedCount = 0;
             const recordsToUpsert: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
-            
             const currentAssignments = fetchAssignments(activeTab);
-            
             const potentialHeaders = headers.filter(h => !IGNORED_COLUMNS.some(ig => h.toLowerCase().includes(ig)));
-
-            if (potentialHeaders.length === 0 && !isAuto) throw new Error('لم يتم العثور على أعمدة بيانات صالحة في الملف.');
 
             for (const header of potentialHeaders) {
                 let title = header;
@@ -167,7 +149,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     targetAssignment = {
                         id: newId,
                         title: title,
-                        category: activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab, // Fallback if year work selected during sync (unlikely)
+                        category: activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab as any,
                         maxScore: maxScore,
                         isVisible: true,
                         teacherId: currentUser?.id,
@@ -184,7 +166,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     let student: Student | undefined;
                     const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
                     if (rowNid) student = students.find(s => s.nationalId === String(rowNid).trim());
-                    
                     if (!student) {
                         const rowName = findStudentNameInRow(row);
                         if (rowName) {
@@ -199,7 +180,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             const numVal = parseFloat(String(rawVal));
                             if (!isNaN(numVal)) {
                                 const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
-                                
                                 if (!existingRecord || existingRecord.score !== numVal) {
                                     recordsToUpsert.push({
                                         id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
@@ -224,35 +204,25 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (recordsToUpsert.length > 0) {
                 await bulkAddPerformance(recordsToUpsert);
             }
-
             setAssignments(fetchAssignments(activeTab));
-
             if (!isAuto) {
-                if (newAssignmentsCount > 0 || updatedCount > 0) {
-                    alert(`تم التحديث من ورقة "${targetSheet}" بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات محدثة: ${updatedCount}`);
-                } else {
-                    alert(`تم فحص ورقة "${targetSheet}". لم يتم العثور على تغييرات.`);
-                }
+                if (newAssignmentsCount > 0 || updatedCount > 0) alert(`تم التحديث بنجاح!`);
+                else alert(`تم الفحص. لا توجد تغييرات.`);
             }
-
         } catch (e: any) {
-            console.error(e);
-            if (!isAuto) alert('خطأ أثناء المزامنة السريعة: ' + e.message);
+            if (!isAuto) alert('خطأ: ' + e.message);
         } finally {
             setIsSheetSyncing(false);
         }
-    }, [activeTab, currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students]);
+    }, [activeTab, currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students, terms, fetchAssignments]);
 
-    // --- Auto Refresh & Sync on Mount ---
     useEffect(() => {
         const initData = async () => {
             setIsRefreshing(true);
             try {
                 await downloadFromSupabase();
                 const savedUrl = getWorksMasterUrl();
-                if (savedUrl) {
-                    setTimeout(() => handleQuickSheetSync(true), 1500);
-                }
+                if (savedUrl) setTimeout(() => handleQuickSheetSync(true), 1500);
             } catch (e) {
                 console.error("Auto refresh failed", e);
             } finally {
@@ -282,7 +252,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 setSelectedTermId(loadedTerms[0].id);
                 setSettingTermId(loadedTerms[0].id);
             }
-            
             const subs = getSubjects(currentUser.id);
             if(subs.length > 0) setSelectedSubject(subs[0].name);
         }
@@ -292,7 +261,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (currentUser) {
             setAssignments(fetchAssignments(activeTab));
         }
-    }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId]);
+    }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId, fetchAssignments]);
 
     useEffect(() => {
         localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig));
@@ -322,8 +291,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const filteredAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
-            const termMatch = !selectedTermId || !a.termId || a.termId === selectedTermId;
-            const periodMatch = !selectedPeriodId || !a.periodId || a.periodId === selectedPeriodId;
+            // Strict check: if Term selected, must match. If Period selected, must match.
+            const termMatch = !selectedTermId || (a.termId === selectedTermId);
+            const periodMatch = !selectedPeriodId || (a.periodId === selectedPeriodId);
+            // Allow global assignments if no specific term selected? Usually no for strict grading.
+            // Logic: Show if matches filters.
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
@@ -331,8 +303,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const settingsAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
-            const termMatch = !settingTermId || !a.termId || a.termId === settingTermId;
-            const periodMatch = !settingPeriodId || !a.periodId || a.periodId === settingPeriodId;
+            const termMatch = !settingTermId || a.termId === settingTermId;
+            const periodMatch = !settingPeriodId || a.periodId === settingPeriodId;
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, settingTermId, settingPeriodId, activeTab]);
@@ -360,8 +332,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
         setScores(newScores);
     }, [filteredStudents, performance, selectedSubject, filteredAssignments, activeTab]);
-
-    // --- Handlers ---
 
     const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
         setScores(prev => ({
@@ -405,9 +375,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
 
         bulkAddPerformance(recordsToSave);
-        setTimeout(() => {
-            setIsSaving(false);
-        }, 500);
+        setTimeout(() => setIsSaving(false), 500);
     };
 
     const handleRefreshAll = async () => {
@@ -416,7 +384,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             await downloadFromSupabase();
         } catch (e) {
             console.error(e);
-            alert('فشل تحديث البيانات. تأكد من الاتصال بالإنترنت.');
+            alert('فشل تحديث البيانات.');
         } finally {
             setTimeout(() => setIsRefreshing(false), 800);
         }
@@ -450,14 +418,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const unmatched: string[] = [];
         data.forEach(row => {
             const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'];
-            
             let found = false;
             if (rowNid && students.some(s => s.nationalId === String(rowNid).trim())) found = true;
             else {
                 const rowName = findStudentNameInRow(row);
                 if (rowName && students.some(s => s.name.trim() === String(rowName).trim())) found = true;
             }
-            
             if (!found) {
                 const name = findStudentNameInRow(row) || 'Unknown';
                 unmatched.push(String(name));
@@ -509,7 +475,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             const numVal = parseFloat(String(rawVal));
                             if (!isNaN(numVal)) {
                                 const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
-                                
                                 recordsToUpsert.push({
                                     id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
                                     studentId: student.id,
@@ -531,7 +496,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             if (recordsToUpsert.length > 0) onAddPerformance(recordsToUpsert);
             setAssignments(fetchAssignments(activeTab));
-            alert(`تمت العملية بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات مرصودة/محدثة: ${updatedScoresCount}`);
+            alert(`تمت العملية بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات محدثة: ${updatedScoresCount}`);
             setIsSettingsOpen(false);
             setSyncStep('URL');
         } catch (e: any) {
@@ -582,33 +547,74 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
         const filterByPeriod = (date: string) => { if (!startDate || !endDate) return true; return date >= startDate && date <= endDate; };
         
-        const hwMax = yearWorkConfig.hw; const actMax = yearWorkConfig.act; const attMax = yearWorkConfig.att; const examMax = yearWorkConfig.exam;
+        // Strict filtering of Assignments
+        const isAssignmentInScope = (a: Assignment) => {
+            if (selectedTermId && a.termId && a.termId !== selectedTermId) return false;
+            if (selectedPeriodId && a.periodId && a.periodId !== selectedPeriodId) return false;
+            if (selectedPeriodId) return a.periodId === selectedPeriodId;
+            if (selectedTermId) return a.termId === selectedTermId;
+            return true;
+        };
 
-        const hwRecs = performance.filter(p => p.studentId === student.id && p.category === 'HOMEWORK' && p.subject === selectedSubject && filterByPeriod(p.date));
-        const hwCols = getAssignments('HOMEWORK', currentUser?.id, isManager).filter(a => {
-            const termMatch = !activeTerm || !a.termId || a.termId === activeTerm.id;
-            const periodMatch = !selectedPeriodId || !a.periodId || a.periodId === selectedPeriodId;
-            return termMatch && periodMatch;
-        });
-        const distinctHW = new Set(hwRecs.map(p => p.notes || p.title)).size; 
-        const hwGrade = hwCols.length > 0 ? Math.min((distinctHW / hwCols.length) * hwMax, hwMax) : (hwRecs.length > 0 ? hwMax : 0);
+        // Filter Performance Records (Scores)
+        const isRecordInScope = (p: PerformanceRecord, validIds: Set<string>) => {
+            if (p.studentId !== student.id) return false;
+            if (selectedSubject && p.subject !== selectedSubject) return false;
+            if (p.notes && validIds.has(p.notes)) return true;
+            if (!p.notes && filterByPeriod(p.date)) return true;
+            return false;
+        };
 
-        const actRecs = performance.filter(p => p.studentId === student.id && p.category === 'ACTIVITY' && p.subject === selectedSubject && filterByPeriod(p.date));
-        let actSumVal = 0; actRecs.forEach(p => actSumVal += p.score);
+        const allAssignments = getAssignments('ALL', currentUser?.id, isManager);
+        const hwCols = allAssignments.filter(a => a.category === 'HOMEWORK' && isAssignmentInScope(a));
+        const actCols = allAssignments.filter(a => a.category === 'ACTIVITY' && isAssignmentInScope(a));
+        const examCols = allAssignments.filter(a => a.category === 'PLATFORM_EXAM' && isAssignmentInScope(a));
+
+        const validHWIds = new Set(hwCols.map(a => a.id));
+        const validActIds = new Set(actCols.map(a => a.id));
+        const validExamIds = new Set(examCols.map(a => a.id));
+
+        const hwRecs = performance.filter(p => p.category === 'HOMEWORK' && isRecordInScope(p, validHWIds));
+        const actRecs = performance.filter(p => p.category === 'ACTIVITY' && isRecordInScope(p, validActIds));
+        const examRecs = performance.filter(p => p.category === 'PLATFORM_EXAM' && isRecordInScope(p, validExamIds));
+
+        // Calculations
+        const hwMax = yearWorkConfig.hw;
+        let hwGrade = 0;
+        if (hwCols.length > 0) {
+            const totalEarned = hwRecs.reduce((sum, r) => sum + r.score, 0);
+            const totalPossible = hwCols.reduce((sum, c) => sum + c.maxScore, 0);
+            hwGrade = totalPossible > 0 ? (totalEarned / totalPossible) * hwMax : 0;
+        } else if (hwRecs.length > 0) {
+             hwGrade = hwMax; 
+        }
+
+        const actMax = yearWorkConfig.act;
+        let actSumVal = 0; 
+        actRecs.forEach(p => actSumVal += p.score);
         const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * actMax, actMax) : 0;
 
+        const attMax = yearWorkConfig.att;
         const termAtt = attendance.filter(a => a.studentId === student.id && filterByPeriod(a.date));
         const present = termAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
         const attGrade = termAtt.length > 0 ? (present / termAtt.length) * attMax : attMax;
 
-        const examRecs = performance.filter(p => p.studentId === student.id && p.category === 'PLATFORM_EXAM' && p.subject === selectedSubject && filterByPeriod(p.date));
-        let examScoreTotal = 0; let examMaxTotal = 0;
-        examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
+        const examMax = yearWorkConfig.exam;
+        let examScoreTotal = 0; 
+        let examMaxTotal = 0;
+        if (examCols.length > 0) {
+             examCols.forEach(col => {
+                 const rec = examRecs.find(r => r.notes === col.id);
+                 examMaxTotal += col.maxScore;
+                 if (rec) examScoreTotal += rec.score;
+             });
+        } else {
+             examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
+        }
         const examGrade = examMaxTotal > 0 ? (examScoreTotal / examMaxTotal) * examMax : 0;
 
         const total = hwGrade + actGrade + attGrade + examGrade;
-        const totalMax = hwMax + actMax + attMax + examMax;
-        return { hwGrade, actGrade, attGrade, examGrade, total, totalMax };
+        return { hwGrade, actGrade, attGrade, examGrade, total };
     };
 
     const handleExport = () => {
