@@ -648,6 +648,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 rowData['المجموع'] = yw.total.toFixed(1);
             } else {
                 filteredAssignments.forEach(a => { rowData[`${a.title} (${a.maxScore})`] = scores[s.id]?.[a.id] || ''; });
+                // Add totals for export if Homework/Activity
+                if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
+                    let sum = 0;
+                    let max = 0;
+                    filteredAssignments.forEach(a => {
+                        const val = scores[s.id]?.[a.id];
+                        if (val && !isNaN(parseFloat(val))) sum += parseFloat(val);
+                        max += a.maxScore;
+                    });
+                    rowData['المجموع'] = `${sum} / ${max}`;
+                }
             }
             return rowData;
         });
@@ -761,7 +772,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     ) : (
                                         <>
                                             {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
-                                                <th className="p-2 border-l w-24 bg-gray-100 font-bold text-gray-600">% الإنجاز</th>
+                                                <>
+                                                    <th className="p-2 border-l w-24 bg-gray-100 font-bold text-gray-600">% الإنجاز</th>
+                                                    <th className="p-2 border-l w-24 bg-gray-200 font-bold text-gray-800">المجموع</th>
+                                                </>
                                             )}
                                             {filteredAssignments.map(assign => (
                                                 <th key={assign.id} className="p-2 border-l min-w-[120px] group relative">
@@ -806,12 +820,25 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         );
                                     }
 
-                                    // Completion Rate Calculation for specific tabs
+                                    // Completion Rate & Total Score Calculation
                                     let completionRate = 0;
+                                    let totalScore = 0;
+                                    let totalMax = 0;
+
                                     if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
                                         const total = filteredAssignments.length;
-                                        const solved = filteredAssignments.filter(a => scores[student.id]?.[a.id] !== undefined && scores[student.id]?.[a.id] !== '').length;
-                                        completionRate = total > 0 ? Math.round((solved / total) * 100) : 100; // Assume 100% if no tasks
+                                        let solved = 0;
+                                        filteredAssignments.forEach(a => {
+                                            const rawVal = scores[student.id]?.[a.id];
+                                            if (rawVal !== undefined && rawVal !== '') {
+                                                solved++;
+                                                if (!isNaN(parseFloat(rawVal))) {
+                                                    totalScore += parseFloat(rawVal);
+                                                }
+                                            }
+                                            totalMax += a.maxScore;
+                                        });
+                                        completionRate = total > 0 ? Math.round((solved / total) * 100) : 100;
                                     }
 
                                     return (
@@ -820,13 +847,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
                                             {!selectedClass && <td className="p-3 border-l text-gray-500 text-xs">{student.className}</td>}
                                             
-                                            {/* Completion Column */}
+                                            {/* Completion & Total Columns */}
                                             {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
-                                                <td className="p-3 border-l">
-                                                    <span className={`px-2 py-1 rounded font-bold text-xs ${completionRate >= 80 ? 'bg-green-100 text-green-700' : completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                                        {completionRate}%
-                                                    </span>
-                                                </td>
+                                                <>
+                                                    <td className="p-3 border-l">
+                                                        <span className={`px-2 py-1 rounded font-bold text-xs ${completionRate >= 80 ? 'bg-green-100 text-green-700' : completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                            {completionRate}%
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 border-l font-bold text-gray-800 bg-gray-50">
+                                                        {totalScore} <span className="text-gray-400 text-[10px]">/ {totalMax}</span>
+                                                    </td>
+                                                </>
                                             )}
 
                                             {filteredAssignments.map(assign => (
