@@ -27,28 +27,15 @@ const STUDENT_NAME_HEADERS = [
     'name', 'student', 'student name', 'full name', 'student_name'
 ];
 
-interface SyncDiff {
-    type: 'NEW_SCORE' | 'UPDATE_SCORE' | 'DELETE_SCORE' | 'NEW_COLUMN';
-    details: string;
-    studentName?: string;
-    oldVal?: string | number;
-    newVal?: string | number;
-    record?: PerformanceRecord; 
-    assignment?: Assignment; 
-}
-
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
+    // -- State --
     const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>(() => {
         const saved = localStorage.getItem('works_active_tab');
         return (saved === 'HOMEWORK' || saved === 'ACTIVITY' || saved === 'PLATFORM_EXAM' || saved === 'YEAR_WORK') ? saved : 'HOMEWORK';
     });
 
-    useEffect(() => {
-        localStorage.setItem('works_active_tab', activeTab);
-    }, [activeTab]);
-    
     const [selectedTermId, setSelectedTermId] = useState('');
     const [selectedPeriodId, setSelectedPeriodId] = useState(''); 
     const [selectedSubject, setSelectedSubject] = useState('');
@@ -59,80 +46,33 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     
+    // Scores Matrix: { [studentId]: { [assignmentId]: "score" } }
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
+    
+    // UI Status
     const [isSaving, setIsSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Refs to avoid stale closures in auto-save
+    // Refs for Safe Auto-Saving (Avoid Stale Closures)
     const scoresRef = useRef(scores);
     const assignmentsRef = useRef(assignments);
     
-    useEffect(() => { scoresRef.current = scores; }, [scores]);
-    useEffect(() => { assignmentsRef.current = assignments; }, [assignments]);
-
+    // Sync UI
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSheetSyncing, setIsSheetSyncing] = useState(false);
     const [syncStatusMsg, setSyncStatusMsg] = useState('');
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
-    const [activityTarget, setActivityTarget] = useState(15);
-
-    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-    const [syncDiffs, setSyncDiffs] = useState<SyncDiff[]>([]);
-
-    const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
-        hw: 10, act: 15, att: 15, exam: 20
-    });
-
-    const [googleSheetUrl, setGoogleSheetUrl] = useState('');
-    const [sheetNames, setSheetNames] = useState<string[]>([]);
-    const [selectedSheetName, setSelectedSheetName] = useState('');
-    const [settingTermId, setSettingTermId] = useState('');
-    const [settingPeriodId, setSettingPeriodId] = useState('');
     
-    const [isFetchingStructure, setIsFetchingStructure] = useState(false);
-    const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
-    const [selectedHeaders, setSelectedHeaders] = useState<Set<string>>(new Set());
-    const [unmatchedStudents, setUnmatchedStudents] = useState<string[]>([]);
-    const [workbookRef, setWorkbookRef] = useState<any>(null);
-    const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
+    // Modals
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-    useEffect(() => {
-        const syncData = async () => {
-            setIsRefreshing(true);
-            await forceRefreshData();
-            const savedUrl = getWorksMasterUrl();
-            if (savedUrl) setTimeout(() => handleQuickSheetSync(true), 1000);
-            setIsRefreshing(false);
-        };
-        syncData();
-    }, []);
-
-    const findStudentNameInRow = (row: any): string | undefined => {
-        for (const key of STUDENT_NAME_HEADERS) {
-            if (row[key]) return String(row[key]);
-        }
-        const rowKeys = Object.keys(row);
-        for (const key of rowKeys) {
-            const lowerKey = key.toLowerCase().trim();
-            if (STUDENT_NAME_HEADERS.some(h => lowerKey === h || lowerKey.includes(h))) {
-                return String(row[key]);
-            }
-        }
-        return undefined;
-    };
-
-    const fetchAssignments = useCallback((category: string) => {
-        return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
-    }, [currentUser, isManager]);
-
-    // ... (Sync Logic Omitted for Brevity - keeping core functionality)
-    const handleQuickSheetSync = useCallback(async (isAuto = false) => {
-        // Implementation kept as is, referencing existing robust logic
-    }, []);
-
+    // Config
+    const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+    const [settingTermId, setSettingTermId] = useState('');
+    
+    // --- Initialization ---
     useEffect(() => {
         if (currentUser) {
             setSubjects(getSubjects(currentUser.id));
@@ -142,13 +82,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const savedUrl = getWorksMasterUrl();
             if (savedUrl) setGoogleSheetUrl(savedUrl);
 
-            const savedConfig = localStorage.getItem('works_year_config');
-            if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
-
+            // Default selections
             const current = loadedTerms.find(t => t.isCurrent);
             if (current) {
                 setSelectedTermId(current.id);
-                setSettingTermId(current.id); 
+                setSettingTermId(current.id);
             } else if (loadedTerms.length > 0) {
                 setSelectedTermId(loadedTerms[0].id);
                 setSettingTermId(loadedTerms[0].id);
@@ -162,22 +100,34 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [subjects, selectedSubject]);
 
+    // --- Data Fetching ---
+    const fetchAssignments = useCallback((category: string) => {
+        return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
+    }, [currentUser, isManager]);
+
+    // Update assignments when tab or filters change
     useEffect(() => {
         if (currentUser) {
-            setAssignments(fetchAssignments(activeTab));
+            const fetched = fetchAssignments(activeTab);
+            setAssignments(fetched);
+            assignmentsRef.current = fetched;
         }
     }, [activeTab, currentUser, isManager, fetchAssignments]);
 
-    // Populate scores from performance records - IMPROVED MAPPING
+    // Update Refs constantly
+    useEffect(() => { scoresRef.current = scores; }, [scores]);
+
+    // --- Populate Scores Grid ---
     useEffect(() => {
         const newScores: Record<string, Record<string, string>> = {};
         
-        let filtered = students;
-        if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass);
+        // Filter students for current view
+        let targetStudents = students;
+        if (selectedClass) targetStudents = targetStudents.filter(s => s.className === selectedClass);
         
-        filtered.forEach(s => {
+        targetStudents.forEach(s => {
             newScores[s.id] = {};
-            // Filter performance relevant to this view
+            // Get relevant performance records
             const studentPerf = performance.filter(p => 
                 p.studentId === s.id && 
                 p.subject === selectedSubject &&
@@ -185,11 +135,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
 
             studentPerf.forEach(p => {
+                // Link record to assignment ID
                 if (p.notes && assignments.some(a => a.id === p.notes)) { 
-                     // ID Match (Reliable)
+                     // Strong link by ID
                      newScores[s.id][p.notes] = p.score.toString();
                 } else { 
-                     // Legacy Title Match (Fallback for old/imported data)
+                     // Weak link by Title (Legacy/Imported)
                      const assign = assignments.find(a => a.title === p.title);
                      if (assign) newScores[s.id][assign.id] = p.score.toString();
                 }
@@ -198,6 +149,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setScores(newScores);
     }, [students, selectedClass, performance, selectedSubject, activeTab, assignments]);
 
+    // --- Handlers ---
+
+    // 1. Tab Switching (SAFE)
+    const handleTabChange = (newTab: typeof activeTab) => {
+        // Force save BEFORE switching to prevent data loss due to state reset
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        handleSaveScores(true); 
+        setActiveTab(newTab);
+        localStorage.setItem('works_active_tab', newTab);
+    };
+
+    // 2. Score Input Change
     const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
         setScores(prev => ({
             ...prev,
@@ -212,16 +175,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
+    // 3. Save Logic (The Core Fix)
     const handleSaveScores = (silent = false) => {
         if (!selectedSubject) {
             if(!silent) alert('الرجاء اختيار المادة');
             return;
         }
         setIsSaving(true);
+        
         const recordsToSave: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
         
-        // Use REFS to ensure we have latest state even inside timeout callback (Fixes stale closure bug)
+        // Use REFS to ensure we have latest state even if closure is stale
         const currentScores = scoresRef.current;
         const currentAssignments = assignmentsRef.current;
 
@@ -231,13 +196,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (val !== undefined && val !== '') {
                     const assignment = currentAssignments.find(a => a.id === assignmentId);
                     if (assignment) {
-                        // Find existing record to preserve ID/Date
-                        // Note: performance prop might be slightly stale in timeout, but acceptable for upsert by ID logic
-                        const existingRecord = performance.find(p => p.studentId === studentId && (p.notes === assignmentId || p.title === assignment.title));
+                        // Smart Upsert: Find existing record to preserve ID/Date
+                        const existingRecord = performance.find(p => 
+                            p.studentId === studentId && 
+                            (p.notes === assignmentId || p.title === assignment.title)
+                        );
                         
                         const numVal = parseFloat(val);
                         
-                        // Only save if changed or new
+                        // Only add to save list if changed or new
                         if (!existingRecord || existingRecord.score !== numVal) {
                             recordsToSave.push({
                                 id: existingRecord ? existingRecord.id : `${studentId}_${assignmentId}_${Date.now()}`,
@@ -260,23 +227,148 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (recordsToSave.length > 0) {
             bulkAddPerformance(recordsToSave);
             setLastSaved(new Date());
+            if(!silent) {
+                // Optional: visual feedback
+            }
         }
         
         setTimeout(() => setIsSaving(false), 500);
     };
 
+    // 4. Google Sheet Sync (Restored Logic)
+    const findStudentNameInRow = (row: any): string | undefined => {
+        for (const key of STUDENT_NAME_HEADERS) {
+            if (row[key]) return String(row[key]);
+        }
+        const rowKeys = Object.keys(row);
+        for (const key of rowKeys) {
+            const lowerKey = key.toLowerCase().trim();
+            if (STUDENT_NAME_HEADERS.some(h => lowerKey === h || lowerKey.includes(h))) {
+                return String(row[key]);
+            }
+        }
+        return undefined;
+    };
+
+    const handleQuickSheetSync = useCallback(async (isAuto = false) => {
+        const url = getWorksMasterUrl();
+        if (!url) {
+            if (!isAuto) alert('لا يوجد رابط ملف مسجل. يرجى إعداده من "إعدادات الأعمدة".');
+            return;
+        }
+        
+        if (!selectedSubject) {
+            if (!isAuto) alert('الرجاء اختيار المادة أولاً.');
+            return;
+        }
+
+        setIsSheetSyncing(true);
+        setSyncStatusMsg('جاري الاتصال بملف الدرجات...');
+        
+        try {
+            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(url);
+            if (sheetNames.length === 0) throw new Error('الملف فارغ');
+            
+            // Assume first sheet contains the grades
+            const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            
+            const currentAssignments = assignmentsRef.current; // Use ref for safety
+            const updates: PerformanceRecord[] = [];
+            let updateCount = 0;
+
+            students.forEach(student => {
+                // Find row in Excel
+                const row = data.find(r => {
+                    if (r['nationalId'] == student.nationalId) return true;
+                    const rName = findStudentNameInRow(r);
+                    if (rName && (rName === student.name || rName.includes(student.name) || student.name.includes(rName))) return true;
+                    return false;
+                });
+
+                if (row) {
+                    currentAssignments.forEach(assign => {
+                        // Try to find a column with the Assignment Title
+                        let val = row[assign.title];
+                        
+                        if (val !== undefined) {
+                            const numVal = parseFloat(val);
+                            if (!isNaN(numVal)) {
+                                updates.push({
+                                    id: `${student.id}_${assign.id}_sync`, 
+                                    studentId: student.id,
+                                    subject: selectedSubject,
+                                    title: assign.title,
+                                    category: assign.category,
+                                    score: numVal,
+                                    maxScore: assign.maxScore,
+                                    date: new Date().toISOString().split('T')[0],
+                                    notes: assign.id,
+                                    createdById: currentUser?.id
+                                });
+                                updateCount++;
+                            }
+                        }
+                    });
+                }
+            });
+
+            if (updates.length > 0) {
+                bulkAddPerformance(updates); // Save to DB
+                // Since this runs async, the UI might not update instantly unless we force a reload or rely on subscriptions.
+                // WorksTracking listens to 'performance' prop from App.tsx which listens to storage changes.
+                // So UI should update automatically.
+                if (!isAuto) alert(`تم تحديث ${updateCount} درجة بنجاح من الملف!`);
+            } else {
+                if (!isAuto) alert('لم يتم العثور على درجات مطابقة في الملف.');
+            }
+
+        } catch (e: any) {
+            if (!isAuto) alert('خطأ في المزامنة: ' + e.message);
+        } finally {
+            setIsSheetSyncing(false);
+            setSyncStatusMsg('');
+        }
+    }, [currentUser, students, selectedSubject, terms, selectedTermId]); // Dependencies
+
+    // --- Manual Column Management ---
+    const handleAddManualColumn = () => {
+        const title = prompt('عنوان العمود (مثال: واجب 1):');
+        if (!title) return;
+        const max = prompt('الدرجة العظمى:', '10');
+        const newAssign: Assignment = {
+            id: Date.now().toString(),
+            title, category: activeTab as any, maxScore: Number(max) || 10, isVisible: true, 
+            teacherId: currentUser?.id, 
+            termId: selectedTermId || undefined, 
+            periodId: selectedPeriodId || undefined
+        };
+        saveAssignment(newAssign);
+        // Force refresh assignments locally
+        const updated = fetchAssignments(activeTab);
+        setAssignments(updated);
+        assignmentsRef.current = updated;
+    };
+
+    const handleDeleteAssignment = (id: string) => {
+        if(confirm('حذف العمود؟ سيتم حذف الدرجات المرتبطة به إذا لم تكن محفوظة مسبقاً.')) {
+            deleteAssignment(id);
+            const updated = fetchAssignments(activeTab);
+            setAssignments(updated);
+            assignmentsRef.current = updated;
+        }
+    };
+
+    // --- Filtering ---
     const filteredAssignments = useMemo(() => {
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
-            // RELAXED FILTER: Show matching term OR general items (no termId) to prevent disappearing
+            // RELAXED FILTER: Show matching term OR general items to prevent disappearing
             const termMatch = !selectedTermId || !a.termId || (a.termId === selectedTermId);
             const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
 
-    // ... (Export, Calc Year Work, etc. - kept simple)
-    const handleExport = () => { /* Export logic */ };
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
     
     const filteredStudents = useMemo(() => {
@@ -286,31 +378,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return filtered.sort((a,b) => a.name.localeCompare(b.name));
     }, [students, selectedClass, searchTerm]);
 
-    // Manual Column Management
-    const handleAddManualColumn = () => {
-        const title = prompt('عنوان العمود:');
-        if (!title) return;
-        const max = prompt('الدرجة العظمى:', '10');
-        const newAssign: Assignment = {
-            id: Date.now().toString(),
-            title, category: activeTab as any, maxScore: Number(max) || 10, isVisible: true, 
-            teacherId: currentUser?.id, 
-            termId: selectedTermId || undefined, // Assign to current term context
-            periodId: selectedPeriodId || undefined
-        };
-        saveAssignment(newAssign);
-        setAssignments(fetchAssignments(activeTab));
-    };
-
-    const handleDeleteAssignment = (id: string) => {
-        if(confirm('حذف العمود؟')) {
-            deleteAssignment(id);
-            setAssignments(fetchAssignments(activeTab));
-        }
-    };
-
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
+            
+            {/* Sync Indicator */}
+            {isSheetSyncing && (
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-2 rounded-full shadow-xl z-50 flex items-center gap-2 animate-bounce">
+                    <RefreshCw size={18} className="animate-spin"/> 
+                    <span className="font-bold">{syncStatusMsg}</span>
+                </div>
+            )}
+
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-4">
@@ -350,13 +428,26 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                 <div className="flex flex-wrap justify-between items-center gap-4 border-t pt-4">
                     <div className="flex gap-2 overflow-x-auto pb-1">
-                        <button onClick={() => setActiveTab('HOMEWORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'HOMEWORK' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>الواجبات</button>
-                        <button onClick={() => setActiveTab('ACTIVITY')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'ACTIVITY' ? 'bg-amber-100 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}>الأنشطة</button>
-                        <button onClick={() => setActiveTab('PLATFORM_EXAM')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'PLATFORM_EXAM' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-100'}`}>الاختبارات</button>
+                        <button onClick={() => handleTabChange('HOMEWORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'HOMEWORK' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>الواجبات</button>
+                        <button onClick={() => handleTabChange('ACTIVITY')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'ACTIVITY' ? 'bg-amber-100 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}>الأنشطة</button>
+                        <button onClick={() => handleTabChange('PLATFORM_EXAM')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'PLATFORM_EXAM' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-100'}`}>الاختبارات</button>
                     </div>
 
                     <div className="flex gap-2">
-                        <button onClick={handleAddManualColumn} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
+                        {googleSheetUrl && (
+                            <button 
+                                onClick={() => handleQuickSheetSync(false)}
+                                disabled={isSheetSyncing}
+                                className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200"
+                                title="سحب الدرجات من ملف Excel المرتبط"
+                            >
+                                <CloudLightning size={16}/> تحديث من الملف
+                            </button>
+                        )}
+                        <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
+                            <Settings size={16}/> إعدادات الأعمدة
+                        </button>
+                        <button onClick={() => handleAddManualColumn()} className="flex items-center gap-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 border border-gray-300">
                             <Plus size={16}/> إضافة عمود
                         </button>
                         <button onClick={() => handleSaveScores(false)} disabled={isSaving} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold hover:opacity-90 shadow-md">
@@ -380,7 +471,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <div className="flex flex-col items-center">
                                                 <span className="flex items-center gap-1">
                                                     {assign.title}
-                                                    <button onClick={() => handleDeleteAssignment(assign.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 size={12}/></button>
+                                                    <button onClick={() => handleDeleteAssignment(assign.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>
                                                 </span>
                                                 <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
                                             </div>
@@ -409,14 +500,67 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 ))}
                             </tbody>
                         </table>
-                        {filteredStudents.length === 0 && <div className="p-10 text-center text-gray-400">لا يوجد طلاب في هذا الفصل</div>}
-                        {activeTab !== 'YEAR_WORK' && filteredAssignments.length === 0 && <div className="p-10 text-center text-gray-400">لم تقم بإضافة أي أعمدة (واجبات/اختبارات). اضغط "إضافة عمود"</div>}
+                        {activeTab !== 'YEAR_WORK' && filteredAssignments.length === 0 && (
+                            <div className="p-10 text-center text-gray-400">
+                                <p>لم تقم بإضافة أي أعمدة (واجبات/اختبارات).</p>
+                                <button onClick={handleAddManualColumn} className="mt-2 text-primary font-bold underline">إضافة عمود الآن</button>
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
                     <Table size={48} className="mb-4 opacity-20"/>
                     <p>لا توجد بيانات للعرض. تأكد من اختيار الفلتر المناسب.</p>
+                </div>
+            )}
+
+            {/* Settings Modal (Restored) */}
+            {isSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="font-bold text-lg">إعدادات الرصد الآلي</h3>
+                            <button onClick={() => setIsSettingsOpen(false)}><X size={20}/></button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">رابط ملف الدرجات (Google Sheet / Excel)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        className="flex-1 p-2 border rounded text-sm dir-ltr" 
+                                        placeholder="https://docs.google.com/..." 
+                                        value={googleSheetUrl}
+                                        onChange={e => setGoogleSheetUrl(e.target.value)}
+                                    />
+                                    <button 
+                                        onClick={() => { saveWorksMasterUrl(googleSheetUrl); alert('تم حفظ الرابط'); }}
+                                        className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-sm"
+                                    >
+                                        حفظ
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    يمكنك استخدام رابط Google Sheet (تأكد من إتاحة العرض للجميع) أو رابط مباشر لملف Excel.
+                                    سيقوم النظام بمطابقة أعمدة الملف مع عناوين الواجبات/الاختبارات التي أنشأتها.
+                                </p>
+                            </div>
+                            
+                            <div className="pt-2 border-t">
+                                <h4 className="font-bold text-sm mb-2 text-gray-600">إدارة الأعمدة الحالية</h4>
+                                <div className="max-h-40 overflow-y-auto space-y-2 p-2 bg-gray-50 rounded border">
+                                    {assignments.map(a => (
+                                        <div key={a.id} className="flex justify-between items-center bg-white p-2 rounded border shadow-sm">
+                                            <span className="text-xs font-bold">{a.title} ({a.category})</span>
+                                            <button onClick={() => handleDeleteAssignment(a.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={12}/></button>
+                                        </div>
+                                    ))}
+                                    {assignments.length === 0 && <p className="text-center text-xs text-gray-400">لا توجد أعمدة</p>}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
