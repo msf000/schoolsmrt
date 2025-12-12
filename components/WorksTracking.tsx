@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance } from '../services/storageService';
+import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -136,17 +136,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const { headers, data } = getSheetHeadersAndData(workbook, targetSheet);
             let newAssignmentsCount = 0;
             let updatedCount = 0;
+            let deletedCount = 0;
+            
             const recordsToUpsert: PerformanceRecord[] = [];
+            const idsToDelete: string[] = []; // To track records that should be removed
+            
             const today = new Date().toISOString().split('T')[0];
             const currentAssignments = fetchAssignments(activeTab);
             
             // STRICT FILTERING for potential assignments (columns)
             const potentialHeaders = headers.filter(h => {
                 const lowerH = h.toLowerCase().trim();
-                // Check if the header contains any ignored keywords
                 return !IGNORED_COLUMNS.some(ig => lowerH.includes(ig.toLowerCase()));
             });
 
+            // Iterate through recognized columns (Assignments)
             for (const header of potentialHeaders) {
                 let title = header;
                 let maxScore = 10;
@@ -155,6 +159,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                 let targetAssignment = currentAssignments.find(a => a.title === title && a.termId === termToUse);
                 
+                // Create Assignment if it doesn't exist
                 if (!targetAssignment) {
                     const newId = `gs_${Date.now()}_${Math.floor(Math.random()*1000)}`;
                     targetAssignment = {
@@ -169,11 +174,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         orderIndex: 100 + currentAssignments.length + newAssignmentsCount,
                         sourceMetadata: JSON.stringify({ sheet: targetSheet, header: header })
                     };
-                    // Save to Cloud immediately
                     await saveAssignment(targetAssignment);
                     newAssignmentsCount++;
                 }
 
+                // --- DATA SYNCHRONIZATION LOGIC ---
+                // We need to verify each student in the sheet against the DB for this assignment.
+                // If sheet has value -> Upsert.
+                // If sheet has empty value BUT DB has value -> DELETE (Clean up).
+                
                 data.forEach(row => {
                     let student: Student | undefined;
                     const rowNid = row['الهوية'] || row['السجل'] || row['id'] || row['nationalId'] || row['ID'];
@@ -187,11 +196,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     }
 
                     if (student) {
+                        const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
                         const rawVal = row[header];
+                        
+                        // Check if value exists in sheet
                         if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
                             const numVal = parseFloat(String(rawVal));
                             if (!isNaN(numVal)) {
-                                const existingRecord = performance.find(p => p.studentId === student!.id && p.notes === targetAssignment!.id);
                                 if (!existingRecord || existingRecord.score !== numVal) {
                                     recordsToUpsert.push({
                                         id: existingRecord ? existingRecord.id : `${student.id}_${targetAssignment!.id}`,
@@ -208,22 +219,39 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     updatedCount++;
                                 }
                             }
+                        } else {
+                            // Value is empty in sheet, but exists in DB -> DELETE IT
+                            if (existingRecord) {
+                                idsToDelete.push(existingRecord.id);
+                                deletedCount++;
+                            }
                         }
                     }
                 });
             }
 
+            // Execute Updates
             if (recordsToUpsert.length > 0) {
-                // Bulk save to cloud
                 await bulkAddPerformance(recordsToUpsert);
+            }
+            
+            // Execute Deletions (Cleanup)
+            if (idsToDelete.length > 0) {
+                // Delete locally and cloud one by one (since no bulk delete exposed yet, or iterate)
+                for (const id of idsToDelete) {
+                    await deletePerformance(id);
+                }
             }
             
             // Refresh assignments list
             setAssignments(fetchAssignments(activeTab));
             
             if (!isAuto) {
-                if (newAssignmentsCount > 0 || updatedCount > 0) alert(`تم التحديث والحفظ في السحابة بنجاح!`);
-                else alert(`تم الفحص. لا توجد تغييرات جديدة.`);
+                if (newAssignmentsCount > 0 || updatedCount > 0 || deletedCount > 0) {
+                    alert(`تمت المزامنة بنجاح!\n- تحديث/إضافة: ${updatedCount}\n- حذف (تصفير): ${deletedCount}\n- أعمدة جديدة: ${newAssignmentsCount}`);
+                } else {
+                    alert(`البيانات متطابقة. لا توجد تغييرات.`);
+                }
             }
         } catch (e: any) {
             if (!isAuto) alert('خطأ: ' + e.message);
