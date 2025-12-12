@@ -89,6 +89,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return getAssignments(category === 'YEAR_WORK' ? 'ALL' : category, currentUser?.id, isManager);
     }, [currentUser, isManager]);
 
+    // ... (Sync Logic Omitted for brevity - same as before)
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
         const url = getWorksMasterUrl();
         if (!url) {
@@ -216,6 +217,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [activeTab, currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students, terms, fetchAssignments]);
 
+    // ... (Effects for Init, Loading Config, Terms, etc.)
     useEffect(() => {
         const initData = async () => {
             setIsRefreshing(true);
@@ -387,6 +389,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
+    // ... (Excel Fetch & Sync Logic - mostly same) ...
     const handleFetchSheetStructure = async () => {
         if (!googleSheetUrl) return alert('يرجى إدخال رابط الملف');
         setIsFetchingStructure(true);
@@ -503,6 +506,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
+    // ... (Rest of modal/column management logic same) ...
     const toggleHeaderSelection = (header: string) => {
         const newSet = new Set(selectedHeaders);
         if (newSet.has(header)) newSet.delete(header);
@@ -597,7 +601,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let actSumVal = 0; 
         actRecs.forEach(p => actSumVal += p.score);
         const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * actMax, actMax) : 0;
-        const actCompletion = activityTarget > 0 ? Math.min(Math.round((actSumVal / activityTarget) * 100), 100) : 0;
+        // Activity Completion: Based on assignments count if possible, or just raw activity count vs target
+        let actCompletion = 0;
+        if (actCols.length > 0) {
+             const distinctActSubmitted = new Set(actRecs.map(r => r.notes)).size;
+             actCompletion = Math.min(Math.round((distinctActSubmitted / actCols.length) * 100), 100);
+        } else {
+             // Fallback if no columns defined (manual entry)
+             actCompletion = activityTarget > 0 ? Math.min(Math.round((actSumVal / activityTarget) * 100), 100) : 0;
+        }
 
         const attMax = yearWorkConfig.att;
         const termAtt = attendance.filter(a => a.studentId === student.id && filterByPeriod(a.date));
@@ -747,17 +759,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <th className="p-3 border-l bg-gray-800 text-white">المجموع ({yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam})</th>
                                         </>
                                     ) : (
-                                        filteredAssignments.map(assign => (
-                                            <th key={assign.id} className="p-2 border-l min-w-[120px] group relative">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="flex items-center gap-1">
-                                                        {assign.title}
-                                                        {assign.url && <a href={assign.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><ExternalLink size={12}/></a>}
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
-                                                </div>
-                                            </th>
-                                        ))
+                                        <>
+                                            {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
+                                                <th className="p-2 border-l w-24 bg-gray-100 font-bold text-gray-600">% الإنجاز</th>
+                                            )}
+                                            {filteredAssignments.map(assign => (
+                                                <th key={assign.id} className="p-2 border-l min-w-[120px] group relative">
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="flex items-center gap-1">
+                                                            {assign.title}
+                                                            {assign.url && <a href={assign.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><ExternalLink size={12}/></a>}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
+                                                    </div>
+                                                </th>
+                                            ))}
+                                        </>
                                     )}
                                 </tr>
                             </thead>
@@ -789,11 +806,29 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         );
                                     }
 
+                                    // Completion Rate Calculation for specific tabs
+                                    let completionRate = 0;
+                                    if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
+                                        const total = filteredAssignments.length;
+                                        const solved = filteredAssignments.filter(a => scores[student.id]?.[a.id] !== undefined && scores[student.id]?.[a.id] !== '').length;
+                                        completionRate = total > 0 ? Math.round((solved / total) * 100) : 100; // Assume 100% if no tasks
+                                    }
+
                                     return (
                                         <tr key={student.id} className="hover:bg-gray-50 border-b transition-colors">
                                             <td className="p-3 border-l text-gray-500">{idx + 1}</td>
                                             <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
                                             {!selectedClass && <td className="p-3 border-l text-gray-500 text-xs">{student.className}</td>}
+                                            
+                                            {/* Completion Column */}
+                                            {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
+                                                <td className="p-3 border-l">
+                                                    <span className={`px-2 py-1 rounded font-bold text-xs ${completionRate >= 80 ? 'bg-green-100 text-green-700' : completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {completionRate}%
+                                                    </span>
+                                                </td>
+                                            )}
+
                                             {filteredAssignments.map(assign => (
                                                 <td key={assign.id} className="p-0 border-l relative h-10">
                                                     <input 
