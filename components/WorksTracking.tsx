@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, AcademicTerm, Subject, TermPeriod } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, AcademicTerm, Subject } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getAcademicTerms, getSubjects } from '../services/storageService';
 import { Plus, Trash2, Save, Filter, Table, Calendar, Edit2, CheckCircle, XCircle, Search, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -39,7 +39,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         if(currentUser) {
-            setAssignments(getAssignments('ALL', currentUser.id, isManager));
+            // Get ALL assignments initially to filter locally
+            setAssignments(getAssignments('ALL', currentUser.id, isManager, true));
             setTerms(getAcademicTerms(currentUser.id));
             setSubjects(getSubjects(currentUser.id));
             
@@ -57,7 +58,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     }, [students, selectedClass]);
 
     const filteredAssignments = useMemo(() => {
-        let category = activeTab === 'SUMMARY' ? 'ALL' : activeTab === 'EXAM' ? 'PLATFORM_EXAM' : activeTab;
+        let category: string = activeTab;
+        if (activeTab === 'SUMMARY') category = 'ALL';
+        else if (activeTab === 'EXAM') category = 'PLATFORM_EXAM';
+
         return assignments.filter(a => 
             (category === 'ALL' || a.category === category) &&
             (!selectedTermId || !a.termId || a.termId === selectedTermId) &&
@@ -78,7 +82,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             periodId: selectedPeriodId
         };
         saveAssignment(newAssign);
-        setAssignments(getAssignments('ALL', currentUser?.id, isManager));
+        setAssignments(getAssignments('ALL', currentUser?.id, isManager, true));
         setIsAddModalOpen(false);
         setNewAssignTitle('');
     };
@@ -86,7 +90,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const handleDeleteAssignment = (id: string) => {
         if(confirm('حذف هذا العمود؟')) {
             deleteAssignment(id);
-            setAssignments(getAssignments('ALL', currentUser?.id, isManager));
+            setAssignments(getAssignments('ALL', currentUser?.id, isManager, true));
         }
     };
 
@@ -114,44 +118,103 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         onAddPerformance([record]);
     };
 
-    // Calculate Summary Logic (Reused from snippet)
+    // Calculate Summary Logic
     const calculateYearWork = (student: Student) => {
-        // Date Range
-        let startDate = activeTerm?.startDate;
-        let endDate = activeTerm?.endDate;
-        if (selectedPeriodId && activeTerm?.periods) {
-            const p = activeTerm.periods.find(p => p.id === selectedPeriodId);
-            if (p) { startDate = p.startDate; endDate = p.endDate; }
+        // 1. Determine Date Range for Attendance (Attendance relies on dates)
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+        
+        if (selectedPeriodId) {
+            const period = activeTerm?.periods?.find(p => p.id === selectedPeriodId);
+            if (period) { startDate = period.startDate; endDate = period.endDate; }
+        } else if (activeTerm) { 
+            startDate = activeTerm.startDate; 
+            endDate = activeTerm.endDate; 
         }
 
-        const dateFilter = (d: string) => (!startDate || !endDate) || (d >= startDate && d <= endDate);
-
-        // Filter Performance
-        const myPerf = performance.filter(p => p.studentId === student.id && (!selectedSubject || p.subject === selectedSubject) && dateFilter(p.date));
+        const filterDateRange = (date: string) => { 
+            if (!startDate || !endDate) return true; 
+            return date >= startDate && date <= endDate; 
+        };
         
-        const hwRecs = myPerf.filter(p => p.category === 'HOMEWORK');
-        const actRecs = myPerf.filter(p => p.category === 'ACTIVITY');
-        const examRecs = myPerf.filter(p => p.category === 'PLATFORM_EXAM');
+        // 2. Filter Assignments based on Term/Period Selection
+        const isAssignmentInScope = (a: Assignment) => {
+            const termMatch = !selectedTermId || !a.termId || a.termId === selectedTermId;
+            const periodMatch = !selectedPeriodId || !a.periodId || a.periodId === selectedPeriodId;
+            return termMatch && periodMatch;
+        };
+
+        const hwCols = assignments.filter(a => a.category === 'HOMEWORK' && isAssignmentInScope(a));
+        const actCols = assignments.filter(a => a.category === 'ACTIVITY' && isAssignmentInScope(a));
+        const examCols = assignments.filter(a => a.category === 'PLATFORM_EXAM' && isAssignmentInScope(a));
+
+        // Create Sets of IDs for fast valid lookup
+        const validHWIds = new Set(hwCols.map(a => a.id));
+        const validActIds = new Set(actCols.map(a => a.id));
+        const validExamIds = new Set(examCols.map(a => a.id));
+
+        // 3. Filter Records (Scores)
+        const isRecordInScope = (p: PerformanceRecord, validIds: Set<string>) => {
+            if (p.studentId !== student.id) return false;
+            if (selectedSubject && p.subject !== selectedSubject) return false;
+            
+            // Logic A: Linked Data
+            if (p.notes && validIds.has(p.notes)) return true;
+
+            // Logic B: Unlinked Data (Manual entries without column link)
+            if (!p.notes && filterDateRange(p.date)) return true;
+
+            return false;
+        };
+
+        const hwRecs = performance.filter(p => p.category === 'HOMEWORK' && isRecordInScope(p, validHWIds));
+        const actRecs = performance.filter(p => p.category === 'ACTIVITY' && isRecordInScope(p, validActIds));
+        const examRecs = performance.filter(p => p.category === 'PLATFORM_EXAM' && isRecordInScope(p, validExamIds));
+
+        // 4. Calculate Grades
+        const hwMax = yearWorkConfig.hw; 
+        const actMax = yearWorkConfig.act; 
+        const attMax = yearWorkConfig.att; 
+        const examMax = yearWorkConfig.exam;
+
+        // Homework
+        let hwGrade = 0;
+        if (hwCols.length > 0) {
+            const totalEarned = hwRecs.reduce((sum, r) => sum + r.score, 0);
+            const totalPossible = hwCols.reduce((sum, c) => sum + c.maxScore, 0);
+            hwGrade = totalPossible > 0 ? (totalEarned / totalPossible) * hwMax : 0;
+        } else if (hwRecs.length > 0) {
+             hwGrade = hwMax; 
+        }
+
+        // Activity
+        let actSumVal = 0; 
+        actRecs.forEach(p => actSumVal += p.score);
+        const actGrade = activityTarget > 0 ? Math.min((actSumVal / activityTarget) * actMax, actMax) : 0;
 
         // Attendance
-        const myAtt = attendance.filter(a => a.studentId === student.id && dateFilter(a.date));
-        const present = myAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
+        const termAtt = attendance.filter(a => a.studentId === student.id && filterDateRange(a.date));
+        const present = termAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE || a.status === AttendanceStatus.EXCUSED).length;
+        const attGrade = termAtt.length > 0 ? (present / termAtt.length) * attMax : attMax; // Default to full mark if no attendance recorded
+
+        // Exams
+        let examScoreTotal = 0; 
+        let examMaxTotal = 0;
         
-        // Calculate
-        const hwTotal = hwRecs.reduce((sum, r) => sum + r.score, 0);
-        const hwMaxTotal = hwRecs.reduce((sum, r) => sum + r.maxScore, 0); // Simplified
-        const hwGrade = hwMaxTotal > 0 ? (hwTotal / hwMaxTotal) * yearWorkConfig.hw : 0;
-
-        const actTotal = actRecs.reduce((sum, r) => sum + r.score, 0);
-        const actGrade = activityTarget > 0 ? Math.min((actTotal / activityTarget) * yearWorkConfig.act, yearWorkConfig.act) : 0;
-
-        const attGrade = myAtt.length > 0 ? (present / myAtt.length) * yearWorkConfig.att : yearWorkConfig.att;
-
-        const examTotal = examRecs.reduce((sum, r) => sum + r.score, 0);
-        const examMaxTotal = examRecs.reduce((sum, r) => sum + r.maxScore, 0);
-        const examGrade = examMaxTotal > 0 ? (examTotal / examMaxTotal) * yearWorkConfig.exam : 0;
+        if (examCols.length > 0) {
+             examCols.forEach(col => {
+                 const rec = examRecs.find(r => r.notes === col.id);
+                 examMaxTotal += col.maxScore;
+                 if (rec) examScoreTotal += rec.score;
+             });
+        } else {
+             examRecs.forEach(p => { examScoreTotal += p.score; examMaxTotal += p.maxScore || 20; });
+        }
+        
+        const examGrade = examMaxTotal > 0 ? (examScoreTotal / examMaxTotal) * examMax : 0;
 
         const total = hwGrade + actGrade + attGrade + examGrade;
+        
         return { hwGrade, actGrade, attGrade, examGrade, total };
     };
 
@@ -248,7 +311,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <div className="flex flex-col gap-1">
                                                 <span>{a.title}</span>
                                                 <span className="text-[10px] text-gray-500 font-mono">({a.maxScore})</span>
-                                                {activeTab !== 'SUMMARY' && !isManager && (
+                                                {!isManager && (
                                                     <button onClick={() => handleDeleteAssignment(a.id)} className="absolute top-1 left-1 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 size={12}/></button>
                                                 )}
                                             </div>
