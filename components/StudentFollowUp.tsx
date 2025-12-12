@@ -154,15 +154,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const filterAssignments = (category: string) => {
         return getAssignments(category, currentUser?.id).filter(c => {
             if (!c.isVisible) return false;
-            // 1. Term Check
-            if (activeTerm && c.termId && c.termId !== activeTerm.id) return false;
+            // 1. Term Check - RELAXED: allow legacy (no termId)
+            const termMatch = !activeTerm || !c.termId || (c.termId === activeTerm.id);
+            if (!termMatch) return false;
             
-            // 2. Period Check (If period is selected, only show assignments for that period OR global ones if permitted logic)
-            // Strict Mode: If period selected, Assignment MUST match periodId OR be general (no period)
+            // 2. Period Check - RELAXED: allow legacy (no periodId)
             if (selectedPeriodId) {
                 if (c.periodId && c.periodId !== selectedPeriodId) return false;
-                // RELAXED: allow null periodId to show up in all periods
-                // if (!c.periodId) return false; 
             }
             
             return true;
