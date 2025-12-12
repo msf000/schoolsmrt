@@ -112,38 +112,53 @@ function cleanJsonString(text: string): string {
 }
 
 // --- PRESET CURRICULUM FOR EARTH & SPACE (SAUDI) ---
+// Detailed data provided by user
 const EARTH_SPACE_PRESET = [
     {
-        unitTitle: "الفصل الأول: علم الأرض",
+        unitTitle: "1. تطور الكون",
         lessons: [
-            { title: "مقدمة في علم الأرض", standards: ["ESS.1.1"] },
-            { title: "أنظمة الأرض", standards: ["ESS.1.2"] },
-            { title: "الخرائط الطبوغرافية", standards: ["ESS.1.3"] }
+            { title: "1-1 نشأة الكون", standards: ["ES.12.1.1"] },
+            { title: "1-2 النجوم والمجرات", standards: ["ES.12.1.2"] }
         ]
     },
     {
-        unitTitle: "الفصل الثاني: مصادر الأرض",
+        unitTitle: "2. الميكانيكا السماوية",
         lessons: [
-            { title: "الموارد الطبيعية", standards: ["ESS.2.1"] },
-            { title: "الطاقة ومصادرها", standards: ["ESS.2.2"] },
-            { title: "المعادن والصخور", standards: ["ESS.2.3"] }
+            { title: "2-1 قوانين كبلر", standards: ["ES.12.2.1"] },
+            { title: "2-2 التقنية الفضائية", standards: ["ES.12.2.2"] }
         ]
     },
     {
-        unitTitle: "الفصل الثالث: الغلاف الجوي",
+        unitTitle: "3. المعادن",
         lessons: [
-            { title: "مكونات الغلاف الجوي", standards: ["ESS.3.1"] },
-            { title: "طبقات الغلاف الجوي", standards: ["ESS.3.2"] },
-            { title: "الطقس والمناخ", standards: ["ESS.3.3"] }
+            { title: "3-1 ما المعدن؟", standards: ["ES.12.3.1"] },
+            { title: "3-2 أنواع المعادن", standards: ["ES.12.3.2"] }
         ]
     },
     {
-        unitTitle: "الفصل الرابع: النظام الشمسي والكون",
+        unitTitle: "4. الصخور",
         lessons: [
-            { title: "الشمس والأرض والقمر", standards: ["ESS.4.1"] },
-            { title: "كواكب النظام الشمسي", standards: ["ESS.4.2"] },
-            { title: "النجوم والمجرات", standards: ["ESS.4.3"] },
-            { title: "استكشاف الفضاء", standards: ["ESS.4.4"] }
+            { title: "4-1 الصخور النارية", standards: ["ES.12.4.1"] },
+            { title: "4-2 الصخور الرسوبية", standards: ["ES.12.4.2"] },
+            { title: "4-3 الصخور المتحولة", standards: ["ES.12.4.3"] }
+        ]
+    },
+    {
+        unitTitle: "5. الصفائح الأرضية",
+        lessons: [
+            { title: "5-1 انجراف القارات", standards: ["ES.12.5.1"] },
+            { title: "5-2 توسع قاع المحيط", standards: ["ES.12.5.2"] },
+            { title: "5-3 حدود الصفائح", standards: ["ES.12.5.3"] }
+        ]
+    },
+    {
+        unitTitle: "6. البراكين والزلازل",
+        lessons: [
+            { title: "6-1 ما البركان؟", standards: ["ES.12.6.1"] },
+            { title: "6-2 الثورانات البركانية", standards: ["ES.12.6.2"] },
+            { title: "6-3 الأمواج وبنية الأرض", standards: ["ES.12.6.3"] },
+            { title: "6-4 قياس الزلازل", standards: ["ES.12.6.4"] },
+            { title: "6-5 الزلازل والمجتمع", standards: ["ES.12.6.5"] }
         ]
     }
 ];
@@ -306,7 +321,7 @@ export const generateCurriculumMap = async (
     semester: string = "الفصل الدراسي الأول"
 ): Promise<any[]> => {
     // --- PRESET OVERRIDE FOR EARTH AND SPACE SCIENCE ---
-    if (subject.includes('علم الأرض') || subject.includes('Earth and Space')) {
+    if (subject.includes('علم الأرض') || subject.includes('Earth and Space') || subject.includes('ES.12')) {
         console.log("Using Earth & Space Preset");
         // Simulate async delay for realism
         await new Promise(resolve => setTimeout(resolve, 800));
