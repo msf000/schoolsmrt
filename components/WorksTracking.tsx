@@ -15,7 +15,12 @@ interface WorksTrackingProps {
     currentUser?: SystemUser | null;
 }
 
-const IGNORED_COLUMNS = ['name', 'id', 'class', 'grade', 'student', 'الاسم', 'الفصل', 'الصف', 'الهوية', 'السجل', 'ملاحظات', 'note', 'nationalid', 'gender', 'mobile', 'phone', 'timestamp', 'email', 'بريد'];
+// Expanded ignore list to prevent metadata columns from becoming assignments
+const IGNORED_COLUMNS = [
+    'name', 'id', 'class', 'grade', 'student', 'section', 'email', 'phone', 'mobile', 'gender', 'national', 'date', 'time', 'timestamp',
+    'الاسم', 'اسم', 'الطالب', 'طالب', 'الفصل', 'الصف', 'الهوية', 'السجل', 'المدني', 'الجوال', 'هاتف', 'بريد', 'ملاحظات', 'ملاحظة', 'جنس', 'تاريخ',
+    'note', 'nationalid'
+];
 
 const STUDENT_NAME_HEADERS = [
     'الاسم', 'اسم', 'اسم الطالب', 'الطالب', 'اسمك', 'لطالب', 
@@ -135,7 +140,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const recordsToUpsert: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
             const currentAssignments = fetchAssignments(activeTab);
-            const potentialHeaders = headers.filter(h => !IGNORED_COLUMNS.some(ig => h.toLowerCase().includes(ig)));
+            
+            // STRICT FILTERING for potential assignments (columns)
+            const potentialHeaders = headers.filter(h => {
+                const lowerH = h.toLowerCase().trim();
+                return !IGNORED_COLUMNS.some(ig => lowerH.includes(ig.toLowerCase()));
+            });
 
             for (const header of potentialHeaders) {
                 let title = header;
@@ -159,6 +169,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         orderIndex: 100 + currentAssignments.length + newAssignmentsCount,
                         sourceMetadata: JSON.stringify({ sheet: targetSheet, header: header })
                     };
+                    // Save to Cloud immediately
                     await saveAssignment(targetAssignment);
                     newAssignmentsCount++;
                 }
@@ -203,12 +214,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
 
             if (recordsToUpsert.length > 0) {
+                // Bulk save to cloud
                 await bulkAddPerformance(recordsToUpsert);
             }
+            
+            // Refresh assignments list
             setAssignments(fetchAssignments(activeTab));
+            
             if (!isAuto) {
-                if (newAssignmentsCount > 0 || updatedCount > 0) alert(`تم التحديث بنجاح!`);
-                else alert(`تم الفحص. لا توجد تغييرات.`);
+                if (newAssignmentsCount > 0 || updatedCount > 0) alert(`تم التحديث والحفظ في السحابة بنجاح!`);
+                else alert(`تم الفحص. لا توجد تغييرات جديدة.`);
             }
         } catch (e: any) {
             if (!isAuto) alert('خطأ: ' + e.message);
@@ -412,7 +427,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const analyzeSheet = (wb: any, sheet: string) => {
         const { headers, data } = getSheetHeadersAndData(wb, sheet);
-        const potentialAssignments = headers.filter(h => !IGNORED_COLUMNS.some(ignored => h.toLowerCase().includes(ignored)));
+        // Robust filtering for manual setup
+        const potentialAssignments = headers.filter(h => {
+            const lower = h.toLowerCase().trim();
+            return !IGNORED_COLUMNS.some(ignored => lower.includes(ignored.toLowerCase()));
+        });
+        
         setAvailableHeaders(potentialAssignments);
         setSelectedHeaders(new Set(potentialAssignments));
         const unmatched: string[] = [];
@@ -494,7 +514,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 });
             });
 
-            if (recordsToUpsert.length > 0) onAddPerformance(recordsToUpsert);
+            if (recordsToUpsert.length > 0) onAddPerformance(recordsToUpsert); // This triggers local update + cloud push
             setAssignments(fetchAssignments(activeTab));
             alert(`تمت العملية بنجاح!\n- أعمدة جديدة: ${newAssignmentsCount}\n- درجات محدثة: ${updatedScoresCount}`);
             setIsSettingsOpen(false);
