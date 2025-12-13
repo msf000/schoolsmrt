@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem, Exam, PerformanceCategory } from '../types';
-import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans, getExams, saveExamResult, addPerformance, getPerformance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays, FileQuestion, Timer, Check, MoreHorizontal, ChevronRight } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem, Exam, PerformanceCategory, Assignment } from '../types';
+import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans, getExams, saveExamResult, addPerformance, getPerformance, getAssignments } from '../services/storageService';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays, FileQuestion, Timer, Check, MoreHorizontal, ChevronRight, Filter, Link as LinkIcon, ExternalLink, XCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -600,6 +600,18 @@ const StudentWeeklyPlan = ({ student }: any) => {
 };
 
 const StudentGrades = ({ student, performance }: any) => {
+    // New State for Filtering
+    const [activeFilter, setActiveFilter] = useState<'ALL' | 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM'>('ALL');
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
+
+    useEffect(() => {
+        // Load All assignments available in the system
+        // Note: In a real app, we should filter by the student's class/teacher
+        // Here we fetch 'ALL' and will filter by class/grade locally if possible, or assume all are relevant
+        const allAssigns = getAssignments('ALL', undefined, true);
+        setAssignments(allAssigns);
+    }, []);
+
     const chartData = useMemo(() => {
         return performance
             .slice()
@@ -611,10 +623,73 @@ const StudentGrades = ({ student, performance }: any) => {
             .slice(-5);
     }, [performance]);
 
+    // Merge Logic: Performance Records + Missing Assignments
+    const displayItems = useMemo(() => {
+        const items: any[] = [];
+        const perfMap = new Set(); // To track which assignments have grades
+
+        // 1. Add Graded Items
+        performance.forEach((p: PerformanceRecord) => {
+            items.push({
+                id: p.id,
+                title: p.title,
+                subject: p.subject,
+                score: p.score,
+                maxScore: p.maxScore,
+                date: p.date,
+                category: p.category || 'OTHER',
+                status: 'GRADED',
+                // Try to find linked assignment for URL
+                link: assignments.find(a => a.id === p.notes || a.title === p.title)?.url
+            });
+            // Mark assignment as done (by ID or Title)
+            if (p.notes) perfMap.add(p.notes);
+            perfMap.add(p.title);
+        });
+
+        // 2. Add Missing Items (Assignments without grades)
+        // We assume assignments without a grade are "Missing" IF they match the filter
+        assignments.forEach(assign => {
+            // Filter by category if needed
+            // Only consider assignments relevant to this student (if we had class info on assignment)
+            // For now, assume assignments are global/relevant
+            
+            if (!perfMap.has(assign.id) && !perfMap.has(assign.title)) {
+                items.push({
+                    id: assign.id,
+                    title: assign.title,
+                    subject: 'مطلوب', // Generic if we don't know subject
+                    score: 0,
+                    maxScore: assign.maxScore,
+                    date: '',
+                    category: assign.category,
+                    status: 'MISSING',
+                    link: assign.url
+                });
+            }
+        });
+
+        // Filter by Tab
+        if (activeFilter !== 'ALL') {
+            return items.filter(i => i.category === activeFilter);
+        }
+        return items;
+    }, [performance, assignments, activeFilter]);
+
+    const getCategoryBadge = (cat: string) => {
+        switch(cat) {
+            case 'HOMEWORK': return { label: 'واجب', color: 'bg-blue-100 text-blue-700', icon: BookOpen };
+            case 'ACTIVITY': return { label: 'نشاط', color: 'bg-orange-100 text-orange-700', icon: Star };
+            case 'PLATFORM_EXAM': return { label: 'اختبار', color: 'bg-purple-100 text-purple-700', icon: FileQuestion };
+            default: return { label: 'عام', color: 'bg-gray-100 text-gray-700', icon: Award };
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in pb-20">
             <h3 className="font-bold text-gray-800 text-lg">تحليل الأداء</h3>
             
+            {/* Chart */}
             {chartData.length > 0 && (
                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm h-56">
                     <h4 className="text-xs font-bold text-gray-500 mb-2">تطور المستوى (آخر 5 تقييمات)</h4>
@@ -636,26 +711,60 @@ const StudentGrades = ({ student, performance }: any) => {
                 </div>
             )}
 
+            {/* Filter Tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                <button onClick={() => setActiveFilter('ALL')} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeFilter === 'ALL' ? 'bg-gray-800 text-white' : 'bg-white border text-gray-600'}`}>الكل</button>
+                <button onClick={() => setActiveFilter('HOMEWORK')} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeFilter === 'HOMEWORK' ? 'bg-blue-600 text-white' : 'bg-white border text-gray-600'}`}>الواجبات</button>
+                <button onClick={() => setActiveFilter('ACTIVITY')} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeFilter === 'ACTIVITY' ? 'bg-orange-500 text-white' : 'bg-white border text-gray-600'}`}>الأنشطة</button>
+                <button onClick={() => setActiveFilter('PLATFORM_EXAM')} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeFilter === 'PLATFORM_EXAM' ? 'bg-purple-600 text-white' : 'bg-white border text-gray-600'}`}>الاختبارات</button>
+            </div>
+
+            {/* List */}
             <div className="space-y-3">
-                <h4 className="text-sm font-bold text-gray-600">سجل الدرجات التفصيلي</h4>
-                {performance.length > 0 ? performance.slice().reverse().map((p: any) => (
-                    <div key={p.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{p.subject}</span>
-                            <span className="text-[10px] text-gray-400">{formatDualDate(p.date).split('|')[0]}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <h4 className="font-bold text-gray-800 text-sm">{p.title}</h4>
-                            <div className="flex items-end gap-1">
-                                <span className={`text-2xl font-black ${p.score/p.maxScore >= 0.9 ? 'text-green-600' : 'text-sky-600'}`}>{p.score}</span>
-                                <span className="text-xs text-gray-400 mb-1">/ {p.maxScore}</span>
+                {displayItems.length > 0 ? displayItems.map((item: any) => {
+                    const badge = getCategoryBadge(item.category);
+                    const Icon = badge.icon;
+                    return (
+                        <div key={item.id} className={`bg-white p-4 rounded-xl border shadow-sm relative overflow-hidden ${item.status === 'MISSING' ? 'border-red-200 bg-red-50/10' : 'border-gray-100'}`}>
+                            {item.status === 'MISSING' && <div className="absolute top-0 right-0 w-1 h-full bg-red-500"></div>}
+                            
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded flex items-center gap-1 ${badge.color}`}>
+                                        <Icon size={10}/> {badge.label}
+                                    </span>
+                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{item.subject}</span>
+                                </div>
+                                {item.date && <span className="text-[10px] text-gray-400">{formatDualDate(item.date).split('|')[0]}</span>}
+                            </div>
+                            
+                            <div className="flex justify-between items-center mt-2">
+                                <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                    {item.title}
+                                    {item.link && (
+                                        <a href={item.link} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-1 rounded-full" title="فتح الرابط">
+                                            <ExternalLink size={14}/>
+                                        </a>
+                                    )}
+                                </h4>
+                                
+                                {item.status === 'GRADED' ? (
+                                    <div className="flex items-end gap-1">
+                                        <span className={`text-xl font-black ${item.score/item.maxScore >= 0.9 ? 'text-green-600' : 'text-sky-600'}`}>{item.score}</span>
+                                        <span className="text-xs text-gray-400 mb-1">/ {item.maxScore}</span>
+                                    </div>
+                                ) : (
+                                    <span className="flex items-center gap-1 text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded border border-red-100">
+                                        <XCircle size={12}/> غير منجز
+                                    </span>
+                                )}
                             </div>
                         </div>
-                    </div>
-                )) : (
+                    );
+                }) : (
                     <div className="text-center py-20 text-gray-400">
                         <Award size={48} className="mx-auto mb-4 opacity-20"/>
-                        <p>لا توجد درجات مسجلة حتى الآن</p>
+                        <p>لا توجد سجلات في هذا التصنيف</p>
                     </div>
                 )}
             </div>
@@ -695,6 +804,7 @@ const StudentLibraryView = ({ student }: any) => {
 };
 
 const StudentProfileView = ({ student, onLogout, attendance, performance }: any) => {
+    // Badges Calculation
     const points = attendance.filter((a: any) => a.behaviorStatus === 'POSITIVE').length;
     const attRate = attendance.length > 0 
         ? (attendance.filter((a: any) => a.status === 'PRESENT').length / attendance.length) * 100 
@@ -716,6 +826,7 @@ const StudentProfileView = ({ student, onLogout, attendance, performance }: any)
                 </div>
             </div>
 
+            {/* Badges Section */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                 <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Award size={18} className="text-yellow-500"/> أوسمتي</h3>
                 <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
