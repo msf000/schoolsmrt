@@ -160,8 +160,115 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const handleQuickSheetSync = useCallback(async (isAuto = false) => {
-        // ... (Existing logic for quick sync)
-    }, [currentUser, isManager, performance, selectedPeriodId, selectedSubject, selectedTermId, students, terms]);
+        if (!googleSheetUrl) return;
+        setIsSheetSyncing(true);
+        setSyncStatusMsg('جاري الاتصال بـ Google Sheet...');
+
+        try {
+            // 1. Fetch Workbook
+            const { workbook } = await fetchWorkbookStructureUrl(googleSheetUrl);
+
+            // 2. Identify Assignments that need syncing (have sourceMetadata)
+            const linkedAssignments = assignments.filter(a => a.sourceMetadata);
+            
+            if (linkedAssignments.length === 0) {
+                if(!isAuto) alert('لا توجد أعمدة مرتبطة بملف Google Sheet. قم بربط الأعمدة أولاً من الإعدادات.');
+                setIsSheetSyncing(false);
+                return;
+            }
+
+            // 3. Group by Sheet to avoid re-reading same sheet
+            const assignmentsBySheet: Record<string, Assignment[]> = {};
+            linkedAssignments.forEach(a => {
+                try {
+                    const meta = JSON.parse(a.sourceMetadata!);
+                    const sheet = meta.sheet;
+                    if (!assignmentsBySheet[sheet]) assignmentsBySheet[sheet] = [];
+                    assignmentsBySheet[sheet].push(a);
+                } catch (e) { console.error("Invalid metadata", a); }
+            });
+
+            const newRecords: PerformanceRecord[] = [];
+            let updatedCount = 0;
+
+            // 4. Process each sheet
+            for (const sheetName of Object.keys(assignmentsBySheet)) {
+                if (!workbook.SheetNames.includes(sheetName)) continue;
+
+                const { data } = getSheetHeadersAndData(workbook, sheetName);
+                const sheetAssignments = assignmentsBySheet[sheetName];
+
+                // Iterate Rows
+                for (const row of data) {
+                    // Find Student
+                    const identifier = findStudentNameInRow(row); 
+                    if (!identifier) continue;
+
+                    // Match against student list
+                    const student = students.find(s => 
+                        s.name === identifier || 
+                        s.nationalId === identifier ||
+                        s.name.includes(identifier)
+                    );
+
+                    if (student) {
+                        // Extract grades for this student for all mapped assignments
+                        sheetAssignments.forEach(assign => {
+                            const meta = JSON.parse(assign.sourceMetadata!);
+                            const header = meta.header;
+                            const rawVal = row[header];
+
+                            if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+                                const numVal = parseFloat(rawVal);
+                                if (!isNaN(numVal)) {
+                                    newRecords.push({
+                                        id: `${student.id}_${assign.id}`, // Unique ID per student-assignment
+                                        studentId: student.id,
+                                        subject: selectedSubject || 'عام',
+                                        title: assign.title,
+                                        category: assign.category,
+                                        score: numVal,
+                                        maxScore: assign.maxScore,
+                                        date: new Date().toISOString().split('T')[0],
+                                        notes: assign.id, // Store assignment ID in notes to link back
+                                        createdById: currentUser?.id
+                                    });
+                                    updatedCount++;
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            if (newRecords.length > 0) {
+                // Upsert records
+                await bulkAddPerformance(newRecords);
+                
+                // Refresh local state to show new numbers immediately
+                await forceRefreshData();
+                
+                // Update local scores state for immediate UI reflection
+                const newScoresState = { ...scores };
+                newRecords.forEach(rec => {
+                    if (!newScoresState[rec.studentId]) newScoresState[rec.studentId] = {};
+                    newScoresState[rec.studentId][rec.notes!] = rec.score.toString();
+                });
+                setScores(newScoresState);
+
+                if(!isAuto) alert(`تم تحديث ${updatedCount} درجة بنجاح من الملف!`);
+            } else {
+                if(!isAuto) alert('لم يتم العثور على درجات جديدة أو مطابقة للطلاب.');
+            }
+
+        } catch (e: any) {
+            console.error(e);
+            if(!isAuto) alert(`فشل التحديث: ${e.message}`);
+        } finally {
+            setIsSheetSyncing(false);
+            setSyncStatusMsg('');
+        }
+    }, [googleSheetUrl, assignments, students, selectedSubject, currentUser, scores]);
 
     const commitSync = async () => {
         // ... (Existing logic)
