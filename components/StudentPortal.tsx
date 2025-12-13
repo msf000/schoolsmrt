@@ -598,7 +598,7 @@ const StudentWeeklyPlan = ({ student }: any) => {
     );
 };
 
-const StudentGrades = ({ student, performance }: any) => {
+const StudentGrades = ({ student, performance, terms }: any) => {
     // New State for Filtering
     const [activeFilter, setActiveFilter] = useState<'ALL' | 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM'>('ALL');
     const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -607,9 +607,10 @@ const StudentGrades = ({ student, performance }: any) => {
         // Load All assignments available in the system
         // Note: In a real app, we should filter by the student's class/teacher
         // Here we fetch 'ALL' and will filter by class/grade locally if possible, or assume all are relevant
-        const allAssigns = getAssignments('ALL', undefined, true);
+        // Since students might have multiple teachers, getting assignments by the student's teacher ID (from createdById) is a good heuristic
+        const allAssigns = getAssignments('ALL', student.createdById, true);
         setAssignments(allAssigns);
-    }, []);
+    }, [student]);
 
     const chartData = useMemo(() => {
         return performance
