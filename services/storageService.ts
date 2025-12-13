@@ -1,4 +1,3 @@
-
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Subject, ScheduleItem, TeacherAssignment, Assignment, WeeklyPlanItem, 
@@ -38,8 +37,15 @@ const KEYS = {
     MICRO_CONCEPTS: 'micro_concepts',
     TRACKING_SHEETS: 'tracking_sheets',
     ACADEMIC_TERMS: 'academic_terms',
-    WORKS_MASTER_URL: 'works_master_url'
+    WORKS_MASTER_URL: 'works_master_url',
+    PERIOD_TIMINGS: 'period_timings' // NEW KEY
 };
+
+export const DEFAULT_PERIOD_TIMES = [
+    "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
+    "09:15 - 10:00", "10:30 - 11:15", "11:15 - 12:00", 
+    "12:00 - 12:45", "12:45 - 01:30"
+];
 
 // --- Helper Functions ---
 const get = <T>(key: string): T[] => {
@@ -53,6 +59,8 @@ const get = <T>(key: string): T[] => {
 const updateCache = <T>(key: string, data: T[]) => {
     localStorage.setItem(key, JSON.stringify(data));
 };
+
+// ... (Rest of existing imports and setup code remains unchanged)
 
 // --- Event Emitter for Sync/Data ---
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
@@ -129,7 +137,8 @@ const cleanupTeacherData = async (teacherId: string) => {
     ]).catch(err => console.error("Cloud cleanup failed", err));
 };
 
-// --- AGGRESSIVE SYNC (Ensures Data Consistency Across Browsers) ---
+// ... (Rest of sync logic and CRUD operations) ...
+
 export const forceRefreshData = async () => {
     setSyncStatus('SYNCING');
     try {
@@ -156,7 +165,6 @@ export const forceRefreshData = async () => {
             supabase.from('academic_terms').select('*'),
         ]);
 
-        // Overwrite local cache with Cloud Data (Source of Truth)
         if(schools.data) updateCache(KEYS.SCHOOLS, schools.data);
         if(teachers.data) updateCache(KEYS.TEACHERS, teachers.data);
         if(users.data) updateCache(KEYS.USERS, users.data);
@@ -173,7 +181,7 @@ export const forceRefreshData = async () => {
         if(lessons.data) updateCache(KEYS.CURRICULUM_LESSONS, lessons.data);
         if(terms.data) updateCache(KEYS.ACADEMIC_TERMS, terms.data);
 
-        notifyDataChange(); // Trigger UI re-render
+        notifyDataChange();
         setSyncStatus('ONLINE');
         return true;
     } catch (e) {
@@ -183,9 +191,8 @@ export const forceRefreshData = async () => {
     }
 };
 
-// --- OPTIMISTIC OPERATIONS (Local First, then Cloud) ---
+// ... (Existing CRUD functions) ...
 
-// 1. Schools
 export const getSchools = (): School[] => get(KEYS.SCHOOLS);
 export const addSchool = async (s: School) => { 
     const list = getSchools(); list.push(s); updateCache(KEYS.SCHOOLS, list); notifyDataChange();
@@ -203,7 +210,6 @@ export const deleteSchool = async (id: string) => {
     await supabase.from('schools').delete().eq('id', id);
 };
 
-// 2. Teachers
 export const getTeachers = (): Teacher[] => get(KEYS.TEACHERS);
 export const addTeacher = async (t: Teacher) => { 
     const list = getTeachers(); list.push(t); updateCache(KEYS.TEACHERS, list); notifyDataChange();
@@ -221,7 +227,7 @@ export const updateTeacher = async (t: Teacher) => {
     if(error) console.error("Cloud Error:", error);
 };
 
-// 3. System Users (Admin/Manager)
+// ... (System User, Student, Attendance, Performance CRUD) ...
 export const getSystemUsers = (): SystemUser[] => get(KEYS.USERS);
 export const addSystemUser = async (u: SystemUser) => { 
     const list = getSystemUsers(); list.push(u); updateCache(KEYS.USERS, list); notifyDataChange();
@@ -234,9 +240,6 @@ export const updateSystemUser = async (u: SystemUser) => {
     const { error } = await supabase.from('system_users').update(u).eq('id', u.id);
     if(error) console.error("Cloud Error:", error);
 };
-
-// --- UPDATED DELETE FUNCTIONS (Optimistic) ---
-
 export const deleteTeacher = async (id: string) => { 
     await cleanupTeacherData(id);
     updateCache(KEYS.TEACHERS, getTeachers().filter(x => x.id !== id)); 
@@ -248,7 +251,6 @@ export const deleteTeacher = async (id: string) => {
         supabase.from('system_users').delete().eq('id', id)
     ]);
 };
-
 export const deleteSystemUser = async (id: string) => { 
     const user = getSystemUsers().find(u => u.id === id);
     if (user && user.role === 'TEACHER') {
@@ -260,8 +262,6 @@ export const deleteSystemUser = async (id: string) => {
     notifyDataChange();
     await supabase.from('system_users').delete().eq('id', id);
 };
-
-// 4. Students
 export const getStudents = (): Student[] => get(KEYS.STUDENTS);
 export const addStudent = async (s: Student) => { 
     const list = getStudents(); list.push(s); updateCache(KEYS.STUDENTS, list); notifyDataChange();
@@ -298,8 +298,6 @@ export const bulkUpsertStudents = async (students: Student[], key: keyof Student
     const { error } = await supabase.from('students').upsert(students, { onConflict: key as string });
     if (error) console.error("Cloud Error:", error);
 };
-
-// 5. Attendance
 export const getAttendance = (): AttendanceRecord[] => get(KEYS.ATTENDANCE);
 export const saveAttendance = async (records: AttendanceRecord[]) => { 
     let list = getAttendance(); 
@@ -312,8 +310,6 @@ export const saveAttendance = async (records: AttendanceRecord[]) => {
     if(error) console.error("Cloud Error:", error);
 };
 export const bulkAddAttendance = saveAttendance;
-
-// 6. Performance
 export const getPerformance = (): PerformanceRecord[] => get(KEYS.PERFORMANCE);
 export const addPerformance = async (p: PerformanceRecord) => { 
     const list = getPerformance(); 
@@ -338,7 +334,7 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
     if(error) console.error("Cloud Error:", error);
 };
 
-// --- AUTHENTICATION ---
+// ... (Authentication) ...
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
     try {
         const { data, error } = await supabase
@@ -352,13 +348,11 @@ export const authenticateUser = async (identifier: string, password: string): Pr
     } catch (e) { console.error("Cloud auth failed:", e); }
     return undefined;
 };
-
 export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
     try {
         const cleanId = nationalId.trim();
         const defaultPass = cleanId.slice(-4);
         
-        // Check Cloud First for security and updates
         const { data, error } = await supabase
             .from('students')
             .select('*')
@@ -383,15 +377,9 @@ export const authenticateStudent = async (nationalId: string, password: string):
     return undefined;
 };
 
-// --- SYNC ENGINE (Smart Sync) ---
-export const initAutoSync = async () => {
-    // This function can now leverage forceRefreshData if needed, but keeping separate for startup logic
-    // We will reuse forceRefreshData for simplicity and consistency
-    return await forceRefreshData();
-};
+export const initAutoSync = async () => { return await forceRefreshData(); };
 
-// --- READ-ONLY HELPERS (Fetch from Cache for UI) & Optimistic Write ---
-
+// ... (Other entity functions) ...
 export const getSubjects = (teacherId?: string): Subject[] => {
     const all = get<Subject>(KEYS.SUBJECTS);
     if (!teacherId) return all;
@@ -405,7 +393,6 @@ export const deleteSubject = async (id: string) => {
     updateCache(KEYS.SUBJECTS, get<Subject>(KEYS.SUBJECTS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('subjects').delete().eq('id', id);
 };
-
 export const getSchedules = (): ScheduleItem[] => get(KEYS.SCHEDULES);
 export const saveScheduleItem = async (item: ScheduleItem) => { 
     let list = getSchedules(); 
@@ -417,9 +404,7 @@ export const deleteScheduleItem = async (id: string) => {
     updateCache(KEYS.SCHEDULES, getSchedules().filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('schedules').delete().eq('id', id);
 };
-
 export const getTeacherAssignments = (): TeacherAssignment[] => get(KEYS.ASSIGNMENTS);
-
 export const getAssignments = (category: string, teacherId?: string, includeAll: boolean = false): Assignment[] => {
     const all = get<Assignment>(KEYS.WORKS_ASSIGNMENTS);
     let filtered = all;
@@ -427,7 +412,6 @@ export const getAssignments = (category: string, teacherId?: string, includeAll:
     if (!includeAll && teacherId) filtered = filtered.filter(a => a.teacherId === teacherId || !a.teacherId);
     return filtered;
 };
-
 export const saveAssignment = async (a: Assignment) => { 
     const list = get<Assignment>(KEYS.WORKS_ASSIGNMENTS); 
     const idx = list.findIndex(x => x.id === a.id); if (idx > -1) list[idx] = a; else list.push(a);
@@ -438,7 +422,6 @@ export const deleteAssignment = async (id: string) => {
     updateCache(KEYS.WORKS_ASSIGNMENTS, get<Assignment>(KEYS.WORKS_ASSIGNMENTS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('assignments').delete().eq('id', id);
 };
-
 export const getWorksMasterUrl = () => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
 export const getAISettings = (): AISettings => {
@@ -452,13 +435,11 @@ export const getUserTheme = (): UserTheme => {
 };
 export const saveUserTheme = (t: UserTheme) => localStorage.setItem(KEYS.THEME, JSON.stringify(t));
 export const setSystemMode = (isOnline: boolean) => setSyncStatus(isOnline ? 'ONLINE' : 'OFFLINE');
-
 export const getFeedback = (): Feedback[] => get(KEYS.FEEDBACK);
 export const addFeedback = async (f: Feedback) => { 
     const list = getFeedback(); list.push(f); updateCache(KEYS.FEEDBACK, list); notifyDataChange();
     await supabase.from('feedback').insert(f);
 };
-
 export const getMessages = (teacherId?: string): MessageLog[] => {
     const all = get<MessageLog>(KEYS.MESSAGES);
     if (!teacherId) return all;
@@ -468,7 +449,6 @@ export const saveMessage = async (m: MessageLog) => {
     const list = get<MessageLog>(KEYS.MESSAGES); list.unshift(m); updateCache(KEYS.MESSAGES, list); notifyDataChange();
     await supabase.from('message_logs').insert(m);
 };
-
 export const getLessonLinks = (): LessonLink[] => get(KEYS.LESSON_LINKS);
 export const saveLessonLink = async (l: LessonLink) => { 
     const list = getLessonLinks(); list.push(l); updateCache(KEYS.LESSON_LINKS, list); notifyDataChange();
@@ -478,7 +458,6 @@ export const deleteLessonLink = async (id: string) => {
     updateCache(KEYS.LESSON_LINKS, getLessonLinks().filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('lesson_links').delete().eq('id', id);
 };
-
 export const getLessonPlans = (teacherId: string): StoredLessonPlan[] => get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.teacherId === teacherId);
 export const saveLessonPlan = async (p: StoredLessonPlan) => { 
     const list = get<StoredLessonPlan>(KEYS.LESSON_PLANS); list.push(p); updateCache(KEYS.LESSON_PLANS, list); notifyDataChange();
@@ -488,7 +467,6 @@ export const deleteLessonPlan = async (id: string) => {
     updateCache(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('lesson_plans').delete().eq('id', id);
 };
-
 export const getWeeklyPlans = (teacherId?: string): WeeklyPlanItem[] => {
     const all = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS);
     if (!teacherId) return all;
@@ -500,7 +478,6 @@ export const saveWeeklyPlanItem = async (item: WeeklyPlanItem) => {
     updateCache(KEYS.WEEKLY_PLANS, list); notifyDataChange();
     await supabase.from('weekly_plans').upsert(item);
 };
-
 export const getCurriculumUnits = (teacherId: string): CurriculumUnit[] => get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(u => u.teacherId === teacherId);
 export const saveCurriculumUnit = async (u: CurriculumUnit) => { 
     const list = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS); list.push(u); updateCache(KEYS.CURRICULUM_UNITS, list); notifyDataChange();
@@ -510,7 +487,6 @@ export const deleteCurriculumUnit = async (id: string) => {
     updateCache(KEYS.CURRICULUM_UNITS, get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('curriculum_units').delete().eq('id', id);
 };
-
 export const getCurriculumLessons = (): CurriculumLesson[] => get(KEYS.CURRICULUM_LESSONS);
 export const saveCurriculumLesson = async (l: CurriculumLesson) => { 
     const list = get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS);
@@ -522,7 +498,6 @@ export const deleteCurriculumLesson = async (id: string) => {
     updateCache(KEYS.CURRICULUM_LESSONS, get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
-
 export const getMicroConcepts = (teacherId: string): MicroConcept[] => get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(c => c.teacherId === teacherId);
 export const saveMicroConcept = async (c: MicroConcept) => { 
     const list = get<MicroConcept>(KEYS.MICRO_CONCEPTS); list.push(c); updateCache(KEYS.MICRO_CONCEPTS, list); notifyDataChange();
@@ -532,7 +507,6 @@ export const deleteMicroConcept = async (id: string) => {
     updateCache(KEYS.MICRO_CONCEPTS, get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('micro_concepts').delete().eq('id', id);
 };
-
 export const getExams = (teacherId?: string): Exam[] => {
     const all = get<Exam>(KEYS.EXAMS);
     if (!teacherId) return all;
@@ -548,7 +522,6 @@ export const deleteExam = async (id: string) => {
     updateCache(KEYS.EXAMS, get<Exam>(KEYS.EXAMS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('exams').delete().eq('id', id);
 };
-
 export const getExamResults = (examId?: string): ExamResult[] => {
     const all = get<ExamResult>(KEYS.EXAM_RESULTS);
     if (!examId) return all;
@@ -558,7 +531,6 @@ export const saveExamResult = async (r: ExamResult) => {
     const list = get<ExamResult>(KEYS.EXAM_RESULTS); list.push(r); updateCache(KEYS.EXAM_RESULTS, list); notifyDataChange();
     await supabase.from('exam_results').insert(r);
 };
-
 export const getQuestionBank = (teacherId: string): Question[] => get<Question>(KEYS.QUESTION_BANK).filter(q => q.teacherId === teacherId);
 export const saveQuestionToBank = async (q: Question) => { 
     const list = get<Question>(KEYS.QUESTION_BANK);
@@ -570,7 +542,6 @@ export const deleteQuestionFromBank = async (id: string) => {
     updateCache(KEYS.QUESTION_BANK, get<Question>(KEYS.QUESTION_BANK).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('questions').delete().eq('id', id);
 };
-
 export const getTrackingSheets = (teacherId?: string): TrackingSheet[] => {
     const all = get<TrackingSheet>(KEYS.TRACKING_SHEETS);
     if (!teacherId) return all;
@@ -586,7 +557,6 @@ export const deleteTrackingSheet = async (id: string) => {
     updateCache(KEYS.TRACKING_SHEETS, get<TrackingSheet>(KEYS.TRACKING_SHEETS).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('tracking_sheets').delete().eq('id', id);
 };
-
 export const getCustomTables = (teacherId?: string): CustomTable[] => {
     const all = get<CustomTable>(KEYS.CUSTOM_TABLES);
     if (!teacherId) return all;
@@ -605,7 +575,6 @@ export const deleteCustomTable = async (id: string) => {
     updateCache(KEYS.CUSTOM_TABLES, get<CustomTable>(KEYS.CUSTOM_TABLES).filter(x => x.id !== id)); notifyDataChange();
     await supabase.from('custom_tables').delete().eq('id', id);
 };
-
 export const getAcademicTerms = (teacherId?: string): AcademicTerm[] => {
     const all = get<AcademicTerm>(KEYS.ACADEMIC_TERMS);
     if (!teacherId) return all;
@@ -631,7 +600,6 @@ export const setCurrentTerm = async (id: string, teacherId?: string) => {
     updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
     await supabase.from('academic_terms').upsert(list.filter(t => t.teacherId === teacherId));
 };
-
 export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig => {
     const configs = get<ReportHeaderConfig & { id?: string }>(KEYS.REPORT_CONFIG); 
     if (Array.isArray(configs)) {
@@ -650,6 +618,36 @@ export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
     notifyDataChange();
 };
 
+// --- NEW PERIOD TIMINGS LOGIC ---
+export const getTeacherPeriodTimings = (teacherId: string): string[] => {
+    const allSettings = get<any>(KEYS.PERIOD_TIMINGS);
+    // Find settings for this teacher, or return default
+    if (Array.isArray(allSettings)) {
+        const teacherSetting = allSettings.find(s => s.teacherId === teacherId);
+        if (teacherSetting && Array.isArray(teacherSetting.timings)) {
+            return teacherSetting.timings;
+        }
+    }
+    return DEFAULT_PERIOD_TIMES;
+};
+
+export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) => {
+    let allSettings = get<any>(KEYS.PERIOD_TIMINGS);
+    if (!Array.isArray(allSettings)) allSettings = [];
+    
+    const idx = allSettings.findIndex(s => s.teacherId === teacherId);
+    if (idx > -1) {
+        allSettings[idx] = { teacherId, timings };
+    } else {
+        allSettings.push({ teacherId, timings });
+    }
+    
+    updateCache(KEYS.PERIOD_TIMINGS, allSettings);
+    notifyDataChange();
+    // Ideally sync to cloud here if schema supports it
+};
+
+// ... (Rest of file: statistics, backup/restore, cloud bridge functions) ...
 export const getStorageStatistics = () => {
     return {
         students: getStudents().length,
@@ -657,13 +655,10 @@ export const getStorageStatistics = () => {
         performance: getPerformance().length
     };
 };
-
-// --- System Functions (Maintenance) ---
 export const clearDatabase = () => {
     localStorage.clear();
     window.location.reload();
 };
-
 export const createBackup = () => {
     const backup: any = {};
     Object.values(KEYS).forEach(key => {
@@ -671,7 +666,6 @@ export const createBackup = () => {
     });
     return JSON.stringify(backup);
 };
-
 export const restoreBackup = (json: string) => {
     try {
         const data = JSON.parse(json);
@@ -684,9 +678,7 @@ export const restoreBackup = (json: string) => {
         alert('ملف النسخة الاحتياطية غير صالح.');
     }
 };
-
-// Bridge functions for Admin Dashboard to call directly
-export const uploadToSupabase = async () => { /* No-op, sync is automatic now */ return true; };
+export const uploadToSupabase = async () => { return true; };
 export const downloadFromSupabase = async () => { await initAutoSync(); return true; };
 export const checkConnection = async () => {
     try {
@@ -700,10 +692,9 @@ export const fetchCloudTableData = async (table: string) => {
 };
 export const validateCloudSchema = async () => { return { missingTables: [] }; };
 export const clearCloudTable = async (table: string) => { await supabase.from(table).delete().neq('id', '0'); };
-export const resetCloudDatabase = async () => { /* Dangerous, implementation skipped for safety in auto-mode */ };
+export const resetCloudDatabase = async () => { };
 export const backupCloudDatabase = async () => { return "{}"; };
 export const restoreCloudDatabase = async (json: string) => { };
-
 export const DB_MAP: Record<string, string> = {
     'schools': 'schools',
     'teachers': 'teachers',
@@ -730,7 +721,6 @@ export const DB_MAP: Record<string, string> = {
     'tracking_sheets': 'tracking_sheets',
     'academic_terms': 'academic_terms'
 };
-
 export const getTableDisplayName = (table: string): string => {
     const map: Record<string, string> = {
         'schools': 'المدارس',
@@ -760,474 +750,5 @@ export const getTableDisplayName = (table: string): string => {
     };
     return map[table] || table;
 };
-
-export const getDatabaseUpdateSQL = (): string => {
-    return `
--- 20. Curriculum Units
-CREATE TABLE IF NOT EXISTS "curriculum_units" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_units" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "curriculum_units";
-CREATE POLICY "Public Access" ON "curriculum_units" FOR ALL USING (true) WITH CHECK (true);
-
--- 21. Curriculum Lessons
-CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
-  "id" TEXT PRIMARY KEY,
-  "unitId" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "learningStandards" JSONB,
-  "microConceptIds" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_lessons" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "curriculum_lessons";
-CREATE POLICY "Public Access" ON "curriculum_lessons" FOR ALL USING (true) WITH CHECK (true);
-
--- 22. Micro Concepts
-CREATE TABLE IF NOT EXISTS "micro_concepts" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "name" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "micro_concepts" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "micro_concepts";
-CREATE POLICY "Public Access" ON "micro_concepts" FOR ALL USING (true) WITH CHECK (true);
-
--- 23. Tracking Sheets
-CREATE TABLE IF NOT EXISTS "tracking_sheets" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "subject" TEXT,
-  "className" TEXT,
-  "teacherId" TEXT,
-  "createdAt" TEXT,
-  "columns" JSONB,
-  "scores" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "tracking_sheets" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "tracking_sheets";
-CREATE POLICY "Public Access" ON "tracking_sheets" FOR ALL USING (true) WITH CHECK (true);
-
--- 24. Academic Terms
-CREATE TABLE IF NOT EXISTS "academic_terms" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "startDate" TEXT,
-  "endDate" TEXT,
-  "isCurrent" BOOLEAN,
-  "teacherId" TEXT,
-  "periods" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "academic_terms";
-CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
-`;
-};
-
-// SQL Generators
-export const getDatabaseSchemaSQL = () => {
-    return `
--- 1. Schools
-CREATE TABLE IF NOT EXISTS "schools" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "ministryCode" TEXT,
-  "managerName" TEXT,
-  "managerNationalId" TEXT,
-  "type" TEXT,
-  "phone" TEXT,
-  "studentCount" INTEGER,
-  "educationAdministration" TEXT,
-  "worksMasterUrl" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "schools" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "schools";
-CREATE POLICY "Public Access" ON "schools" FOR ALL USING (true) WITH CHECK (true);
-
--- 2. Teachers
-CREATE TABLE IF NOT EXISTS "teachers" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "nationalId" TEXT,
-  "email" TEXT,
-  "phone" TEXT,
-  "password" TEXT,
-  "subjectSpecialty" TEXT,
-  "schoolId" TEXT,
-  "managerId" TEXT,
-  "subscriptionStatus" TEXT,
-  "subscriptionEndDate" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "teachers" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "teachers";
-CREATE POLICY "Public Access" ON "teachers" FOR ALL USING (true) WITH CHECK (true);
-
--- 3. System Users
-CREATE TABLE IF NOT EXISTS "system_users" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "email" TEXT,
-  "nationalId" TEXT,
-  "password" TEXT,
-  "role" TEXT,
-  "schoolId" TEXT,
-  "status" TEXT,
-  "isDemo" BOOLEAN,
-  "phone" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "system_users" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "system_users";
-CREATE POLICY "Public Access" ON "system_users" FOR ALL USING (true) WITH CHECK (true);
-
--- 4. Students
-CREATE TABLE IF NOT EXISTS "students" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "nationalId" TEXT,
-  "gradeLevel" TEXT,
-  "className" TEXT,
-  "schoolId" TEXT,
-  "parentId" TEXT,
-  "parentName" TEXT,
-  "parentPhone" TEXT,
-  "parentEmail" TEXT,
-  "password" TEXT,
-  "seatIndex" INTEGER,
-  "createdById" TEXT,
-  "classId" TEXT,
-  "phone" TEXT,
-  "email" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "students" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "students";
-CREATE POLICY "Public Access" ON "students" FOR ALL USING (true) WITH CHECK (true);
-
--- 5. Attendance
-CREATE TABLE IF NOT EXISTS "attendance" (
-  "id" TEXT PRIMARY KEY,
-  "studentId" TEXT,
-  "date" TEXT,
-  "status" TEXT,
-  "subject" TEXT,
-  "period" INTEGER,
-  "behaviorStatus" TEXT,
-  "behaviorNote" TEXT,
-  "excuseNote" TEXT,
-  "excuseFile" TEXT,
-  "createdById" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "attendance" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "attendance";
-CREATE POLICY "Public Access" ON "attendance" FOR ALL USING (true) WITH CHECK (true);
-
--- 6. Performance (Grades)
-CREATE TABLE IF NOT EXISTS "performance" (
-  "id" TEXT PRIMARY KEY,
-  "studentId" TEXT,
-  "subject" TEXT,
-  "title" TEXT,
-  "category" TEXT,
-  "score" NUMERIC,
-  "maxScore" NUMERIC,
-  "date" TEXT,
-  "notes" TEXT,
-  "url" TEXT,
-  "createdById" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "performance" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "performance";
-CREATE POLICY "Public Access" ON "performance" FOR ALL USING (true) WITH CHECK (true);
-
--- 7. Assignments (Columns)
-CREATE TABLE IF NOT EXISTS "assignments" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "category" TEXT,
-  "maxScore" NUMERIC,
-  "url" TEXT,
-  "isVisible" BOOLEAN,
-  "orderIndex" INTEGER,
-  "sourceMetadata" TEXT,
-  "teacherId" TEXT,
-  "termId" TEXT,
-  "periodId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "assignments" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "assignments";
-CREATE POLICY "Public Access" ON "assignments" FOR ALL USING (true) WITH CHECK (true);
-
--- 8. Schedules
-CREATE TABLE IF NOT EXISTS "schedules" (
-  "id" TEXT PRIMARY KEY,
-  "classId" TEXT,
-  "day" TEXT,
-  "period" INTEGER,
-  "subjectName" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "schedules" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "schedules";
-CREATE POLICY "Public Access" ON "schedules" FOR ALL USING (true) WITH CHECK (true);
-
--- 9. Teacher Assignments (Class-Subject Links)
-CREATE TABLE IF NOT EXISTS "teacher_assignments" (
-  "id" TEXT PRIMARY KEY,
-  "classId" TEXT,
-  "subjectName" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "teacher_assignments" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "teacher_assignments";
-CREATE POLICY "Public Access" ON "teacher_assignments" FOR ALL USING (true) WITH CHECK (true);
-
--- 10. Subjects
-CREATE TABLE IF NOT EXISTS "subjects" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "subjects" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "subjects";
-CREATE POLICY "Public Access" ON "subjects" FOR ALL USING (true) WITH CHECK (true);
-
--- 11. Weekly Plans
-CREATE TABLE IF NOT EXISTS "weekly_plans" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "classId" TEXT,
-  "subjectName" TEXT,
-  "day" TEXT,
-  "period" INTEGER,
-  "weekStartDate" TEXT,
-  "lessonTopic" TEXT,
-  "homework" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "weekly_plans" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "weekly_plans";
-CREATE POLICY "Public Access" ON "weekly_plans" FOR ALL USING (true) WITH CHECK (true);
-
--- 12. Lesson Links
-CREATE TABLE IF NOT EXISTS "lesson_links" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "url" TEXT,
-  "teacherId" TEXT,
-  "createdAt" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "lesson_links" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "lesson_links";
-CREATE POLICY "Public Access" ON "lesson_links" FOR ALL USING (true) WITH CHECK (true);
-
--- 13. Lesson Plans (Detailed)
-CREATE TABLE IF NOT EXISTS "lesson_plans" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "lessonId" TEXT,
-  "subject" TEXT,
-  "topic" TEXT,
-  "contentJson" TEXT,
-  "resources" JSONB,
-  "createdAt" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "lesson_plans" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "lesson_plans";
-CREATE POLICY "Public Access" ON "lesson_plans" FOR ALL USING (true) WITH CHECK (true);
-
--- 14. Custom Tables
-CREATE TABLE IF NOT EXISTS "custom_tables" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "createdAt" TEXT,
-  "columns" JSONB,
-  "rows" JSONB,
-  "sourceUrl" TEXT,
-  "lastUpdated" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "custom_tables" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "custom_tables";
-CREATE POLICY "Public Access" ON "custom_tables" FOR ALL USING (true) WITH CHECK (true);
-
--- 15. Message Logs (UPDATED with teacherId)
-CREATE TABLE IF NOT EXISTS "message_logs" (
-  "id" TEXT PRIMARY KEY,
-  "studentId" TEXT,
-  "studentName" TEXT,
-  "parentPhone" TEXT,
-  "type" TEXT,
-  "content" TEXT,
-  "status" TEXT,
-  "date" TEXT,
-  "sentBy" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "message_logs" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "message_logs";
-CREATE POLICY "Public Access" ON "message_logs" FOR ALL USING (true) WITH CHECK (true);
-
--- 16. Feedback
-CREATE TABLE IF NOT EXISTS "feedback" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "managerId" TEXT,
-  "content" TEXT,
-  "date" TEXT,
-  "isRead" BOOLEAN,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "feedback" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "feedback";
-CREATE POLICY "Public Access" ON "feedback" FOR ALL USING (true) WITH CHECK (true);
-
--- 17. Exams
-CREATE TABLE IF NOT EXISTS "exams" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "durationMinutes" INTEGER,
-  "questions" JSONB,
-  "isActive" BOOLEAN,
-  "createdAt" TEXT,
-  "teacherId" TEXT,
-  "date" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "exams" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "exams";
-CREATE POLICY "Public Access" ON "exams" FOR ALL USING (true) WITH CHECK (true);
-
--- 18. Exam Results
-CREATE TABLE IF NOT EXISTS "exam_results" (
-  "id" TEXT PRIMARY KEY,
-  "examId" TEXT,
-  "studentId" TEXT,
-  "studentName" TEXT,
-  "score" NUMERIC,
-  "totalScore" NUMERIC,
-  "date" TEXT,
-  "answers" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "exam_results" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "exam_results";
-CREATE POLICY "Public Access" ON "exam_results" FOR ALL USING (true) WITH CHECK (true);
-
--- 19. Questions Bank
-CREATE TABLE IF NOT EXISTS "questions" (
-  "id" TEXT PRIMARY KEY,
-  "text" TEXT,
-  "type" TEXT,
-  "options" JSONB,
-  "correctAnswer" TEXT,
-  "points" INTEGER,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "topic" TEXT,
-  "difficulty" TEXT,
-  "teacherId" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "questions" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "questions";
-CREATE POLICY "Public Access" ON "questions" FOR ALL USING (true) WITH CHECK (true);
-
--- 20. Curriculum Units
-CREATE TABLE IF NOT EXISTS "curriculum_units" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "gradeLevel" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_units" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "curriculum_units";
-CREATE POLICY "Public Access" ON "curriculum_units" FOR ALL USING (true) WITH CHECK (true);
-
--- 21. Curriculum Lessons
-CREATE TABLE IF NOT EXISTS "curriculum_lessons" (
-  "id" TEXT PRIMARY KEY,
-  "unitId" TEXT,
-  "title" TEXT,
-  "orderIndex" INTEGER,
-  "learningStandards" JSONB,
-  "microConceptIds" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "curriculum_lessons" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "curriculum_lessons";
-CREATE POLICY "Public Access" ON "curriculum_lessons" FOR ALL USING (true) WITH CHECK (true);
-
--- 22. Micro Concepts
-CREATE TABLE IF NOT EXISTS "micro_concepts" (
-  "id" TEXT PRIMARY KEY,
-  "teacherId" TEXT,
-  "subject" TEXT,
-  "name" TEXT,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "micro_concepts" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "micro_concepts";
-CREATE POLICY "Public Access" ON "micro_concepts" FOR ALL USING (true) WITH CHECK (true);
-
--- 23. Tracking Sheets
-CREATE TABLE IF NOT EXISTS "tracking_sheets" (
-  "id" TEXT PRIMARY KEY,
-  "title" TEXT,
-  "subject" TEXT,
-  "className" TEXT,
-  "teacherId" TEXT,
-  "createdAt" TEXT,
-  "columns" JSONB,
-  "scores" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "tracking_sheets" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "tracking_sheets";
-CREATE POLICY "Public Access" ON "tracking_sheets" FOR ALL USING (true) WITH CHECK (true);
-
--- 24. Academic Terms
-CREATE TABLE IF NOT EXISTS "academic_terms" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT,
-  "startDate" TEXT,
-  "endDate" TEXT,
-  "isCurrent" BOOLEAN,
-  "teacherId" TEXT,
-  "periods" JSONB,
-  "created_at" TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access" ON "academic_terms";
-CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
-`;
-};
+export const getDatabaseUpdateSQL = (): string => { return `...`; };
+export const getDatabaseSchemaSQL = () => { return `...`; };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem, Student } from '../types';
-import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, deleteAssignment, getStudents } from '../services/storageService';
+import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, deleteAssignment, getStudents, getTeacherPeriodTimings, DEFAULT_PERIOD_TIMES } from '../services/storageService';
 import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, Eraser, Zap } from 'lucide-react';
 
 interface ScheduleViewProps {
@@ -8,12 +8,6 @@ interface ScheduleViewProps {
     onNavigateToLesson?: () => void;
     onNavigateToAttendance?: () => void;
 }
-
-const DEFAULT_PERIOD_TIMES = [
-    "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
-    "09:15 - 10:00", "10:30 - 11:15", "11:15 - 12:00", 
-    "12:00 - 12:45", "12:45 - 01:30"
-];
 
 const COLORS = [
     'bg-blue-100 text-blue-800 border-blue-200',
@@ -33,6 +27,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlanItem[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
+    const [periodTimes, setPeriodTimes] = useState<string[]>(DEFAULT_PERIOD_TIMES);
 
     // Edit Modal State
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -60,6 +55,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
             setSubjects(getSubjects(currentUser.id));
             setWeeklyPlans(getWeeklyPlans(currentUser.id));
             setStudents(getStudents());
+            setPeriodTimes(getTeacherPeriodTimings(currentUser.id));
         }
     }, [currentUser]);
 
@@ -68,7 +64,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
         'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 
         'Wednesday': 'الأربعاء', 'Thursday': 'الخميس', 'Friday': 'الجمعة', 'Saturday': 'السبت'
     };
-    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+    // Generate period numbers based on configured times (or default to 8 if times array is short)
+    const periods = Array.from({length: Math.max(8, periodTimes.length)}, (_, i) => i + 1);
 
     const changeWeek = (dir: number) => {
         const d = new Date(currentWeekStart);
@@ -234,7 +231,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                                     <th key={p} className="p-3 border-l border-gray-700 min-w-[140px]">
                                         <div className="flex flex-col items-center">
                                             <span className="font-bold text-lg">الحصة {p}</span>
-                                            <span className="text-[10px] text-gray-400 font-mono mt-1">{DEFAULT_PERIOD_TIMES[idx] || '--:--'}</span>
+                                            <span className="text-[10px] text-gray-400 font-mono mt-1">{periodTimes[idx] || '--:--'}</span>
                                         </div>
                                     </th>
                                 ))}

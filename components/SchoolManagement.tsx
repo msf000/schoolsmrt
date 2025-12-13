@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Teacher, School, SystemUser, Subject, ReportHeaderConfig, UserTheme, AcademicTerm, TermPeriod } from '../types';
 import { 
@@ -6,9 +5,10 @@ import {
     getSchools, getSubjects, addSubject, deleteSubject,
     getReportHeaderConfig, saveReportHeaderConfig,
     getUserTheme, saveUserTheme,
-    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm
+    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
+    getTeacherPeriodTimings, saveTeacherPeriodTimings, DEFAULT_PERIOD_TIMES
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, FileText, BookOpen, Settings, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles } from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, FileText, BookOpen, Settings, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles, Clock, RotateCcw } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -40,6 +40,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', signatureBase64: ''
   });
   const [userTheme, setUserTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
+  const [periodTimings, setPeriodTimings] = useState<string[]>([]);
 
   // UI States
   const [newSubject, setNewSubject] = useState('');
@@ -62,6 +63,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           setSubjects(getSubjects(currentUser.id));
           setReportConfig(getReportHeaderConfig(currentUser.id));
           setAcademicTerms(getAcademicTerms(currentUser.id));
+          setPeriodTimings(getTeacherPeriodTimings(currentUser.id));
       }
       setUserTheme(getUserTheme());
       const allTeachers = getTeachers();
@@ -198,6 +200,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           const configWithId = { ...reportConfig, teacherId: currentUser.id }; 
           saveReportHeaderConfig(configWithId); 
           saveUserTheme(userTheme); 
+          saveTeacherPeriodTimings(currentUser.id, periodTimings);
           if(onUpdateTheme) onUpdateTheme(userTheme); 
           alert('تم الحفظ بنجاح'); 
       } 
@@ -216,6 +219,18 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       } 
   };
 
+  const updatePeriodTime = (index: number, value: string) => {
+      const newTimings = [...periodTimings];
+      newTimings[index] = value;
+      setPeriodTimings(newTimings);
+  };
+
+  const handleResetTimings = () => {
+      if(confirm('هل أنت متأكد من استعادة التوقيتات الافتراضية؟')) {
+          setPeriodTimings([...DEFAULT_PERIOD_TIMES]);
+      }
+  };
+
   return (
     <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
         {/* Tabs */}
@@ -228,6 +243,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {/* ... (DASHBOARD, TEACHERS, SUBJECTS, CALENDAR tabs remain unchanged) ... */}
             {/* DASHBOARD TAB */}
             {activeTab === 'DASHBOARD' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -352,7 +368,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     <div className="p-4 border-t bg-white animate-slide-up">
                                         <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><ListTree size={14}/> الفترات (Periods)</h5>
                                         <div className="space-y-2 mb-4">
-                                            {/* SORTED PERIODS FOR DISPLAY: Chronologically or Name based */}
                                             {term.periods?.sort((a,b) => {
                                                 if (a.startDate && b.startDate && a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
                                                 return a.name.localeCompare(b.name, 'ar');
@@ -389,7 +404,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
             {/* SETTINGS TAB */}
             {activeTab === 'SETTINGS' && (
-                <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+                <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-10">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
                             <FileText className="text-indigo-600"/> إعدادات الترويسة والتقارير
@@ -435,6 +450,32 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 <p className="text-[10px] text-gray-400 mt-1">سيظهر هذا التوقيع تلقائياً في الشهادات والتقارير.</p>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Period Timings Section */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                                <Clock className="text-orange-600"/> توقيت الحصص
+                            </h3>
+                            <button onClick={handleResetTimings} className="text-xs text-orange-600 hover:text-orange-700 flex items-center gap-1">
+                                <RotateCcw size={12}/> استعادة الافتراضي
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {periodTimings.map((time, index) => (
+                                <div key={index}>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">الحصة {index + 1}</label>
+                                    <input 
+                                        className="w-full p-2 border rounded text-xs text-center font-mono font-bold focus:ring-1 focus:ring-orange-500 outline-none"
+                                        value={time}
+                                        onChange={(e) => updatePeriodTime(index, e.target.value)}
+                                        placeholder="00:00 - 00:00"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-2">* هذه التوقيتات ستظهر في الجدول الدراسي.</p>
                     </div>
 
                     {/* Teacher Profile Section */}
