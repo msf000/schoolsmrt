@@ -731,8 +731,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             {/* --- GOOGLE SHEET TAB --- */}
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6">
-                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200">
-                                        <label className="block text-sm font-bold text-green-800 mb-2">رابط ملف Google Sheet (تأكد من صلاحية العرض)</label>
+                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 space-y-3">
+                                        <label className="block text-sm font-bold text-green-800">رابط ملف Google Sheet (تأكد من صلاحية العرض)</label>
                                         <div className="flex gap-2">
                                             <input 
                                                 className="flex-1 p-2 border border-green-300 rounded-lg text-sm dir-ltr" 
@@ -748,18 +748,43 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 {isFetchingStructure ? <Loader2 className="animate-spin" size={16}/> : <CloudLightning size={16}/>} جلب الأعمدة
                                             </button>
                                         </div>
-                                        {sheetNames.length > 0 && (
-                                            <div className="mt-3 flex items-center gap-2">
-                                                <span className="text-xs font-bold text-green-700">ورقة العمل:</span>
+
+                                        <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-green-200">
+                                            {/* Target Context */}
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-green-700">الاستيراد إلى:</span>
                                                 <select 
-                                                    className="p-1 border rounded text-xs" 
-                                                    value={selectedSheetName} 
-                                                    onChange={handleSheetSelectionChange}
+                                                    className="p-1.5 border border-green-300 rounded text-xs bg-white h-8 min-w-[100px]"
+                                                    value={settingTermId} 
+                                                    onChange={e => { setSettingTermId(e.target.value); setSettingPeriodId(''); }}
                                                 >
-                                                    {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+                                                    <option value="">الفصل...</option>
+                                                    {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                </select>
+                                                <select 
+                                                    className="p-1.5 border border-green-300 rounded text-xs bg-white h-8 min-w-[100px]"
+                                                    value={settingPeriodId} 
+                                                    onChange={e => setSettingPeriodId(e.target.value)}
+                                                >
+                                                    <option value="">الفترة (عام)</option>
+                                                    {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                 </select>
                                             </div>
-                                        )}
+
+                                            {/* Sheet Selector - Only if sheets exist */}
+                                            {sheetNames.length > 0 && (
+                                                <div className="flex items-center gap-2 border-r border-green-300 pr-4 mr-2">
+                                                    <span className="text-xs font-bold text-green-700">من ورقة:</span>
+                                                    <select 
+                                                        className="p-1.5 border border-green-300 rounded text-xs bg-white h-8"
+                                                        value={selectedSheetName} 
+                                                        onChange={handleSheetSelectionChange}
+                                                    >
+                                                        {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {availableHeaders.length > 0 && (
