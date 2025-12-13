@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog } from '../types';
-import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem } from '../types';
+import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans } from '../services/storageService';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -14,7 +14,7 @@ interface StudentPortalProps {
 }
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
-    const [activeTab, setActiveTab] = useState<'HOME' | 'SCHEDULE' | 'GRADES' | 'LIBRARY' | 'PROFILE'>('HOME');
+    const [activeTab, setActiveTab] = useState<'HOME' | 'PLAN' | 'GRADES' | 'LIBRARY' | 'PROFILE'>('HOME');
     const [isSyncing, setIsSyncing] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     
@@ -97,7 +97,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
             <main className="flex-1 overflow-y-auto pb-24 pt-4 px-4 custom-scrollbar bg-gradient-to-b from-slate-50 to-white">
                 
                 {activeTab === 'HOME' && <StudentHome student={currentUser} attendance={attendance} performance={performance} terms={terms} onNavigate={setActiveTab} />}
-                {activeTab === 'SCHEDULE' && <StudentSchedule student={currentUser} />}
+                {activeTab === 'PLAN' && <StudentWeeklyPlan student={currentUser} />}
                 {activeTab === 'GRADES' && <StudentGrades student={currentUser} performance={performance} terms={terms} />}
                 {activeTab === 'LIBRARY' && <StudentLibraryView student={currentUser} />}
                 {activeTab === 'PROFILE' && <StudentProfileView student={currentUser} onLogout={onLogout} attendance={attendance} performance={performance} />}
@@ -113,7 +113,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe-bottom z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 <div className="flex justify-around items-center h-16">
                     <NavButton icon={Home} label="الرئيسية" active={activeTab === 'HOME'} onClick={() => setActiveTab('HOME')} />
-                    <NavButton icon={Clock} label="الجدول" active={activeTab === 'SCHEDULE'} onClick={() => setActiveTab('SCHEDULE')} />
+                    <NavButton icon={ListTodo} label="مهامي" active={activeTab === 'PLAN'} onClick={() => setActiveTab('PLAN')} />
                     <div className="relative -top-5">
                         <button 
                             onClick={() => setActiveTab('GRADES')}
@@ -209,21 +209,45 @@ const StudentHome = ({ student, attendance, performance, terms, onNavigate }: an
     );
 };
 
-const StudentSchedule = ({ student }: any) => {
+const StudentWeeklyPlan = ({ student }: any) => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
     const dayNames: any = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
-    const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-US', { weekday: 'long' }));
-    const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+    
+    // Get current day name
+    const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const initialDay = days.includes(todayName) ? todayName : 'Sunday';
+    
+    const [selectedDay, setSelectedDay] = useState(initialDay);
+    const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
+    
+    // Local state for "Done" tasks (persisted in local storage)
+    const [doneTasks, setDoneTasks] = useState<Record<string, boolean>>(() => {
+        const saved = localStorage.getItem(`student_tasks_done_${student.id}`);
+        return saved ? JSON.parse(saved) : {};
+    });
 
     useEffect(() => {
-        const all = getSchedules();
-        setSchedule(all.filter(s => s.classId === student.className));
+        const all = getWeeklyPlans();
+        // Filter plans for this student's class
+        const myPlans = all.filter(p => p.classId === student.className);
+        setPlans(myPlans);
     }, [student]);
 
-    const daySchedule = schedule.filter(s => s.day === selectedDay).sort((a,b) => a.period - b.period);
+    const toggleTask = (planId: string) => {
+        const newState = { ...doneTasks, [planId]: !doneTasks[planId] };
+        setDoneTasks(newState);
+        localStorage.setItem(`student_tasks_done_${student.id}`, JSON.stringify(newState));
+    };
+
+    const dayPlans = plans.filter(p => p.day === selectedDay).sort((a,b) => a.period - b.period);
+    const doneCount = dayPlans.filter(p => doneTasks[p.id]).length;
+    const progress = dayPlans.length > 0 ? (doneCount / dayPlans.length) * 100 : 0;
 
     return (
-        <div className="space-y-4 animate-slide-in-right">
+        <div className="space-y-4 animate-slide-in-right pb-20">
+            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><ListTodo className="text-sky-600"/> جدول المهام والواجبات</h3>
+            
+            {/* Days Selector */}
             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                 {days.map(day => (
                     <button 
@@ -236,24 +260,49 @@ const StudentSchedule = ({ student }: any) => {
                 ))}
             </div>
 
-            <div className="space-y-3 pb-20">
-                {daySchedule.length > 0 ? daySchedule.map(s => (
-                    <div key={s.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-sky-50 text-sky-600 rounded-lg flex items-center justify-center font-bold text-lg">
-                                {s.period}
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-gray-800">{s.subjectName}</h4>
-                                <p className="text-xs text-gray-400">حصة دراسية</p>
-                            </div>
+            {/* Progress Bar for the day */}
+            {dayPlans.length > 0 && (
+                <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
+                    <div className="flex-1">
+                        <div className="flex justify-between text-xs font-bold text-gray-500 mb-1">
+                            <span>إنجاز اليوم</span>
+                            <span>{Math.round(progress)}%</span>
                         </div>
-                        <div className="text-xs bg-gray-50 px-2 py-1 rounded text-gray-500">45 دقيقة</div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                        </div>
+                    </div>
+                    {progress === 100 && <span className="text-xl">🎉</span>}
+                </div>
+            )}
+
+            {/* Tasks List */}
+            <div className="space-y-3">
+                {dayPlans.length > 0 ? dayPlans.map(p => (
+                    <div key={p.id} className={`bg-white p-4 rounded-xl border shadow-sm transition-all ${doneTasks[p.id] ? 'border-green-200 bg-green-50/30' : 'border-gray-100'}`}>
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{p.subjectName}</span>
+                                <span className="text-xs text-gray-400">حصة {p.period}</span>
+                            </div>
+                            <button onClick={() => toggleTask(p.id)} className={`p-1 rounded-full transition-colors ${doneTasks[p.id] ? 'text-green-600 bg-green-100' : 'text-gray-300 hover:bg-gray-100'}`}>
+                                {doneTasks[p.id] ? <CheckSquare size={20}/> : <CheckSquare size={20}/>}
+                            </button>
+                        </div>
+                        
+                        <h4 className={`font-bold text-gray-800 mb-1 ${doneTasks[p.id] ? 'line-through text-gray-400' : ''}`}>{p.lessonTopic}</h4>
+                        
+                        {p.homework && (
+                            <div className="flex items-start gap-2 mt-2 bg-yellow-50 p-2 rounded-lg border border-yellow-100">
+                                <BookOpen size={14} className="text-yellow-600 mt-0.5 shrink-0"/>
+                                <p className="text-xs text-yellow-800 font-medium">{p.homework}</p>
+                            </div>
+                        )}
                     </div>
                 )) : (
                     <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                        <Calendar size={48} className="mb-4 opacity-20"/>
-                        <p>لا يوجد جدول لهذا اليوم</p>
+                        <CalendarDays size={48} className="mb-4 opacity-20"/>
+                        <p>لا توجد مهام مسجلة لهذا اليوم</p>
                     </div>
                 )}
             </div>

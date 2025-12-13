@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, MessageLog, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
 import { getMessages, getAcademicTerms, saveAttendance, getWeeklyPlans } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, Bell, FileText, Send, Star, HeartHandshake, Home, CalendarDays, ArrowLeft, RefreshCw, ChevronLeft } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, Bell, FileText, Send, Star, HeartHandshake, Home, CalendarDays, ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -24,7 +24,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     const activeChild = myChildren.find(c => c.id === activeChildId) || myChildren[0];
     
     // Tab State
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MESSAGES' | 'PLAN' | 'PROFILE'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MESSAGES' | 'PLAN' | 'ATTENDANCE' | 'PROFILE'>('DASHBOARD');
     
     // Data States
     const [messages, setMessages] = useState<MessageLog[]>([]);
@@ -93,6 +93,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                 {activeTab === 'DASHBOARD' && <ChildDashboard child={activeChild} attendance={attendance} performance={performance} />}
                 {activeTab === 'MESSAGES' && <MessagesView messages={messages} />}
                 {activeTab === 'PLAN' && <WeeklyPlanView child={activeChild} />}
+                {activeTab === 'ATTENDANCE' && <AttendanceCalendar child={activeChild} attendance={attendance} />}
                 {activeTab === 'PROFILE' && <ParentProfile parentPhone={parentPhone} onLogout={onLogout} childrenCount={myChildren.length} />}
             </main>
 
@@ -106,6 +107,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                 <div className="flex justify-around items-center h-16">
                     <NavButton icon={Home} label="الرئيسية" active={activeTab === 'DASHBOARD'} onClick={() => setActiveTab('DASHBOARD')} color="text-[#1e1b4b]" />
                     <NavButton icon={CalendarDays} label="الخطة" active={activeTab === 'PLAN'} onClick={() => setActiveTab('PLAN')} color="text-[#1e1b4b]" />
+                    <NavButton icon={Calendar} label="الحضور" active={activeTab === 'ATTENDANCE'} onClick={() => setActiveTab('ATTENDANCE')} color="text-[#1e1b4b]" />
                     <NavButton icon={MessageSquare} label="الرسائل" active={activeTab === 'MESSAGES'} onClick={() => setActiveTab('MESSAGES')} color="text-[#1e1b4b]" />
                     <NavButton icon={User} label="حسابي" active={activeTab === 'PROFILE'} onClick={() => setActiveTab('PROFILE')} color="text-[#1e1b4b]" />
                 </div>
@@ -183,18 +185,6 @@ const ChildDashboard = ({ child, attendance, performance }: any) => {
                 </div>
             )}
 
-            {/* Attendance Summary */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Calendar size={18} className="text-indigo-600"/> ملخص الحضور (أسبوعي)</h3>
-                <div className="flex gap-2">
-                    {Array.from({length: 7}).map((_, i) => (
-                        <div key={i} className="flex-1 h-12 bg-gray-50 rounded-lg flex items-center justify-center">
-                            <div className={`w-2 h-2 rounded-full ${i < 5 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
             {/* Recent Grades List */}
             <div className="space-y-3">
                 <h3 className="font-bold text-gray-800 px-1">آخر الدرجات</h3>
@@ -209,6 +199,62 @@ const ChildDashboard = ({ child, attendance, performance }: any) => {
                         </div>
                     </div>
                 )) : <div className="text-center py-8 text-gray-400 text-sm">لا توجد درجات حديثة</div>}
+            </div>
+        </div>
+    );
+};
+
+const AttendanceCalendar = ({ child, attendance }: any) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
+
+    const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+    const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+    const days = Array.from({ length: getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth()) }, (_, i) => i + 1);
+    const startDay = getFirstDayOfMonth(currentDate.getFullYear(), currentDate.getMonth());
+    
+    // Get status for a day
+    const getStatusForDay = (day: number) => {
+        const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), day + 1).toISOString().split('T')[0];
+        const record = attendance.find((a: any) => a.studentId === child.id && a.date === dateStr);
+        return record ? record.status : 'NONE';
+    };
+
+    const monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+
+    return (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 animate-fade-in pb-20">
+            <div className="flex justify-between items-center mb-6">
+                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight/></button>
+                <h3 className="font-bold text-lg text-gray-800">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h3>
+                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-2 hover:bg-gray-100 rounded-full"><ChevronLeft/></button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-gray-400">
+                <div>أحد</div><div>إثنين</div><div>ثلاثاء</div><div>أربعاء</div><div>خميس</div><div>جمعة</div><div>سبت</div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`}></div>)}
+                {days.map(day => {
+                    const status = getStatusForDay(day);
+                    let colorClass = 'bg-gray-50 text-gray-700';
+                    if (status === 'PRESENT') colorClass = 'bg-green-100 text-green-800 border border-green-200';
+                    if (status === 'ABSENT') colorClass = 'bg-red-100 text-red-800 border border-red-200';
+                    if (status === 'LATE') colorClass = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+                    
+                    return (
+                        <div key={day} className={`h-10 rounded-lg flex items-center justify-center text-sm font-bold ${colorClass}`}>
+                            {day}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="flex justify-center gap-4 mt-6 text-xs font-bold text-gray-500">
+                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div> حاضر</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div> غائب</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div> متأخر</div>
             </div>
         </div>
     );
