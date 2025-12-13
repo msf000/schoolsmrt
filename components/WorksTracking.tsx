@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -107,6 +107,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     
     const [isFetchingStructure, setIsFetchingStructure] = useState(false);
     const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
+    const [sheetData, setSheetData] = useState<any[]>([]); // Store raw data to calc max scores
     const [selectedHeaders, setSelectedHeaders] = useState<Set<string>>(new Set());
     const [unmatchedStudents, setUnmatchedStudents] = useState<string[]>([]);
     const [workbookRef, setWorkbookRef] = useState<any>(null);
@@ -118,6 +119,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [newColMax, setNewColMax] = useState('10');
     const [newColCategory, setNewColCategory] = useState<string>('HOMEWORK');
     const [newCustomCategory, setNewCustomCategory] = useState(''); // For Manual
+    
+    // -- Local State for Sheet Column Max Scores (Map header -> manual max override) --
+    const [sheetColMaxScores, setSheetColMaxScores] = useState<Record<string, string>>({});
 
     useEffect(() => {
         const syncData = async () => {
@@ -341,8 +345,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setSheetNames(sheetNames);
             if (sheetNames.length > 0) {
                 setSelectedSheetName(sheetNames[0]);
-                const { headers } = getSheetHeadersAndData(workbook, sheetNames[0]);
+                const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
                 setAvailableHeaders(headers);
+                setSheetData(data); // Store data to calc max scores
+                setSheetColMaxScores({});
             }
         } catch (e: any) {
             alert(e.message);
@@ -355,23 +361,40 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const sheet = e.target.value;
         setSelectedSheetName(sheet);
         if (workbookRef) {
-            const { headers } = getSheetHeadersAndData(workbookRef, sheet);
+            const { headers, data } = getSheetHeadersAndData(workbookRef, sheet);
             setAvailableHeaders(headers);
+            setSheetData(data); // Store data to calc max scores
+            setSheetColMaxScores({});
         }
     };
 
-    const handleImportColumnFromSheet = (header: string) => {
+    const getColumnMaxScore = (header: string): number => {
+        // Find max value in this column from sheetData
+        if (!sheetData || sheetData.length === 0) return 10;
+        let max = 0;
+        sheetData.forEach(row => {
+            const val = parseFloat(row[header]);
+            if (!isNaN(val) && val > max) max = val;
+        });
+        // Round up to nearest 5 or 10 if weird number? No, keep precise max found.
+        return max > 0 ? max : 10;
+    };
+
+    const handleImportColumnFromSheet = (header: string, manualMax?: string) => {
         const categoryToUse = importCategory === 'CUSTOM' ? customImportCategory : importCategory;
         if (!categoryToUse) {
             alert('الرجاء تحديد تصنيف العمود (التبويب) أولاً');
             return;
         }
 
+        const calculatedMax = getColumnMaxScore(header);
+        const finalMax = manualMax ? Number(manualMax) : calculatedMax;
+
         const newAssign: Assignment = {
             id: Date.now().toString(),
             title: header,
             category: categoryToUse, 
-            maxScore: 10,
+            maxScore: finalMax,
             isVisible: true,
             teacherId: currentUser?.id,
             sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header }),
@@ -380,7 +403,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         };
         saveAssignment(newAssign);
         setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-        alert(`تم إضافة العمود "${header}" إلى تبويب: ${CATEGORY_LABELS[categoryToUse] || categoryToUse}`);
+        alert(`تم إضافة العمود "${header}" (درجة عظمى: ${finalMax}) إلى تبويب: ${CATEGORY_LABELS[categoryToUse] || categoryToUse}`);
     };
 
     // ... (Existing Google Sheets logic handles same as before) ...
@@ -866,17 +889,66 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     {availableHeaders.length > 0 && (
                                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                                             <div className="p-3 bg-gray-50 border-b font-bold text-gray-700 text-sm">اختر الأعمدة لاستيرادها كـ {importCategory === 'CUSTOM' ? (customImportCategory || 'مخصص') : CATEGORY_LABELS[importCategory]}</div>
-                                            <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
-                                                {availableHeaders.map(header => (
-                                                    <button 
-                                                        key={header} 
-                                                        onClick={() => handleImportColumnFromSheet(header)}
-                                                        className="p-2 border rounded-lg text-sm hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-colors text-right truncate"
-                                                        title="اضغط للإضافة كعمود جديد"
-                                                    >
-                                                        + {header}
-                                                    </button>
-                                                ))}
+                                            
+                                            {/* Header Grid */}
+                                            <div className="grid grid-cols-12 bg-gray-50 text-xs font-bold text-gray-500 border-b px-4 py-2">
+                                                <div className="col-span-6 md:col-span-5">اسم العمود (من الملف)</div>
+                                                <div className="col-span-3 md:col-span-3 text-center">الدرجة العظمى (Max)</div>
+                                                <div className="col-span-3 md:col-span-4 text-center">إجراء</div>
+                                            </div>
+
+                                            <div className="p-0 max-h-80 overflow-y-auto divide-y divide-gray-100">
+                                                {availableHeaders.map(header => {
+                                                    // Calculate max from data if available
+                                                    const detectedMax = sheetData.length > 0 
+                                                        ? sheetData.reduce((max, row) => {
+                                                            const val = parseFloat(row[header]);
+                                                            return !isNaN(val) && val > max ? val : max;
+                                                        }, 0)
+                                                        : 0;
+                                                        
+                                                    // Local state for this row's max input is needed? 
+                                                    // Simplification: Use a single state map to track user overrides
+                                                    const currentMax = sheetColMaxScores[header] || (detectedMax > 0 ? String(detectedMax) : '10');
+
+                                                    return (
+                                                        <div key={header} className="grid grid-cols-12 items-center p-3 hover:bg-gray-50 transition-colors">
+                                                            <div className="col-span-6 md:col-span-5 font-medium text-sm text-gray-700 truncate pr-2" title={header}>
+                                                                {header}
+                                                            </div>
+                                                            
+                                                            <div className="col-span-3 md:col-span-3 flex justify-center">
+                                                                <div className="relative group">
+                                                                    <input 
+                                                                        type="number" 
+                                                                        className="w-16 p-1 border rounded text-center text-sm font-bold bg-white focus:ring-1 focus:ring-green-500 outline-none"
+                                                                        value={currentMax}
+                                                                        onChange={(e) => setSheetColMaxScores(prev => ({...prev, [header]: e.target.value}))}
+                                                                    />
+                                                                    {detectedMax > 0 && (
+                                                                        <div 
+                                                                            onClick={() => setSheetColMaxScores(prev => ({...prev, [header]: String(detectedMax)}))}
+                                                                            className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 flex items-center gap-1"
+                                                                            title="اضغط لاستخدام أعلى درجة في العمود"
+                                                                        >
+                                                                            <Maximize size={10}/>
+                                                                            أعلى درجة: {detectedMax}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="col-span-3 md:col-span-4 flex justify-center">
+                                                                <button 
+                                                                    onClick={() => handleImportColumnFromSheet(header, currentMax)}
+                                                                    className="bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 flex items-center gap-1 transition-colors"
+                                                                >
+                                                                    <ArrowDownToLine size={14}/> استيراد
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}
