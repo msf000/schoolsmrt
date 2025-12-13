@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink } from '../types';
 import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, TrendingUp, Star } from 'lucide-react';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -225,20 +225,56 @@ const StudentSchedule = ({ student }: any) => {
 };
 
 const StudentGrades = ({ student, performance }: any) => {
+    // Prepare chart data (Last 5 records)
+    const chartData = useMemo(() => {
+        return performance
+            .slice()
+            .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .map((p: any) => ({
+                name: p.title.substring(0, 8),
+                score: (p.score / p.maxScore) * 100
+            }))
+            .slice(-5);
+    }, [performance]);
+
     return (
-        <div className="space-y-4 animate-fade-in pb-20">
-            <h3 className="font-bold text-gray-800 text-lg">سجل الدرجات</h3>
+        <div className="space-y-6 animate-fade-in pb-20">
+            <h3 className="font-bold text-gray-800 text-lg">تحليل الأداء</h3>
+            
+            {/* Performance Chart */}
+            {chartData.length > 0 && (
+                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm h-56">
+                    <h4 className="text-xs font-bold text-gray-500 mb-2">تطور المستوى (آخر 5 تقييمات)</h4>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} stroke="#9ca3af" />
+                            <Tooltip 
+                                cursor={{fill: '#f0f9ff'}} 
+                                contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 2px 5px rgba(0,0,0,0.1)'}}
+                            />
+                            <Bar dataKey="score" radius={[4, 4, 0, 0]}>
+                                {chartData.map((entry: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={entry.score >= 90 ? '#10b981' : entry.score >= 70 ? '#3b82f6' : '#f59e0b'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
             <div className="space-y-3">
-                {performance.length > 0 ? performance.map((p: any) => (
+                <h4 className="text-sm font-bold text-gray-600">سجل الدرجات التفصيلي</h4>
+                {performance.length > 0 ? performance.slice().reverse().map((p: any) => (
                     <div key={p.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                         <div className="flex justify-between items-start mb-2">
                             <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{p.subject}</span>
                             <span className="text-[10px] text-gray-400">{formatDualDate(p.date).split('|')[0]}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <h4 className="font-bold text-gray-800">{p.title}</h4>
+                            <h4 className="font-bold text-gray-800 text-sm">{p.title}</h4>
                             <div className="flex items-end gap-1">
-                                <span className="text-2xl font-black text-sky-600">{p.score}</span>
+                                <span className={`text-2xl font-black ${p.score/p.maxScore >= 0.9 ? 'text-green-600' : 'text-sky-600'}`}>{p.score}</span>
                                 <span className="text-xs text-gray-400 mb-1">/ {p.maxScore}</span>
                             </div>
                         </div>

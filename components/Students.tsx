@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
 import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, MoreHorizontal } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, MoreHorizontal, QrCode } from 'lucide-react';
 import DataImport from './DataImport';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
@@ -248,7 +248,11 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   };
 
   // --- PRINT CARDS COMPONENT ---
-  const LoginCardsView = () => (
+  const LoginCardsView = () => {
+      const appUrl = window.location.origin;
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(appUrl)}`;
+
+      return (
       <div className="fixed inset-0 bg-white z-[200] overflow-auto p-8">
           <div className="max-w-5xl mx-auto">
               <div className="flex justify-between items-center mb-8 print:hidden">
@@ -259,42 +263,54 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 print:grid-cols-2">
+              <div className="grid grid-cols-2 gap-6 print:grid-cols-2">
                   {filteredStudents.map(student => (
-                      <div key={student.id} className="border-2 border-gray-300 rounded-xl p-6 flex flex-col gap-4 relative break-inside-avoid">
-                          <div className="flex justify-between items-start border-b pb-2">
+                      <div key={student.id} className="border-2 border-gray-300 rounded-2xl p-6 flex flex-col gap-4 relative break-inside-avoid shadow-sm bg-white print:shadow-none">
+                          
+                          {/* Header with School Name & QR */}
+                          <div className="flex justify-between items-start border-b pb-4">
                               <div>
-                                  <h3 className="font-bold text-lg">{schoolConfig?.schoolName || 'المدرسة الذكية'}</h3>
-                                  <p className="text-xs text-gray-500">بوابة الطالب الإلكترونية</p>
+                                  <h3 className="font-bold text-lg text-gray-800">{schoolConfig?.schoolName || 'المدرسة الذكية'}</h3>
+                                  <p className="text-xs text-gray-500 font-bold mt-1">بوابة الطالب الإلكترونية</p>
+                                  <div className="mt-2 text-left">
+                                      <span className="font-bold text-sm block">{student.className}</span>
+                                      <span className="text-xs text-gray-400">{student.gradeLevel}</span>
+                                  </div>
                               </div>
-                              <div className="text-left">
-                                  <span className="font-bold text-sm block">{student.className}</span>
-                                  <span className="text-xs text-gray-400">{student.gradeLevel}</span>
-                              </div>
-                          </div>
-                          <div className="space-y-2">
-                              <div className="flex justify-between">
-                                  <span className="text-gray-500 text-sm">الاسم:</span>
-                                  <span className="font-bold">{student.name}</span>
-                              </div>
-                              <div className="flex justify-between bg-gray-50 p-2 rounded">
-                                  <span className="text-gray-500 text-sm">اسم المستخدم:</span>
-                                  <span className="font-mono font-bold">{student.nationalId}</span>
-                              </div>
-                              <div className="flex justify-between bg-gray-50 p-2 rounded">
-                                  <span className="text-gray-500 text-sm">كلمة المرور:</span>
-                                  <span className="font-mono font-bold">{student.password || '123456'}</span>
+                              <div className="flex flex-col items-center">
+                                  <img src={qrApiUrl} alt="App QR" className="w-20 h-20 border p-1 rounded" />
+                                  <span className="text-[9px] text-gray-400 mt-1 font-bold">امسح للدخول</span>
                               </div>
                           </div>
-                          <div className="mt-2 text-center text-[10px] text-gray-400">
-                              يرجى الاحتفاظ ببيانات الدخول وعدم مشاركتها.
+
+                          {/* Credentials */}
+                          <div className="space-y-3">
+                              <div className="flex justify-between items-center">
+                                  <span className="text-gray-500 text-sm font-bold">الاسم:</span>
+                                  <span className="font-black text-gray-800 text-lg">{student.name}</span>
+                              </div>
+                              
+                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center">
+                                  <span className="text-gray-500 text-xs font-bold flex items-center gap-1"><User size={14}/> اسم المستخدم:</span>
+                                  <span className="font-mono font-black text-lg text-indigo-700 tracking-wider">{student.nationalId}</span>
+                              </div>
+                              
+                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center">
+                                  <span className="text-gray-500 text-xs font-bold flex items-center gap-1"><Lock size={14}/> كلمة المرور:</span>
+                                  <span className="font-mono font-black text-lg text-indigo-700 tracking-wider">{student.password || student.nationalId?.slice(-4) || '1234'}</span>
+                              </div>
+                          </div>
+
+                          <div className="mt-auto pt-2 text-center text-[10px] text-gray-400 flex items-center justify-center gap-1">
+                              <AlertCircle size={10}/> يرجى الاحتفاظ ببيانات الدخول وعدم مشاركتها.
                           </div>
                       </div>
                   ))}
               </div>
           </div>
       </div>
-  );
+      );
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in h-full flex flex-col">
