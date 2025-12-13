@@ -165,6 +165,7 @@ export interface Assignment {
     teacherId?: string; // NEW: Assignment belongs to teacher
     termId?: string; // NEW: Linked to Academic Term
     periodId?: string; // NEW: Linked to specific Period inside Term
+    classId?: string; // NEW: Optional link to specific class
 }
 
 export interface PerformanceRecord {

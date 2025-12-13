@@ -604,12 +604,18 @@ const StudentGrades = ({ student, performance, terms }: any) => {
     const [assignments, setAssignments] = useState<Assignment[]>([]);
 
     useEffect(() => {
-        // Load All assignments available in the system
-        // Note: In a real app, we should filter by the student's class/teacher
-        // Here we fetch 'ALL' and will filter by class/grade locally if possible, or assume all are relevant
-        // Since students might have multiple teachers, getting assignments by the student's teacher ID (from createdById) is a good heuristic
-        const allAssigns = getAssignments('ALL', student.createdById, true);
-        setAssignments(allAssigns);
+        // Fetch ALL assignments first, then filter locally to be safe
+        // Passing 'undefined' as teacherId with includeAll=true fetches everything in most implementations of getAssignments
+        const allSystemAssignments = getAssignments('ALL', undefined, true);
+
+        // Filter assignments relevant to this student
+        const relevantAssignments = allSystemAssignments.filter(a =>
+            !a.teacherId || // Global/Public
+            a.teacherId === student.createdById || // Specific to student's teacher
+            // Fallback: If student has no createdById, assume assignments with same class name match
+            (!student.createdById && student.className && a.classId === student.className)
+        );
+        setAssignments(relevantAssignments);
     }, [student]);
 
     const chartData = useMemo(() => {
@@ -628,7 +634,7 @@ const StudentGrades = ({ student, performance, terms }: any) => {
         const items: any[] = [];
         const perfMap = new Set(); // To track which assignments have grades
 
-        // 1. Add Graded Items
+        // 1. Add Graded Items (From Performance Records)
         performance.forEach((p: PerformanceRecord) => {
             items.push({
                 id: p.id,
@@ -637,7 +643,7 @@ const StudentGrades = ({ student, performance, terms }: any) => {
                 score: p.score,
                 maxScore: p.maxScore,
                 date: p.date,
-                category: p.category || 'OTHER',
+                category: p.category || 'OTHER', // Default for legacy data
                 status: 'GRADED',
                 // Try to find linked assignment for URL
                 link: assignments.find(a => a.id === p.notes || a.title === p.title)?.url
@@ -648,12 +654,9 @@ const StudentGrades = ({ student, performance, terms }: any) => {
         });
 
         // 2. Add Missing Items (Assignments without grades)
-        // We assume assignments without a grade are "Missing" IF they match the filter
+        // We assume assignments without a grade are "Missing" IF they are relevant
         assignments.forEach(assign => {
-            // Filter by category if needed
-            // Only consider assignments relevant to this student (if we had class info on assignment)
-            // For now, assume assignments are global/relevant
-            
+            // Only add if not already graded
             if (!perfMap.has(assign.id) && !perfMap.has(assign.title)) {
                 items.push({
                     id: assign.id,
@@ -671,7 +674,7 @@ const StudentGrades = ({ student, performance, terms }: any) => {
 
         // Filter by Tab
         if (activeFilter !== 'ALL') {
-            return items.filter(i => i.category === activeFilter);
+            return items.filter(i => (i.category || 'OTHER') === activeFilter);
         }
         return items;
     }, [performance, assignments, activeFilter]);

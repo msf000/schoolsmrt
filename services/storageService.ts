@@ -1,3 +1,4 @@
+
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Subject, ScheduleItem, TeacherAssignment, Assignment, WeeklyPlanItem, 
@@ -855,7 +856,8 @@ create table if not exists assignments (
   source_metadata text,
   teacher_id text,
   term_id text,
-  period_id text
+  period_id text,
+  class_id text
 );
 
 -- 8. Schedules
