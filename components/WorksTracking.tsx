@@ -63,10 +63,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         localStorage.setItem('works_active_tab', activeTab);
     }, [activeTab]);
     
-    const [selectedTermId, setSelectedTermId] = useState('');
-    const [selectedPeriodId, setSelectedPeriodId] = useState(''); 
-    const [selectedSubject, setSelectedSubject] = useState('');
-    const [selectedClass, setSelectedClass] = useState(''); 
+    // --- Persisted Filter State ---
+    const [selectedTermId, setSelectedTermId] = useState(() => localStorage.getItem('works_term_id') || '');
+    const [selectedPeriodId, setSelectedPeriodId] = useState(() => localStorage.getItem('works_period_id') || ''); 
+    const [selectedSubject, setSelectedSubject] = useState(() => localStorage.getItem('works_subject') || '');
+    const [selectedClass, setSelectedClass] = useState(() => localStorage.getItem('works_class') || ''); 
+    
+    // Save filters when changed
+    useEffect(() => localStorage.setItem('works_term_id', selectedTermId), [selectedTermId]);
+    useEffect(() => localStorage.setItem('works_period_id', selectedPeriodId), [selectedPeriodId]);
+    useEffect(() => localStorage.setItem('works_subject', selectedSubject), [selectedSubject]);
+    useEffect(() => localStorage.setItem('works_class', selectedClass), [selectedClass]);
+
     const [searchTerm, setSearchTerm] = useState('');
 
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -245,7 +253,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         if (currentUser) {
-            setSubjects(getSubjects(currentUser.id));
+            const subs = getSubjects(currentUser.id);
+            setSubjects(subs);
+            
             const loadedTerms = getAcademicTerms(currentUser.id);
             setTerms(loadedTerms);
             
@@ -255,16 +265,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const savedConfig = localStorage.getItem('works_year_config');
             if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
 
-            const current = loadedTerms.find(t => t.isCurrent);
-            if (current) {
-                setSelectedTermId(current.id);
-                setSettingTermId(current.id); 
-            } else if (loadedTerms.length > 0) {
-                setSelectedTermId(loadedTerms[0].id);
-                setSettingTermId(loadedTerms[0].id);
+            // Only set defaults if no persisted state
+            if (!localStorage.getItem('works_term_id')) {
+                const current = loadedTerms.find(t => t.isCurrent);
+                if (current) {
+                    setSelectedTermId(current.id);
+                    setSettingTermId(current.id); 
+                } else if (loadedTerms.length > 0) {
+                    setSelectedTermId(loadedTerms[0].id);
+                    setSettingTermId(loadedTerms[0].id);
+                }
+            } else {
+                // Also sync settings to selected
+                setSettingTermId(selectedTermId);
             }
-            const subs = getSubjects(currentUser.id);
-            if(subs.length > 0) setSelectedSubject(subs[0].name);
+
+            if (!localStorage.getItem('works_subject') && subs.length > 0) {
+                setSelectedSubject(subs[0].name);
+            }
         }
     }, [currentUser]);
 
@@ -298,11 +316,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             );
 
             studentPerf.forEach(p => {
-                if (p.notes) { 
+                // Robust matching: Try ID match first (p.notes === assignment.id), then Title Match
+                if (p.notes && assignments.some(a => a.id === p.notes)) { 
                      newScores[s.id][p.notes] = p.score.toString();
                 } else { 
                      const assign = assignments.find(a => a.title === p.title);
-                     if (assign) newScores[s.id][assign.id] = p.score.toString();
+                     if (assign) {
+                         newScores[s.id][assign.id] = p.score.toString();
+                     }
                 }
             });
         });
@@ -338,7 +359,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (val !== undefined && val !== '') {
                     const assignment = assignments.find(a => a.id === assignmentId);
                     if (assignment) {
-                        const existingRecord = performance.find(p => p.studentId === studentId && p.notes === assignmentId);
+                        const existingRecord = performance.find(p => p.studentId === studentId && (p.notes === assignmentId || p.title === assignment.title));
                         
                         if (!existingRecord || existingRecord.score !== parseFloat(val)) {
                             recordsToSave.push({
@@ -493,8 +514,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const studentPerf = performance.filter(p => 
             p.studentId === student.id && 
             p.subject === selectedSubject &&
-            // If term selected, filter by date logic (omitted for brevity, assume loaded data is relevant)
-            true
+            // Filter by Term Date Range logic
+            (!selectedTermId || (terms.find(t => t.id === selectedTermId) && p.date >= terms.find(t => t.id === selectedTermId)!.startDate && p.date <= terms.find(t => t.id === selectedTermId)!.endDate))
         );
 
         // 1. Homework
@@ -502,12 +523,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let hwTotalScore = 0;
         let hwTotalMax = 0;
         hwCols.forEach(col => {
-            const p = studentPerf.find(r => r.notes === col.id);
+            const p = studentPerf.find(r => r.notes === col.id || r.title === col.title);
             if (p) {
                 hwTotalScore += p.score;
                 hwTotalMax += p.maxScore;
             } else {
-                // If no record, check if we should count it as zero or ignore? Usually zero if column exists
                 hwTotalMax += col.maxScore; 
             }
         });
@@ -518,7 +538,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let actTotalScore = 0;
         let actTotalMax = 0;
         actCols.forEach(col => {
-            const p = studentPerf.find(r => r.notes === col.id);
+            const p = studentPerf.find(r => r.notes === col.id || r.title === col.title);
             if (p) {
                 actTotalScore += p.score;
                 actTotalMax += p.maxScore;
@@ -533,7 +553,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let examTotalScore = 0;
         let examTotalMax = 0;
         examCols.forEach(col => {
-            const p = studentPerf.find(r => r.notes === col.id);
+            const p = studentPerf.find(r => r.notes === col.id || r.title === col.title);
             if (p) {
                 examTotalScore += p.score;
                 examTotalMax += p.maxScore;
@@ -544,12 +564,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const examGrade = examTotalMax > 0 ? (examTotalScore / examTotalMax) * yearWorkConfig.exam : 0;
 
         // 4. Attendance
-        // Filter attendance for this student, subject (optional), and term
-        // For simplicity, using raw counts. In real app, filter by term date range.
         const studentAtt = attendance.filter(a => a.studentId === student.id && (!selectedSubject || a.subject === selectedSubject));
         const totalDays = studentAtt.length;
         const presentDays = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
-        // If no attendance taken, assume full mark? Or zero? Let's assume full for now if no data, or 0.
+        
+        // If no attendance recorded, assume full if other activities present, or zero. Let's be lenient: full if < 5 records total? No, strictly calculated.
         const attGrade = totalDays > 0 ? (presentDays / totalDays) * yearWorkConfig.att : (totalDays === 0 ? yearWorkConfig.att : 0);
 
         const total = hwGrade + actGrade + examGrade + attGrade;
