@@ -512,16 +512,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // --- Year Work Calculation Logic ---
     const calculateYearWork = (student: Student) => {
-        // Filter based on Term AND Period
-        const filterAssignment = (a: Assignment) => {
+        // 1. Identify Valid Assignments for Selected Term & Period
+        const relevantAssignments = assignments.filter(a => {
             const termMatch = !selectedTermId || a.termId === selectedTermId;
             const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId;
             return termMatch && periodMatch;
-        };
-
-        const activeTerm = terms.find(t => t.id === selectedTermId);
+        });
         
-        // Define Start/End Dates based on selected Term OR Period
+        const relevantAssignmentIds = new Set(relevantAssignments.map(a => a.id));
+
+        // 2. Identify Valid Date Range for Attendance
+        const activeTerm = terms.find(t => t.id === selectedTermId);
         let dateStart = activeTerm?.startDate;
         let dateEnd = activeTerm?.endDate;
 
@@ -533,16 +534,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
         }
 
-        // Filter performance for this student, subject, and date range
-        const studentPerf = performance.filter(p => 
-            p.studentId === student.id && 
-            p.subject === selectedSubject &&
-            (!dateStart || p.date >= dateStart) &&
-            (!dateEnd || p.date <= dateEnd)
-        );
+        // 3. Filter performance records: Link STRICTLY to Assignment ID or Title
+        const studentPerf = performance.filter(p => {
+            if (p.studentId !== student.id || p.subject !== selectedSubject) return false;
+            
+            // Check direct ID link first (notes field often stores assignment ID)
+            if (p.notes && relevantAssignmentIds.has(p.notes)) return true;
+            
+            // Fallback: Check Title matching (legacy support)
+            return relevantAssignments.some(a => a.title === p.title);
+        });
 
         // 1. Homework
-        const hwCols = assignments.filter(a => a.category === 'HOMEWORK' && filterAssignment(a));
+        const hwCols = relevantAssignments.filter(a => a.category === 'HOMEWORK');
         let hwTotalScore = 0;
         let hwTotalMax = 0;
         hwCols.forEach(col => {
@@ -557,7 +561,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const hwGrade = hwTotalMax > 0 ? (hwTotalScore / hwTotalMax) * yearWorkConfig.hw : 0;
 
         // 2. Activity
-        const actCols = assignments.filter(a => a.category === 'ACTIVITY' && filterAssignment(a));
+        const actCols = relevantAssignments.filter(a => a.category === 'ACTIVITY');
         let actTotalScore = 0;
         let actTotalMax = 0;
         actCols.forEach(col => {
@@ -572,7 +576,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const actGrade = actTotalMax > 0 ? (actTotalScore / actTotalMax) * yearWorkConfig.act : 0;
 
         // 3. Exams
-        const examCols = assignments.filter(a => a.category === 'PLATFORM_EXAM' && filterAssignment(a));
+        const examCols = relevantAssignments.filter(a => a.category === 'PLATFORM_EXAM');
         let examTotalScore = 0;
         let examTotalMax = 0;
         examCols.forEach(col => {
@@ -586,7 +590,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
         const examGrade = examTotalMax > 0 ? (examTotalScore / examTotalMax) * yearWorkConfig.exam : 0;
 
-        // 4. Attendance
+        // 4. Attendance (Still Time-Based)
         let studentAtt = attendance.filter(a => a.studentId === student.id && (!selectedSubject || a.subject === selectedSubject));
         
         if (dateStart && dateEnd) {
