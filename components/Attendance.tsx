@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser, AcademicTerm } from '../types';
 import { getSchedules, getAcademicTerms } from '../services/storageService';
@@ -506,31 +505,30 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col">
-      <div className="flex justify-between items-center mb-4 print:hidden">
-          <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4 print:hidden">
+          <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm w-full md:w-auto overflow-x-auto no-scrollbar">
               {!isManager && (
-                  <button onClick={() => setActiveTab('REGISTER')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
-                      <CheckSquare size={18}/> تسجيل الحضور
+                  <button onClick={() => setActiveTab('REGISTER')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-bold text-sm flex justify-center items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                      <CheckSquare size={18}/> <span className="hidden md:inline">تسجيل الحضور</span><span className="md:hidden">تسجيل</span>
                   </button>
               )}
-              <button onClick={() => setActiveTab('WEEKLY')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'WEEKLY' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
-                  <CalendarDays size={18}/> عرض أسبوعي
+              <button onClick={() => setActiveTab('WEEKLY')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-bold text-sm flex justify-center items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'WEEKLY' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <CalendarDays size={18}/> <span className="hidden md:inline">عرض أسبوعي</span><span className="md:hidden">أسبوعي</span>
               </button>
-              <button onClick={() => setActiveTab('LOG')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${activeTab === 'LOG' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
-                  <History size={18}/> السجل الشامل
+              <button onClick={() => setActiveTab('LOG')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-bold text-sm flex justify-center items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'LOG' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <History size={18}/> <span className="hidden md:inline">السجل الشامل</span><span className="md:hidden">السجل</span>
               </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
              <button onClick={() => setIsExcuseModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold relative">
                 <Inbox size={18} className={pendingExcuses.length > 0 ? "text-red-500" : "text-gray-400"} />
-                <span className="hidden md:inline">صندوق الأعذار</span>
+                <span className="hidden md:inline">الأعذار</span>
                 {pendingExcuses.length > 0 && <span className="bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full absolute -top-1 -right-1">{pendingExcuses.length}</span>}
              </button>
              {!isManager && (
                  <>
                     <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg flex items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
-                    <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-bold"><Sparkles size={18} /><span className="hidden md:inline">AI Import</span></button>
                  </>
              )}
           </div>
@@ -538,31 +536,28 @@ const Attendance: React.FC<AttendanceProps> = ({
 
       {activeTab === 'REGISTER' && !isManager && (
           <div className="space-y-6 flex-1 overflow-auto">
+              {/* Header: Date + Class Selection */}
               <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-bold text-gray-800">تحضير اليوم:</h2>
-                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border group hover:border-primary transition-colors">
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <h2 className="text-lg font-bold text-gray-800 hidden md:block">تحضير اليوم:</h2>
+                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border group hover:border-primary transition-colors flex-1 md:flex-none">
                         <Calendar size={20} className="text-gray-500 group-hover:text-primary" />
-                        <input type="date" value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} className="outline-none text-gray-700 bg-transparent text-sm font-bold cursor-pointer"/>
+                        <input type="date" value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} className="outline-none text-gray-700 bg-transparent text-sm font-bold cursor-pointer w-full"/>
                     </div>
-                    <span className="text-sm text-gray-400">{formatDualDate(selectedDate)}</span>
+                    <span className="text-sm text-gray-400 hidden md:inline">{formatDualDate(selectedDate)}</span>
                 </div>
                 {selectedClass && selectedPeriod !== null && (
-                    <div className="flex items-center gap-4">
-                        {isSaving && <span className="text-xs font-bold text-blue-600 flex items-center gap-1"><RefreshCw size={12} className="animate-spin"/> جاري الحفظ...</span>}
-                        {saved && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><Check size={12}/> تم الحفظ</span>}
-                        
-                        {/* --- VISUAL SUMMARY HEADER --- */}
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
                         <div className="flex bg-gray-50 rounded-lg border text-xs overflow-hidden shadow-inner">
-                            <div className="px-4 py-1 bg-green-100 text-green-800 font-bold border-l border-green-200 flex flex-col items-center">
+                            <div className="px-3 md:px-4 py-1 bg-green-100 text-green-800 font-bold border-l border-green-200 flex flex-col items-center">
                                 <span className="text-lg leading-none">{stats.present}</span>
                                 <span className="text-[9px] uppercase opacity-75">حاضر</span>
                             </div>
-                            <div className="px-4 py-1 bg-red-100 text-red-800 font-bold border-l border-red-200 flex flex-col items-center">
+                            <div className="px-3 md:px-4 py-1 bg-red-100 text-red-800 font-bold border-l border-red-200 flex flex-col items-center">
                                 <span className="text-lg leading-none">{stats.absent}</span>
                                 <span className="text-[9px] uppercase opacity-75">غائب</span>
                             </div>
-                            <div className="px-4 py-1 bg-yellow-100 text-yellow-800 font-bold flex flex-col items-center">
+                            <div className="px-3 md:px-4 py-1 bg-yellow-100 text-yellow-800 font-bold flex flex-col items-center">
                                 <span className="text-lg leading-none">{stats.late}</span>
                                 <span className="text-[9px] uppercase opacity-75">تأخر</span>
                             </div>
@@ -573,22 +568,22 @@ const Attendance: React.FC<AttendanceProps> = ({
 
               {!selectedClass && (
                   <div className="animate-fade-in space-y-6">
-                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-end">
-                           <div className="flex flex-col">
+                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
+                           <div className="flex flex-col w-full md:w-auto">
                                <label className="block text-xs font-bold text-gray-500 mb-1">فصل (اختيار يدوي)</label>
-                               <select className="p-2 border rounded text-sm w-40 bg-gray-50" value={manualClass} onChange={e => setManualClass(e.target.value)}>
+                               <select className="p-2 border rounded text-sm w-full md:w-40 bg-gray-50" value={manualClass} onChange={e => setManualClass(e.target.value)}>
                                    <option value="">-- اختر --</option>
                                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                            </div>
-                           <div className="flex flex-col">
+                           <div className="flex flex-col w-full md:w-auto">
                                <label className="block text-xs font-bold text-gray-500 mb-1">مادة</label>
-                               <input className="p-2 border rounded text-sm w-40 bg-gray-50" value={manualSubject} onChange={e => setManualSubject(e.target.value)} placeholder="مثال: رياضيات"/>
+                               <input className="p-2 border rounded text-sm w-full md:w-40 bg-gray-50" value={manualSubject} onChange={e => setManualSubject(e.target.value)} placeholder="مثال: رياضيات"/>
                            </div>
                            <button 
                               disabled={!manualClass}
                               onClick={() => { setSelectedClass(manualClass); setSelectedSubject(manualSubject); setSelectedPeriod(0); }}
-                              className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-bold hover:bg-black disabled:opacity-50 transition-colors"
+                              className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-bold hover:bg-black disabled:opacity-50 transition-colors w-full md:w-auto"
                            >
                                بدء التحضير
                            </button>
@@ -619,7 +614,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                           <div className="flex flex-col items-center justify-center p-12 bg-white border-2 border-dashed border-gray-200 rounded-xl text-center shadow-sm h-64">
                               <CalendarClock size={48} className="text-gray-300 mb-4"/>
                               <h3 className="text-xl font-bold text-gray-700">لا يوجد جدول مسجل لليوم</h3>
-                              <p className="text-sm text-gray-500">استخدم الاختيار اليدوي أعلاه أو قم بإضافة الحصص في الجدول الدراسي.</p>
+                              <p className="text-sm text-gray-500">استخدم الاختيار اليدوي أعلاه.</p>
                           </div>
                       )}
                   </div>
@@ -628,188 +623,117 @@ const Attendance: React.FC<AttendanceProps> = ({
               {selectedPeriod !== null && selectedClass && (
                 <div id="attendance-workspace" className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-slide-up flex-1 flex flex-col">
                     {/* Header Bar */}
-                    <div className="bg-gray-800 p-4 flex justify-between items-center text-white sticky top-0 z-20">
-                        <div className="flex items-center gap-4">
+                    <div className="bg-gray-800 p-4 flex flex-col md:flex-row justify-between items-center text-white sticky top-0 z-20 gap-4">
+                        <div className="flex items-center gap-4 w-full md:w-auto">
                             <button onClick={handleBackToSchedule} className="p-2 hover:bg-white/10 rounded-full transition-colors"><ArrowRight size={20}/></button>
                             <div>
                                 <div className="flex items-center gap-2 font-bold text-lg"><span>{selectedClass}</span><span className="opacity-50">|</span><span>{selectedSubject || 'عام'}</span></div>
                                 <span className="text-xs opacity-75">{selectedPeriod > 0 ? `الحصة ${selectedPeriod}` : 'تحضير يدوي'}</span>
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            {/* View Toggle */}
-                            <div className="flex bg-white/10 p-1 rounded-lg border border-white/20">
-                                <button onClick={() => setViewMode('GRID')} className={`p-1.5 rounded ${viewMode === 'GRID' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><LayoutGrid size={16}/></button>
-                                <button onClick={() => setViewMode('LIST')} className={`p-1.5 rounded ${viewMode === 'LIST' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><List size={16}/></button>
-                            </div>
-                            <div className="w-[1px] bg-white/20 mx-1"></div>
-                            <button onClick={() => handleMarkAll(AttendanceStatus.PRESENT)} className="flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-700 border border-green-500">تحضير الكل</button>
-                            <button onClick={() => handleMarkAll(AttendanceStatus.ABSENT)} className="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-700 border border-red-500">غياب للكل</button>
+                        <div className="flex gap-2 w-full md:w-auto justify-end">
+                            <button onClick={() => handleMarkAll(AttendanceStatus.PRESENT)} className="flex-1 md:flex-none items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-700 border border-green-500 justify-center flex">تحضير الكل</button>
+                            <button onClick={() => handleMarkAll(AttendanceStatus.ABSENT)} className="flex-1 md:flex-none items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-700 border border-red-500 justify-center flex">غياب للكل</button>
                         </div>
                     </div>
 
-                    {/* Students List/Grid */}
+                    {/* Students Grid - Mobile Optimized */}
                     <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                        {viewMode === 'LIST' ? (
-                            <div className="divide-y divide-gray-200 bg-white rounded-xl border shadow-sm">
-                                {filteredStudents.map(student => {
-                                    const metrics = getStudentMetrics(student.id);
-                                    return (
-                                    <div key={student.id} className="grid grid-cols-12 p-3 items-center hover:bg-gray-50 transition-colors group gap-y-3">
-                                        <div className="col-span-12 md:col-span-3 font-medium">
-                                            <span onClick={() => setViewingStudentReport(student)} className="text-gray-800 font-bold block cursor-pointer hover:text-primary hover:underline flex items-center gap-2">
-                                                {student.name}
-                                                {/* Performance Badge */}
-                                                {metrics.hasPerf && (
-                                                    <span className={`text-[10px] px-1.5 rounded border font-bold ${
-                                                        metrics.avgGrade >= 90 ? 'bg-green-50 text-green-700 border-green-200' : 
-                                                        metrics.avgGrade >= 75 ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                                                        metrics.avgGrade >= 50 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 
-                                                        'bg-red-50 text-red-700 border-red-200'
-                                                    }`}>
-                                                        {metrics.avgGrade >= 90 ? 'A' : metrics.avgGrade >= 75 ? 'B' : metrics.avgGrade >= 50 ? 'C' : 'D'}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                            {filteredStudents.map(student => {
+                                const status = records[student.id] || AttendanceStatus.PRESENT;
+                                const behavior = behaviorRecords[student.id];
+                                const metrics = getStudentMetrics(student.id);
+                                
+                                const bgClass = status === AttendanceStatus.PRESENT ? 'bg-white border-gray-200' : 
+                                                status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-300 ring-1 ring-red-200' : 
+                                                status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-300 ring-1 ring-yellow-200' : 
+                                                'bg-blue-50 border-blue-300 ring-1 ring-blue-200';
+
+                                return (
+                                    <div 
+                                        key={student.id}
+                                        onClick={() => handleGridStatusToggle(student.id)}
+                                        onDoubleClick={() => setActiveNoteStudent(student.id)}
+                                        className={`relative p-3 rounded-xl border shadow-sm cursor-pointer transition-all duration-200 active:scale-95 select-none flex flex-col justify-between h-32 ${bgClass}`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'PRESENT' ? 'bg-gray-300' : status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-blue-500'}`}>
+                                                {student.name.charAt(0)}
+                                            </div>
+                                            <div className="flex gap-1">
+                                                {metrics.consecutiveAbsence >= 3 && (
+                                                    <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200 animate-pulse" title="غياب متصل لأكثر من 3 أيام">
+                                                        <Flame size={12}/>
                                                     </span>
                                                 )}
-                                            </span>
-                                            <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{student.gradeLevel}</span>
-                                                {metrics.consecutiveAbsence >= 3 && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 font-bold flex gap-1 animate-pulse"><Flame size={10}/> غياب متصل</span>}
-                                                {metrics.absentCount > 3 && <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded border border-orange-100 font-bold flex gap-1"><AlertCircle size={10}/> غ: {metrics.absentCount}</span>}
-                                            </div>
-                                        </div>
-                                        <div className="col-span-12 md:col-span-5 flex gap-1">
-                                            {[AttendanceStatus.PRESENT, AttendanceStatus.ABSENT, AttendanceStatus.LATE, AttendanceStatus.EXCUSED].map((st) => (
-                                                <button key={st} onClick={() => handleStatusChange(student.id, st)} className={`flex-1 py-1.5 rounded-md text-xs font-bold border transition-all ${records[student.id] === st ? (st === AttendanceStatus.PRESENT ? 'bg-green-100 text-green-700 border-green-200' : st === AttendanceStatus.ABSENT ? 'bg-red-100 text-red-700 border-red-200' : st === AttendanceStatus.LATE ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-blue-100 text-blue-700 border-blue-200') : 'bg-white text-gray-500 border-gray-200'}`}>
-                                                    {st === 'PRESENT' ? 'حاضر' : st === 'ABSENT' ? 'غائب' : st === 'LATE' ? 'متأخر' : 'عذر'}
+                                                <button onClick={(e) => { e.stopPropagation(); setViewingStudentReport(student); }} className="p-1 rounded-full bg-white/50 hover:bg-blue-100 text-blue-600 border border-transparent hover:border-blue-200 transition-colors">
+                                                    <FileText size={12}/>
                                                 </button>
-                                            ))}
-                                        </div>
-                                        <div className="col-span-12 md:col-span-4 flex items-center justify-end gap-2">
-                                            <div className="flex bg-gray-50 p-1 rounded-lg border">
-                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-green-500'}`}><Smile size={18}/></button>
-                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-red-500'}`}><Frown size={18}/></button>
                                             </div>
-                                            <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`p-2 rounded-lg border transition-all ${noteRecords[student.id] ? 'bg-yellow-50 border-yellow-200 text-yellow-600' : 'bg-white text-gray-400'}`}><MessageSquare size={16}/></button>
                                         </div>
-                                    </div>
-                                )})}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                {filteredStudents.map(student => {
-                                    const status = records[student.id] || AttendanceStatus.PRESENT;
-                                    const behavior = behaviorRecords[student.id];
-                                    const metrics = getStudentMetrics(student.id);
-                                    
-                                    const bgClass = status === AttendanceStatus.PRESENT ? 'bg-white border-gray-200' : 
-                                                    status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-300 ring-1 ring-red-200' : 
-                                                    status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-300 ring-1 ring-yellow-200' : 
-                                                    'bg-blue-50 border-blue-300 ring-1 ring-blue-200';
+                                        
+                                        <div className="mt-2 text-right">
+                                            <span className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight">{student.name}</span>
+                                        </div>
 
-                                    return (
-                                        <div 
-                                            key={student.id}
-                                            onClick={() => handleGridStatusToggle(student.id)}
-                                            onDoubleClick={() => setActiveNoteStudent(student.id)}
-                                            className={`relative p-3 rounded-xl border shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md select-none flex flex-col justify-between h-32 ${bgClass}`}
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'PRESENT' ? 'bg-gray-300' : status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-blue-500'}`}>
-                                                    {student.name.charAt(0)}
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    {metrics.hasPerf && (
-                                                        <span className={`text-[10px] px-1.5 rounded font-bold border ${
-                                                            metrics.avgGrade >= 90 ? 'bg-green-100 text-green-700 border-green-200' : 
-                                                            metrics.avgGrade >= 50 ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                                                            'bg-red-100 text-red-700 border-red-200'
-                                                        }`}>
-                                                            {metrics.avgGrade}%
-                                                        </span>
-                                                    )}
-                                                    {metrics.consecutiveAbsence >= 3 && (
-                                                        <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200 animate-pulse" title="غياب متصل لأكثر من 3 أيام">
-                                                            <Flame size={12}/>
-                                                        </span>
-                                                    )}
-                                                    <button onClick={(e) => { e.stopPropagation(); setViewingStudentReport(student); }} className="p-1 rounded-full bg-white/50 hover:bg-blue-100 text-blue-600 border border-transparent hover:border-blue-200 transition-colors">
-                                                        <FileText size={12}/>
-                                                    </button>
-                                                </div>
+                                        <div className="flex justify-between items-end mt-2 pt-2 border-t border-black/5" onClick={e => e.stopPropagation()}>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-green-100'}`}><Smile size={14}/></button>
+                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-red-100'}`}><Frown size={14}/></button>
                                             </div>
-                                            
-                                            <div className="mt-2 text-right">
-                                                <span className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight">{student.name}</span>
-                                            </div>
-
-                                            <div className="flex justify-between items-end mt-2 pt-2 border-t border-black/5" onClick={e => e.stopPropagation()}>
-                                                <div className="flex gap-1">
-                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-green-100'}`}><Smile size={14}/></button>
-                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-red-100'}`}><Frown size={14}/></button>
-                                                </div>
-                                                <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`text-xs ${noteRecords[student.id] ? 'text-yellow-600' : 'text-gray-300'}`}><MessageSquare size={14}/></button>
-                                            </div>
+                                            <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`text-xs ${noteRecords[student.id] ? 'text-yellow-600' : 'text-gray-300'}`}><MessageSquare size={14}/></button>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        
-                        {/* Note Popup Overlay */}
-                        {activeNoteStudent && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={() => setActiveNoteStudent(null)}>
-                                <div className="bg-white p-4 rounded-xl shadow-2xl w-80 animate-bounce-in" onClick={e => e.stopPropagation()}>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h4 className="font-bold text-gray-800">ملاحظة للطالب</h4>
-                                        <button onClick={() => setActiveNoteStudent(null)} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
                                     </div>
-                                    <textarea 
-                                        autoFocus 
-                                        className="w-full text-sm p-3 border rounded-lg bg-gray-50 mb-3 focus:ring-2 focus:ring-blue-500 outline-none" 
-                                        rows={3} 
-                                        value={noteRecords[activeNoteStudent] || ''} 
-                                        onChange={(e) => handleNoteChange(activeNoteStudent, e.target.value)}
-                                        onBlur={() => handleNoteBlur(activeNoteStudent)} 
-                                        placeholder="اكتب ملاحظة..."
-                                    />
-                                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar">
-                                        {positiveList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100 hover:bg-green-100">{tag}</button>)}
-                                        {negativeList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded border border-red-100 hover:bg-red-100">{tag}</button>)}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                                );
+                            })}
+                        </div>
                     </div>
                     
-                    <div className="p-3 bg-gray-50 border-t flex justify-between items-center text-xs text-gray-500">
-                         <span className="flex items-center gap-1">
-                             <Cloud size={14} className={isSaving ? "text-blue-500 animate-pulse" : "text-green-500"}/> 
-                             {isSaving ? "جاري الحفظ التلقائي..." : "تم الحفظ تلقائياً في السحابة"}
-                         </span>
-                         <span className="font-mono text-[10px]">Auto-Save Enabled</span>
-                    </div>
+                    {/* Note Popup Overlay */}
+                    {activeNoteStudent && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setActiveNoteStudent(null)}>
+                            <div className="bg-white p-4 rounded-xl shadow-2xl w-full max-w-sm animate-bounce-in" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="font-bold text-gray-800">ملاحظة للطالب</h4>
+                                    <button onClick={() => setActiveNoteStudent(null)} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
+                                </div>
+                                <textarea 
+                                    autoFocus 
+                                    className="w-full text-sm p-3 border rounded-lg bg-gray-50 mb-3 focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    rows={3} 
+                                    value={noteRecords[activeNoteStudent] || ''} 
+                                    onChange={(e) => handleNoteChange(activeNoteStudent, e.target.value)}
+                                    onBlur={() => handleNoteBlur(activeNoteStudent)} 
+                                    placeholder="اكتب ملاحظة..."
+                                />
+                                <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar">
+                                    {positiveList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100 hover:bg-green-100">{tag}</button>)}
+                                    {negativeList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded border border-red-100 hover:bg-red-100">{tag}</button>)}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
               )}
           </div>
       )}
 
-      {/* ... (Weekly Tab and Log Tab remain unchanged, just update to new component context if needed) ... */}
-      {/* For brevity, assuming other tabs are same as original but now using updated state logic */}
       {activeTab === 'WEEKLY' && (
           <div className="space-y-4 animate-fade-in flex-1 flex flex-col">
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center justify-between">
-                  <div className="flex items-center gap-4">
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                  <div className="flex items-center gap-4 w-full md:w-auto">
                       <div className="bg-teal-50 text-teal-700 p-2 rounded-lg"><CalendarDays size={20}/></div>
                       <div>
                           <h3 className="font-bold text-gray-800">العرض الأسبوعي</h3>
-                          <p className="text-xs text-gray-500">متابعة الحضور للأسبوع بالكامل</p>
+                          <p className="text-xs text-gray-500 hidden md:block">متابعة الحضور للأسبوع بالكامل</p>
                       </div>
                   </div>
                   
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
                       {/* Term Selector for Quick Jump */}
                       <select 
-                          className="p-1.5 border rounded-lg text-sm bg-gray-50 outline-none"
+                          className="p-1.5 border rounded-lg text-sm bg-gray-50 outline-none flex-1 md:flex-none"
                           value={selectedTermId}
                           onChange={(e) => handleTermFilterChange(e.target.value)}
                       >
@@ -819,12 +743,12 @@ const Attendance: React.FC<AttendanceProps> = ({
 
                       <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
                           <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
-                          <span className="text-sm font-bold w-32 text-center">{formatDualDate(weekStartDate).split('|')[0]}</span>
+                          <span className="text-sm font-bold w-24 text-center">{formatDualDate(weekStartDate).split('|')[0]}</span>
                           <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronLeft size={16}/></button>
                       </div>
                       
-                      <div className="flex items-center gap-2">
-                          <select className="p-2 border rounded-lg text-sm font-bold bg-white" value={manualClass} onChange={e => setManualClass(e.target.value)}>
+                      <div className="flex items-center gap-2 w-full md:w-auto">
+                          <select className="p-2 border rounded-lg text-sm font-bold bg-white w-full md:w-40" value={manualClass} onChange={e => setManualClass(e.target.value)}>
                               <option value="">-- اختر الفصل --</option>
                               {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
@@ -834,13 +758,14 @@ const Attendance: React.FC<AttendanceProps> = ({
 
               {manualClass ? (
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+                      {/* Responsive Table Wrapper */}
                       <div className="flex-1 overflow-auto">
-                          <table className="w-full text-center text-sm border-collapse">
+                          <table className="w-full text-center text-sm border-collapse min-w-[600px]">
                               <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
                                   <tr>
-                                      <th className="p-4 border-l border-gray-200 text-right w-48 sticky right-0 bg-gray-50 z-20">اسم الطالب</th>
+                                      <th className="p-4 border-l border-gray-200 text-right w-48 sticky right-0 bg-gray-50 z-20 shadow-md">اسم الطالب</th>
                                       {currentWeekDays.map(day => (
-                                          <th key={day} className="p-3 border-l border-gray-200 min-w-[100px]">
+                                          <th key={day} className="p-3 border-l border-gray-200 min-w-[80px]">
                                               <div className="flex flex-col items-center">
                                                   <span>{getDayLabel(day)}</span>
                                                   <span className="text-[10px] text-gray-400 font-mono mt-1">{day.slice(5)}</span>
@@ -859,7 +784,7 @@ const Attendance: React.FC<AttendanceProps> = ({
 
                                       return (
                                           <tr key={student.id} className="hover:bg-gray-50 transition-colors">
-                                              <td className="p-4 border-l border-gray-200 text-right font-bold text-gray-800 sticky right-0 bg-white z-10">{student.name}</td>
+                                              <td className="p-4 border-l border-gray-200 text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm">{student.name}</td>
                                               {currentWeekDays.map(day => {
                                                   const record = attendanceHistory.find(a => a.studentId === student.id && a.date === day);
                                                   const status = record?.status || AttendanceStatus.PRESENT; // Default assumption if no record
@@ -867,7 +792,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                                   return (
                                                       <td 
                                                           key={day} 
-                                                          className={`p-3 border-l border-gray-100 ${!isManager ? 'cursor-pointer' : ''}`}
+                                                          className={`p-2 border-l border-gray-100 ${!isManager ? 'cursor-pointer' : ''}`}
                                                           onClick={() => toggleWeeklyStatus(student.id, day)}
                                                       >
                                                           <div className={`mx-auto w-8 h-8 rounded flex items-center justify-center font-bold text-xs transition-all ${
@@ -896,21 +821,20 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {/* Log Tab content identical to original but omitted to save space, assuming no logic changes requested there */}
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
+              {/* Log Content - Unchanged but ensure responsiveness */}
               <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">
                   <div className="flex items-center gap-2">
                       <History className="text-purple-600"/>
                       <h3 className="font-bold text-gray-800">سجل المتابعة الشامل</h3>
                   </div>
-                  {/* ... Filters ... */}
                   <div className="flex flex-wrap gap-2 text-sm items-center">
                       <button onClick={handlePrintLog} className="bg-gray-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-black transition-colors shadow-sm"><Printer size={14}/> طباعة</button>
                   </div>
               </div>
               <div className="flex-1 overflow-auto">
-                  <table className="w-full text-right text-sm">
+                  <table className="w-full text-right text-sm min-w-[700px]">
                       <thead className="bg-gray-100 text-gray-600 font-bold sticky top-0 shadow-sm">
                           <tr>
                               <th className="p-3">التاريخ</th>
@@ -953,9 +877,6 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       )}
 
-      {/* ... (Import Modals & Excuse Modal) ... */}
-      {/* Retaining modals logic */}
-      
       {/* STUDENT INDIVIDUAL REPORT MODAL */}
       {viewingStudentReport && studentReportData && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
