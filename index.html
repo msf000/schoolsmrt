@@ -3,15 +3,7 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    
-    <!-- PWA Settings -->
-    <meta name="theme-color" content="#0f766e" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="المدرس الذكي" />
-    <meta name="application-name" content="نظام المدرس الذكي" />
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>نظام متابعة الطلاب</title>
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -31,7 +23,6 @@
             animation: {
                 'fade-in': 'fadeIn 0.3s ease-out',
                 'slide-in-right': 'slideInRight 0.3s ease-out',
-                'slide-up': 'slideUp 0.3s ease-out',
             },
             keyframes: {
                 fadeIn: {
@@ -41,10 +32,6 @@
                 slideInRight: {
                     '0%': { transform: 'translateX(100%)' },
                     '100%': { transform: 'translateX(0)' },
-                },
-                slideUp: {
-                    '0%': { transform: 'translateY(100%)' },
-                    '100%': { transform: 'translateY(0)' },
                 }
             }
           }
@@ -55,13 +42,6 @@
         html, body {
             height: 100%;
             overflow: hidden; /* Prevent body scroll, handle inside App */
-            overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile app */
-            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
-        }
-        
-        /* Safe Area for iPhone X+ */
-        body {
-            padding-bottom: env(safe-area-inset-bottom);
         }
         
         /* Custom scrollbar for better aesthetics */
@@ -141,8 +121,7 @@
     "xlsx": "https://aistudiocdn.com/xlsx@^0.18.5",
     "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.86.0",
     "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "vite-plugin-pwa": "https://aistudiocdn.com/vite-plugin-pwa@^0.19.2"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>

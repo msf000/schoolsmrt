@@ -1,10 +1,11 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord } from '../types';
 import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, X } from 'lucide-react';
 import Attendance from './Attendance';
 import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink, updateStudent } from '../services/storageService';
 
-// ... (Widget Implementations - AttendanceStatsWidget, LessonLibraryWidget, MiniTimerWidget, SoundBoardWidget, HallPassWidget, TrafficLightWidget, QuickPollWidget, LessonNoteWidget, SeatingChart remain unchanged, including code below for context) ...
+// --- WIDGET IMPLEMENTATIONS ---
 
 const AttendanceStatsWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], date: string }> = ({ students, attendance, date }) => {
     const stats = useMemo(() => {
@@ -35,6 +36,7 @@ const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null }> = ({ cu
     const filteredLinks = useMemo(() => {
         if (!links) return [];
         if (!currentUser || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'SCHOOL_MANAGER') return links;
+        // FIX: Include links without teacherId (legacy)
         return links.filter(l => l.teacherId === currentUser.id || !l.teacherId);
     }, [links, currentUser]);
 
@@ -381,7 +383,7 @@ const SeatingChart: React.FC<{ students: Student[], onSaveSeating?: (s: Student[
                     </div>
                 </div>
 
-                <div className="w-full md:w-64 bg-gray-50 border-l border-gray-200 flex flex-col max-h-[300px] md:max-h-full">
+                <div className="w-full md:w-64 bg-gray-50 border-l border-gray-200 flex flex-col">
                     <div className="p-3 border-b font-bold text-sm text-gray-600">طلاب غير معينين ({unassignedStudents.length})</div>
                     <div className="flex-1 overflow-y-auto p-2 space-y-2">
                         {unassignedStudents.length > 0 ? unassignedStudents.map(s => (
@@ -468,6 +470,13 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         return students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
     }, [students, selectedClass]);
 
+    const presentStudents = useMemo(() => {
+        return classStudents.filter(s => {
+            const record = attendance.find(a => a.studentId === s.id && a.date === effectiveDate);
+            return !record || record.status !== AttendanceStatus.ABSENT;
+        });
+    }, [classStudents, attendance, effectiveDate]);
+
     const getDayName = (dateStr: string) => {
         const date = new Date(dateStr);
         return date.toLocaleDateString('ar-SA', { weekday: 'long' });
@@ -483,6 +492,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
         if (currentUser && currentUser.role === 'TEACHER') {
              return classSched.filter(s => {
+                 // FIX: Allow if teacher matches OR if schedule has no teacher (orphan/legacy)
                  return (s.teacherId === currentUser.id || !s.teacherId) || 
                         teacherAssignments.find(ta => ta.classId === s.classId && ta.subjectName === s.subjectName)?.teacherId === currentUser.id;
              }).sort((a,b) => a.period - b.period);
@@ -495,20 +505,20 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     };
 
     return (
-        <div className="p-4 md:p-6 h-full flex flex-col animate-fade-in bg-gray-50">
+        <div className="p-6 h-full flex flex-col animate-fade-in bg-gray-50">
             <div className="mb-4">
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-4">
                     <div>
-                        <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                             <LayoutGrid className="text-purple-600"/> الإدارة الصفية
                         </h2>
-                        <p className="text-gray-500 mt-2 text-sm md:text-base">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
+                        <p className="text-gray-500 mt-2">أدوات إدارة الحصة، توزيع المقاعد، وضبط السلوك.</p>
                     </div>
                     
                     <div className="flex flex-col md:flex-row items-end md:items-center gap-4 w-full xl:w-auto">
                         <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
                             <div className="px-3 py-1 bg-purple-50 rounded text-purple-700 font-bold text-sm border border-purple-100 flex items-center gap-1">
-                                <Calendar size={14}/> <span className="hidden md:inline">{getDayName(effectiveDate)}</span>
+                                <Calendar size={14}/> {getDayName(effectiveDate)}
                             </div>
                             <input type="date" value={effectiveDate} onChange={(e) => handleDateChange(e.target.value)} className="p-1 font-bold text-gray-700 outline-none cursor-pointer bg-transparent text-sm" />
                         </div>
@@ -519,13 +529,15 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
                         <div className="flex gap-2">
                             <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
-                                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent text-sm w-32 md:w-auto">
+                                <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><Grid size={14}/> الفصل:</span>
+                                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-1 font-bold text-primary outline-none cursor-pointer bg-transparent text-sm">
                                     {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
 
                             <div className="bg-white p-1 rounded-lg border shadow-sm flex items-center gap-2">
-                                <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="p-1 font-bold text-purple-600 outline-none cursor-pointer bg-transparent text-sm w-32 md:w-auto">
+                                <span className="text-xs font-bold text-gray-500 px-2 flex items-center gap-1"><BookOpen size={14}/> المادة:</span>
+                                <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="p-1 font-bold text-purple-600 outline-none cursor-pointer bg-transparent text-sm">
                                     {subjects.length > 0 ? subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>) : <option value="عام">عام</option>}
                                 </select>
                             </div>
@@ -539,7 +551,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                             <Clock size={12}/> جدول اليوم ({selectedClass}):
                         </div>
                         {dailyClassSchedule.length > 0 ? (
-                            <div className="flex gap-2 overflow-x-auto pb-1 w-full custom-scrollbar no-scrollbar">
+                            <div className="flex gap-2 overflow-x-auto pb-1 w-full custom-scrollbar">
                                 {dailyClassSchedule.map(item => (
                                     <button 
                                         key={item.id}
@@ -558,7 +570,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                 )}
             </div>
 
-            <div className="flex gap-4 mb-6 border-b border-gray-200 overflow-x-auto no-scrollbar">
+            <div className="flex gap-4 mb-6 border-b border-gray-200 overflow-x-auto">
                 <button onClick={() => setActiveTab('TOOLS')} className={`pb-3 px-4 font-bold text-sm transition-colors relative whitespace-nowrap ${activeTab === 'TOOLS' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}>
                     <LayoutGrid className="inline-block ml-2" size={16}/> لوحة القيادة
                 </button>
@@ -608,7 +620,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                                 <SoundBoardWidget />
                             </div>
                             <div className="space-y-6">
-                                <HallPassWidget students={classStudents} className={selectedClass} />
+                                <HallPassWidget students={presentStudents} className={selectedClass} />
                                 <LessonNoteWidget className={selectedClass} subject={selectedSubject} />
                             </div>
                         </div>

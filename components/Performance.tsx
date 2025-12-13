@@ -336,7 +336,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4 print:hidden">
-        <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm w-full md:w-auto overflow-x-auto no-scrollbar">
+        <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm w-full md:w-auto overflow-x-auto">
             {!isManager && (
                 <>
                     <button 
@@ -371,7 +371,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
             {!isManager && (
                 <button 
                     onClick={() => setIsImportModalOpen(true)}
-                    className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold whitespace-nowrap"
+                    className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold"
                 >
                     <FileSpreadsheet size={18} />
                     <span className="hidden md:inline">استيراد درجات</span>
@@ -481,7 +481,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
               {/* Footer Actions */}
               <div className="mt-4 pt-4 border-t flex justify-end gap-3">
-                  <button onClick={handleBulkSubmit} disabled={filteredStudentsBulk.length === 0} className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-teal-800 shadow-lg flex items-center gap-2 disabled:opacity-50 transition-transform hover:scale-105 w-full md:w-auto justify-center">
+                  <button onClick={handleBulkSubmit} disabled={filteredStudentsBulk.length === 0} className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-teal-800 shadow-lg flex items-center gap-2 disabled:opacity-50 transition-transform hover:scale-105">
                       <Save size={18}/> حفظ الدرجات
                   </button>
               </div>
@@ -676,7 +676,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                       </div>
 
                       <select 
-                          className="p-2 border rounded-lg bg-gray-50 font-bold text-gray-700 max-w-[200px]"
+                          className="p-2 border rounded-lg bg-gray-50 font-bold text-gray-700"
                           value={analyticsExam}
                           onChange={e => setAnalyticsExam(e.target.value)}
                       >
@@ -687,7 +687,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
               </div>
 
               {analyticsData ? (
-                  <div className="space-y-6 overflow-y-auto custom-scrollbar">
+                  <div className="space-y-6 overflow-y-auto">
                       {/* Summary Cards */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-center">
@@ -836,8 +836,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                   </div>
               </div>
 
-              {/* DESKTOP TABLE VIEW */}
-              <div className="hidden md:block flex-1 overflow-auto">
+              <div className="flex-1 overflow-auto">
                   <table className="w-full text-right text-sm">
                       <thead className="bg-gray-100 text-gray-600 font-bold sticky top-0 shadow-sm">
                           <tr>
@@ -877,45 +876,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                           )}
                       </tbody>
                   </table>
-              </div>
-
-              {/* MOBILE CARD VIEW */}
-              <div className="md:hidden flex-1 overflow-y-auto space-y-3 p-4 bg-gray-50">
-                  {filteredHistory.length > 0 ? filteredHistory.map((rec) => {
-                      const student = students.find(s => s.id === rec.studentId);
-                      return (
-                          <div key={rec.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative">
-                              <div className="flex justify-between items-start mb-2">
-                                  <div>
-                                      <h4 className="font-bold text-gray-800">{student?.name}</h4>
-                                      <p className="text-xs text-gray-500">{student?.className} • {rec.subject}</p>
-                                  </div>
-                                  <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded">{rec.date}</span>
-                              </div>
-                              
-                              <div className="flex justify-between items-center border-t border-gray-50 pt-2 mt-2">
-                                  <div>
-                                      <div className="font-bold text-sm text-gray-700">{rec.title}</div>
-                                      <div className="mt-1">{getCategoryBadge(rec.category)}</div>
-                                  </div>
-                                  <div className="text-right">
-                                      <div className="font-black text-xl text-blue-700">{rec.score} <span className="text-xs text-gray-400 font-normal">/ {rec.maxScore}</span></div>
-                                  </div>
-                              </div>
-                              
-                              {!isManager && (
-                                  <button onClick={() => handleDelete(rec.id)} className="absolute top-2 left-2 text-red-300 hover:text-red-500">
-                                      <Trash2 size={16}/>
-                                  </button>
-                              )}
-                          </div>
-                      );
-                  }) : (
-                      <div className="text-center py-20 text-gray-400 flex flex-col items-center">
-                          <History size={48} className="mb-4 opacity-20"/>
-                          <p>لا توجد سجلات</p>
-                      </div>
-                  )}
               </div>
           </div>
       )}

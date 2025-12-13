@@ -40,7 +40,6 @@ import ScheduleView from './components/ScheduleView';
 import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import ParentPortal from './components/ParentPortal';
 import CertificatesCenter from './components/CertificatesCenter';
-import InstallPrompt from './components/InstallPrompt';
 
 import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff, Activity, ClipboardList } from 'lucide-react';
 
@@ -74,62 +73,6 @@ const App: React.FC = () => {
     
     // AI Status State
     const [aiStatus, setAiStatus] = useState<'IDLE' | 'CHECKING' | 'CONNECTED' | 'ERROR'>('IDLE');
-
-    // Dynamic App Branding based on Role
-    useEffect(() => {
-        if (!currentUser) {
-            document.title = "نظام المدرس الذكي - تسجيل الدخول";
-            updateMetaThemeColor('#0f766e'); // Default Teal
-            return;
-        }
-
-        switch (currentUser.role) {
-            case 'STUDENT':
-                document.title = "رفيق الطالب | رحلتك التعليمية";
-                updateMetaThemeColor('#0ea5e9'); // Sky Blue
-                break;
-            case 'PARENT':
-                document.title = "شريك النجاح | بوابة ولي الأمر";
-                updateMetaThemeColor('#1e1b4b'); // Indigo/Navy
-                break;
-            case 'TEACHER':
-            case 'SCHOOL_MANAGER':
-            case 'SUPER_ADMIN':
-            default:
-                document.title = "المدرس الذكي | إدارة الفصل";
-                updateMetaThemeColor('#0f766e'); // Teal
-                break;
-        }
-    }, [currentUser]);
-
-    const updateMetaThemeColor = (color: string) => {
-        const metaThemeColor = document.querySelector("meta[name=theme-color]");
-        if (metaThemeColor) {
-            metaThemeColor.setAttribute("content", color);
-        }
-    };
-
-    // Network Status Listeners
-    useEffect(() => {
-        const handleOnline = () => {
-            setSystemMode(true);
-            if (currentUser) forceRefreshData(); // Auto sync when coming back online
-        };
-        const handleOffline = () => {
-            setSystemMode(false);
-        };
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        // Initial check
-        if (!navigator.onLine) setSystemMode(false);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, [currentUser]);
 
     // Save View on Change
     useEffect(() => {
@@ -172,6 +115,9 @@ const App: React.FC = () => {
             const unsubData = subscribeToDataChanges(() => {
                 loadData();
             });
+
+            // Disabled Background Sync to prevent overwriting user changes during session
+            // bgSyncTimerRef.current = setInterval(() => { ... }, ...);
 
             return () => {
                 unsubSync();
@@ -351,7 +297,7 @@ const App: React.FC = () => {
         );
     }
 
-    // --- MAIN APP (TEACHER / MANAGER) ---
+    // --- MAIN APP ---
     const NavItem = ({ view, label, icon: Icon }: any) => (
         <button 
             onClick={() => { setCurrentView(view); setIsSidebarOpen(false); }}
@@ -380,16 +326,8 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* Mobile Sidebar Overlay */}
-            {isSidebarOpen && (
-                <div 
-                    className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm animate-fade-in"
-                    onClick={() => setIsSidebarOpen(false)}
-                />
-            )}
-
             {/* Sidebar */}
-            <aside className={`fixed inset-y-0 right-0 w-72 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 {/* TOP: User Profile & Logout */}
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
@@ -404,7 +342,7 @@ const App: React.FC = () => {
                                 </span>
                             </div>
                         </div>
-                        <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500 p-1 bg-white rounded-full shadow-sm border"><X size={20}/></button>
+                        <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500"><X/></button>
                     </div>
 
                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-red-600 bg-white border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
@@ -485,11 +423,7 @@ const App: React.FC = () => {
                 </nav>
 
                 {/* BOTTOM: Sync Status & AI Status */}
-                <div className="p-4 border-t bg-gray-50 space-y-2 pb-8 md:pb-4 safe-area-pb">
-                    
-                    {/* --- INSTALL PWA PROMPT --- */}
-                    <InstallPrompt />
-
+                <div className="p-4 border-t bg-gray-50 space-y-2">
                     <button 
                         onClick={handleManualSync}
                         disabled={syncStatus === 'SYNCING'}
@@ -561,15 +495,12 @@ const App: React.FC = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative h-full overflow-hidden">
-                <header className="bg-white border-b p-4 flex justify-between items-center md:hidden shrink-0 shadow-sm z-20">
-                    <h2 className="font-bold text-gray-800 text-lg truncate pr-2">
-                        {currentView === 'DASHBOARD' ? 'لوحة القيادة' : 
-                         currentView === 'SCHEDULE_VIEW' ? 'الجدول الدراسي' :
-                         currentView === 'ATTENDANCE' ? 'سجل الحضور' :
-                         currentView === 'STUDENTS' ? 'الطلاب' : 'نظام المدرس الذكي'}
+            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative">
+                <header className="bg-white border-b p-4 flex justify-between items-center md:hidden">
+                    <h2 className="font-bold text-gray-800">
+                        {currentView === 'DASHBOARD' ? 'لوحة القيادة' : '...'}
                     </h2>
-                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-gray-100 rounded-lg text-gray-600 hover:bg-gray-200"><Menu/></button>
+                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-gray-100 rounded-lg"><Menu/></button>
                 </header>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-0">

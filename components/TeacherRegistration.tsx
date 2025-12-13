@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Teacher, School, SystemUser } from '../types';
 import { addTeacher, getTeachers, getSchools, addSchool, addSystemUser } from '../services/storageService';
@@ -208,7 +209,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in flex flex-col md:flex-row">
                     
                     {/* Side Banner */}
-                    <div className="bg-gradient-to-br from-teal-600 to-teal-800 text-white p-6 md:p-8 md:w-1/3 flex flex-col justify-between relative overflow-hidden shrink-0">
+                    <div className="bg-gradient-to-br from-teal-600 to-teal-800 text-white p-8 md:w-1/3 flex flex-col justify-between relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10"></div>
                         <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-10 -mb-10"></div>
                         
@@ -228,7 +229,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                     </div>
 
                     {/* Form */}
-                    <div className="p-6 md:p-8 md:w-2/3">
+                    <div className="p-8 md:w-2/3">
                         <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <User className="text-teal-600"/> تسجيل معلم جديد
                         </h2>

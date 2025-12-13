@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -5,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, SystemUser, WeeklyPlanItem, AcademicTerm, Exam } from '../types';
 import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle, Smartphone } from 'lucide-react';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -152,37 +153,17 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               <h1 className="text-2xl font-black text-gray-800">لوحة المتابعة اليومية</h1>
               <p className="text-gray-500 text-sm mt-1">نظرة شاملة على أداء وحضور الطلاب</p>
           </div>
-          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm w-full md:w-auto">
+          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm">
               <Filter size={16} className="text-gray-400 mr-1 ml-1"/>
               <select 
                   value={selectedTermId}
                   onChange={(e) => setSelectedTermId(e.target.value)}
-                  className="bg-transparent text-sm font-bold outline-none text-purple-700 w-full md:min-w-[150px]"
+                  className="bg-transparent text-sm font-bold outline-none text-purple-700 min-w-[150px]"
               >
                   <option value="">كل الفترات</option>
                   {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
           </div>
-      </div>
-
-      {/* Mobile: Quick Nav First */}
-      <div className="md:hidden grid grid-cols-4 gap-2 mb-4">
-          <button onClick={() => onNavigate('STUDENTS')} className="flex flex-col items-center justify-center p-3 bg-white border border-blue-100 rounded-xl shadow-sm">
-              <div className="bg-blue-50 p-2 rounded-full mb-1 text-blue-600"><Users size={18}/></div>
-              <span className="text-[10px] font-bold text-gray-600">الطلاب</span>
-          </button>
-          <button onClick={() => onNavigate('ATTENDANCE')} className="flex flex-col items-center justify-center p-3 bg-white border border-green-100 rounded-xl shadow-sm">
-              <div className="bg-green-50 p-2 rounded-full mb-1 text-green-600"><CheckSquare size={18}/></div>
-              <span className="text-[10px] font-bold text-gray-600">الحضور</span>
-          </button>
-          <button onClick={() => onNavigate('PERFORMANCE')} className="flex flex-col items-center justify-center p-3 bg-white border border-purple-100 rounded-xl shadow-sm">
-              <div className="bg-purple-50 p-2 rounded-full mb-1 text-purple-600"><Award size={18}/></div>
-              <span className="text-[10px] font-bold text-gray-600">الدرجات</span>
-          </button>
-          <button onClick={() => onNavigate('AI_REPORTS')} className="flex flex-col items-center justify-center p-3 bg-white border border-teal-100 rounded-xl shadow-sm">
-              <div className="bg-teal-50 p-2 rounded-full mb-1 text-teal-600"><FileQuestion size={18}/></div>
-              <span className="text-[10px] font-bold text-gray-600">تقارير</span>
-          </button>
       </div>
 
       {/* Main KPI Cards */}
@@ -236,8 +217,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               </div>
           </div>
 
-          {/* Card 4: Quick Actions (Desktop only - mobile has own bar) */}
-          <div className="hidden md:flex bg-gradient-to-br from-gray-800 to-gray-900 p-5 rounded-2xl shadow-lg text-white flex-col justify-center gap-3">
+          {/* Card 4: Quick Actions */}
+          <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-5 rounded-2xl shadow-lg text-white flex flex-col justify-center gap-3">
               <h3 className="font-bold text-sm flex items-center gap-2 text-gray-200"><Clock size={16}/> إجراءات سريعة</h3>
               <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => onNavigate('ATTENDANCE')} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-xs font-bold transition-colors text-center">
@@ -294,8 +275,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           <div className="lg:col-span-1 space-y-6">
               <TodoWidget />
               
-              {/* Quick Navigation Panel (Desktop Only) */}
-              <div className="hidden md:block bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+              {/* Quick Navigation Panel */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                   <h3 className="font-bold text-gray-800 mb-4 text-sm">روابط سريعة</h3>
                   <div className="grid grid-cols-2 gap-3">
                       <button onClick={() => onNavigate('STUDENTS')} className="flex flex-col items-center justify-center p-3 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors">

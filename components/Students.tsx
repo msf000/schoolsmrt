@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
 import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, MoreHorizontal, QrCode } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key } from 'lucide-react';
 import DataImport from './DataImport';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
@@ -248,11 +249,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   };
 
   // --- PRINT CARDS COMPONENT ---
-  const LoginCardsView = () => {
-      const appUrl = window.location.origin;
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(appUrl)}`;
-
-      return (
+  const LoginCardsView = () => (
       <div className="fixed inset-0 bg-white z-[200] overflow-auto p-8">
           <div className="max-w-5xl mx-auto">
               <div className="flex justify-between items-center mb-8 print:hidden">
@@ -263,57 +260,45 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-6 print:grid-cols-2">
+              <div className="grid grid-cols-2 gap-4 print:grid-cols-2">
                   {filteredStudents.map(student => (
-                      <div key={student.id} className="border-2 border-gray-300 rounded-2xl p-6 flex flex-col gap-4 relative break-inside-avoid shadow-sm bg-white print:shadow-none">
-                          
-                          {/* Header with School Name & QR */}
-                          <div className="flex justify-between items-start border-b pb-4">
+                      <div key={student.id} className="border-2 border-gray-300 rounded-xl p-6 flex flex-col gap-4 relative break-inside-avoid">
+                          <div className="flex justify-between items-start border-b pb-2">
                               <div>
-                                  <h3 className="font-bold text-lg text-gray-800">{schoolConfig?.schoolName || 'المدرسة الذكية'}</h3>
-                                  <p className="text-xs text-gray-500 font-bold mt-1">بوابة الطالب الإلكترونية</p>
-                                  <div className="mt-2 text-left">
-                                      <span className="font-bold text-sm block">{student.className}</span>
-                                      <span className="text-xs text-gray-400">{student.gradeLevel}</span>
-                                  </div>
+                                  <h3 className="font-bold text-lg">{schoolConfig?.schoolName || 'المدرسة الذكية'}</h3>
+                                  <p className="text-xs text-gray-500">بوابة الطالب الإلكترونية</p>
                               </div>
-                              <div className="flex flex-col items-center">
-                                  <img src={qrApiUrl} alt="App QR" className="w-20 h-20 border p-1 rounded" />
-                                  <span className="text-[9px] text-gray-400 mt-1 font-bold">امسح للدخول</span>
+                              <div className="text-left">
+                                  <span className="font-bold text-sm block">{student.className}</span>
+                                  <span className="text-xs text-gray-400">{student.gradeLevel}</span>
                               </div>
                           </div>
-
-                          {/* Credentials */}
-                          <div className="space-y-3">
-                              <div className="flex justify-between items-center">
-                                  <span className="text-gray-500 text-sm font-bold">الاسم:</span>
-                                  <span className="font-black text-gray-800 text-lg">{student.name}</span>
+                          <div className="space-y-2">
+                              <div className="flex justify-between">
+                                  <span className="text-gray-500 text-sm">الاسم:</span>
+                                  <span className="font-bold">{student.name}</span>
                               </div>
-                              
-                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center">
-                                  <span className="text-gray-500 text-xs font-bold flex items-center gap-1"><User size={14}/> اسم المستخدم:</span>
-                                  <span className="font-mono font-black text-lg text-indigo-700 tracking-wider">{student.nationalId}</span>
+                              <div className="flex justify-between bg-gray-50 p-2 rounded">
+                                  <span className="text-gray-500 text-sm">اسم المستخدم:</span>
+                                  <span className="font-mono font-bold">{student.nationalId}</span>
                               </div>
-                              
-                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center">
-                                  <span className="text-gray-500 text-xs font-bold flex items-center gap-1"><Lock size={14}/> كلمة المرور:</span>
-                                  <span className="font-mono font-black text-lg text-indigo-700 tracking-wider">{student.password || student.nationalId?.slice(-4) || '1234'}</span>
+                              <div className="flex justify-between bg-gray-50 p-2 rounded">
+                                  <span className="text-gray-500 text-sm">كلمة المرور:</span>
+                                  <span className="font-mono font-bold">{student.password || '123456'}</span>
                               </div>
                           </div>
-
-                          <div className="mt-auto pt-2 text-center text-[10px] text-gray-400 flex items-center justify-center gap-1">
-                              <AlertCircle size={10}/> يرجى الاحتفاظ ببيانات الدخول وعدم مشاركتها.
+                          <div className="mt-2 text-center text-[10px] text-gray-400">
+                              يرجى الاحتفاظ ببيانات الدخول وعدم مشاركتها.
                           </div>
                       </div>
                   ))}
               </div>
           </div>
       </div>
-      );
-  };
+  );
 
   return (
-    <div className="p-4 md:p-6 space-y-6 animate-fade-in h-full flex flex-col">
+    <div className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
       {/* Header & Controls */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
@@ -363,13 +348,13 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 {!isManager && (
                     <>
                         <button onClick={() => setIsPrintCardsOpen(true)} className="flex-1 md:flex-none bg-white text-gray-700 border px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm" title="طباعة بطاقات الدخول">
-                            <CreditCard size={18} /> <span className="hidden lg:inline">بطاقات</span>
+                            <CreditCard size={18} /> بطاقات
                         </button>
                         <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm">
-                            <FileSpreadsheet size={18} /> <span className="hidden lg:inline">استيراد</span>
+                            <FileSpreadsheet size={18} /> استيراد
                         </button>
                         <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm">
-                            <UserPlus size={18} /> <span className="hidden lg:inline">إضافة</span>
+                            <UserPlus size={18} /> إضافة
                         </button>
                         {students.length > 0 && (
                             <button onClick={handleDeleteAll} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">
@@ -382,10 +367,9 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {/* DESKTOP TABLE VIEW */}
-        <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 flex-1 overflow-auto">
+      {/* Main Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+        <div className="flex-1 overflow-auto">
             <table className="w-full text-right">
             <thead className="bg-gray-50 text-gray-600 font-bold text-xs uppercase sticky top-0 z-10 shadow-sm">
                 <tr>
@@ -462,53 +446,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             </tbody>
             </table>
         </div>
-
-        {/* MOBILE CARD VIEW */}
-        <div className="md:hidden flex-1 overflow-y-auto space-y-3 pb-20">
-            {filteredStudents.length > 0 ? filteredStudents.map((student) => {
-                const risks = getStudentRisk(student.id);
-                return (
-                    <div key={student.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 relative">
-                        <div className="flex justify-between items-start">
-                            <div onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }}>
-                                <h3 className="font-bold text-gray-800 text-lg leading-tight mb-1">{student.name}</h3>
-                                <p className="text-xs text-gray-500">{student.gradeLevel} - {student.className}</p>
-                            </div>
-                            <div className="flex gap-1">
-                                {!isManager && (
-                                    <button onClick={() => openEditModal(student)} className="text-gray-400 hover:text-yellow-600 p-2 rounded-full hover:bg-yellow-50">
-                                        <Edit size={18} />
-                                    </button>
-                                )}
-                                <button onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }} className="text-blue-500 bg-blue-50 p-2 rounded-full">
-                                    <Eye size={18} />
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div className="flex justify-between items-center border-t border-gray-100 pt-3">
-                            <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">{student.nationalId || 'بدون هوية'}</span>
-                            </div>
-                            <div className="flex gap-1">
-                                {risks.map((r, i) => (
-                                    <span key={i} className={`text-[10px] px-2 py-1 rounded-full font-bold border ${r.type==='ATT' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-yellow-50 text-yellow-600 border-yellow-100'}`}>
-                                        {r.type === 'ATT' ? 'غياب' : 'مستوى'}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                );
-            }) : (
-                <div className="flex flex-col items-center justify-center p-12 text-gray-400">
-                    <Search size={48} className="mb-4 opacity-20"/>
-                    <p>لا يوجد طلاب</p>
-                </div>
-            )}
-        </div>
-
-        <div className="p-3 border-t bg-gray-50 text-xs text-gray-500 font-bold hidden md:block">
+        <div className="p-3 border-t bg-gray-50 text-xs text-gray-500 font-bold">
             العدد الإجمالي: {filteredStudents.length} طالب
         </div>
       </div>
@@ -537,7 +475,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                           <select 
                               value={selectedTermId}
                               onChange={(e) => setSelectedTermId(e.target.value)}
-                              className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-purple-500 font-bold hidden md:block"
+                              className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-purple-500 font-bold"
                           >
                               <option value="" className="text-black">كل الفترات (تراكمي)</option>
                               {terms.map(t => (
@@ -549,7 +487,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   </div>
 
                   {/* Navigation Tabs */}
-                  <div className="flex border-b bg-gray-50 px-6 shrink-0 overflow-x-auto no-scrollbar">
+                  <div className="flex border-b bg-gray-50 px-6 shrink-0 overflow-x-auto">
                       <button onClick={() => setViewModalTab('OVERVIEW')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'OVERVIEW' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
                           <Target size={16}/> نظرة عامة
                       </button>
