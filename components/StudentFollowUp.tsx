@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
 import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap, Table, CheckSquare, LayoutGrid, Filter, Layers } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
@@ -49,6 +49,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [selectedTermId, setSelectedTermId] = useState<string>('');
     const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
@@ -56,6 +57,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const current = loadedTerms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+
+        // Load Assignments for robust linking
+        setAssignments(getAssignments('ALL', currentUser?.id, true));
 
         const navStudentId = localStorage.getItem('nav_context_student_id');
         if (navStudentId) {
@@ -101,12 +105,39 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             }
         }
 
-        if (dateStart && dateEnd) {
-            sAtt = sAtt.filter(a => a.date >= dateStart! && a.date <= dateEnd!);
-            sPerf = sPerf.filter(p => p.date >= dateStart! && p.date <= dateEnd!);
+        // --- Filter Performance (Smart Link using Assignment Period ID) ---
+        if (selectedPeriodId) {
+            sPerf = sPerf.filter(p => {
+                // 1. Try to link via ID stored in notes
+                const assign = assignments.find(a => a.id === p.notes);
+                if (assign && assign.periodId) {
+                    return assign.periodId === selectedPeriodId;
+                }
+                // 2. Fallback: If date range exists, use dates
+                if (dateStart && dateEnd) {
+                    return p.date >= dateStart && p.date <= dateEnd;
+                }
+                return true;
+            });
+        } else if (activeTerm) {
+            sPerf = sPerf.filter(p => {
+                const assign = assignments.find(a => a.id === p.notes);
+                if (assign && assign.termId) {
+                    return assign.termId === selectedTermId;
+                }
+                if (dateStart && dateEnd) {
+                    return p.date >= dateStart && p.date <= dateEnd;
+                }
+                return true;
+            });
         }
 
-        // Attendance
+        // --- Filter Attendance (Strictly Date Based) ---
+        if (dateStart && dateEnd) {
+            sAtt = sAtt.filter(a => a.date >= dateStart! && a.date <= dateEnd!);
+        }
+
+        // Attendance Stats
         const totalDays = sAtt.length;
         const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
         const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
@@ -117,7 +148,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const posBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
         const negBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
 
-        // Performance
+        // Performance Stats
         const totalScore = sPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
         const avgScore = sPerf.length > 0 ? Math.round((totalScore / sPerf.length) * 100) : 0;
 
@@ -145,7 +176,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const sortedPerf = [...sPerf].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf: sortedPerf };
-    }, [student, attendance, performance, activeTerm, selectedPeriodId]);
+    }, [student, attendance, performance, activeTerm, selectedPeriodId, assignments]);
 
     const handleShareWhatsApp = () => {
         if (!student || !stats) return;
