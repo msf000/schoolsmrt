@@ -644,7 +644,6 @@ export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) =
     
     updateCache(KEYS.PERIOD_TIMINGS, allSettings);
     notifyDataChange();
-    // Ideally sync to cloud here if schema supports it
 };
 
 // ... (Rest of file: statistics, backup/restore, cloud bridge functions) ...
@@ -750,5 +749,310 @@ export const getTableDisplayName = (table: string): string => {
     };
     return map[table] || table;
 };
-export const getDatabaseUpdateSQL = (): string => { return `...`; };
-export const getDatabaseSchemaSQL = () => { return `...`; };
+
+// --- SQL Generation for Admin Dashboard ---
+export const getDatabaseSchemaSQL = () => {
+    return `
+-- 1. Schools
+create table if not exists schools (
+  id text primary key,
+  name text not null,
+  ministry_code text,
+  manager_name text,
+  manager_national_id text,
+  education_administration text,
+  type text,
+  phone text,
+  student_count int,
+  works_master_url text
+);
+
+-- 2. Teachers
+create table if not exists teachers (
+  id text primary key,
+  name text not null,
+  national_id text,
+  email text,
+  phone text,
+  password text,
+  subject_specialty text,
+  school_id text references schools(id),
+  manager_id text,
+  subscription_status text,
+  subscription_end_date text
+);
+
+-- 3. System Users
+create table if not exists system_users (
+  id text primary key,
+  name text not null,
+  email text,
+  national_id text,
+  password text,
+  role text,
+  school_id text,
+  status text,
+  phone text,
+  is_demo boolean
+);
+
+-- 4. Students
+create table if not exists students (
+  id text primary key,
+  name text not null,
+  national_id text,
+  class_name text,
+  grade_level text,
+  phone text,
+  email text,
+  parent_name text,
+  parent_phone text,
+  parent_email text,
+  school_id text,
+  created_by_id text,
+  password text,
+  seat_index int
+);
+
+-- 5. Attendance
+create table if not exists attendance (
+  id text primary key,
+  student_id text references students(id),
+  date text,
+  status text,
+  subject text,
+  period int,
+  behavior_status text,
+  behavior_note text,
+  excuse_note text,
+  excuse_file text,
+  created_by_id text
+);
+
+-- 6. Performance
+create table if not exists performance (
+  id text primary key,
+  student_id text references students(id),
+  subject text,
+  title text,
+  category text,
+  score float,
+  max_score float,
+  date text,
+  notes text,
+  created_by_id text
+);
+
+-- 7. Assignments
+create table if not exists assignments (
+  id text primary key,
+  title text,
+  category text,
+  max_score float,
+  url text,
+  is_visible boolean,
+  order_index int,
+  source_metadata text,
+  teacher_id text,
+  term_id text,
+  period_id text
+);
+
+-- 8. Schedules
+create table if not exists schedules (
+  id text primary key,
+  class_id text,
+  day text,
+  period int,
+  subject_name text,
+  teacher_id text
+);
+
+-- 9. Teacher Assignments (Mapping)
+create table if not exists teacher_assignments (
+  id text primary key,
+  class_id text,
+  subject_name text,
+  teacher_id text
+);
+
+-- 10. Subjects
+create table if not exists subjects (
+  id text primary key,
+  name text,
+  teacher_id text
+);
+
+-- 11. Weekly Plans
+create table if not exists weekly_plans (
+  id text primary key,
+  teacher_id text,
+  class_id text,
+  subject_name text,
+  day text,
+  period int,
+  week_start_date text,
+  lesson_topic text,
+  homework text
+);
+
+-- 12. Lesson Links
+create table if not exists lesson_links (
+  id text primary key,
+  title text,
+  url text,
+  teacher_id text,
+  created_at text,
+  grade_level text,
+  class_name text
+);
+
+-- 13. Lesson Plans
+create table if not exists lesson_plans (
+  id text primary key,
+  teacher_id text,
+  lesson_id text,
+  subject text,
+  topic text,
+  content_json text,
+  resources jsonb,
+  created_at text
+);
+
+-- 14. Message Logs
+create table if not exists message_logs (
+  id text primary key,
+  student_id text,
+  student_name text,
+  parent_phone text,
+  type text,
+  content text,
+  status text,
+  date text,
+  sent_by text,
+  teacher_id text
+);
+
+-- 15. Feedback
+create table if not exists feedback (
+  id text primary key,
+  teacher_id text,
+  manager_id text,
+  content text,
+  date text,
+  is_read boolean
+);
+
+-- 16. Exams
+create table if not exists exams (
+  id text primary key,
+  title text,
+  subject text,
+  grade_level text,
+  duration_minutes int,
+  questions jsonb,
+  is_active boolean,
+  created_at text,
+  teacher_id text,
+  date text
+);
+
+-- 17. Exam Results
+create table if not exists exam_results (
+  id text primary key,
+  exam_id text,
+  student_id text,
+  student_name text,
+  score float,
+  total_score float,
+  date text,
+  answers jsonb
+);
+
+-- 18. Questions Bank
+create table if not exists questions (
+  id text primary key,
+  text text,
+  type text,
+  options jsonb,
+  correct_answer text,
+  points int,
+  subject text,
+  grade_level text,
+  topic text,
+  difficulty text,
+  teacher_id text
+);
+
+-- 19. Curriculum Units
+create table if not exists curriculum_units (
+  id text primary key,
+  teacher_id text,
+  subject text,
+  grade_level text,
+  title text,
+  order_index int
+);
+
+-- 20. Curriculum Lessons
+create table if not exists curriculum_lessons (
+  id text primary key,
+  unit_id text,
+  title text,
+  order_index int,
+  learning_standards jsonb,
+  micro_concept_ids jsonb
+);
+
+-- 21. Micro Concepts
+create table if not exists micro_concepts (
+  id text primary key,
+  teacher_id text,
+  subject text,
+  name text
+);
+
+-- 22. Tracking Sheets
+create table if not exists tracking_sheets (
+  id text primary key,
+  title text,
+  subject text,
+  class_name text,
+  teacher_id text,
+  created_at text,
+  columns jsonb,
+  scores jsonb
+);
+
+-- 23. Custom Tables
+create table if not exists custom_tables (
+  id text primary key,
+  name text,
+  created_at text,
+  columns jsonb,
+  rows jsonb,
+  source_url text,
+  last_updated text,
+  teacher_id text
+);
+
+-- 24. Academic Terms
+create table if not exists academic_terms (
+  id text primary key,
+  name text,
+  start_date text,
+  end_date text,
+  is_current boolean,
+  teacher_id text,
+  periods jsonb
+);
+    `;
+};
+
+export const getDatabaseUpdateSQL = (): string => { 
+    return `
+-- Add Period Timings if supported (Future Feature)
+-- Currently stored in LocalStorage only, but prepared for future schema update.
+-- This section is reserved for schema migrations.
+    `; 
+};
