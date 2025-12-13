@@ -40,6 +40,7 @@ import ScheduleView from './components/ScheduleView';
 import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import ParentPortal from './components/ParentPortal';
 import CertificatesCenter from './components/CertificatesCenter';
+import InstallPrompt from './components/InstallPrompt';
 
 import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff, Activity, ClipboardList } from 'lucide-react';
 
@@ -432,6 +433,10 @@ const App: React.FC = () => {
 
                 {/* BOTTOM: Sync Status & AI Status */}
                 <div className="p-4 border-t bg-gray-50 space-y-2">
+                    
+                    {/* --- INSTALL PWA PROMPT --- */}
+                    <InstallPrompt />
+
                     <button 
                         onClick={handleManualSync}
                         disabled={syncStatus === 'SYNCING'}

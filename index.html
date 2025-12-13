@@ -3,7 +3,8 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0f766e" />
     <title>نظام متابعة الطلاب</title>
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -42,6 +43,7 @@
         html, body {
             height: 100%;
             overflow: hidden; /* Prevent body scroll, handle inside App */
+            overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile app */
         }
         
         /* Custom scrollbar for better aesthetics */
@@ -121,7 +123,8 @@
     "xlsx": "https://aistudiocdn.com/xlsx@^0.18.5",
     "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.86.0",
     "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "vite-plugin-pwa": "https://aistudiocdn.com/vite-plugin-pwa@^0.19.2"
   }
 }
 </script>
