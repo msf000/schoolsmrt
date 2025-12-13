@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink } from '../types';
 import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, TrendingUp, Star } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface StudentPortalProps {
     currentUser: Student;
