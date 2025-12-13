@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem, Exam, PerformanceCategory } from '../types';
 import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans, getExams, saveExamResult, addPerformance, getPerformance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays, FileQuestion, Timer, Check } from 'lucide-react';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays, FileQuestion, Timer, Check, MoreHorizontal, ChevronRight } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -14,10 +14,14 @@ interface StudentPortalProps {
 }
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
-    const [activeTab, setActiveTab] = useState<'HOME' | 'PLAN' | 'EXAMS' | 'GRADES' | 'LIBRARY' | 'PROFILE'>('HOME');
+    // Added 'ATTENDANCE' to tabs
+    const [activeTab, setActiveTab] = useState<'HOME' | 'PLAN' | 'EXAMS' | 'GRADES' | 'LIBRARY' | 'PROFILE' | 'ATTENDANCE'>('HOME');
     const [isSyncing, setIsSyncing] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     
+    // More Menu State
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+
     // Notifications State
     const [notifications, setNotifications] = useState<MessageLog[]>([]);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -36,6 +40,11 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         await downloadFromSupabase();
         setIsSyncing(false);
         window.location.reload();
+    };
+
+    const handleNavClick = (tab: any) => {
+        setActiveTab(tab);
+        setShowMoreMenu(false); // Close menu on selection
     };
 
     return (
@@ -96,10 +105,13 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
             {/* --- MAIN CONTENT AREA --- */}
             <main className="flex-1 overflow-y-auto pb-24 pt-4 px-4 custom-scrollbar bg-gradient-to-b from-slate-50 to-white">
                 
-                {activeTab === 'HOME' && <StudentHome student={currentUser} attendance={attendance} performance={performance} terms={terms} onNavigate={setActiveTab} />}
+                {activeTab === 'HOME' && <StudentHome student={currentUser} attendance={attendance} performance={performance} terms={terms} onNavigate={handleNavClick} />}
                 {activeTab === 'PLAN' && <StudentWeeklyPlan student={currentUser} />}
                 {activeTab === 'EXAMS' && <StudentExams student={currentUser} performance={performance} />}
                 {activeTab === 'GRADES' && <StudentGrades student={currentUser} performance={performance} terms={terms} />}
+                
+                {/* Items from More Menu */}
+                {activeTab === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} />}
                 {activeTab === 'LIBRARY' && <StudentLibraryView student={currentUser} />}
                 {activeTab === 'PROFILE' && <StudentProfileView student={currentUser} onLogout={onLogout} attendance={attendance} performance={performance} />}
 
@@ -110,21 +122,49 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 <InstallPrompt userRole="STUDENT" />
             </div>
 
+            {/* --- MORE MENU OVERLAY (Bottom Sheet) --- */}
+            {showMoreMenu && (
+                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end animate-fade-in" onClick={() => setShowMoreMenu(false)}>
+                    <div className="bg-white rounded-t-3xl p-6 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+                        <h3 className="font-bold text-gray-800 mb-4 text-lg">القائمة الكاملة</h3>
+                        
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                            <MenuButton icon={Calendar} label="سجل الحضور" onClick={() => handleNavClick('ATTENDANCE')} active={activeTab === 'ATTENDANCE'} />
+                            <MenuButton icon={Library} label="المصادر" onClick={() => handleNavClick('LIBRARY')} active={activeTab === 'LIBRARY'} />
+                            <MenuButton icon={User} label="ملفي" onClick={() => handleNavClick('PROFILE')} active={activeTab === 'PROFILE'} />
+                        </div>
+                        
+                        <button onClick={() => setShowMoreMenu(false)} className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-bold mt-2">إغلاق</button>
+                    </div>
+                </div>
+            )}
+
             {/* --- BOTTOM NAVIGATION BAR (Mobile App Style) --- */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe-bottom z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 <div className="flex justify-around items-center h-16">
-                    <NavButton icon={Home} label="الرئيسية" active={activeTab === 'HOME'} onClick={() => setActiveTab('HOME')} />
-                    <NavButton icon={ListTodo} label="مهامي" active={activeTab === 'PLAN'} onClick={() => setActiveTab('PLAN')} />
+                    <NavButton icon={Home} label="الرئيسية" active={activeTab === 'HOME'} onClick={() => handleNavClick('HOME')} />
+                    <NavButton icon={ListTodo} label="مهامي" active={activeTab === 'PLAN'} onClick={() => handleNavClick('PLAN')} />
+                    
+                    {/* Center Action Button (Exams) */}
                     <div className="relative -top-5">
                         <button 
-                            onClick={() => setActiveTab('EXAMS')}
+                            onClick={() => handleNavClick('EXAMS')}
                             className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-4 border-slate-50 transition-transform active:scale-95 ${activeTab === 'EXAMS' ? 'bg-sky-600 text-white' : 'bg-white text-sky-600'}`}
                         >
                             <FileQuestion size={24} fill={activeTab === 'EXAMS' ? "currentColor" : "none"} />
                         </button>
                     </div>
-                    <NavButton icon={Award} label="درجاتي" active={activeTab === 'GRADES'} onClick={() => setActiveTab('GRADES')} />
-                    <NavButton icon={Library} label="المصادر" active={activeTab === 'LIBRARY'} onClick={() => setActiveTab('LIBRARY')} />
+                    
+                    <NavButton icon={Award} label="درجاتي" active={activeTab === 'GRADES'} onClick={() => handleNavClick('GRADES')} />
+                    
+                    {/* MORE BUTTON */}
+                    <NavButton 
+                        icon={MoreHorizontal} 
+                        label="المزيد" 
+                        active={['ATTENDANCE', 'LIBRARY', 'PROFILE'].includes(activeTab) || showMoreMenu} 
+                        onClick={() => setShowMoreMenu(true)} 
+                    />
                 </div>
             </nav>
         </div>
@@ -138,7 +178,65 @@ const NavButton = ({ icon: Icon, label, active, onClick }: any) => (
     </button>
 );
 
+const MenuButton = ({ icon: Icon, label, onClick, active }: any) => (
+    <button onClick={onClick} className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all ${active ? 'bg-sky-50 border-sky-200 text-sky-700' : 'bg-white border-gray-100 text-gray-600 hover:bg-gray-50'}`}>
+        <Icon size={24} className="mb-2"/>
+        <span className="text-xs font-bold">{label}</span>
+    </button>
+);
+
 // --- SUB-VIEWS ---
+
+const StudentAttendanceView = ({ student, attendance }: any) => {
+    const myAttendance = attendance.filter((a: any) => a.studentId === student.id).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    const stats = {
+        present: myAttendance.filter((a: any) => a.status === 'PRESENT').length,
+        absent: myAttendance.filter((a: any) => a.status === 'ABSENT').length,
+        late: myAttendance.filter((a: any) => a.status === 'LATE').length
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in pb-20">
+            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Calendar className="text-sky-600"/> سجل الحضور والغياب</h3>
+            
+            <div className="grid grid-cols-3 gap-3">
+                <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-center">
+                    <span className="text-2xl font-black text-green-600">{stats.present}</span>
+                    <p className="text-xs text-gray-500 font-bold">حضور</p>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-center">
+                    <span className="text-2xl font-black text-red-600">{stats.absent}</span>
+                    <p className="text-xs text-gray-500 font-bold">غياب</p>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-center">
+                    <span className="text-2xl font-black text-yellow-600">{stats.late}</span>
+                    <p className="text-xs text-gray-500 font-bold">تأخر</p>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="p-3 bg-gray-50 border-b font-bold text-xs text-gray-500">السجل التفصيلي (الأحدث)</div>
+                <div className="divide-y divide-gray-100">
+                    {myAttendance.length > 0 ? myAttendance.map((rec: any) => (
+                        <div key={rec.id} className="p-4 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-2 h-2 rounded-full ${rec.status === 'PRESENT' ? 'bg-green-500' : rec.status === 'ABSENT' ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
+                                <div>
+                                    <p className="font-bold text-gray-800 text-sm">{formatDualDate(rec.date).split('|')[0]}</p>
+                                    <p className="text-[10px] text-gray-400">{rec.subject || 'يوم كامل'}</p>
+                                </div>
+                            </div>
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${rec.status === 'PRESENT' ? 'bg-green-50 text-green-700' : rec.status === 'ABSENT' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                                {rec.status === 'PRESENT' ? 'حاضر' : rec.status === 'ABSENT' ? 'غائب' : 'تأخر'}
+                            </span>
+                        </div>
+                    )) : <div className="p-8 text-center text-gray-400 text-sm">لا يوجد سجلات مسجلة</div>}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const StudentHome = ({ student, attendance, performance, terms, onNavigate }: any) => {
     // Basic stats calculation
@@ -180,7 +278,7 @@ const StudentHome = ({ student, attendance, performance, terms, onNavigate }: an
                         <span className="text-xs text-gray-500 font-bold">المعدل العام</span>
                     </div>
                 </div>
-                <div onClick={() => onNavigate('PROFILE')} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform">
+                <div onClick={() => onNavigate('ATTENDANCE')} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform">
                     <div className="w-10 h-10 bg-red-50 text-red-600 rounded-full flex items-center justify-center"><AlertTriangle size={20}/></div>
                     <div className="text-center">
                         <span className="block font-black text-gray-800 text-lg">{absence}</span>
@@ -224,9 +322,7 @@ const StudentExams = ({ student, performance }: any) => {
         const filtered = allExams.filter(e => e.isActive && e.gradeLevel === student.gradeLevel);
         setAvailableExams(filtered);
 
-        // Identify Taken Exams (by checking performance records with matching titles or notes)
-        // Note: Ideally store examId in notes. 'ExamsManager' creates Performance with notes like "Auto Graded...".
-        // For 'Online' exams, we will store examId in notes strictly.
+        // Identify Taken Exams
         const taken = new Set<string>();
         performance.forEach((p: PerformanceRecord) => {
             if (p.category === 'PLATFORM_EXAM' && p.notes && p.notes.startsWith('EXAM_')) {
@@ -269,7 +365,7 @@ const StudentExams = ({ student, performance }: any) => {
             score: score,
             maxScore: maxScore,
             date: new Date().toISOString().split('T')[0],
-            notes: `EXAM_${activeExam.id}:${score}/${maxScore}`, // Tag ID for uniqueness
+            notes: `EXAM_${activeExam.id}:${score}/${maxScore}`, 
             createdById: activeExam.teacherId
         };
 
@@ -412,14 +508,12 @@ const StudentWeeklyPlan = ({ student }: any) => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
     const dayNames: any = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
     
-    // Get current day name
     const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     const initialDay = days.includes(todayName) ? todayName : 'Sunday';
     
     const [selectedDay, setSelectedDay] = useState(initialDay);
     const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
     
-    // Local state for "Done" tasks (persisted in local storage)
     const [doneTasks, setDoneTasks] = useState<Record<string, boolean>>(() => {
         const saved = localStorage.getItem(`student_tasks_done_${student.id}`);
         return saved ? JSON.parse(saved) : {};
@@ -427,7 +521,6 @@ const StudentWeeklyPlan = ({ student }: any) => {
 
     useEffect(() => {
         const all = getWeeklyPlans();
-        // Filter plans for this student's class
         const myPlans = all.filter(p => p.classId === student.className);
         setPlans(myPlans);
     }, [student]);
@@ -446,7 +539,6 @@ const StudentWeeklyPlan = ({ student }: any) => {
         <div className="space-y-4 animate-slide-in-right pb-20">
             <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><ListTodo className="text-sky-600"/> جدول المهام والواجبات</h3>
             
-            {/* Days Selector */}
             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                 {days.map(day => (
                     <button 
@@ -459,7 +551,6 @@ const StudentWeeklyPlan = ({ student }: any) => {
                 ))}
             </div>
 
-            {/* Progress Bar for the day */}
             {dayPlans.length > 0 && (
                 <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
                     <div className="flex-1">
@@ -475,7 +566,6 @@ const StudentWeeklyPlan = ({ student }: any) => {
                 </div>
             )}
 
-            {/* Tasks List */}
             <div className="space-y-3">
                 {dayPlans.length > 0 ? dayPlans.map(p => (
                     <div key={p.id} className={`bg-white p-4 rounded-xl border shadow-sm transition-all ${doneTasks[p.id] ? 'border-green-200 bg-green-50/30' : 'border-gray-100'}`}>
@@ -510,7 +600,6 @@ const StudentWeeklyPlan = ({ student }: any) => {
 };
 
 const StudentGrades = ({ student, performance }: any) => {
-    // Prepare chart data (Last 5 records)
     const chartData = useMemo(() => {
         return performance
             .slice()
@@ -526,7 +615,6 @@ const StudentGrades = ({ student, performance }: any) => {
         <div className="space-y-6 animate-fade-in pb-20">
             <h3 className="font-bold text-gray-800 text-lg">تحليل الأداء</h3>
             
-            {/* Performance Chart */}
             {chartData.length > 0 && (
                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm h-56">
                     <h4 className="text-xs font-bold text-gray-500 mb-2">تطور المستوى (آخر 5 تقييمات)</h4>
@@ -607,7 +695,6 @@ const StudentLibraryView = ({ student }: any) => {
 };
 
 const StudentProfileView = ({ student, onLogout, attendance, performance }: any) => {
-    // Badges Calculation
     const points = attendance.filter((a: any) => a.behaviorStatus === 'POSITIVE').length;
     const attRate = attendance.length > 0 
         ? (attendance.filter((a: any) => a.status === 'PRESENT').length / attendance.length) * 100 
@@ -629,7 +716,6 @@ const StudentProfileView = ({ student, onLogout, attendance, performance }: any)
                 </div>
             </div>
 
-            {/* Badges Section */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                 <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Award size={18} className="text-yellow-500"/> أوسمتي</h3>
                 <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
