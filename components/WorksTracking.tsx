@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -81,6 +81,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
     const [sheetNames, setSheetNames] = useState<string[]>([]);
     const [selectedSheetName, setSelectedSheetName] = useState('');
+    
+    // Independent state for Settings Modal to allow managing different terms
     const [settingTermId, setSettingTermId] = useState('');
     const [settingPeriodId, setSettingPeriodId] = useState('');
     
@@ -363,16 +365,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
     }, [activeTerm]);
     
-    const settingsTerm = terms.find(t => t.id === settingTermId);
+    const settingsTermObj = terms.find(t => t.id === settingTermId);
     const settingsPeriods = useMemo(() => {
-        if (!settingsTerm?.periods) return [];
-        return [...settingsTerm.periods].sort((a, b) => {
+        if (!settingsTermObj?.periods) return [];
+        return [...settingsTermObj.periods].sort((a, b) => {
             const dateA = a.startDate || '';
             const dateB = b.startDate || '';
             if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
             return a.name.localeCompare(b.name, 'ar');
         });
-    }, [settingsTerm]);
+    }, [settingsTermObj]);
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -634,6 +636,27 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             {/* --- MANUAL TAB --- */}
                             {settingsTab === 'MANUAL' && (
                                 <div className="space-y-6">
+                                    {/* TERM & PERIOD SELECTOR (Target Context) */}
+                                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex flex-wrap gap-4 items-center">
+                                        <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><ListFilter size={14}/> السياق الحالي (للعرض والإضافة):</span>
+                                        <select 
+                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
+                                            value={settingTermId} 
+                                            onChange={e => { setSettingTermId(e.target.value); setSettingPeriodId(''); }}
+                                        >
+                                            <option value="">اختر الفصل...</option>
+                                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                        </select>
+                                        <select 
+                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
+                                            value={settingPeriodId} 
+                                            onChange={e => setSettingPeriodId(e.target.value)}
+                                        >
+                                            <option value="">الفترة (عام)</option>
+                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                    </div>
+
                                     {/* Add New Column Form */}
                                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
                                         <div className="flex-1">
@@ -699,7 +722,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                         <button onClick={() => handleDeleteColumn(assign.id)} className="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"><Trash2 size={16}/></button>
                                                     </div>
                                                 </div>
-                                            )) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد أعمدة مضافة.</div>}
+                                            )) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد أعمدة مضافة لهذا الفصل/الفترة.</div>}
                                         </div>
                                     </div>
                                 </div>
