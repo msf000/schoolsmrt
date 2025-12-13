@@ -242,20 +242,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
 
             if (newRecords.length > 0) {
-                // Upsert records
-                await bulkAddPerformance(newRecords);
+                // FIXED: Use props callback instead of direct storage to ensure Parent State Update
+                onAddPerformance(newRecords);
                 
-                // Refresh local state to show new numbers immediately
-                await forceRefreshData();
-                
-                // Update local scores state for immediate UI reflection
-                const newScoresState = { ...scores };
-                newRecords.forEach(rec => {
-                    if (!newScoresState[rec.studentId]) newScoresState[rec.studentId] = {};
-                    newScoresState[rec.studentId][rec.notes!] = rec.score.toString();
-                });
-                setScores(newScoresState);
-
                 if(!isAuto) alert(`تم تحديث ${updatedCount} درجة بنجاح من الملف!`);
             } else {
                 if(!isAuto) alert('لم يتم العثور على درجات جديدة أو مطابقة للطلاب.');
@@ -268,7 +257,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setIsSheetSyncing(false);
             setSyncStatusMsg('');
         }
-    }, [googleSheetUrl, assignments, students, selectedSubject, currentUser, scores]);
+    }, [googleSheetUrl, assignments, students, selectedSubject, currentUser, onAddPerformance]);
 
     const commitSync = async () => {
         // ... (Existing logic)
@@ -395,7 +384,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
 
         if (recordsToSave.length > 0) {
-            bulkAddPerformance(recordsToSave);
+            // FIXED: Use props callback to ensure parent state update
+            onAddPerformance(recordsToSave);
             setLastSaved(new Date());
         }
         
