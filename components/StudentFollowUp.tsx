@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap, Table, CheckSquare, LayoutGrid, Filter } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap, Table, CheckSquare, LayoutGrid, Filter, Layers } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine, PieChart, Pie } from 'recharts';
 
@@ -14,20 +14,22 @@ interface StudentFollowUpProps {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-    'HOMEWORK': 'واجبات',
-    'ACTIVITY': 'أنشطة',
-    'PLATFORM_EXAM': 'اختبارات',
-    'YEAR_WORK': 'أعمال سنة',
-    'OTHER': 'عام'
+    'HOMEWORK': 'الواجبات والمهام',
+    'ACTIVITY': 'الأنشطة والمشاركة',
+    'PLATFORM_EXAM': 'الاختبارات والتقييمات',
+    'YEAR_WORK': 'أعمال السنة (تجميعي)',
+    'OTHER': 'تقييمات عامة'
 };
 
-const CATEGORY_STYLES: Record<string, { bg: string, text: string, border: string, icon: any }> = {
-    'HOMEWORK': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', icon: BookOpen },
-    'ACTIVITY': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-100', icon: Star },
-    'PLATFORM_EXAM': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100', icon: Award },
-    'YEAR_WORK': { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-100', icon: Calculator },
-    'OTHER': { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-100', icon: FileText }
+const CATEGORY_STYLES: Record<string, { bg: string, text: string, border: string, icon: any, headerBg: string }> = {
+    'HOMEWORK': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', icon: BookOpen, headerBg: 'bg-blue-100/50' },
+    'ACTIVITY': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-100', icon: Star, headerBg: 'bg-orange-100/50' },
+    'PLATFORM_EXAM': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100', icon: Award, headerBg: 'bg-purple-100/50' },
+    'YEAR_WORK': { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-100', icon: Calculator, headerBg: 'bg-teal-100/50' },
+    'OTHER': { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-100', icon: FileText, headerBg: 'bg-gray-100/50' }
 };
+
+const DISPLAY_ORDER = ['PLATFORM_EXAM', 'HOMEWORK', 'ACTIVITY', 'YEAR_WORK', 'OTHER'];
 
 const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance, currentUser, onSaveAttendance }) => {
     // Safety check
@@ -296,7 +298,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                             onClick={() => setViewMode('DETAILS')}
                             className={`pb-3 px-2 font-bold text-sm flex items-center gap-2 transition-colors ${viewMode === 'DETAILS' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
                         >
-                            <Table size={16}/> تفاصيل التقييم (كتل)
+                            <Layers size={16}/> تفاصيل التقييم (حسب التصنيف)
                         </button>
                     </div>
 
@@ -403,10 +405,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     )}
 
                     {viewMode === 'DETAILS' && (
-                        <div className="animate-fade-in">
-                            <div className="flex justify-between items-center mb-4">
+                        <div className="animate-fade-in space-y-8 pb-10">
+                            {/* Group Header Info */}
+                            <div className="flex justify-between items-center mb-2">
                                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                                    <List size={20} className="text-purple-600"/> تفاصيل التقييم (جميع الأنشطة)
+                                    <List size={20} className="text-purple-600"/> تفاصيل التقييم (حسب التصنيف)
                                 </h3>
                                 {selectedPeriodId && (
                                     <span className="text-xs bg-purple-50 text-purple-700 px-3 py-1 rounded-full font-bold border border-purple-100">
@@ -415,64 +418,88 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                 )}
                             </div>
 
-                            {stats.sPerf.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {stats.sPerf.map(p => {
-                                        const percentage = p.maxScore > 0 ? Math.round((p.score / p.maxScore) * 100) : 0;
-                                        const style = CATEGORY_STYLES[p.category || 'OTHER'] || CATEGORY_STYLES['OTHER'];
-                                        const Icon = style.icon;
-
-                                        return (
-                                            <div key={p.id} className={`bg-white rounded-xl shadow-sm border hover:shadow-md transition-all relative overflow-hidden group ${style.border}`}>
-                                                <div className={`absolute top-0 right-0 w-1.5 h-full ${style.bg.replace('bg-', 'bg-').replace('50', '500')}`}></div>
-                                                
-                                                <div className="p-4">
-                                                    <div className="flex justify-between items-start mb-3">
-                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold border flex items-center gap-1 ${style.bg} ${style.text} ${style.border}`}>
-                                                            <Icon size={12}/> {CATEGORY_LABELS[p.category || 'OTHER'] || 'عام'}
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400 font-mono">{formatDualDate(p.date).split('|')[0]}</span>
-                                                    </div>
-                                                    
-                                                    <h4 className="font-bold text-gray-800 text-sm mb-1 line-clamp-2" title={p.title}>{p.title}</h4>
-                                                    <p className="text-xs text-gray-500 mb-4">{p.subject}</p>
-                                                    
-                                                    <div className="flex items-center justify-between mt-auto">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-400">الدرجة</span>
-                                                            <span className="font-black text-lg text-gray-800 font-mono">{p.score} <span className="text-gray-400 text-xs font-normal">/ {p.maxScore}</span></span>
-                                                        </div>
-                                                        
-                                                        <div className="relative w-12 h-12 flex items-center justify-center">
-                                                            <svg className="w-full h-full transform -rotate-90">
-                                                                <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-gray-100" />
-                                                                <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="4" fill="transparent" 
-                                                                    className={`${percentage >= 90 ? 'text-green-500' : percentage >= 75 ? 'text-blue-500' : percentage >= 50 ? 'text-yellow-500' : 'text-red-500'}`} 
-                                                                    strokeDasharray={2 * Math.PI * 18} 
-                                                                    strokeDashoffset={2 * Math.PI * 18 * (1 - percentage / 100)} 
-                                                                    strokeLinecap="round" 
-                                                                />
-                                                            </svg>
-                                                            <span className="absolute text-[10px] font-bold text-gray-600">{percentage}%</span>
-                                                        </div>
-                                                    </div>
-
-                                                    {p.notes && (
-                                                        <div className="mt-3 pt-2 border-t border-dashed border-gray-100 text-[10px] text-gray-500">
-                                                            <span className="font-bold text-gray-400 block mb-0.5">ملاحظة:</span>
-                                                            {p.notes}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
+                            {stats.sPerf.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-64 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
                                     <Search size={48} className="mb-4 opacity-20"/>
                                     <p className="font-bold">لا توجد بيانات تقييم في هذه الفترة</p>
                                     <p className="text-xs mt-1">تأكد من اختيار الفترة الصحيحة</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    {DISPLAY_ORDER.map(catKey => {
+                                        const categoryRecords = stats.sPerf.filter(p => (p.category || 'OTHER') === catKey);
+                                        if (categoryRecords.length === 0) return null;
+
+                                        const style = CATEGORY_STYLES[catKey] || CATEGORY_STYLES['OTHER'];
+                                        const Icon = style.icon;
+
+                                        return (
+                                            <div key={catKey} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                                {/* Section Header */}
+                                                <div className={`px-6 py-4 border-b border-gray-100 flex items-center justify-between ${style.headerBg}`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-lg ${style.bg} ${style.text}`}>
+                                                            <Icon size={20} />
+                                                        </div>
+                                                        <h4 className={`font-bold text-lg ${style.text}`}>
+                                                            {CATEGORY_LABELS[catKey]}
+                                                        </h4>
+                                                    </div>
+                                                    <span className="text-xs font-bold bg-white px-3 py-1 rounded-full shadow-sm text-gray-600 border">
+                                                        {categoryRecords.length} سجل
+                                                    </span>
+                                                </div>
+
+                                                {/* Cards Grid */}
+                                                <div className="p-6 bg-white">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                                        {categoryRecords.map(p => {
+                                                            const percentage = p.maxScore > 0 ? Math.round((p.score / p.maxScore) * 100) : 0;
+                                                            return (
+                                                                <div key={p.id} className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all relative overflow-hidden group hover:border-gray-300">
+                                                                    <div className={`absolute top-0 right-0 w-1 h-full ${style.bg.replace('bg-', 'bg-').replace('50', '500')}`}></div>
+                                                                    
+                                                                    <div className="p-4">
+                                                                        <div className="flex justify-between items-start mb-3">
+                                                                            <span className="text-[10px] text-gray-400 font-mono bg-gray-50 px-2 py-0.5 rounded">{formatDualDate(p.date).split('|')[0]}</span>
+                                                                            {/* Circular Progress Mini */}
+                                                                            <div className="relative w-8 h-8 flex items-center justify-center">
+                                                                                <svg className="w-full h-full transform -rotate-90">
+                                                                                    <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-gray-100" />
+                                                                                    <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="3" fill="transparent" 
+                                                                                        className={`${percentage >= 90 ? 'text-green-500' : percentage >= 75 ? 'text-blue-500' : percentage >= 50 ? 'text-yellow-500' : 'text-red-500'}`} 
+                                                                                        strokeDasharray={2 * Math.PI * 12} 
+                                                                                        strokeDashoffset={2 * Math.PI * 12 * (1 - percentage / 100)} 
+                                                                                        strokeLinecap="round" 
+                                                                                    />
+                                                                                </svg>
+                                                                            </div>
+                                                                        </div>
+                                                                        
+                                                                        <h4 className="font-bold text-gray-800 text-sm mb-1 line-clamp-2 leading-tight" title={p.title}>{p.title}</h4>
+                                                                        <p className="text-xs text-gray-500 mb-4">{p.subject}</p>
+                                                                        
+                                                                        <div className="flex items-center justify-between mt-auto pt-3 border-t border-dashed border-gray-100">
+                                                                            <span className="text-[10px] text-gray-400 font-bold">الدرجة</span>
+                                                                            <span className="font-black text-lg text-gray-800 font-mono">
+                                                                                {p.score} <span className="text-gray-400 text-xs font-normal">/ {p.maxScore}</span>
+                                                                            </span>
+                                                                        </div>
+
+                                                                        {p.notes && (
+                                                                            <div className="mt-2 text-[10px] text-gray-500 bg-gray-50 p-2 rounded line-clamp-2" title={p.notes}>
+                                                                                {p.notes}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
