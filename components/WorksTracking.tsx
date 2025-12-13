@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -90,6 +90,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [unmatchedStudents, setUnmatchedStudents] = useState<string[]>([]);
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
+
+    // -- Settings Modal State --
+    const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET'>('MANUAL');
+    const [newColTitle, setNewColTitle] = useState('');
+    const [newColMax, setNewColMax] = useState('10');
+    const [newColCategory, setNewColCategory] = useState<PerformanceCategory>('HOMEWORK');
 
     useEffect(() => {
         const syncData = async () => {
@@ -254,6 +260,81 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const savedUrl = getWorksMasterUrl();
         if (savedUrl) await handleQuickSheetSync(true);
         setIsRefreshing(false);
+    };
+
+    const handleAddColumn = () => {
+        if (!newColTitle) return;
+        const newAssign: Assignment = {
+            id: Date.now().toString(),
+            title: newColTitle,
+            category: newColCategory,
+            maxScore: Number(newColMax),
+            isVisible: true,
+            teacherId: currentUser?.id,
+            termId: settingTermId || selectedTermId,
+            periodId: settingPeriodId || selectedPeriodId
+        };
+        saveAssignment(newAssign);
+        setAssignments(fetchAssignments(activeTab)); 
+        setNewColTitle('');
+    };
+
+    const handleDeleteColumn = (id: string) => {
+        if(confirm('حذف هذا العمود والدرجات المرتبطة به؟')) {
+            deleteAssignment(id);
+            setAssignments(fetchAssignments(activeTab));
+        }
+    };
+
+    const handleUpdateColumn = (a: Assignment) => {
+        saveAssignment(a);
+        setAssignments(fetchAssignments(activeTab));
+    };
+
+    const handleFetchSheetHeaders = async () => {
+        if (!googleSheetUrl) return;
+        setIsFetchingStructure(true);
+        try {
+            saveWorksMasterUrl(googleSheetUrl);
+            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
+            setWorkbookRef(workbook);
+            setSheetNames(sheetNames);
+            if (sheetNames.length > 0) {
+                setSelectedSheetName(sheetNames[0]);
+                const { headers } = getSheetHeadersAndData(workbook, sheetNames[0]);
+                setAvailableHeaders(headers);
+            }
+        } catch (e: any) {
+            alert(e.message);
+        } finally {
+            setIsFetchingStructure(false);
+        }
+    };
+
+    const handleSheetSelectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const sheet = e.target.value;
+        setSelectedSheetName(sheet);
+        if (workbookRef) {
+            const { headers } = getSheetHeadersAndData(workbookRef, sheet);
+            setAvailableHeaders(headers);
+        }
+    };
+
+    const handleImportColumnFromSheet = (header: string) => {
+        const newAssign: Assignment = {
+            id: Date.now().toString(),
+            title: header,
+            category: 'HOMEWORK', // Default, user can change later
+            maxScore: 10,
+            isVisible: true,
+            teacherId: currentUser?.id,
+            sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header }),
+            termId: settingTermId || selectedTermId,
+            periodId: settingPeriodId || selectedPeriodId
+        };
+        saveAssignment(newAssign);
+        setAssignments(fetchAssignments(activeTab));
+        alert(`تم إضافة العمود: ${header}`);
     };
 
     // ... (Existing Google Sheets logic handles same as before) ...
@@ -535,20 +616,148 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             )}
 
-            {/* Settings Modal (Existing logic, kept but omitted for brevity if unchanged) */}
+            {/* SETTINGS MODAL */}
             {isSettingsOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    {/* ... (Settings modal content reused from previous version) ... */}
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-bounce-in">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-bounce-in overflow-hidden">
                         <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Settings size={18}/> إعدادات الأعمدة</h3>
-                            <button onClick={() => { setIsSettingsOpen(false); }} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Settings size={18}/> إدارة الأعمدة والربط</h3>
+                            <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
                         </div>
-                        <div className="p-4">
-                             <p className="text-gray-500 text-sm">استخدم الأزرار في الأعلى لإضافة أعمدة يدوياً أو استيرادها من ملف Google Sheet.</p>
-                             <div className="mt-4 flex justify-end">
-                                 <button onClick={() => setIsSettingsOpen(false)} className="bg-gray-800 text-white px-4 py-2 rounded">إغلاق</button>
-                             </div>
+                        
+                        <div className="flex border-b">
+                            <button onClick={() => setSettingsTab('MANUAL')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'MANUAL' ? 'border-b-2 border-purple-600 text-purple-700 bg-purple-50' : 'text-gray-500 hover:bg-gray-50'}`}>إدارة يدوية</button>
+                            <button onClick={() => setSettingsTab('SHEET')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'SHEET' ? 'border-b-2 border-green-600 text-green-700 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>ربط Google Sheet</button>
+                        </div>
+
+                        <div className="flex-1 overflow-auto p-6 bg-gray-50">
+                            {/* --- MANUAL TAB --- */}
+                            {settingsTab === 'MANUAL' && (
+                                <div className="space-y-6">
+                                    {/* Add New Column Form */}
+                                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
+                                        <div className="flex-1">
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">عنوان العمود (الواجب/الاختبار)</label>
+                                            <input className="w-full p-2 border rounded-lg text-sm" placeholder="مثال: واجب 1" value={newColTitle} onChange={e => setNewColTitle(e.target.value)}/>
+                                        </div>
+                                        <div className="w-24">
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">الدرجة</label>
+                                            <input type="number" className="w-full p-2 border rounded-lg text-sm text-center" value={newColMax} onChange={e => setNewColMax(e.target.value)}/>
+                                        </div>
+                                        <div className="w-40">
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">التصنيف</label>
+                                            <select className="w-full p-2 border rounded-lg text-sm bg-white" value={newColCategory} onChange={e => setNewColCategory(e.target.value as any)}>
+                                                <option value="HOMEWORK">واجب</option>
+                                                <option value="ACTIVITY">نشاط</option>
+                                                <option value="PLATFORM_EXAM">اختبار</option>
+                                                <option value="OTHER">عام</option>
+                                            </select>
+                                        </div>
+                                        <button onClick={handleAddColumn} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center gap-2">
+                                            <Plus size={16}/> إضافة
+                                        </button>
+                                    </div>
+
+                                    {/* Existing Columns List */}
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                        <div className="p-3 bg-gray-50 border-b text-xs font-bold text-gray-500 flex">
+                                            <div className="flex-1">عنوان العمود</div>
+                                            <div className="w-24 text-center">الدرجة</div>
+                                            <div className="w-32 text-center">التصنيف</div>
+                                            <div className="w-20 text-center">حذف</div>
+                                        </div>
+                                        <div className="divide-y max-h-60 overflow-y-auto">
+                                            {settingsAssignments.length > 0 ? settingsAssignments.map(assign => (
+                                                <div key={assign.id} className="p-3 flex items-center hover:bg-gray-50">
+                                                    <div className="flex-1">
+                                                        <input 
+                                                            className="w-full bg-transparent outline-none font-bold text-gray-700 text-sm" 
+                                                            value={assign.title} 
+                                                            onChange={e => handleUpdateColumn({...assign, title: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div className="w-24 text-center">
+                                                        <input 
+                                                            className="w-full bg-transparent outline-none text-center text-sm font-mono" 
+                                                            value={assign.maxScore} 
+                                                            onChange={e => handleUpdateColumn({...assign, maxScore: Number(e.target.value)})}
+                                                        />
+                                                    </div>
+                                                    <div className="w-32 text-center">
+                                                        <select 
+                                                            className="bg-transparent text-xs outline-none cursor-pointer"
+                                                            value={assign.category}
+                                                            onChange={e => handleUpdateColumn({...assign, category: e.target.value as any})}
+                                                        >
+                                                            <option value="HOMEWORK">واجب</option>
+                                                            <option value="ACTIVITY">نشاط</option>
+                                                            <option value="PLATFORM_EXAM">اختبار</option>
+                                                            <option value="OTHER">عام</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="w-20 text-center">
+                                                        <button onClick={() => handleDeleteColumn(assign.id)} className="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"><Trash2 size={16}/></button>
+                                                    </div>
+                                                </div>
+                                            )) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد أعمدة مضافة.</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* --- GOOGLE SHEET TAB --- */}
+                            {settingsTab === 'SHEET' && (
+                                <div className="space-y-6">
+                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+                                        <label className="block text-sm font-bold text-green-800 mb-2">رابط ملف Google Sheet (تأكد من صلاحية العرض)</label>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                className="flex-1 p-2 border border-green-300 rounded-lg text-sm dir-ltr" 
+                                                placeholder="https://docs.google.com/spreadsheets/d/..."
+                                                value={googleSheetUrl}
+                                                onChange={e => setGoogleSheetUrl(e.target.value)}
+                                            />
+                                            <button 
+                                                onClick={handleFetchSheetHeaders} 
+                                                disabled={isFetchingStructure || !googleSheetUrl}
+                                                className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                                            >
+                                                {isFetchingStructure ? <Loader2 className="animate-spin" size={16}/> : <CloudLightning size={16}/>} جلب الأعمدة
+                                            </button>
+                                        </div>
+                                        {sheetNames.length > 0 && (
+                                            <div className="mt-3 flex items-center gap-2">
+                                                <span className="text-xs font-bold text-green-700">ورقة العمل:</span>
+                                                <select 
+                                                    className="p-1 border rounded text-xs" 
+                                                    value={selectedSheetName} 
+                                                    onChange={handleSheetSelectionChange}
+                                                >
+                                                    {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {availableHeaders.length > 0 && (
+                                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                            <div className="p-3 bg-gray-50 border-b font-bold text-gray-700 text-sm">اختر الأعمدة لاستيرادها كواجبات/اختبارات</div>
+                                            <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+                                                {availableHeaders.map(header => (
+                                                    <button 
+                                                        key={header} 
+                                                        onClick={() => handleImportColumnFromSheet(header)}
+                                                        className="p-2 border rounded-lg text-sm hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-colors text-right truncate"
+                                                        title="اضغط للإضافة كعمود جديد"
+                                                    >
+                                                        + {header}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
