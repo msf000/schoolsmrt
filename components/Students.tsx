@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
 import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, MoreHorizontal } from 'lucide-react';
 import DataImport from './DataImport';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
@@ -298,7 +297,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   );
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
+    <div className="p-4 md:p-6 space-y-6 animate-fade-in h-full flex flex-col">
       {/* Header & Controls */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
@@ -348,13 +347,13 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 {!isManager && (
                     <>
                         <button onClick={() => setIsPrintCardsOpen(true)} className="flex-1 md:flex-none bg-white text-gray-700 border px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm" title="طباعة بطاقات الدخول">
-                            <CreditCard size={18} /> بطاقات
+                            <CreditCard size={18} /> <span className="hidden lg:inline">بطاقات</span>
                         </button>
                         <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm">
-                            <FileSpreadsheet size={18} /> استيراد
+                            <FileSpreadsheet size={18} /> <span className="hidden lg:inline">استيراد</span>
                         </button>
                         <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm">
-                            <UserPlus size={18} /> إضافة
+                            <UserPlus size={18} /> <span className="hidden lg:inline">إضافة</span>
                         </button>
                         {students.length > 0 && (
                             <button onClick={handleDeleteAll} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">
@@ -367,9 +366,10 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
-        <div className="flex-1 overflow-auto">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {/* DESKTOP TABLE VIEW */}
+        <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 flex-1 overflow-auto">
             <table className="w-full text-right">
             <thead className="bg-gray-50 text-gray-600 font-bold text-xs uppercase sticky top-0 z-10 shadow-sm">
                 <tr>
@@ -446,7 +446,53 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             </tbody>
             </table>
         </div>
-        <div className="p-3 border-t bg-gray-50 text-xs text-gray-500 font-bold">
+
+        {/* MOBILE CARD VIEW */}
+        <div className="md:hidden flex-1 overflow-y-auto space-y-3 pb-20">
+            {filteredStudents.length > 0 ? filteredStudents.map((student) => {
+                const risks = getStudentRisk(student.id);
+                return (
+                    <div key={student.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 relative">
+                        <div className="flex justify-between items-start">
+                            <div onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }}>
+                                <h3 className="font-bold text-gray-800 text-lg leading-tight mb-1">{student.name}</h3>
+                                <p className="text-xs text-gray-500">{student.gradeLevel} - {student.className}</p>
+                            </div>
+                            <div className="flex gap-1">
+                                {!isManager && (
+                                    <button onClick={() => openEditModal(student)} className="text-gray-400 hover:text-yellow-600 p-2 rounded-full hover:bg-yellow-50">
+                                        <Edit size={18} />
+                                    </button>
+                                )}
+                                <button onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }} className="text-blue-500 bg-blue-50 p-2 rounded-full">
+                                    <Eye size={18} />
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex justify-between items-center border-t border-gray-100 pt-3">
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">{student.nationalId || 'بدون هوية'}</span>
+                            </div>
+                            <div className="flex gap-1">
+                                {risks.map((r, i) => (
+                                    <span key={i} className={`text-[10px] px-2 py-1 rounded-full font-bold border ${r.type==='ATT' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-yellow-50 text-yellow-600 border-yellow-100'}`}>
+                                        {r.type === 'ATT' ? 'غياب' : 'مستوى'}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }) : (
+                <div className="flex flex-col items-center justify-center p-12 text-gray-400">
+                    <Search size={48} className="mb-4 opacity-20"/>
+                    <p>لا يوجد طلاب</p>
+                </div>
+            )}
+        </div>
+
+        <div className="p-3 border-t bg-gray-50 text-xs text-gray-500 font-bold hidden md:block">
             العدد الإجمالي: {filteredStudents.length} طالب
         </div>
       </div>
@@ -475,7 +521,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                           <select 
                               value={selectedTermId}
                               onChange={(e) => setSelectedTermId(e.target.value)}
-                              className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-purple-500 font-bold"
+                              className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-purple-500 font-bold hidden md:block"
                           >
                               <option value="" className="text-black">كل الفترات (تراكمي)</option>
                               {terms.map(t => (
@@ -487,7 +533,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   </div>
 
                   {/* Navigation Tabs */}
-                  <div className="flex border-b bg-gray-50 px-6 shrink-0 overflow-x-auto">
+                  <div className="flex border-b bg-gray-50 px-6 shrink-0 overflow-x-auto no-scrollbar">
                       <button onClick={() => setViewModalTab('OVERVIEW')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'OVERVIEW' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
                           <Target size={16}/> نظرة عامة
                       </button>
