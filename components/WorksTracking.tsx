@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
@@ -56,6 +57,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
     
     const [isSaving, setIsSaving] = useState(false);
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -247,6 +249,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
         if (recordsToSave.length > 0) {
             onAddPerformance(recordsToSave);
+            setLastSaved(new Date());
         }
         setTimeout(() => setIsSaving(false), 500);
     };
@@ -656,6 +659,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             </button>
                                         </div>
                                         {syncStatusMsg && <p className="text-xs mt-2 font-bold text-gray-600">{syncStatusMsg}</p>}
+                                    </div>
+
+                                    {/* Class Selection for Sheet Import */}
+                                    <div className="flex items-center gap-3">
+                                        <label className="text-sm font-bold text-gray-700">تخصيص الأعمدة المستوردة للفصل:</label>
+                                        <select 
+                                            className="p-2 border rounded-lg text-sm bg-white" 
+                                            value={newColClass} 
+                                            onChange={e => setNewColClass(e.target.value)}
+                                        >
+                                            <option value="">عام (للجميع)</option>
+                                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
                                     </div>
 
                                     {availableHeaders.length > 0 && (
