@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, MessageLog, SystemUser, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
 import { getMessages, getExams, getWeeklyPlans, getAcademicTerms, saveAttendance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send, Star, HeartHandshake } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface ParentPortalProps {
@@ -98,8 +97,6 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         const updatedRecord: AttendanceRecord = {
             ...selectedAbsentRecord,
             excuseNote: excuseText,
-            // status: AttendanceStatus.EXCUSED // Don't change status immediately, wait for teacher approval? Or set it? Usually teacher approval.
-            // Let's keep status as is, just attach note. Teacher sees it in "Pending Excuses".
         };
         
         saveAttendance([updatedRecord]);
@@ -107,15 +104,13 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         setExcuseText('');
         setSelectedAbsentRecord(null);
         alert('تم إرسال العذر للمعلم بنجاح.');
-        // Trigger reload? The parent component passes data, it might need refresh. 
-        // Ideally App.tsx handles re-render on storage change. 
         window.location.reload(); 
     };
 
     if (!activeChild) {
         return (
             <div className="flex h-screen items-center justify-center bg-gray-50 flex-col gap-4">
-                <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
+                <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md border border-gray-200">
                     <User size={48} className="mx-auto text-gray-300 mb-4"/>
                     <h2 className="text-xl font-bold text-gray-800">عفواً</h2>
                     <p className="text-gray-500 mt-2">لم يتم العثور على طلاب مسجلين برقم الجوال هذا.</p>
@@ -126,39 +121,41 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     }
 
     return (
-        <div className="min-h-screen bg-gray-100 font-sans text-right" dir="rtl">
-            {/* Header */}
-            <header className="bg-indigo-900 text-white shadow-lg sticky top-0 z-50">
-                <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div className="min-h-screen bg-gray-50 font-sans text-right" dir="rtl">
+            {/* Header - Premium Navy/Gold */}
+            <header className="bg-indigo-950 text-white shadow-lg sticky top-0 z-50">
+                <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <div className="bg-white/10 p-2 rounded-lg">
-                            <ShieldCheck size={24} className="text-yellow-400"/>
+                        <div className="bg-white/10 p-2 rounded-xl border border-white/10">
+                            <HeartHandshake size={24} className="text-amber-400"/>
                         </div>
                         <div>
-                            <h1 className="font-bold text-lg">بوابة ولي الأمر</h1>
-                            <p className="text-xs text-indigo-200">متابعة الأبناء</p>
+                            <h1 className="font-bold text-lg text-amber-50">شريك النجاح</h1>
+                            <p className="text-[10px] text-indigo-200 uppercase tracking-widest">بوابة ولي الأمر</p>
                         </div>
                     </div>
-                    <button onClick={onLogout} className="text-xs bg-red-600/80 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+                    <button onClick={onLogout} className="text-xs bg-red-600/20 border border-red-500/30 hover:bg-red-600/40 text-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 font-bold">
                         <LogOut size={14}/> خروج
                     </button>
                 </div>
                 
                 {/* Children Switcher */}
-                <div className="bg-indigo-800 overflow-x-auto">
-                    <div className="max-w-6xl mx-auto px-4 flex gap-2 py-2">
+                <div className="bg-indigo-900/50 backdrop-blur-sm border-t border-white/5">
+                    <div className="max-w-6xl mx-auto px-4 flex gap-4 py-0 overflow-x-auto no-scrollbar">
                         {myChildren.map(child => (
                             <button
                                 key={child.id}
                                 onClick={() => setActiveChildId(child.id)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-t-lg transition-all border-b-4 ${
+                                className={`flex items-center gap-2 px-4 py-3 border-b-4 transition-all whitespace-nowrap ${
                                     activeChildId === child.id 
-                                    ? 'bg-gray-100 text-indigo-900 border-yellow-400 font-bold' 
-                                    : 'bg-indigo-900/50 text-indigo-200 border-transparent hover:bg-indigo-700'
+                                    ? 'border-amber-400 text-white font-bold bg-white/5' 
+                                    : 'border-transparent text-indigo-300 hover:text-white hover:bg-white/5'
                                 }`}
                             >
-                                <User size={16}/>
-                                <span>{child.name.split(' ')[0]}</span>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${activeChildId === child.id ? 'bg-amber-400 text-indigo-900' : 'bg-indigo-800 text-indigo-300'}`}>
+                                    {child.name.charAt(0)}
+                                </div>
+                                <span className="text-sm">{child.name.split(' ')[0]}</span>
                             </button>
                         ))}
                     </div>
@@ -166,57 +163,63 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             </header>
 
             {/* Navigation Tabs (Mobile optimized) */}
-            <div className="bg-white border-b sticky top-[110px] z-40 shadow-sm">
-                <div className="max-w-6xl mx-auto flex overflow-x-auto">
-                    <button onClick={() => setActiveTab('OVERVIEW')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'OVERVIEW' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>نظرة عامة</button>
-                    <button onClick={() => setActiveTab('WEEKLY_PLAN')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'WEEKLY_PLAN' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الخطة الأسبوعية</button>
-                    <button onClick={() => setActiveTab('MESSAGES')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'MESSAGES' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
-                        الرسائل {messages.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full ml-1">{messages.length}</span>}
+            <div className="bg-white border-b sticky top-[115px] z-40 shadow-sm">
+                <div className="max-w-6xl mx-auto flex overflow-x-auto no-scrollbar">
+                    <button onClick={() => setActiveTab('OVERVIEW')} className={`flex-1 py-4 px-4 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === 'OVERVIEW' ? 'border-indigo-600 text-indigo-800 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>نظرة عامة</button>
+                    <button onClick={() => setActiveTab('WEEKLY_PLAN')} className={`flex-1 py-4 px-4 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === 'WEEKLY_PLAN' ? 'border-indigo-600 text-indigo-800 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>الخطة الأسبوعية</button>
+                    <button onClick={() => setActiveTab('MESSAGES')} className={`flex-1 py-4 px-4 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === 'MESSAGES' ? 'border-indigo-600 text-indigo-800 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                        الرسائل {messages.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-1 shadow-sm">{messages.length}</span>}
                     </button>
-                    <button onClick={() => setActiveTab('CALENDAR')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'CALENDAR' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>التقويم</button>
+                    <button onClick={() => setActiveTab('CALENDAR')} className={`flex-1 py-4 px-4 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === 'CALENDAR' ? 'border-indigo-600 text-indigo-800 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>التقويم</button>
                 </div>
             </div>
 
             {/* Main Content */}
-            <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 animate-fade-in pb-20">
+            <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 animate-fade-in pb-20">
                 
                 {/* Student Info Card & Filter */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row gap-6 items-center">
-                    <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg border-4 border-white">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row gap-8 items-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-2 h-full bg-amber-400"></div>
+                    
+                    <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center text-3xl font-black text-indigo-900 shadow-inner border-4 border-white ring-1 ring-gray-100">
                         {activeChild.name.charAt(0)}
                     </div>
+                    
                     <div className="text-center md:text-right flex-1">
                         <h2 className="text-2xl font-bold text-gray-800 mb-1">{activeChild.name}</h2>
-                        <p className="text-gray-500 font-medium mb-3">{activeChild.gradeLevel} - {activeChild.className}</p>
-                        <div className="flex flex-wrap justify-center md:justify-start gap-2 text-xs text-gray-500">
-                            <span className="bg-gray-100 px-2 py-1 rounded flex items-center gap-1"><User size={12}/> ID: {activeChild.nationalId}</span>
-                            {activeChild.schoolId && <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded flex items-center gap-1">مدرسة مسجلة</span>}
+                        <p className="text-gray-500 font-medium mb-4 flex items-center justify-center md:justify-start gap-2">
+                            <span className="bg-gray-100 px-2 py-0.5 rounded text-xs">{activeChild.gradeLevel}</span>
+                            <span className="text-gray-300">•</span>
+                            <span>{activeChild.className}</span>
+                        </p>
+                        <div className="flex flex-wrap justify-center md:justify-start gap-3 text-xs font-bold">
+                            <span className="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg flex items-center gap-2 border border-indigo-100"><User size={14}/> {activeChild.nationalId}</span>
+                            {activeChild.schoolId && <span className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg flex items-center gap-2 border border-amber-100"><Star size={14}/> مدرسة مسجلة</span>}
                         </div>
                     </div>
                     
                     {/* Term Selector for Parents */}
-                    <div className="w-full md:w-auto">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">الفترة الزمنية</label>
+                    <div className="w-full md:w-auto bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">الفترة الزمنية</label>
                         <select 
                             value={selectedTermId} 
                             onChange={(e) => setSelectedTermId(e.target.value)}
-                            className="w-full md:w-40 p-2 border rounded-lg bg-gray-50 font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full md:w-48 p-2.5 border rounded-lg bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-gray-700"
                         >
-                            <option value="">كل الفترات</option>
+                            <option value="">تقرير شامل (كل الفترات)</option>
                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                     </div>
 
                     {stats && (
-                        <div className="flex gap-4">
+                        <div className="flex gap-6 border-r border-gray-200 pr-6">
                             <div className="text-center">
-                                <div className={`text-2xl font-black ${stats.attendanceRate >= 90 ? 'text-green-600' : 'text-red-600'}`}>{stats.attendanceRate}%</div>
-                                <div className="text-xs text-gray-400 font-bold uppercase">حضور</div>
+                                <div className={`text-3xl font-black ${stats.attendanceRate >= 90 ? 'text-green-600' : 'text-red-600'}`}>{stats.attendanceRate}%</div>
+                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">نسبة الحضور</div>
                             </div>
-                            <div className="w-[1px] bg-gray-200"></div>
                             <div className="text-center">
-                                <div className="text-2xl font-black text-blue-600">{stats.avgScore}%</div>
-                                <div className="text-xs text-gray-400 font-bold uppercase">مستوى</div>
+                                <div className="text-3xl font-black text-indigo-600">{stats.avgScore}%</div>
+                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">المعدل العام</div>
                             </div>
                         </div>
                     )}
@@ -228,38 +231,38 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
                         
                         {/* Attendance Section */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="p-4 bg-teal-50 border-b border-teal-100 flex justify-between items-center">
-                                <h3 className="font-bold text-teal-800 flex items-center gap-2"><Calendar size={18}/> سجل الحضور ({activeTerm ? activeTerm.name : 'عام'})</h3>
-                                <div className="flex gap-2">
-                                    <span className="text-xs bg-white px-2 py-1 rounded text-teal-600 font-bold">{stats.absent} غياب</span>
-                                </div>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="p-5 bg-white border-b border-gray-100 flex justify-between items-center">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><Calendar size={18} className="text-teal-500"/> سجل الحضور</h3>
+                                <span className={`text-xs px-2 py-1 rounded font-bold ${stats.absent === 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                    {stats.absent === 0 ? 'سجل نظيف ✨' : `${stats.absent} أيام غياب`}
+                                </span>
                             </div>
                             
                             {/* Unexcused Absences Alert */}
                             {stats.unexcusedAbsences.length > 0 && (
-                                <div className="bg-red-50 p-3 border-b border-red-100">
-                                    <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1"><AlertTriangle size={14}/> يوجد غياب غير مبرر، يرجى تقديم عذر:</p>
-                                    <div className="flex gap-2 overflow-x-auto pb-1">
+                                <div className="bg-red-50 p-4 border-b border-red-100">
+                                    <p className="text-sm font-bold text-red-800 mb-3 flex items-center gap-2"><AlertTriangle size={16}/> يرجى تقديم عذر للأيام التالية:</p>
+                                    <div className="flex gap-2 flex-wrap">
                                         {stats.unexcusedAbsences.map(rec => (
                                             <button 
                                                 key={rec.id} 
                                                 onClick={() => { setSelectedAbsentRecord(rec); setIsExcuseModalOpen(true); }}
-                                                className="flex-shrink-0 bg-white border border-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-100 transition-colors"
+                                                className="bg-white border border-red-200 text-red-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
                                             >
-                                                {formatDualDate(rec.date)} (قدم عذر)
+                                                {formatDualDate(rec.date)} <span className="underline">تقديم عذر</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            <div className="p-4">
+                            <div className="p-5">
                                 {stats.recentAtt.length > 0 ? (
-                                    <div className="space-y-3">
+                                    <div className="space-y-4">
                                         {stats.recentAtt.map(rec => (
-                                            <div key={rec.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                <div className="flex items-center gap-3">
+                                            <div key={rec.id} className="flex items-center justify-between group">
+                                                <div className="flex items-center gap-4">
                                                     <div className={`w-2 h-10 rounded-full ${
                                                         rec.status === AttendanceStatus.PRESENT ? 'bg-green-500' :
                                                         rec.status === AttendanceStatus.ABSENT ? 'bg-red-500' : 
@@ -267,7 +270,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                                     }`}></div>
                                                     <div>
                                                         <div className="font-bold text-gray-800 text-sm">{formatDualDate(rec.date)}</div>
-                                                        <div className="text-xs text-gray-500">
+                                                        <div className="text-xs text-gray-500 mt-0.5">
                                                             {rec.status === AttendanceStatus.PRESENT ? 'حاضر' :
                                                              rec.status === AttendanceStatus.ABSENT ? 'غائب' :
                                                              rec.status === AttendanceStatus.LATE ? 'متأخر' : 'بعذر'}
@@ -276,11 +279,11 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                                 </div>
                                                 <div className="flex flex-col items-end gap-1">
                                                     {(rec.behaviorStatus !== BehaviorStatus.NEUTRAL) && (
-                                                        <span className={`text-xs px-2 py-1 rounded font-bold ${rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                        <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                             {rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'سلوك إيجابي' : 'ملاحظة سلبية'}
                                                         </span>
                                                     )}
-                                                    {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1"><FileText size={10}/> تم تقديم عذر</span>}
+                                                    {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1 font-bold"><FileText size={10}/> تم تقديم عذر</span>}
                                                 </div>
                                             </div>
                                         ))}
@@ -292,23 +295,23 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                         </div>
 
                         {/* Performance Section */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="p-4 bg-purple-50 border-b border-purple-100 flex justify-between items-center">
-                                <h3 className="font-bold text-purple-800 flex items-center gap-2"><Award size={18}/> آخر الدرجات ({activeTerm ? activeTerm.name : 'عام'})</h3>
-                                <span className="text-xs bg-white px-2 py-1 rounded text-purple-600 font-bold">المتوسط: {stats.avgScore}%</span>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="p-5 bg-white border-b border-gray-100 flex justify-between items-center">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><Award size={18} className="text-purple-500"/> التقييمات الأخيرة</h3>
+                                <span className="text-xs bg-purple-50 px-2 py-1 rounded text-purple-700 font-bold border border-purple-100">المتوسط: {stats.avgScore}%</span>
                             </div>
-                            <div className="p-4">
+                            <div className="p-5">
                                 {stats.recentPerf.length > 0 ? (
-                                    <div className="space-y-3">
+                                    <div className="space-y-4">
                                         {stats.recentPerf.map(perf => (
-                                            <div key={perf.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                            <div key={perf.id} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-xl border border-gray-100 hover:border-purple-200 transition-colors">
                                                 <div>
-                                                    <div className="font-bold text-gray-800 text-sm">{perf.title}</div>
-                                                    <div className="text-xs text-gray-500">{perf.subject} • {formatDualDate(perf.date)}</div>
+                                                    <div className="font-bold text-gray-800 text-sm mb-1">{perf.title}</div>
+                                                    <div className="text-xs text-gray-500 font-medium">{perf.subject} • {formatDualDate(perf.date).split('|')[0]}</div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-lg text-purple-700">{perf.score}</span>
-                                                    <span className="text-xs text-gray-400">/ {perf.maxScore}</span>
+                                                    <span className="font-black text-xl text-indigo-700">{perf.score}</span>
+                                                    <span className="text-xs text-gray-400 font-bold">/ {perf.maxScore}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -319,11 +322,11 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                             </div>
                         </div>
 
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center col-span-1 lg:col-span-2">
-                            <h3 className="font-bold text-yellow-800 mb-2 flex items-center justify-center gap-2"><MessageSquare size={20}/> تواصل مع المدرسة</h3>
-                            <p className="text-sm text-yellow-700 mb-4">هل لديك استفسار حول أداء ابنك؟ يمكنك التواصل مباشرة مع المرشد الطلابي.</p>
-                            <button className="bg-yellow-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-yellow-700 shadow-sm transition-colors">
-                                إرسال رسالة
+                        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-8 text-center col-span-1 lg:col-span-2">
+                            <h3 className="font-bold text-amber-900 mb-3 flex items-center justify-center gap-2 text-lg"><MessageSquare size={24}/> تواصل مع المدرسة</h3>
+                            <p className="text-sm text-amber-800/80 mb-6 max-w-lg mx-auto leading-relaxed">هل لديك استفسار حول أداء ابنك؟ يمكنك التواصل مباشرة مع المرشد الطلابي أو المعلمين عبر القنوات الرسمية.</p>
+                            <button className="bg-amber-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all transform hover:-translate-y-1">
+                                إرسال استفسار جديد
                             </button>
                         </div>
                     </div>
@@ -334,28 +337,30 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                 )}
 
                 {activeTab === 'MESSAGES' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
-                        <div className="p-4 border-b bg-gray-50">
-                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Bell size={18} className="text-indigo-600"/> التنبيهات والرسائل الواردة</h3>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
+                        <div className="p-5 border-b bg-white">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Bell size={18} className="text-red-500"/> التنبيهات والرسائل الواردة</h3>
                         </div>
                         <div className="divide-y divide-gray-100">
                             {messages.length > 0 ? messages.map(msg => (
-                                <div key={msg.id} className="p-4 hover:bg-gray-50 transition-colors">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`p-1.5 rounded-full ${msg.type === 'WHATSAPP' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                {msg.type === 'WHATSAPP' ? <Phone size={14}/> : <Mail size={14}/>}
+                                <div key={msg.id} className="p-6 hover:bg-gray-50 transition-colors">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`p-2 rounded-lg ${msg.type === 'WHATSAPP' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                {msg.type === 'WHATSAPP' ? <Phone size={16}/> : <Mail size={16}/>}
                                             </span>
-                                            <span className="font-bold text-gray-800 text-sm">{msg.sentBy || 'الإدارة المدرسية'}</span>
+                                            <div>
+                                                <span className="font-bold text-gray-900 text-sm block">{msg.sentBy || 'الإدارة المدرسية'}</span>
+                                                <span className="text-[10px] text-gray-400">{formatDualDate(msg.date)}</span>
+                                            </div>
                                         </div>
-                                        <span className="text-xs text-gray-400">{formatDualDate(msg.date)}</span>
                                     </div>
-                                    <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                    <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-4 rounded-xl border border-gray-100">
                                         {msg.content}
                                     </p>
                                 </div>
                             )) : (
-                                <div className="p-10 text-center text-gray-400 flex flex-col items-center">
+                                <div className="p-12 text-center text-gray-400 flex flex-col items-center">
                                     <Mail size={48} className="mb-4 opacity-20"/>
                                     <p>لا توجد رسائل جديدة</p>
                                 </div>
@@ -373,34 +378,36 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             {/* EXCUSE SUBMISSION MODAL */}
             {isExcuseModalOpen && selectedAbsentRecord && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                                <FileText className="text-purple-600"/> تقديم عذر غياب
+                                <FileText className="text-indigo-600"/> تقديم عذر غياب
                             </h3>
                             <button onClick={() => setIsExcuseModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
                         </div>
                         <div className="p-6">
-                            <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
-                                <span className="font-bold block mb-1">تفاصيل الغياب:</span>
-                                التاريخ: {formatDualDate(selectedAbsentRecord.date)} <br/>
-                                الحالة: {selectedAbsentRecord.status === AttendanceStatus.ABSENT ? 'غائب' : 'متأخر'}
+                            <div className="mb-5 text-sm text-gray-600 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                <span className="font-bold block mb-1 text-indigo-900">تفاصيل الغياب:</span>
+                                <div className="flex justify-between mt-2">
+                                    <span>التاريخ: {formatDualDate(selectedAbsentRecord.date)}</span>
+                                    <span className="font-bold">{selectedAbsentRecord.status === AttendanceStatus.ABSENT ? 'غائب' : 'متأخر'}</span>
+                                </div>
                             </div>
                             
                             <label className="block text-sm font-bold text-gray-700 mb-2">سبب الغياب / التأخر:</label>
                             <textarea 
-                                className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none"
+                                className="w-full p-4 border rounded-xl h-32 focus:ring-2 focus:ring-indigo-500 outline-none text-sm resize-none bg-gray-50 focus:bg-white transition-colors"
                                 placeholder="اكتب مبرر الغياب هنا..."
                                 value={excuseText}
                                 onChange={e => setExcuseText(e.target.value)}
                             />
                             
                             <div className="mt-6 flex gap-3">
-                                <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>
+                                <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-3 border rounded-xl text-gray-600 font-bold hover:bg-gray-50 text-sm">إلغاء</button>
                                 <button 
                                     onClick={handleSubmitExcuse} 
                                     disabled={!excuseText}
-                                    className="flex-2 w-full py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="flex-2 w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 text-sm"
                                 >
                                     <Send size={16}/> إرسال العذر
                                 </button>

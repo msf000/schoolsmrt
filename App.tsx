@@ -75,6 +75,40 @@ const App: React.FC = () => {
     // AI Status State
     const [aiStatus, setAiStatus] = useState<'IDLE' | 'CHECKING' | 'CONNECTED' | 'ERROR'>('IDLE');
 
+    // Dynamic App Branding based on Role
+    useEffect(() => {
+        if (!currentUser) {
+            document.title = "نظام المدرس الذكي - تسجيل الدخول";
+            updateMetaThemeColor('#0f766e'); // Default Teal
+            return;
+        }
+
+        switch (currentUser.role) {
+            case 'STUDENT':
+                document.title = "رفيق الطالب | رحلتك التعليمية";
+                updateMetaThemeColor('#0ea5e9'); // Sky Blue
+                break;
+            case 'PARENT':
+                document.title = "شريك النجاح | بوابة ولي الأمر";
+                updateMetaThemeColor('#1e1b4b'); // Indigo/Navy
+                break;
+            case 'TEACHER':
+            case 'SCHOOL_MANAGER':
+            case 'SUPER_ADMIN':
+            default:
+                document.title = "المدرس الذكي | إدارة الفصل";
+                updateMetaThemeColor('#0f766e'); // Teal
+                break;
+        }
+    }, [currentUser]);
+
+    const updateMetaThemeColor = (color: string) => {
+        const metaThemeColor = document.querySelector("meta[name=theme-color]");
+        if (metaThemeColor) {
+            metaThemeColor.setAttribute("content", color);
+        }
+    };
+
     // Network Status Listeners
     useEffect(() => {
         const handleOnline = () => {
@@ -317,7 +351,7 @@ const App: React.FC = () => {
         );
     }
 
-    // --- MAIN APP ---
+    // --- MAIN APP (TEACHER / MANAGER) ---
     const NavItem = ({ view, label, icon: Icon }: any) => (
         <button 
             onClick={() => { setCurrentView(view); setIsSidebarOpen(false); }}
