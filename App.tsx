@@ -75,6 +75,28 @@ const App: React.FC = () => {
     // AI Status State
     const [aiStatus, setAiStatus] = useState<'IDLE' | 'CHECKING' | 'CONNECTED' | 'ERROR'>('IDLE');
 
+    // Network Status Listeners
+    useEffect(() => {
+        const handleOnline = () => {
+            setSystemMode(true);
+            if (currentUser) forceRefreshData(); // Auto sync when coming back online
+        };
+        const handleOffline = () => {
+            setSystemMode(false);
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Initial check
+        if (!navigator.onLine) setSystemMode(false);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [currentUser]);
+
     // Save View on Change
     useEffect(() => {
         if (currentUser) {
@@ -116,9 +138,6 @@ const App: React.FC = () => {
             const unsubData = subscribeToDataChanges(() => {
                 loadData();
             });
-
-            // Disabled Background Sync to prevent overwriting user changes during session
-            // bgSyncTimerRef.current = setInterval(() => { ... }, ...);
 
             return () => {
                 unsubSync();
@@ -432,7 +451,7 @@ const App: React.FC = () => {
                 </nav>
 
                 {/* BOTTOM: Sync Status & AI Status */}
-                <div className="p-4 border-t bg-gray-50 space-y-2">
+                <div className="p-4 border-t bg-gray-50 space-y-2 pb-8 md:pb-4 safe-area-pb">
                     
                     {/* --- INSTALL PWA PROMPT --- */}
                     <InstallPrompt />
