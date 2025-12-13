@@ -232,9 +232,9 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   };
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
-        {/* Tabs */}
-        <div className="mb-6 flex overflow-x-auto gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm">
+    <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
+        {/* Scrollable Tabs */}
+        <div className="mb-6 flex overflow-x-auto gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm no-scrollbar">
             <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><LayoutGrid size={16} className="inline mr-2"/> لوحة التحكم</button>
             {isManager && <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'TEACHERS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Users size={16} className="inline mr-2"/> المعلمين</button>}
             <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><BookOpen size={16} className="inline mr-2"/> {isManager ? 'قائمة المواد' : 'موادي وفصولي'}</button>
@@ -242,7 +242,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Settings size={16} className="inline mr-2"/> {isManager ? 'إعدادات المدرسة' : 'الإعدادات الشخصية'}</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
             {/* ... (DASHBOARD, TEACHERS, SUBJECTS, CALENDAR tabs remain unchanged) ... */}
             {/* DASHBOARD TAB */}
             {activeTab === 'DASHBOARD' && (
@@ -496,7 +496,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                     )}
 
-                    <div className="flex justify-end">
+                    <div className="flex justify-end pb-10">
                         <button onClick={handleSaveSettings} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2">
                             <Save size={20}/> حفظ الإعدادات
                         </button>

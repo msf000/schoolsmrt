@@ -326,8 +326,16 @@ const App: React.FC = () => {
                 </div>
             )}
 
+            {/* Mobile Sidebar Overlay */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm animate-fade-in"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar */}
-            <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 right-0 w-72 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 {/* TOP: User Profile & Logout */}
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
@@ -342,7 +350,7 @@ const App: React.FC = () => {
                                 </span>
                             </div>
                         </div>
-                        <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500"><X/></button>
+                        <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500 p-1 bg-white rounded-full shadow-sm border"><X size={20}/></button>
                     </div>
 
                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-red-600 bg-white border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
@@ -495,12 +503,15 @@ const App: React.FC = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative">
-                <header className="bg-white border-b p-4 flex justify-between items-center md:hidden">
-                    <h2 className="font-bold text-gray-800">
-                        {currentView === 'DASHBOARD' ? 'لوحة القيادة' : '...'}
+            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative h-full overflow-hidden">
+                <header className="bg-white border-b p-4 flex justify-between items-center md:hidden shrink-0 shadow-sm z-20">
+                    <h2 className="font-bold text-gray-800 text-lg truncate pr-2">
+                        {currentView === 'DASHBOARD' ? 'لوحة القيادة' : 
+                         currentView === 'SCHEDULE_VIEW' ? 'الجدول الدراسي' :
+                         currentView === 'ATTENDANCE' ? 'سجل الحضور' :
+                         currentView === 'STUDENTS' ? 'الطلاب' : 'نظام المدرس الذكي'}
                     </h2>
-                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-gray-100 rounded-lg"><Menu/></button>
+                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-gray-100 rounded-lg text-gray-600 hover:bg-gray-200"><Menu/></button>
                 </header>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-0">

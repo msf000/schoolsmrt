@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem, Student } from '../types';
 import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, deleteAssignment, getStudents, getTeacherPeriodTimings, DEFAULT_PERIOD_TIMES } from '../services/storageService';
-import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, Eraser, Zap } from 'lucide-react';
+import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, Eraser, Zap, List } from 'lucide-react';
 
 interface ScheduleViewProps {
     currentUser?: SystemUser | null;
@@ -28,6 +28,9 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlanItem[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [periodTimes, setPeriodTimes] = useState<string[]>(DEFAULT_PERIOD_TIMES);
+
+    // Mobile specific state
+    const [selectedMobileDay, setSelectedMobileDay] = useState<string>(new Date().toLocaleDateString('en-US', { weekday: 'long' }));
 
     // Edit Modal State
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -64,7 +67,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
         'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 
         'Wednesday': 'الأربعاء', 'Thursday': 'الخميس', 'Friday': 'الجمعة', 'Saturday': 'السبت'
     };
-    // Generate period numbers based on configured times (or default to 8 if times array is short)
+    
+    // Ensure we have periods based on settings
     const periods = Array.from({length: Math.max(8, periodTimes.length)}, (_, i) => i + 1);
 
     const changeWeek = (dir: number) => {
@@ -193,35 +197,112 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
+        <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
             
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 print:hidden">
-                <div className="flex items-center gap-4">
-                    <div className="flex bg-white p-1 rounded-lg border shadow-sm">
-                        <button onClick={() => setViewMode('SCHEDULE')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${viewMode === 'SCHEDULE' ? 'bg-teal-50 text-teal-700' : 'text-gray-500 hover:text-gray-800'}`}>
-                            <Calendar size={16}/> الجدول الدراسي
-                        </button>
-                        <button onClick={() => setViewMode('PLAN')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${viewMode === 'PLAN' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}>
-                            <PenTool size={16}/> الخطة الأسبوعية
-                        </button>
-                    </div>
+            {/* Header Controls */}
+            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-3">
+                <div className="flex w-full md:w-auto bg-white p-1 rounded-xl border shadow-sm">
+                    <button onClick={() => setViewMode('SCHEDULE')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex justify-center items-center gap-2 ${viewMode === 'SCHEDULE' ? 'bg-teal-50 text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                        <Calendar size={16}/> <span className="hidden md:inline">الجدول الدراسي</span><span className="md:hidden">الجدول</span>
+                    </button>
+                    <button onClick={() => setViewMode('PLAN')} className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex justify-center items-center gap-2 ${viewMode === 'PLAN' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                        <PenTool size={16}/> <span className="hidden md:inline">الخطة الأسبوعية</span><span className="md:hidden">الخطة</span>
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
                     {viewMode === 'PLAN' && (
-                        <div className="flex items-center gap-2 bg-white p-1 rounded-lg border">
+                        <div className="flex items-center gap-2 bg-white p-1 rounded-lg border shadow-sm">
                             <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-gray-100 rounded"><ChevronRight size={16}/></button>
-                            <span className="text-sm font-bold px-2 dir-ltr">{currentWeekStart}</span>
+                            <span className="text-xs font-bold px-2 dir-ltr">{currentWeekStart}</span>
                             <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-gray-100 rounded"><ChevronLeft size={16}/></button>
                         </div>
                     )}
-                </div>
-
-                <div className="flex gap-2">
-                    <button onClick={() => window.print()} className="px-4 py-2 bg-gray-800 text-white rounded-lg font-bold flex items-center gap-2 shadow hover:bg-black transition-colors">
+                    <button onClick={() => window.print()} className="hidden md:flex px-4 py-2 bg-gray-800 text-white rounded-lg font-bold items-center gap-2 shadow hover:bg-black transition-colors">
                         <Printer size={18}/> طباعة
                     </button>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+            {/* MOBILE VIEW: Horizontal Day Selector + Vertical Period List */}
+            <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+                {/* Day Selector */}
+                <div className="flex overflow-x-auto pb-2 gap-2 no-scrollbar mb-2">
+                    {days.map(day => (
+                        <button
+                            key={day}
+                            onClick={() => setSelectedMobileDay(day)}
+                            className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-bold border transition-all whitespace-nowrap ${
+                                selectedMobileDay === day 
+                                ? 'bg-gray-800 text-white border-gray-800 shadow-md transform scale-105' 
+                                : 'bg-white text-gray-600 border-gray-200'
+                            }`}
+                        >
+                            {dayNamesAr[day]}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Period Cards */}
+                <div className="flex-1 overflow-y-auto space-y-3 pb-20">
+                    {periods.map(period => {
+                        const session = mySchedules.find(s => s.day === selectedMobileDay && s.period === period);
+                        const plan = weeklyPlans.find(p => p.day === selectedMobileDay && p.period === period && p.weekStartDate === currentWeekStart);
+                        
+                        return (
+                            <div 
+                                key={period}
+                                onClick={() => handleSlotClick(selectedMobileDay, period)}
+                                className={`
+                                    relative p-4 rounded-xl border-2 transition-all cursor-pointer shadow-sm active:scale-[0.98]
+                                    ${session ? `${getSubjectColor(session.subjectName)} border-transparent` : 'bg-white border-dashed border-gray-300'}
+                                `}
+                            >
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center font-bold text-sm">
+                                            {period}
+                                        </div>
+                                        <div className="text-xs font-mono opacity-70 bg-white/30 px-2 py-0.5 rounded">
+                                            {periodTimes[period-1] || '--:--'}
+                                        </div>
+                                    </div>
+                                    {session && <div className="bg-white/90 px-2 py-1 rounded text-xs font-bold shadow-sm">{session.classId}</div>}
+                                </div>
+
+                                {session ? (
+                                    <div>
+                                        <h3 className="font-black text-lg mb-1">{session.subjectName}</h3>
+                                        {viewMode === 'PLAN' ? (
+                                            <div className="mt-3 pt-3 border-t border-black/10 text-sm">
+                                                {plan?.lessonTopic ? (
+                                                    <>
+                                                        <p className="font-bold flex items-center gap-1 mb-1"><BookOpen size={14}/> {plan.lessonTopic}</p>
+                                                        {plan.homework && <p className="opacity-80 flex items-center gap-1 text-xs"><PenTool size={12}/> {plan.homework}</p>}
+                                                    </>
+                                                ) : <span className="opacity-50 text-xs italic">اضغط لإضافة خطة...</span>}
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2 mt-3">
+                                                {onNavigateToAttendance && <button onClick={(e) => {e.stopPropagation(); onNavigateToAttendance();}} className="flex-1 bg-white/80 py-1.5 rounded text-xs font-bold text-green-700 shadow-sm flex items-center justify-center gap-1"><Check size={14}/> تحضير</button>}
+                                                {onNavigateToLesson && <button onClick={(e) => {e.stopPropagation(); onNavigateToLesson();}} className="flex-1 bg-white/80 py-1.5 rounded text-xs font-bold text-blue-700 shadow-sm flex items-center justify-center gap-1"><BookOpen size={14}/> درس</button>}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center h-12 text-gray-400 gap-2">
+                                        <Plus size={20}/>
+                                        <span className="text-sm font-bold">إضافة حصة</span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* DESKTOP VIEW: Traditional Table */}
+            <div className="hidden md:flex bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex-col">
                 <div className="overflow-auto flex-1 custom-scrollbar">
                     <table className="w-full text-center border-collapse">
                         <thead className="sticky top-0 z-10 shadow-sm">
