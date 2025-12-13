@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem } from '../types';
-import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem, Exam, PerformanceCategory } from '../types';
+import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans, getExams, saveExamResult, addPerformance, getPerformance } from '../services/storageService';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays, FileQuestion, Timer, Check } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -14,7 +14,7 @@ interface StudentPortalProps {
 }
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
-    const [activeTab, setActiveTab] = useState<'HOME' | 'PLAN' | 'GRADES' | 'LIBRARY' | 'PROFILE'>('HOME');
+    const [activeTab, setActiveTab] = useState<'HOME' | 'PLAN' | 'EXAMS' | 'GRADES' | 'LIBRARY' | 'PROFILE'>('HOME');
     const [isSyncing, setIsSyncing] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     
@@ -98,6 +98,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 
                 {activeTab === 'HOME' && <StudentHome student={currentUser} attendance={attendance} performance={performance} terms={terms} onNavigate={setActiveTab} />}
                 {activeTab === 'PLAN' && <StudentWeeklyPlan student={currentUser} />}
+                {activeTab === 'EXAMS' && <StudentExams student={currentUser} performance={performance} />}
                 {activeTab === 'GRADES' && <StudentGrades student={currentUser} performance={performance} terms={terms} />}
                 {activeTab === 'LIBRARY' && <StudentLibraryView student={currentUser} />}
                 {activeTab === 'PROFILE' && <StudentProfileView student={currentUser} onLogout={onLogout} attendance={attendance} performance={performance} />}
@@ -116,14 +117,14 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     <NavButton icon={ListTodo} label="مهامي" active={activeTab === 'PLAN'} onClick={() => setActiveTab('PLAN')} />
                     <div className="relative -top-5">
                         <button 
-                            onClick={() => setActiveTab('GRADES')}
-                            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-4 border-slate-50 transition-transform active:scale-95 ${activeTab === 'GRADES' ? 'bg-sky-600 text-white' : 'bg-white text-sky-600'}`}
+                            onClick={() => setActiveTab('EXAMS')}
+                            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-4 border-slate-50 transition-transform active:scale-95 ${activeTab === 'EXAMS' ? 'bg-sky-600 text-white' : 'bg-white text-sky-600'}`}
                         >
-                            <Trophy size={24} fill={activeTab === 'GRADES' ? "currentColor" : "none"} />
+                            <FileQuestion size={24} fill={activeTab === 'EXAMS' ? "currentColor" : "none"} />
                         </button>
                     </div>
+                    <NavButton icon={Award} label="درجاتي" active={activeTab === 'GRADES'} onClick={() => setActiveTab('GRADES')} />
                     <NavButton icon={Library} label="المصادر" active={activeTab === 'LIBRARY'} onClick={() => setActiveTab('LIBRARY')} />
-                    <NavButton icon={User} label="ملفي" active={activeTab === 'PROFILE'} onClick={() => setActiveTab('PROFILE')} />
                 </div>
             </nav>
         </div>
@@ -205,6 +206,204 @@ const StudentHome = ({ student, attendance, performance, terms, onNavigate }: an
                     )) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد تحديثات جديدة</div>}
                 </div>
             </div>
+        </div>
+    );
+};
+
+const StudentExams = ({ student, performance }: any) => {
+    const [availableExams, setAvailableExams] = useState<Exam[]>([]);
+    const [takenExamIds, setTakenExamIds] = useState<Set<string>>(new Set());
+    const [activeExam, setActiveExam] = useState<Exam | null>(null);
+    const [answers, setAnswers] = useState<Record<string, string>>({});
+    const [submittedResult, setSubmittedResult] = useState<{score: number, max: number, passed: boolean} | null>(null);
+
+    useEffect(() => {
+        // Load Exams
+        const allExams = getExams();
+        // Filter: Active + Same Grade
+        const filtered = allExams.filter(e => e.isActive && e.gradeLevel === student.gradeLevel);
+        setAvailableExams(filtered);
+
+        // Identify Taken Exams (by checking performance records with matching titles or notes)
+        // Note: Ideally store examId in notes. 'ExamsManager' creates Performance with notes like "Auto Graded...".
+        // For 'Online' exams, we will store examId in notes strictly.
+        const taken = new Set<string>();
+        performance.forEach((p: PerformanceRecord) => {
+            if (p.category === 'PLATFORM_EXAM' && p.notes && p.notes.startsWith('EXAM_')) {
+                const examId = p.notes.split(':')[1];
+                taken.add(examId);
+            }
+        });
+        setTakenExamIds(taken);
+    }, [student, performance]);
+
+    const startExam = (exam: Exam) => {
+        if (takenExamIds.has(exam.id)) return;
+        setActiveExam(exam);
+        setAnswers({});
+        setSubmittedResult(null);
+    };
+
+    const handleAnswer = (qId: string, option: string) => {
+        setAnswers(prev => ({...prev, [qId]: option}));
+    };
+
+    const submitExam = () => {
+        if (!activeExam) return;
+        
+        let score = 0;
+        let maxScore = 0;
+        
+        activeExam.questions.forEach(q => {
+            if (answers[q.id] === q.correctAnswer) score += q.points;
+            maxScore += q.points;
+        });
+
+        // Save Result
+        const record: PerformanceRecord = {
+            id: Date.now().toString(),
+            studentId: student.id,
+            subject: activeExam.subject,
+            title: activeExam.title,
+            category: 'PLATFORM_EXAM',
+            score: score,
+            maxScore: maxScore,
+            date: new Date().toISOString().split('T')[0],
+            notes: `EXAM_${activeExam.id}:${score}/${maxScore}`, // Tag ID for uniqueness
+            createdById: activeExam.teacherId
+        };
+
+        addPerformance(record);
+        saveExamResult({
+            id: Date.now().toString(),
+            examId: activeExam.id,
+            studentId: student.id,
+            studentName: student.name,
+            score,
+            totalScore: maxScore,
+            date: new Date().toISOString(),
+            answers: answers
+        });
+
+        setSubmittedResult({ score, max: maxScore, passed: (score/maxScore) >= 0.5 });
+        // Refresh local state to show as taken
+        setTakenExamIds(prev => new Set(prev).add(activeExam.id));
+    };
+
+    if (activeExam && !submittedResult) {
+        return (
+            <div className="fixed inset-0 z-50 bg-white flex flex-col animate-slide-up">
+                {/* Exam Header */}
+                <div className="bg-purple-600 text-white p-4 flex justify-between items-center shadow-md">
+                    <div>
+                        <h3 className="font-bold text-lg">{activeExam.title}</h3>
+                        <p className="text-xs opacity-80">{activeExam.subject} | {activeExam.questions.length} أسئلة</p>
+                    </div>
+                    <div className="bg-white/20 px-3 py-1 rounded-full flex items-center gap-2 font-mono">
+                        <Timer size={16}/> {activeExam.durationMinutes}:00
+                    </div>
+                </div>
+
+                {/* Questions Area */}
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50 space-y-6">
+                    {activeExam.questions.map((q, idx) => (
+                        <div key={q.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                            <h4 className="font-bold text-gray-800 mb-4 flex gap-2">
+                                <span className="text-purple-600">{idx + 1}.</span> {q.text}
+                            </h4>
+                            <div className="space-y-2">
+                                {q.options.map((opt, i) => (
+                                    <label key={i} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${answers[q.id] === opt ? 'bg-purple-50 border-purple-500 shadow-sm' : 'hover:bg-gray-50 border-gray-200'}`}>
+                                        <input 
+                                            type="radio" 
+                                            name={q.id} 
+                                            className="w-5 h-5 accent-purple-600"
+                                            checked={answers[q.id] === opt}
+                                            onChange={() => handleAnswer(q.id, opt)}
+                                        />
+                                        <span className="text-gray-700 font-medium">{opt}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 border-t bg-white flex justify-between items-center">
+                    <button onClick={() => setActiveExam(null)} className="text-gray-500 font-bold px-4 py-2 hover:bg-gray-100 rounded-lg">إلغاء / خروج</button>
+                    <button 
+                        onClick={submitExam}
+                        disabled={Object.keys(answers).length < activeExam.questions.length}
+                        className="bg-purple-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-purple-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        <CheckCircle size={18}/> تسليم الاختبار
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (submittedResult) {
+        return (
+            <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center animate-fade-in p-6 text-center">
+                <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-xl ${submittedResult.passed ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                    {submittedResult.passed ? <Trophy size={48}/> : <AlertTriangle size={48}/>}
+                </div>
+                <h2 className="text-3xl font-black text-gray-800 mb-2">{submittedResult.passed ? 'أحسنت! 🎉' : 'حاول مرة أخرى'}</h2>
+                <p className="text-gray-500 mb-8">تم تسليم الاختبار بنجاح</p>
+                
+                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 w-full max-w-sm mb-8">
+                    <div className="text-sm text-gray-500 font-bold mb-1">النتيجة النهائية</div>
+                    <div className={`text-5xl font-black ${submittedResult.passed ? 'text-green-600' : 'text-red-600'}`}>
+                        {submittedResult.score} <span className="text-xl text-gray-400">/ {submittedResult.max}</span>
+                    </div>
+                </div>
+
+                <button onClick={() => { setActiveExam(null); setSubmittedResult(null); }} className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-black">
+                    العودة للقائمة
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4 animate-fade-in pb-20">
+            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><FileQuestion className="text-sky-600"/> الاختبارات الإلكترونية</h3>
+            
+            {availableExams.length > 0 ? (
+                <div className="grid gap-3">
+                    {availableExams.map(exam => {
+                        const isTaken = takenExamIds.has(exam.id);
+                        return (
+                            <div key={exam.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                                <div>
+                                    <h4 className="font-bold text-gray-800">{exam.title}</h4>
+                                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                        <span className="bg-gray-100 px-2 py-0.5 rounded">{exam.subject}</span>
+                                        <span className="flex items-center gap-1"><Clock size={12}/> {exam.durationMinutes} دقيقة</span>
+                                    </div>
+                                </div>
+                                
+                                {isTaken ? (
+                                    <span className="flex items-center gap-1 text-green-600 font-bold text-xs bg-green-50 px-3 py-1.5 rounded-lg border border-green-100">
+                                        <CheckCircle size={14}/> تم التسليم
+                                    </span>
+                                ) : (
+                                    <button onClick={() => startExam(exam)} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow hover:bg-purple-700 flex items-center gap-2">
+                                        ابدأ الآن <ChevronLeft size={14}/>
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="text-center py-20 text-gray-400">
+                    <FileQuestion size={48} className="mx-auto mb-4 opacity-20"/>
+                    <p>لا توجد اختبارات متاحة حالياً</p>
+                </div>
+            )}
         </div>
     );
 };
