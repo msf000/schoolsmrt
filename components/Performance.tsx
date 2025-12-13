@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm } from '../types';
+import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, AttendanceRecord, AttendanceStatus } from '../types';
 import { formatDualDate } from '../services/dateService';
 import { getAcademicTerms } from '../services/storageService';
 import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle } from 'lucide-react';
@@ -11,6 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 interface PerformanceProps {
   students: Student[];
   performance: PerformanceRecord[];
+  attendance?: AttendanceRecord[]; // Optional to avoid breaking if not passed immediately, but we will pass it
   onAddPerformance: (record: PerformanceRecord | PerformanceRecord[]) => void;
   onImportPerformance: (records: PerformanceRecord[]) => void;
   onDeletePerformance: (id: string) => void;
@@ -19,7 +19,7 @@ interface PerformanceProps {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
+const Performance: React.FC<PerformanceProps> = ({ students, performance, attendance = [], onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
   // Safety Check
   if (!students || !performance) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
@@ -102,6 +102,14 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       if (!bulkClass) return [];
       return students.filter(s => s.className === bulkClass).sort((a,b) => a.name.localeCompare(b.name));
   }, [students, bulkClass]);
+
+  // Check absence for Single Student Entry
+  const isSelectedStudentAbsent = useMemo(() => {
+      if (!studentId) return false;
+      const today = new Date().toISOString().split('T')[0];
+      const record = attendance.find(a => a.studentId === studentId && a.date === today);
+      return record && record.status === AttendanceStatus.ABSENT;
+  }, [studentId, attendance]);
 
   // Filtered Performance for Analytics (Term Based)
   const filteredAnalyticsPerformance = useMemo(() => {
@@ -191,6 +199,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
     e.preventDefault();
     if (!studentId || !title || !score) return;
 
+    if (isSelectedStudentAbsent) {
+        if (!confirm('تنبيه: الطالب المحدد مسجل كـ "غائب" اليوم. هل تريد الاستمرار في رصد الدرجة؟')) return;
+    }
+
     const record: PerformanceRecord = {
       id: Date.now().toString(),
       studentId,
@@ -227,10 +239,15 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       
       const records: PerformanceRecord[] = [];
       const today = new Date().toISOString().split('T')[0];
+      let absentWarnings = 0;
 
       filteredStudentsBulk.forEach(s => {
           const sScore = bulkScores[s.id];
           if (sScore !== undefined && sScore !== '') {
+              // Check absence
+              const attRecord = attendance.find(a => a.studentId === s.id && a.date === today);
+              if (attRecord && attRecord.status === AttendanceStatus.ABSENT) absentWarnings++;
+
               records.push({
                   id: `${Date.now()}_${s.id}`,
                   studentId: s.id,
@@ -247,6 +264,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
       });
 
       if (records.length === 0) return alert('الرجاء إدخال درجة واحدة على الأقل');
+
+      if (absentWarnings > 0) {
+          if (!confirm(`تحذير: يوجد ${absentWarnings} طلاب غائبين اليوم تم رصد درجات لهم. هل تريد المتابعة؟`)) return;
+      }
 
       onAddPerformance(records);
       setBulkScores({});
@@ -422,24 +443,32 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 bg-white">
-                              {filteredStudentsBulk.map((student, idx) => (
-                                  <tr key={student.id} className="hover:bg-gray-50 transition-colors">
-                                      <td className="p-3 text-center text-gray-400 font-mono">{idx + 1}</td>
-                                      <td className="p-3 font-bold text-gray-800">{student.name}</td>
-                                      <td className="p-2 text-center">
-                                          <input 
-                                              type="number" 
-                                              className={`w-20 p-2 border rounded text-center outline-none focus:ring-2 focus:ring-primary ${bulkScores[student.id] ? 'bg-blue-50 font-bold text-blue-700 border-blue-200' : 'bg-gray-50'}`}
-                                              placeholder="-"
-                                              value={bulkScores[student.id] || ''}
-                                              onChange={(e) => handleBulkScoreChange(student.id, e.target.value)}
-                                              onKeyDown={(e) => {
-                                                  // Optional: focus next input on enter
-                                              }}
-                                          />
-                                      </td>
-                                  </tr>
-                              ))}
+                              {filteredStudentsBulk.map((student, idx) => {
+                                  const today = new Date().toISOString().split('T')[0];
+                                  const isAbsent = attendance.some(a => a.studentId === student.id && a.date === today && a.status === AttendanceStatus.ABSENT);
+                                  
+                                  return (
+                                      <tr key={student.id} className={`hover:bg-gray-50 transition-colors ${isAbsent ? 'bg-red-50/30' : ''}`}>
+                                          <td className="p-3 text-center text-gray-400 font-mono">{idx + 1}</td>
+                                          <td className="p-3 font-bold text-gray-800">
+                                              {student.name}
+                                              {isAbsent && <span className="text-[10px] bg-red-100 text-red-600 px-1 rounded mr-2 font-bold">غائب</span>}
+                                          </td>
+                                          <td className="p-2 text-center">
+                                              <input 
+                                                  type="number" 
+                                                  className={`w-20 p-2 border rounded text-center outline-none focus:ring-2 focus:ring-primary ${bulkScores[student.id] ? 'bg-blue-50 font-bold text-blue-700 border-blue-200' : 'bg-gray-50'} ${isAbsent && bulkScores[student.id] ? 'ring-2 ring-red-300' : ''}`}
+                                                  placeholder="-"
+                                                  value={bulkScores[student.id] || ''}
+                                                  onChange={(e) => handleBulkScoreChange(student.id, e.target.value)}
+                                                  onKeyDown={(e) => {
+                                                      // Optional: focus next input on enter
+                                                  }}
+                                              />
+                                          </td>
+                                      </tr>
+                                  );
+                              })}
                           </tbody>
                       </table>
                   ) : (
@@ -493,14 +522,20 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">اختر الطالب ({filteredStudentsEntry.length})</label>
                     <select 
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none bg-white"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
+                        className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none bg-white ${isSelectedStudentAbsent ? 'border-red-300 bg-red-50 text-red-900' : ''}`}
+                        value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)}
                     >
                     {filteredStudentsEntry.length > 0 ? filteredStudentsEntry.map(s => (
                         <option key={s.id} value={s.id}>{s.name} ({s.className})</option>
                     )) : <option value="">لا يوجد طلاب مطابقين للفلترة</option>}
                     </select>
+                    
+                    {isSelectedStudentAbsent && (
+                        <div className="bg-red-50 text-red-600 p-2 rounded text-xs flex items-center gap-2 mt-2 border border-red-200 animate-pulse">
+                            <AlertCircle size={14}/> تنبيه: هذا الطالب مسجل غائب اليوم!
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
