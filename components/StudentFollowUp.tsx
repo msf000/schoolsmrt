@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap, Table, CheckSquare, LayoutGrid } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine, PieChart, Pie } from 'recharts';
 
@@ -14,6 +13,22 @@ interface StudentFollowUpProps {
   onSaveAttendance?: (records: AttendanceRecord[]) => void;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+    'HOMEWORK': 'واجبات',
+    'ACTIVITY': 'أنشطة',
+    'PLATFORM_EXAM': 'اختبارات',
+    'YEAR_WORK': 'أعمال سنة',
+    'OTHER': 'عام'
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+    'HOMEWORK': 'bg-blue-100 text-blue-700 border-blue-200',
+    'ACTIVITY': 'bg-orange-100 text-orange-700 border-orange-200',
+    'PLATFORM_EXAM': 'bg-purple-100 text-purple-700 border-purple-200',
+    'YEAR_WORK': 'bg-teal-100 text-teal-700 border-teal-200',
+    'OTHER': 'bg-gray-100 text-gray-700 border-gray-200'
+};
+
 const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance, currentUser, onSaveAttendance }) => {
     // Safety check
     if (!students) {
@@ -24,6 +39,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // View Mode State
+    const [viewMode, setViewMode] = useState<'SUMMARY' | 'DETAILS'>('SUMMARY');
 
     // Filter State
     const [selectedTermId, setSelectedTermId] = useState<string>('');
@@ -98,7 +116,10 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             avg: Math.round((subjectStats[sub].total / subjectStats[sub].count) * 100)
         })).sort((a,b) => b.avg - a.avg);
 
-        return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf };
+        // Sort Performance for Detail View (Newest First)
+        const sortedPerf = [...sPerf].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf: sortedPerf };
     }, [student, attendance, performance, activeTerm]);
 
     const handleShareWhatsApp = () => {
@@ -219,103 +240,175 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Grade Trend Chart */}
-                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                            <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى الأكاديمي</h3>
-                            <div className="h-64 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={stats.trendData}>
-                                        <defs>
-                                            <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                                                <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="name" tick={{fontSize: 10}} hide />
-                                        <YAxis domain={[0, 100]} />
-                                        <Tooltip />
-                                        <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        {/* Subject Performance */}
-                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                            <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><BookOpen size={18}/> الأداء حسب المادة</h3>
-                            <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
-                                {stats.subjectsData.map((sub, idx) => (
-                                    <div key={idx} className="flex items-center gap-3">
-                                        <div className="w-24 text-xs font-bold text-gray-600 truncate">{sub.name}</div>
-                                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className={`h-full rounded-full ${sub.avg >= 90 ? 'bg-green-500' : sub.avg >= 75 ? 'bg-blue-500' : sub.avg >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} 
-                                                style={{width: `${sub.avg}%`}}
-                                            ></div>
-                                        </div>
-                                        <div className="w-10 text-xs font-bold text-gray-800 text-left">{sub.avg}%</div>
-                                    </div>
-                                ))}
-                                {stats.subjectsData.length === 0 && <p className="text-center text-gray-400 text-sm py-10">لا توجد بيانات</p>}
-                            </div>
-                        </div>
+                    {/* Tabs */}
+                    <div className="flex gap-4 border-b border-gray-200">
+                        <button 
+                            onClick={() => setViewMode('SUMMARY')}
+                            className={`pb-3 px-2 font-bold text-sm flex items-center gap-2 transition-colors ${viewMode === 'SUMMARY' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                            <LayoutGrid size={16}/> ملخص الأداء
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('DETAILS')}
+                            className={`pb-3 px-2 font-bold text-sm flex items-center gap-2 transition-colors ${viewMode === 'DETAILS' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                            <Table size={16}/> تفاصيل التقييم
+                        </button>
                     </div>
 
-                    {/* Detailed Lists */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Attendance Log */}
-                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                            <div className="p-4 bg-teal-50 border-b border-teal-100 font-bold text-teal-800 flex justify-between">
-                                <span>سجل الغياب والتأخر</span>
-                                <span className="bg-white px-2 rounded text-xs border text-teal-600">{stats.absent + stats.late} حالة</span>
+                    {viewMode === 'SUMMARY' && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Grade Trend Chart */}
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                                    <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى الأكاديمي</h3>
+                                    <div className="h-64 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={stats.trendData}>
+                                                <defs>
+                                                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                                                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" tick={{fontSize: 10}} hide />
+                                                <YAxis domain={[0, 100]} />
+                                                <Tooltip />
+                                                <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                {/* Subject Performance */}
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                                    <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><BookOpen size={18}/> الأداء حسب المادة</h3>
+                                    <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                        {stats.subjectsData.map((sub, idx) => (
+                                            <div key={idx} className="flex items-center gap-3">
+                                                <div className="w-24 text-xs font-bold text-gray-600 truncate">{sub.name}</div>
+                                                <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full rounded-full ${sub.avg >= 90 ? 'bg-green-500' : sub.avg >= 75 ? 'bg-blue-500' : sub.avg >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                        style={{width: `${sub.avg}%`}}
+                                                    ></div>
+                                                </div>
+                                                <div className="w-10 text-xs font-bold text-gray-800 text-left">{sub.avg}%</div>
+                                            </div>
+                                        ))}
+                                        {stats.subjectsData.length === 0 && <p className="text-center text-gray-400 text-sm py-10">لا توجد بيانات</p>}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                                {stats.sAtt.filter(a => a.status !== 'PRESENT').length > 0 ? (
-                                    <table className="w-full text-right text-xs">
-                                        <thead className="bg-gray-50 text-gray-500"><tr><th className="p-2">التاريخ</th><th className="p-2">الحالة</th><th className="p-2">عذر</th></tr></thead>
-                                        <tbody className="divide-y">
-                                            {stats.sAtt.filter(a => a.status !== 'PRESENT').map(a => (
-                                                <tr key={a.id}>
-                                                    <td className="p-2">{formatDualDate(a.date)}</td>
-                                                    <td className="p-2">
-                                                        <span className={`px-2 py-0.5 rounded font-bold ${a.status === 'ABSENT' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                            {a.status === 'ABSENT' ? 'غائب' : 'تأخر'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-2 text-gray-500">{a.excuseNote || '-'}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                ) : <div className="p-8 text-center text-gray-400 text-sm">سجل الحضور ممتاز! لا غياب.</div>}
+
+                            {/* Detailed Lists */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Attendance Log */}
+                                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                    <div className="p-4 bg-teal-50 border-b border-teal-100 font-bold text-teal-800 flex justify-between">
+                                        <span>سجل الغياب والتأخر</span>
+                                        <span className="bg-white px-2 rounded text-xs border text-teal-600">{stats.absent + stats.late} حالة</span>
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                        {stats.sAtt.filter(a => a.status !== 'PRESENT').length > 0 ? (
+                                            <table className="w-full text-right text-xs">
+                                                <thead className="bg-gray-50 text-gray-500"><tr><th className="p-2">التاريخ</th><th className="p-2">الحالة</th><th className="p-2">عذر</th></tr></thead>
+                                                <tbody className="divide-y">
+                                                    {stats.sAtt.filter(a => a.status !== 'PRESENT').map(a => (
+                                                        <tr key={a.id}>
+                                                            <td className="p-2">{formatDualDate(a.date)}</td>
+                                                            <td className="p-2">
+                                                                <span className={`px-2 py-0.5 rounded font-bold ${a.status === 'ABSENT' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                                    {a.status === 'ABSENT' ? 'غائب' : 'تأخر'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-2 text-gray-500">{a.excuseNote || '-'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        ) : <div className="p-8 text-center text-gray-400 text-sm">سجل الحضور ممتاز! لا غياب.</div>}
+                                    </div>
+                                </div>
+
+                                {/* Recent Grades */}
+                                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                    <div className="p-4 bg-blue-50 border-b border-blue-100 font-bold text-blue-800">آخر الدرجات المرصودة</div>
+                                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                        <table className="w-full text-right text-xs">
+                                            <thead className="bg-gray-50 text-gray-500"><tr><th className="p-2">المادة/العنوان</th><th className="p-2">الدرجة</th></tr></thead>
+                                            <tbody className="divide-y">
+                                                {stats.sPerf.slice(0, 10).map(p => (
+                                                    <tr key={p.id}>
+                                                        <td className="p-2">
+                                                            <div className="font-bold text-gray-700">{p.title}</div>
+                                                            <div className="text-[10px] text-gray-400">{p.subject}</div>
+                                                        </td>
+                                                        <td className="p-2">
+                                                            <span className="font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-100">{p.score} / {p.maxScore}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    )}
 
-                        {/* Recent Grades */}
-                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                            <div className="p-4 bg-blue-50 border-b border-blue-100 font-bold text-blue-800">آخر الدرجات المرصودة</div>
-                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                                <table className="w-full text-right text-xs">
-                                    <thead className="bg-gray-50 text-gray-500"><tr><th className="p-2">المادة/العنوان</th><th className="p-2">الدرجة</th></tr></thead>
+                    {viewMode === 'DETAILS' && (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
+                            <div className="p-4 border-b bg-gray-50 flex items-center gap-2">
+                                <Table className="text-purple-600"/>
+                                <h3 className="font-bold text-gray-800">تفاصيل التقييم (جميع الأنشطة والواجبات والاختبارات)</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-right text-sm">
+                                    <thead className="bg-gray-100 text-gray-600 font-bold border-b">
+                                        <tr>
+                                            <th className="p-3">النوع</th>
+                                            <th className="p-3">العنوان</th>
+                                            <th className="p-3">المادة</th>
+                                            <th className="p-3">التاريخ</th>
+                                            <th className="p-3 text-center">الدرجة</th>
+                                            <th className="p-3 text-center">النسبة</th>
+                                            <th className="p-3">ملاحظات</th>
+                                        </tr>
+                                    </thead>
                                     <tbody className="divide-y">
-                                        {stats.sPerf.slice().reverse().slice(0, 10).map(p => (
-                                            <tr key={p.id}>
-                                                <td className="p-2">
-                                                    <div className="font-bold text-gray-700">{p.title}</div>
-                                                    <div className="text-[10px] text-gray-400">{p.subject}</div>
-                                                </td>
-                                                <td className="p-2">
-                                                    <span className="font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold border border-blue-100">{p.score} / {p.maxScore}</span>
-                                                </td>
+                                        {stats.sPerf.length > 0 ? stats.sPerf.map(p => {
+                                            const percentage = p.maxScore > 0 ? Math.round((p.score / p.maxScore) * 100) : 0;
+                                            return (
+                                                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="p-3">
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold border ${CATEGORY_COLORS[p.category || 'OTHER']}`}>
+                                                            {CATEGORY_LABELS[p.category || 'OTHER'] || 'عام'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 font-bold text-gray-800">{p.title}</td>
+                                                    <td className="p-3 text-gray-600 text-xs">{p.subject}</td>
+                                                    <td className="p-3 font-mono text-xs text-gray-500">{p.date}</td>
+                                                    <td className="p-3 text-center font-mono font-bold">{p.score} / {p.maxScore}</td>
+                                                    <td className="p-3 text-center">
+                                                        <span className={`text-xs font-bold ${percentage >= 90 ? 'text-green-600' : percentage >= 75 ? 'text-blue-600' : percentage >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                                            {percentage}%
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-xs text-gray-500 max-w-[150px] truncate" title={p.notes}>{p.notes || '-'}</td>
+                                                </tr>
+                                            );
+                                        }) : (
+                                            <tr>
+                                                <td colSpan={7} className="p-10 text-center text-gray-400">لا توجد بيانات تقييم في هذه الفترة</td>
                                             </tr>
-                                        ))}
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                 </div>
             ) : (
