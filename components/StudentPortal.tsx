@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem, Exam, PerformanceCategory, Assignment } from '../types';
 import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans, getExams, saveExamResult, addPerformance, getPerformance, getAssignments } from '../services/storageService';
@@ -604,8 +605,10 @@ const StudentGrades = ({ student, performance, terms }: any) => {
     const [assignments, setAssignments] = useState<Assignment[]>([]);
 
     useEffect(() => {
-        // Fetch ALL assignments first, then filter locally to be safe
-        // Passing 'undefined' as teacherId with includeAll=true fetches everything in most implementations of getAssignments
+        // Load All assignments available in the system
+        // Note: In a real app, we should filter by the student's class/teacher
+        // Here we fetch 'ALL' and will filter by class/grade locally if possible, or assume all are relevant
+        // Since students might have multiple teachers, getting assignments by the student's teacher ID (from createdById) is a good heuristic
         const allSystemAssignments = getAssignments('ALL', undefined, true);
 
         // Filter assignments relevant to this student
@@ -614,6 +617,8 @@ const StudentGrades = ({ student, performance, terms }: any) => {
             a.teacherId === student.createdById || // Specific to student's teacher
             // Fallback: If student has no createdById, assume assignments with same class name match
             (!student.createdById && student.className && a.classId === student.className)
+            // CRITICAL ADDITION: Filter by Class ID explicitly if set on assignment
+            && (!a.classId || a.classId === student.className)
         );
         setAssignments(relevantAssignments);
     }, [student]);
