@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap, Table, CheckSquare, LayoutGrid } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap, Table, CheckSquare, LayoutGrid, Filter } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine, PieChart, Pie } from 'recharts';
 
@@ -21,12 +21,12 @@ const CATEGORY_LABELS: Record<string, string> = {
     'OTHER': 'عام'
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-    'HOMEWORK': 'bg-blue-100 text-blue-700 border-blue-200',
-    'ACTIVITY': 'bg-orange-100 text-orange-700 border-orange-200',
-    'PLATFORM_EXAM': 'bg-purple-100 text-purple-700 border-purple-200',
-    'YEAR_WORK': 'bg-teal-100 text-teal-700 border-teal-200',
-    'OTHER': 'bg-gray-100 text-gray-700 border-gray-200'
+const CATEGORY_STYLES: Record<string, { bg: string, text: string, border: string, icon: any }> = {
+    'HOMEWORK': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', icon: BookOpen },
+    'ACTIVITY': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-100', icon: Star },
+    'PLATFORM_EXAM': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100', icon: Award },
+    'YEAR_WORK': { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-100', icon: Calculator },
+    'OTHER': { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-100', icon: FileText }
 };
 
 const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance, attendance, currentUser, onSaveAttendance }) => {
@@ -45,6 +45,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
 
     // Filter State
     const [selectedTermId, setSelectedTermId] = useState<string>('');
+    const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
 
     useEffect(() => {
@@ -66,6 +67,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     }, [currentUser, students]);
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
+    
+    const activePeriods = useMemo(() => {
+        if (!activeTerm?.periods) return [];
+        return [...activeTerm.periods].sort((a, b) => {
+            const dateA = a.startDate || '';
+            const dateB = b.startDate || '';
+            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
+            return a.name.localeCompare(b.name, 'ar');
+        });
+    }, [activeTerm]);
 
     const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
 
@@ -76,9 +87,21 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         let sAtt = attendance.filter(a => a.studentId === student.id);
         let sPerf = performance.filter(p => p.studentId === student.id);
 
-        if (activeTerm) {
-            sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
-            sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+        // Determine Date Range based on Term AND Period
+        let dateStart = activeTerm?.startDate;
+        let dateEnd = activeTerm?.endDate;
+
+        if (selectedPeriodId && activeTerm?.periods) {
+            const period = activeTerm.periods.find(p => p.id === selectedPeriodId);
+            if (period) {
+                dateStart = period.startDate;
+                dateEnd = period.endDate;
+            }
+        }
+
+        if (dateStart && dateEnd) {
+            sAtt = sAtt.filter(a => a.date >= dateStart! && a.date <= dateEnd!);
+            sPerf = sPerf.filter(p => p.date >= dateStart! && p.date <= dateEnd!);
         }
 
         // Attendance
@@ -120,16 +143,20 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const sortedPerf = [...sPerf].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf: sortedPerf };
-    }, [student, attendance, performance, activeTerm]);
+    }, [student, attendance, performance, activeTerm, selectedPeriodId]);
 
     const handleShareWhatsApp = () => {
         if (!student || !stats) return;
         const phone = student.parentPhone ? student.parentPhone.replace(/\D/g, '') : '';
         if (!phone) return alert('رقم ولي الأمر غير مسجل');
         
+        const periodName = selectedPeriodId 
+            ? activeTerm?.periods?.find(p => p.id === selectedPeriodId)?.name 
+            : activeTerm ? activeTerm.name : 'الحالية';
+
         const message = `
 تقرير الطالب: ${student.name}
-الفترة: ${activeTerm ? activeTerm.name : 'الحالية'}
+الفترة: ${periodName}
 
 📊 الملخص:
 - نسبة الحضور: ${stats.attRate}% (${stats.absent} غياب)
@@ -164,8 +191,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     </div>
                 </div>
 
-                <div className="flex gap-2 w-full md:w-auto relative" ref={dropdownRef}>
-                    <div className="relative flex-1 md:w-64">
+                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto relative items-center" ref={dropdownRef}>
+                    <div className="relative flex-1 md:w-64 w-full">
                         <input 
                             className="w-full pl-8 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-bold"
                             placeholder="ابحث عن طالب..."
@@ -187,14 +214,31 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         )}
                     </div>
                     
-                    <select 
-                        className="bg-gray-50 border rounded-lg px-3 py-2 text-sm font-bold outline-none"
-                        value={selectedTermId}
-                        onChange={e => setSelectedTermId(e.target.value)}
-                    >
-                        <option value="">كل الفترات</option>
-                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
+                    {/* Period Filtering */}
+                    <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
+                        <Filter size={14} className="text-gray-400 ml-1 mr-1"/>
+                        <select 
+                            className="bg-transparent text-xs font-bold outline-none text-purple-700 min-w-[100px]"
+                            value={selectedTermId}
+                            onChange={e => { setSelectedTermId(e.target.value); setSelectedPeriodId(''); }}
+                        >
+                            <option value="">كل الفترات</option>
+                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                        {activePeriods.length > 0 && (
+                            <>
+                                <div className="w-[1px] h-4 bg-gray-300 mx-1"></div>
+                                <select 
+                                    className="bg-transparent text-xs font-bold outline-none text-gray-700 min-w-[80px]"
+                                    value={selectedPeriodId}
+                                    onChange={e => setSelectedPeriodId(e.target.value)}
+                                >
+                                    <option value="">الكل</option>
+                                    {activePeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -252,7 +296,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                             onClick={() => setViewMode('DETAILS')}
                             className={`pb-3 px-2 font-bold text-sm flex items-center gap-2 transition-colors ${viewMode === 'DETAILS' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-800'}`}
                         >
-                            <Table size={16}/> تفاصيل التقييم
+                            <Table size={16}/> تفاصيل التقييم (كتل)
                         </button>
                     </div>
 
@@ -359,54 +403,78 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     )}
 
                     {viewMode === 'DETAILS' && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
-                            <div className="p-4 border-b bg-gray-50 flex items-center gap-2">
-                                <Table className="text-purple-600"/>
-                                <h3 className="font-bold text-gray-800">تفاصيل التقييم (جميع الأنشطة والواجبات والاختبارات)</h3>
+                        <div className="animate-fade-in">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                    <List size={20} className="text-purple-600"/> تفاصيل التقييم (جميع الأنشطة)
+                                </h3>
+                                {selectedPeriodId && (
+                                    <span className="text-xs bg-purple-50 text-purple-700 px-3 py-1 rounded-full font-bold border border-purple-100">
+                                        {activeTerm?.periods?.find(p => p.id === selectedPeriodId)?.name}
+                                    </span>
+                                )}
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-right text-sm">
-                                    <thead className="bg-gray-100 text-gray-600 font-bold border-b">
-                                        <tr>
-                                            <th className="p-3">النوع</th>
-                                            <th className="p-3">العنوان</th>
-                                            <th className="p-3">المادة</th>
-                                            <th className="p-3">التاريخ</th>
-                                            <th className="p-3 text-center">الدرجة</th>
-                                            <th className="p-3 text-center">النسبة</th>
-                                            <th className="p-3">ملاحظات</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {stats.sPerf.length > 0 ? stats.sPerf.map(p => {
-                                            const percentage = p.maxScore > 0 ? Math.round((p.score / p.maxScore) * 100) : 0;
-                                            return (
-                                                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="p-3">
-                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold border ${CATEGORY_COLORS[p.category || 'OTHER']}`}>
-                                                            {CATEGORY_LABELS[p.category || 'OTHER'] || 'عام'}
+
+                            {stats.sPerf.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {stats.sPerf.map(p => {
+                                        const percentage = p.maxScore > 0 ? Math.round((p.score / p.maxScore) * 100) : 0;
+                                        const style = CATEGORY_STYLES[p.category || 'OTHER'] || CATEGORY_STYLES['OTHER'];
+                                        const Icon = style.icon;
+
+                                        return (
+                                            <div key={p.id} className={`bg-white rounded-xl shadow-sm border hover:shadow-md transition-all relative overflow-hidden group ${style.border}`}>
+                                                <div className={`absolute top-0 right-0 w-1.5 h-full ${style.bg.replace('bg-', 'bg-').replace('50', '500')}`}></div>
+                                                
+                                                <div className="p-4">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold border flex items-center gap-1 ${style.bg} ${style.text} ${style.border}`}>
+                                                            <Icon size={12}/> {CATEGORY_LABELS[p.category || 'OTHER'] || 'عام'}
                                                         </span>
-                                                    </td>
-                                                    <td className="p-3 font-bold text-gray-800">{p.title}</td>
-                                                    <td className="p-3 text-gray-600 text-xs">{p.subject}</td>
-                                                    <td className="p-3 font-mono text-xs text-gray-500">{p.date}</td>
-                                                    <td className="p-3 text-center font-mono font-bold">{p.score} / {p.maxScore}</td>
-                                                    <td className="p-3 text-center">
-                                                        <span className={`text-xs font-bold ${percentage >= 90 ? 'text-green-600' : percentage >= 75 ? 'text-blue-600' : percentage >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                                            {percentage}%
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-3 text-xs text-gray-500 max-w-[150px] truncate" title={p.notes}>{p.notes || '-'}</td>
-                                                </tr>
-                                            );
-                                        }) : (
-                                            <tr>
-                                                <td colSpan={7} className="p-10 text-center text-gray-400">لا توجد بيانات تقييم في هذه الفترة</td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                        <span className="text-[10px] text-gray-400 font-mono">{formatDualDate(p.date).split('|')[0]}</span>
+                                                    </div>
+                                                    
+                                                    <h4 className="font-bold text-gray-800 text-sm mb-1 line-clamp-2" title={p.title}>{p.title}</h4>
+                                                    <p className="text-xs text-gray-500 mb-4">{p.subject}</p>
+                                                    
+                                                    <div className="flex items-center justify-between mt-auto">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] text-gray-400">الدرجة</span>
+                                                            <span className="font-black text-lg text-gray-800 font-mono">{p.score} <span className="text-gray-400 text-xs font-normal">/ {p.maxScore}</span></span>
+                                                        </div>
+                                                        
+                                                        <div className="relative w-12 h-12 flex items-center justify-center">
+                                                            <svg className="w-full h-full transform -rotate-90">
+                                                                <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-gray-100" />
+                                                                <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="4" fill="transparent" 
+                                                                    className={`${percentage >= 90 ? 'text-green-500' : percentage >= 75 ? 'text-blue-500' : percentage >= 50 ? 'text-yellow-500' : 'text-red-500'}`} 
+                                                                    strokeDasharray={2 * Math.PI * 18} 
+                                                                    strokeDashoffset={2 * Math.PI * 18 * (1 - percentage / 100)} 
+                                                                    strokeLinecap="round" 
+                                                                />
+                                                            </svg>
+                                                            <span className="absolute text-[10px] font-bold text-gray-600">{percentage}%</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {p.notes && (
+                                                        <div className="mt-3 pt-2 border-t border-dashed border-gray-100 text-[10px] text-gray-500">
+                                                            <span className="font-bold text-gray-400 block mb-0.5">ملاحظة:</span>
+                                                            {p.notes}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-64 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
+                                    <Search size={48} className="mb-4 opacity-20"/>
+                                    <p className="font-bold">لا توجد بيانات تقييم في هذه الفترة</p>
+                                    <p className="text-xs mt-1">تأكد من اختيار الفترة الصحيحة</p>
+                                </div>
+                            )}
                         </div>
                     )}
 
