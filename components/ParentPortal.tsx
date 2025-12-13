@@ -4,6 +4,7 @@ import { getMessages, getAcademicTerms, saveAttendance, getWeeklyPlans } from '.
 import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, Bell, FileText, Send, Star, HeartHandshake, Home, CalendarDays, ArrowLeft, RefreshCw, ChevronLeft } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface ParentPortalProps {
     parentPhone: string;
@@ -126,10 +127,17 @@ const ChildDashboard = ({ child, attendance, performance }: any) => {
     // Stats
     const childAtt = attendance.filter((a:any) => a.studentId === child.id);
     const absent = childAtt.filter((a:any) => a.status === 'ABSENT').length;
-    const notes = childAtt.filter((a:any) => a.behaviorStatus !== 'NEUTRAL' || a.behaviorNote);
     
     const childPerf = performance.filter((p:any) => p.studentId === child.id);
     const recentGrades = [...childPerf].sort((a:any,b:any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+    // Chart Data
+    const chartData = useMemo(() => {
+        return recentGrades.map(g => ({
+            name: g.title.substring(0, 10),
+            score: Math.round((g.score / g.maxScore) * 100)
+        })).reverse();
+    }, [recentGrades]);
 
     return (
         <div className="space-y-5 animate-fade-in">
@@ -151,9 +159,33 @@ const ChildDashboard = ({ child, attendance, performance }: any) => {
                 </div>
             </div>
 
-            {/* Attendance Chart / Summary */}
+            {/* Performance Chart */}
+            {chartData.length > 0 && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 h-56">
+                    <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-xs"><TrendingUp size={16} className="text-indigo-600"/> تطور المستوى</h3>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData}>
+                            <defs>
+                                <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="name" tick={{fontSize: 9}} interval={0} stroke="#9ca3af" />
+                            <Tooltip 
+                                contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 2px 5px rgba(0,0,0,0.1)'}}
+                                formatter={(value: any) => [`${value}%`, 'النسبة']}
+                            />
+                            <Area type="monotone" dataKey="score" stroke="#4f46e5" fillOpacity={1} fill="url(#colorScore)" />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Attendance Summary */}
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Calendar size={18} className="text-indigo-600"/> ملخص الحضور</h3>
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Calendar size={18} className="text-indigo-600"/> ملخص الحضور (أسبوعي)</h3>
                 <div className="flex gap-2">
                     {Array.from({length: 7}).map((_, i) => (
                         <div key={i} className="flex-1 h-12 bg-gray-50 rounded-lg flex items-center justify-center">
@@ -161,7 +193,6 @@ const ChildDashboard = ({ child, attendance, performance }: any) => {
                         </div>
                     ))}
                 </div>
-                <p className="text-[10px] text-gray-400 mt-2 text-center">آخر 7 أيام دراسية</p>
             </div>
 
             {/* Recent Grades List */}

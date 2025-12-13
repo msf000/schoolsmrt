@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink } from '../types';
-import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog } from '../types';
+import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages } from '../services/storageService';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -18,10 +18,18 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     const [isSyncing, setIsSyncing] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     
+    // Notifications State
+    const [notifications, setNotifications] = useState<MessageLog[]>([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    
     // Data Loading
     useEffect(() => {
         setTerms(getAcademicTerms());
-    }, []);
+        // Load messages for this student
+        const allMsgs = getMessages();
+        const myMsgs = allMsgs.filter(m => m.studentId === currentUser.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setNotifications(myMsgs);
+    }, [currentUser]);
 
     const handleRefresh = async () => {
         setIsSyncing(true);
@@ -48,13 +56,42 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         <button onClick={handleRefresh} className={`p-2 bg-white/10 rounded-full hover:bg-white/20 transition-all ${isSyncing ? 'animate-spin' : ''}`}>
                             <RefreshCw size={18} />
                         </button>
-                        <button className="p-2 bg-white/10 rounded-full hover:bg-white/20 relative">
+                        <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 bg-white/10 rounded-full hover:bg-white/20 relative">
                             <Bell size={18} />
-                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-sky-600"></span>
+                            {notifications.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-sky-600 animate-pulse"></span>}
                         </button>
                     </div>
                 </div>
             </header>
+
+            {/* --- NOTIFICATIONS OVERLAY --- */}
+            {showNotifications && (
+                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end">
+                    <div className="w-4/5 max-w-sm bg-white h-full shadow-2xl animate-slide-in-right flex flex-col">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Bell size={18}/> التنبيهات</h3>
+                            <button onClick={() => setShowNotifications(false)} className="p-1 rounded-full hover:bg-gray-200"><X size={20}/></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                            {notifications.length > 0 ? notifications.map(msg => (
+                                <div key={msg.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm relative overflow-hidden">
+                                    <div className={`absolute top-0 right-0 w-1 h-full ${msg.type === 'WHATSAPP' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="text-xs font-bold text-gray-700">{msg.sentBy}</span>
+                                        <span className="text-[9px] text-gray-400">{formatDualDate(msg.date).split('|')[0]}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{msg.content}</p>
+                                </div>
+                            )) : (
+                                <div className="text-center py-20 text-gray-400">
+                                    <MessageCircle size={48} className="mx-auto mb-4 opacity-20"/>
+                                    <p>لا توجد تنبيهات جديدة</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* --- MAIN CONTENT AREA --- */}
             <main className="flex-1 overflow-y-auto pb-24 pt-4 px-4 custom-scrollbar bg-gradient-to-b from-slate-50 to-white">
@@ -63,7 +100,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 {activeTab === 'SCHEDULE' && <StudentSchedule student={currentUser} />}
                 {activeTab === 'GRADES' && <StudentGrades student={currentUser} performance={performance} terms={terms} />}
                 {activeTab === 'LIBRARY' && <StudentLibraryView student={currentUser} />}
-                {activeTab === 'PROFILE' && <StudentProfileView student={currentUser} onLogout={onLogout} attendance={attendance} />}
+                {activeTab === 'PROFILE' && <StudentProfileView student={currentUser} onLogout={onLogout} attendance={attendance} performance={performance} />}
 
             </main>
 
@@ -321,7 +358,16 @@ const StudentLibraryView = ({ student }: any) => {
     );
 };
 
-const StudentProfileView = ({ student, onLogout, attendance }: any) => {
+const StudentProfileView = ({ student, onLogout, attendance, performance }: any) => {
+    // Badges Calculation
+    const points = attendance.filter((a: any) => a.behaviorStatus === 'POSITIVE').length;
+    const attRate = attendance.length > 0 
+        ? (attendance.filter((a: any) => a.status === 'PRESENT').length / attendance.length) * 100 
+        : 100;
+    const avgScore = performance.length > 0 
+        ? (performance.reduce((acc:any, curr:any) => acc + (curr.score/curr.maxScore), 0) / performance.length) * 100 
+        : 0;
+
     return (
         <div className="space-y-6 animate-fade-in pb-20">
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
@@ -332,6 +378,40 @@ const StudentProfileView = ({ student, onLogout, attendance }: any) => {
                 <p className="text-gray-500 text-sm mt-1">{student.gradeLevel} - {student.className}</p>
                 <div className="mt-4 flex justify-center gap-2">
                     <span className="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600">{student.nationalId}</span>
+                </div>
+            </div>
+
+            {/* Badges Section */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Award size={18} className="text-yellow-500"/> أوسمتي</h3>
+                <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+                    {points >= 10 && (
+                        <div className="flex-shrink-0 flex flex-col items-center">
+                            <div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center border-2 border-yellow-200">
+                                <Star size={32} className="text-yellow-500 fill-yellow-500"/>
+                            </div>
+                            <span className="text-xs font-bold mt-2 text-gray-600">الخلوق</span>
+                        </div>
+                    )}
+                    {attRate >= 95 && (
+                        <div className="flex-shrink-0 flex flex-col items-center">
+                            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center border-2 border-green-200">
+                                <CheckCircle size={32} className="text-green-500"/>
+                            </div>
+                            <span className="text-xs font-bold mt-2 text-gray-600">المواظب</span>
+                        </div>
+                    )}
+                    {avgScore >= 90 && (
+                        <div className="flex-shrink-0 flex flex-col items-center">
+                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center border-2 border-blue-200">
+                                <Award size={32} className="text-blue-500"/>
+                            </div>
+                            <span className="text-xs font-bold mt-2 text-gray-600">المجتهد</span>
+                        </div>
+                    )}
+                    {points < 10 && attRate < 95 && avgScore < 90 && (
+                        <p className="text-sm text-gray-400 w-full text-center py-4">واصل التميز لفتح الأوسمة!</p>
+                    )}
                 </div>
             </div>
 
