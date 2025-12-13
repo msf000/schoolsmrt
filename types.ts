@@ -1,4 +1,5 @@
 
+
 export interface EducationalStage {
   id: string;
   name: string; // e.g., "المرحلة الابتدائية"
@@ -165,6 +166,7 @@ export interface Assignment {
     teacherId?: string; // NEW: Assignment belongs to teacher
     termId?: string; // NEW: Linked to Academic Term
     periodId?: string; // NEW: Linked to specific Period inside Term
+    classId?: string; // NEW: Linked to specific Class
 }
 
 export interface PerformanceRecord {
