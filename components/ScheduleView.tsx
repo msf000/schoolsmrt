@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem } from '../types';
-import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, deleteAssignment } from '../services/storageService';
+import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem, Student } from '../types';
+import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, deleteAssignment, getStudents } from '../services/storageService';
 import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, Eraser, Zap } from 'lucide-react';
 
 interface ScheduleViewProps {
@@ -32,6 +32,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlanItem[]>([]);
+    const [students, setStudents] = useState<Student[]>([]);
 
     // Edit Modal State
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -58,6 +59,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
             setAssignments(getTeacherAssignments());
             setSubjects(getSubjects(currentUser.id));
             setWeeklyPlans(getWeeklyPlans(currentUser.id));
+            setStudents(getStudents());
         }
     }, [currentUser]);
 
@@ -170,10 +172,14 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     // Unique items for dropdowns
     const uniqueClasses = useMemo(() => {
         const classes = new Set(assignments.map(a => a.classId));
-        // Add existing schedule classes just in case
+        // Add existing schedule classes
         mySchedules.forEach(s => classes.add(s.classId));
+        // Add classes extracted from Students
+        students.forEach(s => {
+            if (s.className) classes.add(s.className);
+        });
         return Array.from(classes).sort();
-    }, [assignments, mySchedules]);
+    }, [assignments, mySchedules, students]);
 
     // Unique subjects for dropdowns
     const uniqueSubjects = useMemo(() => {
