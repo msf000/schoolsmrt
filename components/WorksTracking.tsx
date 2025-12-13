@@ -512,16 +512,37 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     // --- Year Work Calculation Logic ---
     const calculateYearWork = (student: Student) => {
-        // Filter performance for this student, subject, and term
+        // Filter based on Term AND Period
+        const filterAssignment = (a: Assignment) => {
+            const termMatch = !selectedTermId || a.termId === selectedTermId;
+            const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId;
+            return termMatch && periodMatch;
+        };
+
+        const activeTerm = terms.find(t => t.id === selectedTermId);
+        
+        // Define Start/End Dates based on selected Term OR Period
+        let dateStart = activeTerm?.startDate;
+        let dateEnd = activeTerm?.endDate;
+
+        if (selectedPeriodId && activeTerm?.periods) {
+            const p = activeTerm.periods.find(p => p.id === selectedPeriodId);
+            if (p) {
+                dateStart = p.startDate;
+                dateEnd = p.endDate;
+            }
+        }
+
+        // Filter performance for this student, subject, and date range
         const studentPerf = performance.filter(p => 
             p.studentId === student.id && 
             p.subject === selectedSubject &&
-            // Filter by Term Date Range logic
-            (!selectedTermId || (terms.find(t => t.id === selectedTermId) && p.date >= terms.find(t => t.id === selectedTermId)!.startDate && p.date <= terms.find(t => t.id === selectedTermId)!.endDate))
+            (!dateStart || p.date >= dateStart) &&
+            (!dateEnd || p.date <= dateEnd)
         );
 
         // 1. Homework
-        const hwCols = assignments.filter(a => a.category === 'HOMEWORK' && (!selectedTermId || a.termId === selectedTermId));
+        const hwCols = assignments.filter(a => a.category === 'HOMEWORK' && filterAssignment(a));
         let hwTotalScore = 0;
         let hwTotalMax = 0;
         hwCols.forEach(col => {
@@ -536,7 +557,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const hwGrade = hwTotalMax > 0 ? (hwTotalScore / hwTotalMax) * yearWorkConfig.hw : 0;
 
         // 2. Activity
-        const actCols = assignments.filter(a => a.category === 'ACTIVITY' && (!selectedTermId || a.termId === selectedTermId));
+        const actCols = assignments.filter(a => a.category === 'ACTIVITY' && filterAssignment(a));
         let actTotalScore = 0;
         let actTotalMax = 0;
         actCols.forEach(col => {
@@ -551,7 +572,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const actGrade = actTotalMax > 0 ? (actTotalScore / actTotalMax) * yearWorkConfig.act : 0;
 
         // 3. Exams
-        const examCols = assignments.filter(a => a.category === 'PLATFORM_EXAM' && (!selectedTermId || a.termId === selectedTermId));
+        const examCols = assignments.filter(a => a.category === 'PLATFORM_EXAM' && filterAssignment(a));
         let examTotalScore = 0;
         let examTotalMax = 0;
         examCols.forEach(col => {
@@ -566,11 +587,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const examGrade = examTotalMax > 0 ? (examTotalScore / examTotalMax) * yearWorkConfig.exam : 0;
 
         // 4. Attendance
-        const studentAtt = attendance.filter(a => a.studentId === student.id && (!selectedSubject || a.subject === selectedSubject));
+        let studentAtt = attendance.filter(a => a.studentId === student.id && (!selectedSubject || a.subject === selectedSubject));
+        
+        if (dateStart && dateEnd) {
+            studentAtt = studentAtt.filter(a => a.date >= dateStart! && a.date <= dateEnd!);
+        }
+
         const totalDays = studentAtt.length;
         const presentDays = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
         
-        // If no attendance recorded, assume full if other activities present, or zero. Let's be lenient: full if < 5 records total? No, strictly calculated.
         const attGrade = totalDays > 0 ? (presentDays / totalDays) * yearWorkConfig.att : (totalDays === 0 ? yearWorkConfig.att : 0);
 
         const total = hwGrade + actGrade + examGrade + attGrade;
@@ -632,7 +657,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !selectedTermId || (a.termId === selectedTermId);
-            const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
+            // STRICT PERIOD FILTER
+            const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId;
             const categoryMatch = a.category === activeTab;
             return termMatch && periodMatch && categoryMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
@@ -642,7 +668,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !settingTermId || a.termId === settingTermId;
-            const periodMatch = !settingPeriodId || !a.periodId || a.periodId === settingPeriodId;
+            const periodMatch = !settingPeriodId || a.periodId === settingPeriodId;
             return termMatch && periodMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, settingTermId, settingPeriodId, activeTab]);
