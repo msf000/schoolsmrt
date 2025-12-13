@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ScanLine, Construction, Upload, Check, X, Camera, Save, RefreshCw, FileText, ChevronRight, Plus, Trash2, ListChecks, FileQuestion } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, Question } from '../types';
@@ -146,8 +145,6 @@ const AutoGrading: React.FC = () => {
             setImageFile(null);
             setImagePreview(null);
             setSelectedStudentId('');
-            // Optional: Reset manual form
-            // setManualAnswers([]); setManualTitle('');
         }
     };
 
@@ -166,34 +163,34 @@ const AutoGrading: React.FC = () => {
     };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
+        <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
             <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-purple-600 rounded-lg text-white shadow-lg shadow-purple-200">
                     <ScanLine size={24}/>
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">المصحح الآلي الذكي</h2>
-                    <p className="text-sm text-gray-500">تصحيح أوراق الاختبارات باستخدام الذكاء الاصطناعي</p>
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800">المصحح الآلي الذكي</h2>
+                    <p className="text-xs md:text-sm text-gray-500">تصحيح أوراق الاختبارات باستخدام الذكاء الاصطناعي</p>
                 </div>
             </div>
 
             {step === 'UPLOAD' && (
-                <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm p-8 flex flex-col md:flex-row gap-8 overflow-hidden">
-                    <div className="flex-1 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 md:p-8 flex flex-col md:flex-row gap-8 overflow-hidden">
+                    <div className="flex-1 space-y-6 overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
                         
                         {/* Mode Selection */}
                         <div className="flex bg-gray-100 p-1 rounded-xl">
                             <button 
                                 onClick={() => setGradingMode('SYSTEM')}
-                                className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${gradingMode === 'SYSTEM' ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}
+                                className={`flex-1 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${gradingMode === 'SYSTEM' ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}
                             >
-                                <FileQuestion size={16}/> اختبار من النظام
+                                <FileQuestion size={16}/> <span className="hidden sm:inline">اختبار من النظام</span><span className="sm:hidden">نظام</span>
                             </button>
                             <button 
                                 onClick={() => setGradingMode('MANUAL')}
-                                className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${gradingMode === 'MANUAL' ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}
+                                className={`flex-1 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${gradingMode === 'MANUAL' ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}
                             >
-                                <ListChecks size={16}/> نموذج إجابة يدوي
+                                <ListChecks size={16}/> <span className="hidden sm:inline">نموذج إجابة يدوي</span><span className="sm:hidden">يدوي</span>
                             </button>
                         </div>
 
@@ -201,7 +198,7 @@ const AutoGrading: React.FC = () => {
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2">1. اختر الاختبار (المحفوظ مسبقاً)</label>
                                 <select 
-                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none"
+                                    className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none text-sm"
                                     value={selectedExamId}
                                     onChange={e => setSelectedExamId(e.target.value)}
                                 >
@@ -214,13 +211,13 @@ const AutoGrading: React.FC = () => {
                             </div>
                         ) : (
                             <div className="space-y-4 animate-fade-in">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">اسم الاختبار</label>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">اسم الاختبار</label>
                                         <input className="w-full p-2 border rounded-lg text-sm" value={manualTitle} onChange={e => setManualTitle(e.target.value)} placeholder="مثال: اختبار الفتره"/>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">المادة</label>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">المادة</label>
                                         <input className="w-full p-2 border rounded-lg text-sm" value={manualSubject} onChange={e => setManualSubject(e.target.value)} placeholder="مثال: رياضيات"/>
                                     </div>
                                 </div>
@@ -230,19 +227,19 @@ const AutoGrading: React.FC = () => {
                                     <div className="flex gap-2 mb-2">
                                         <input 
                                             className="flex-1 p-2 border rounded text-sm" 
-                                            placeholder="الإجابة (أ، ب، صح، كلمة...)" 
+                                            placeholder="الإجابة (أ، ب، صح...)" 
                                             value={tempAnswer} 
                                             onChange={e => setTempAnswer(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && addManualAnswer()}
                                         />
                                         <input 
                                             type="number" 
-                                            className="w-20 p-2 border rounded text-sm text-center" 
+                                            className="w-16 p-2 border rounded text-sm text-center" 
                                             placeholder="درجة" 
                                             value={tempPoints} 
                                             onChange={e => setTempPoints(Number(e.target.value))}
                                         />
-                                        <button onClick={addManualAnswer} className="bg-purple-600 text-white p-2 rounded hover:bg-purple-700"><Plus size={18}/></button>
+                                        <button onClick={addManualAnswer} className="bg-purple-600 text-white p-2 rounded hover:bg-purple-700 flex-shrink-0"><Plus size={18}/></button>
                                     </div>
                                     
                                     <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
@@ -262,11 +259,11 @@ const AutoGrading: React.FC = () => {
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">2. رفع صورة الورقة</label>
-                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group">
+                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 md:p-8 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group">
                                 <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileChange}/>
                                 <div className="flex flex-col items-center gap-3 text-gray-400 group-hover:text-purple-600 transition-colors">
-                                    <Camera size={40}/>
-                                    <span className="font-bold">اضغط أو اسحب الصورة هنا</span>
+                                    <Camera size={32} className="md:w-10 md:h-10"/>
+                                    <span className="font-bold text-sm">اضغط أو اسحب الصورة هنا</span>
                                 </div>
                             </div>
                         </div>
@@ -274,20 +271,20 @@ const AutoGrading: React.FC = () => {
                         <button 
                             onClick={handleAutoGrade}
                             disabled={isGrading || !imagePreview || (gradingMode==='SYSTEM' && !selectedExamId) || (gradingMode==='MANUAL' && manualAnswers.length===0)}
-                            className="w-full py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
+                            className="w-full py-3 md:py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none text-sm md:text-base"
                         >
                             {isGrading ? <RefreshCw className="animate-spin"/> : <ScanLine/>}
                             {isGrading ? 'جاري تحليل الورقة...' : 'بدء التصحيح'}
                         </button>
                     </div>
 
-                    <div className="w-full md:w-1/3 bg-gray-100 rounded-xl border border-gray-200 flex items-center justify-center relative overflow-hidden">
+                    <div className="w-full md:w-1/3 bg-gray-100 rounded-xl border border-gray-200 flex items-center justify-center relative overflow-hidden min-h-[200px]">
                         {imagePreview ? (
                             <img src={imagePreview} className="max-w-full max-h-full object-contain" alt="Preview"/>
                         ) : (
                             <div className="text-gray-400 text-center">
                                 <FileText size={48} className="mx-auto mb-2 opacity-50"/>
-                                <p>معاينة الورقة</p>
+                                <p className="text-sm">معاينة الورقة</p>
                             </div>
                         )}
                     </div>
@@ -298,13 +295,13 @@ const AutoGrading: React.FC = () => {
                 <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
                     {/* Result Panel */}
                     <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
-                        <div className="p-6 border-b bg-gray-50 flex justify-between items-center">
+                        <div className="p-4 md:p-6 border-b bg-gray-50 flex justify-between items-center">
                             <div>
                                 <h3 className="font-bold text-gray-800 text-lg">نتيجة التصحيح</h3>
                                 <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-gray-500 text-sm">الطالب المقترح:</span>
+                                    <span className="text-gray-500 text-xs md:text-sm">الطالب المقترح:</span>
                                     <select 
-                                        className="bg-white border rounded px-2 py-1 text-sm font-bold text-purple-700"
+                                        className="bg-white border rounded px-2 py-1 text-xs md:text-sm font-bold text-purple-700 max-w-[120px] md:max-w-full"
                                         value={selectedStudentId}
                                         onChange={e => setSelectedStudentId(e.target.value)}
                                     >
@@ -314,21 +311,21 @@ const AutoGrading: React.FC = () => {
                                 </div>
                             </div>
                             <div className="text-center">
-                                <div className="text-3xl font-black text-purple-600">{result.totalScore}</div>
-                                <div className="text-xs text-gray-400">من {result.maxTotalScore}</div>
+                                <div className="text-2xl md:text-3xl font-black text-purple-600">{result.totalScore}</div>
+                                <div className="text-[10px] md:text-xs text-gray-400">من {result.maxTotalScore}</div>
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 md:space-y-4">
                             {result.questions.map((q: any, idx: number) => (
-                                <div key={idx} onClick={() => toggleQuestionResult(idx)} className={`p-4 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${q.isCorrect ? 'bg-green-50 border-green-200 hover:bg-green-100' : 'bg-red-50 border-red-200 hover:bg-red-100'}`}>
+                                <div key={idx} onClick={() => toggleQuestionResult(idx)} className={`p-3 md:p-4 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${q.isCorrect ? 'bg-green-50 border-green-200 hover:bg-green-100' : 'bg-red-50 border-red-200 hover:bg-red-100'}`}>
                                     <div>
-                                        <div className="font-bold text-gray-800 text-sm mb-1">س{q.index}: {q.questionText}</div>
+                                        <div className="font-bold text-gray-800 text-xs md:text-sm mb-1">س{q.index}: {q.questionText}</div>
                                         <div className="text-xs text-gray-500">إجابة الطالب: <span className="font-bold text-gray-700">{q.studentAnswer || 'غير واضحة'}</span></div>
-                                        {q.feedback && <div className="text-xs text-orange-600 mt-1">{q.feedback}</div>}
+                                        {q.feedback && <div className="text-[10px] md:text-xs text-orange-600 mt-1">{q.feedback}</div>}
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="font-bold text-lg">{q.score}</span>
+                                        <span className="font-bold text-base md:text-lg">{q.score}</span>
                                         {q.isCorrect ? <Check className="text-green-600"/> : <X className="text-red-600"/>}
                                     </div>
                                 </div>
@@ -336,15 +333,15 @@ const AutoGrading: React.FC = () => {
                         </div>
 
                         <div className="p-4 border-t flex gap-3">
-                            <button onClick={() => setStep('UPLOAD')} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200">إلغاء</button>
-                            <button onClick={handleSaveResult} className="flex-2 w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg flex items-center justify-center gap-2">
-                                <Save size={18}/> اعتماد وحفظ الدرجة
+                            <button onClick={() => setStep('UPLOAD')} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 text-sm">إلغاء</button>
+                            <button onClick={handleSaveResult} className="flex-2 w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg flex items-center justify-center gap-2 text-sm">
+                                <Save size={18}/> حفظ الدرجة
                             </button>
                         </div>
                     </div>
 
                     {/* Image Reference */}
-                    <div className="w-full md:w-1/3 bg-gray-900 rounded-2xl overflow-hidden shadow-2xl relative group">
+                    <div className="w-full md:w-1/3 bg-gray-900 rounded-2xl overflow-hidden shadow-2xl relative group min-h-[200px] md:min-h-auto">
                         <img src={imagePreview!} className="w-full h-full object-contain" alt="Reference"/>
                         <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">الورقة الأصلية</div>
                     </div>
