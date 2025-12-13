@@ -135,9 +135,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         const syncData = async () => {
-            setIsRefreshing(true);
-            await forceRefreshData();
+            // Disabled auto-refresh to prevent data conflicts
+            // setIsRefreshing(true);
+            // await forceRefreshData();
             const savedUrl = getWorksMasterUrl();
+            // Optional: Auto-sync from Google Sheet only if configured (less risky than full DB sync)
             if (savedUrl) setTimeout(() => handleQuickSheetSync(true), 1000);
             setIsRefreshing(false);
         };

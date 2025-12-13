@@ -84,15 +84,20 @@ const App: React.FC = () => {
     useEffect(() => {
         if (currentUser) {
             const startUp = async () => {
-                if (getStudents().length === 0) setIsLoading(true);
-                loadData(); 
-                try {
-                    await forceRefreshData();
-                } catch (e) {
-                    console.error("Initialization Sync Failed:", e);
-                } finally {
-                    loadData(); 
-                    setIsLoading(false);
+                // Load local data immediately without forcing refresh
+                loadData();
+                
+                // Only force refresh if there is absolutely no data (fresh install)
+                if (getStudents().length === 0) {
+                    setIsLoading(true);
+                    try {
+                        await forceRefreshData();
+                    } catch (e) {
+                        console.error("Initialization Sync Failed:", e);
+                    } finally {
+                        loadData(); 
+                        setIsLoading(false);
+                    }
                 }
             };
             startUp();
@@ -111,11 +116,8 @@ const App: React.FC = () => {
                 loadData();
             });
 
-            // --- BACKGROUND SYNC (Every 2 Minutes) ---
-            bgSyncTimerRef.current = setInterval(() => {
-                console.log("Running background sync...");
-                forceRefreshData().catch(e => console.error("BG Sync Failed", e));
-            }, 2 * 60 * 1000);
+            // Disabled Background Sync to prevent overwriting user changes during session
+            // bgSyncTimerRef.current = setInterval(() => { ... }, ...);
 
             return () => {
                 unsubSync();
