@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -117,11 +117,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET'>('MANUAL');
     const [newColTitle, setNewColTitle] = useState('');
     const [newColMax, setNewColMax] = useState('10');
+    const [newColUrl, setNewColUrl] = useState(''); // NEW: URL for manual column
     const [newColCategory, setNewColCategory] = useState<string>('HOMEWORK');
     const [newCustomCategory, setNewCustomCategory] = useState(''); // For Manual
     
-    // -- Local State for Sheet Column Max Scores (Map header -> manual max override) --
+    // -- Local State for Sheet Column Overrides --
     const [sheetColMaxScores, setSheetColMaxScores] = useState<Record<string, string>>({});
+    const [sheetColUrls, setSheetColUrls] = useState<Record<string, string>>({}); // NEW: URLs for sheet columns
 
     useEffect(() => {
         const syncData = async () => {
@@ -311,6 +313,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             title: newColTitle,
             category: categoryToUse,
             maxScore: Number(newColMax),
+            url: newColUrl, // Save URL
             isVisible: true,
             teacherId: currentUser?.id,
             termId: settingTermId || selectedTermId,
@@ -320,6 +323,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         // Refresh assignments
         setAssignments(getAssignments('ALL', currentUser?.id, isManager));
         setNewColTitle('');
+        setNewColUrl('');
         setNewCustomCategory('');
     };
 
@@ -349,6 +353,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 setAvailableHeaders(headers);
                 setSheetData(data); // Store data to calc max scores
                 setSheetColMaxScores({});
+                setSheetColUrls({});
             }
         } catch (e: any) {
             alert(e.message);
@@ -365,6 +370,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setAvailableHeaders(headers);
             setSheetData(data); // Store data to calc max scores
             setSheetColMaxScores({});
+            setSheetColUrls({});
         }
     };
 
@@ -380,7 +386,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         return max > 0 ? max : 10;
     };
 
-    const handleImportColumnFromSheet = (header: string, manualMax?: string) => {
+    const handleImportColumnFromSheet = (header: string, manualMax?: string, manualUrl?: string) => {
         const categoryToUse = importCategory === 'CUSTOM' ? customImportCategory : importCategory;
         if (!categoryToUse) {
             alert('الرجاء تحديد تصنيف العمود (التبويب) أولاً');
@@ -395,6 +401,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             title: header,
             category: categoryToUse, 
             maxScore: finalMax,
+            url: manualUrl, // Save Import URL
             isVisible: true,
             teacherId: currentUser?.id,
             sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header }),
@@ -607,7 +614,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                     <div className="flex flex-col items-center">
                                                         <span className="flex items-center gap-1">
                                                             {assign.title}
-                                                            {assign.url && <a href={assign.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><ExternalLink size={12}/></a>}
+                                                            {assign.url && <a href={assign.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700" title="فتح الرابط"><Link2 size={12}/></a>}
                                                         </span>
                                                         <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
                                                     </div>
@@ -740,6 +747,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <label className="block text-xs font-bold text-gray-500 mb-1">الدرجة</label>
                                             <input type="number" className="w-full p-2 border rounded-lg text-sm text-center" value={newColMax} onChange={e => setNewColMax(e.target.value)}/>
                                         </div>
+                                        <div className="w-48">
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">رابط (اختياري)</label>
+                                            <input className="w-full p-2 border rounded-lg text-sm dir-ltr" placeholder="URL..." value={newColUrl} onChange={e => setNewColUrl(e.target.value)}/>
+                                        </div>
                                         <div className="w-40">
                                             <label className="block text-xs font-bold text-gray-500 mb-1">التصنيف (التبويب)</label>
                                             <select 
@@ -769,6 +780,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <div className="p-3 bg-gray-50 border-b text-xs font-bold text-gray-500 flex">
                                             <div className="flex-1">عنوان العمود</div>
                                             <div className="w-24 text-center">الدرجة</div>
+                                            <div className="w-48 text-center">الرابط</div>
                                             <div className="w-32 text-center">التصنيف</div>
                                             <div className="w-20 text-center">حذف</div>
                                         </div>
@@ -787,6 +799,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                             className="w-full bg-transparent outline-none text-center text-sm font-mono" 
                                                             value={assign.maxScore} 
                                                             onChange={e => handleUpdateColumn({...assign, maxScore: Number(e.target.value)})}
+                                                        />
+                                                    </div>
+                                                    <div className="w-48 text-center">
+                                                        <input 
+                                                            className="w-full bg-transparent outline-none text-xs text-blue-600 dir-ltr" 
+                                                            value={assign.url || ''} 
+                                                            placeholder="أضف رابط..."
+                                                            onChange={e => handleUpdateColumn({...assign, url: e.target.value})}
                                                         />
                                                     </div>
                                                     <div className="w-32 text-center">
@@ -892,9 +912,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             
                                             {/* Header Grid */}
                                             <div className="grid grid-cols-12 bg-gray-50 text-xs font-bold text-gray-500 border-b px-4 py-2">
-                                                <div className="col-span-6 md:col-span-5">اسم العمود (من الملف)</div>
-                                                <div className="col-span-3 md:col-span-3 text-center">الدرجة العظمى (Max)</div>
-                                                <div className="col-span-3 md:col-span-4 text-center">إجراء</div>
+                                                <div className="col-span-4 md:col-span-3">اسم العمود (من الملف)</div>
+                                                <div className="col-span-2 md:col-span-2 text-center">الدرجة العظمى</div>
+                                                <div className="col-span-4 md:col-span-5 text-center">رابط المصدر (اختياري)</div>
+                                                <div className="col-span-2 md:col-span-2 text-center">إجراء</div>
                                             </div>
 
                                             <div className="p-0 max-h-80 overflow-y-auto divide-y divide-gray-100">
@@ -907,17 +928,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                         }, 0)
                                                         : 0;
                                                         
-                                                    // Local state for this row's max input is needed? 
-                                                    // Simplification: Use a single state map to track user overrides
+                                                    // Local state for this row's max input
                                                     const currentMax = sheetColMaxScores[header] || (detectedMax > 0 ? String(detectedMax) : '10');
+                                                    const currentUrl = sheetColUrls[header] || '';
 
                                                     return (
                                                         <div key={header} className="grid grid-cols-12 items-center p-3 hover:bg-gray-50 transition-colors">
-                                                            <div className="col-span-6 md:col-span-5 font-medium text-sm text-gray-700 truncate pr-2" title={header}>
+                                                            <div className="col-span-4 md:col-span-3 font-medium text-sm text-gray-700 truncate pr-2" title={header}>
                                                                 {header}
                                                             </div>
                                                             
-                                                            <div className="col-span-3 md:col-span-3 flex justify-center">
+                                                            <div className="col-span-2 md:col-span-2 flex justify-center">
                                                                 <div className="relative group">
                                                                     <input 
                                                                         type="number" 
@@ -938,9 +959,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                                 </div>
                                                             </div>
 
-                                                            <div className="col-span-3 md:col-span-4 flex justify-center">
+                                                            <div className="col-span-4 md:col-span-5 px-2">
+                                                                <input 
+                                                                    type="text" 
+                                                                    className="w-full p-1 border rounded text-xs dir-ltr bg-white focus:ring-1 focus:ring-green-500 outline-none"
+                                                                    placeholder="URL..."
+                                                                    value={currentUrl}
+                                                                    onChange={(e) => setSheetColUrls(prev => ({...prev, [header]: e.target.value}))}
+                                                                />
+                                                            </div>
+
+                                                            <div className="col-span-2 md:col-span-2 flex justify-center">
                                                                 <button 
-                                                                    onClick={() => handleImportColumnFromSheet(header, currentMax)}
+                                                                    onClick={() => handleImportColumnFromSheet(header, currentMax, currentUrl)}
                                                                     className="bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 flex items-center gap-1 transition-colors"
                                                                 >
                                                                     <ArrowDownToLine size={14}/> استيراد
