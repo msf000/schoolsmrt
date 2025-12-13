@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, ScheduleItem, AcademicTerm, LessonLink, MessageLog, WeeklyPlanItem, Exam, PerformanceCategory, Assignment } from '../types';
 import { getSchedules, getAcademicTerms, getLessonLinks, downloadFromSupabase, getMessages, getWeeklyPlans, getExams, saveExamResult, addPerformance, getPerformance, getAssignments } from '../services/storageService';
-import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays, FileQuestion, Timer, Check, MoreHorizontal, ChevronRight, Filter, Link as LinkIcon, ExternalLink, XCircle } from 'lucide-react';
+import { User, Calendar, Award, LogOut, FileText, Menu, Clock, LayoutGrid, Trophy, Library, RefreshCw, Bell, Home, BookOpen, ChevronLeft, AlertTriangle, X, MessageCircle, Star, CheckCircle, ListTodo, CheckSquare, CalendarDays, FileQuestion, Timer, Check, MoreHorizontal, ChevronRight, Filter, ExternalLink, XCircle, Link as LinkIcon } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import InstallPrompt from './InstallPrompt';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
