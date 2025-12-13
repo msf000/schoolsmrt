@@ -130,7 +130,8 @@ export interface AttendanceRecord {
   createdById?: string; // NEW: Link to the teacher who took attendance
 }
 
-export type PerformanceCategory = 'ACTIVITY' | 'PLATFORM_EXAM' | 'HOMEWORK' | 'YEAR_WORK' | 'OTHER';
+// Changed to string to support dynamic custom tabs
+export type PerformanceCategory = string; 
 
 // NEW: Sub-periods for Academic Term (e.g., Period 1, Period 2)
 export interface TermPeriod {

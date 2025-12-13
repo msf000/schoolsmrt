@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -26,6 +26,20 @@ const STUDENT_NAME_HEADERS = [
     'name', 'student', 'student name', 'full name', 'student_name'
 ];
 
+const DEFAULT_CATEGORIES = [
+    { id: 'HOMEWORK', label: 'الواجبات' },
+    { id: 'ACTIVITY', label: 'الأنشطة' },
+    { id: 'PLATFORM_EXAM', label: 'الاختبارات' },
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+    'HOMEWORK': 'الواجبات',
+    'ACTIVITY': 'الأنشطة',
+    'PLATFORM_EXAM': 'الاختبارات',
+    'YEAR_WORK': 'أعمال السنة',
+    'OTHER': 'عام'
+};
+
 interface SyncDiff {
     type: 'NEW_SCORE' | 'UPDATE_SCORE' | 'DELETE_SCORE' | 'NEW_COLUMN';
     details: string;
@@ -39,9 +53,10 @@ interface SyncDiff {
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
-    const [activeTab, setActiveTab] = useState<'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK'>(() => {
+    // Updated to string to support custom tabs
+    const [activeTab, setActiveTab] = useState<string>(() => {
         const saved = localStorage.getItem('works_active_tab');
-        return (saved === 'HOMEWORK' || saved === 'ACTIVITY' || saved === 'PLATFORM_EXAM' || saved === 'YEAR_WORK') ? saved : 'HOMEWORK';
+        return saved || 'HOMEWORK';
     });
 
     useEffect(() => {
@@ -82,9 +97,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [sheetNames, setSheetNames] = useState<string[]>([]);
     const [selectedSheetName, setSelectedSheetName] = useState('');
     
-    // Independent state for Settings Modal to allow managing different terms
+    // Independent state for Settings Modal
     const [settingTermId, setSettingTermId] = useState('');
     const [settingPeriodId, setSettingPeriodId] = useState('');
+    
+    // -- Import Category State --
+    const [importCategory, setImportCategory] = useState<string>('HOMEWORK');
+    const [customImportCategory, setCustomImportCategory] = useState('');
     
     const [isFetchingStructure, setIsFetchingStructure] = useState(false);
     const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
@@ -97,7 +116,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET'>('MANUAL');
     const [newColTitle, setNewColTitle] = useState('');
     const [newColMax, setNewColMax] = useState('10');
-    const [newColCategory, setNewColCategory] = useState<PerformanceCategory>('HOMEWORK');
+    const [newColCategory, setNewColCategory] = useState<string>('HOMEWORK');
+    const [newCustomCategory, setNewCustomCategory] = useState(''); // For Manual
 
     useEffect(() => {
         const syncData = async () => {
@@ -168,9 +188,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         if (currentUser) {
-            setAssignments(fetchAssignments(activeTab));
+            // Fetch ALL assignments to derive dynamic tabs
+            setAssignments(getAssignments('ALL', currentUser.id, isManager));
         }
-    }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId, fetchAssignments]);
+    }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId]); // Depend less on activeTab fetch
+
+    // --- Dynamic Tabs Logic ---
+    const availableCategories = useMemo(() => {
+        const cats = new Set<string>();
+        // Add defaults
+        DEFAULT_CATEGORIES.forEach(c => cats.add(c.id));
+        // Add used categories from assignments
+        assignments.forEach(a => {
+            if (a.category && a.category !== 'YEAR_WORK') cats.add(a.category);
+        });
+        return Array.from(cats);
+    }, [assignments]);
 
     useEffect(() => {
         const newScores: Record<string, Record<string, string>> = {};
@@ -266,10 +299,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const handleAddColumn = () => {
         if (!newColTitle) return;
+        const categoryToUse = newColCategory === 'CUSTOM' ? newCustomCategory : newColCategory;
+        if (!categoryToUse) return;
+
         const newAssign: Assignment = {
             id: Date.now().toString(),
             title: newColTitle,
-            category: newColCategory,
+            category: categoryToUse,
             maxScore: Number(newColMax),
             isVisible: true,
             teacherId: currentUser?.id,
@@ -277,20 +313,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             periodId: settingPeriodId || selectedPeriodId
         };
         saveAssignment(newAssign);
-        setAssignments(fetchAssignments(activeTab)); 
+        // Refresh assignments
+        setAssignments(getAssignments('ALL', currentUser?.id, isManager));
         setNewColTitle('');
+        setNewCustomCategory('');
     };
 
     const handleDeleteColumn = (id: string) => {
         if(confirm('حذف هذا العمود والدرجات المرتبطة به؟')) {
             deleteAssignment(id);
-            setAssignments(fetchAssignments(activeTab));
+            setAssignments(getAssignments('ALL', currentUser?.id, isManager));
         }
     };
 
     const handleUpdateColumn = (a: Assignment) => {
         saveAssignment(a);
-        setAssignments(fetchAssignments(activeTab));
+        setAssignments(getAssignments('ALL', currentUser?.id, isManager));
     };
 
     const handleFetchSheetHeaders = async () => {
@@ -323,10 +361,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const handleImportColumnFromSheet = (header: string) => {
+        const categoryToUse = importCategory === 'CUSTOM' ? customImportCategory : importCategory;
+        if (!categoryToUse) {
+            alert('الرجاء تحديد تصنيف العمود (التبويب) أولاً');
+            return;
+        }
+
         const newAssign: Assignment = {
             id: Date.now().toString(),
             title: header,
-            category: 'HOMEWORK', // Default, user can change later
+            category: categoryToUse, 
             maxScore: 10,
             isVisible: true,
             teacherId: currentUser?.id,
@@ -335,8 +379,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             periodId: settingPeriodId || selectedPeriodId
         };
         saveAssignment(newAssign);
-        setAssignments(fetchAssignments(activeTab));
-        alert(`تم إضافة العمود: ${header}`);
+        setAssignments(getAssignments('ALL', currentUser?.id, isManager));
+        alert(`تم إضافة العمود "${header}" إلى تبويب: ${CATEGORY_LABELS[categoryToUse] || categoryToUse}`);
     };
 
     // ... (Existing Google Sheets logic handles same as before) ...
@@ -395,9 +439,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return [];
         return assignments.filter(a => {
             const termMatch = !selectedTermId || (a.termId === selectedTermId);
-            // RELAXED FILTER: Include general assignments (no period)
             const periodMatch = !selectedPeriodId || !a.periodId || (a.periodId === selectedPeriodId);
-            return termMatch && periodMatch;
+            const categoryMatch = a.category === activeTab; // Exact match for custom strings too
+            return termMatch && periodMatch && categoryMatch;
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
 
@@ -467,12 +511,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
                 </div>
 
-                {/* Sub Header & Buttons (Existing) */}
+                {/* Sub Header & Buttons (Dynamic Tabs) */}
                 <div className="flex flex-wrap justify-between items-center gap-4 border-t pt-4">
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                        <button onClick={() => setActiveTab('HOMEWORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'HOMEWORK' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>الواجبات</button>
-                        <button onClick={() => setActiveTab('ACTIVITY')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'ACTIVITY' ? 'bg-amber-100 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}>الأنشطة</button>
-                        <button onClick={() => setActiveTab('PLATFORM_EXAM')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'PLATFORM_EXAM' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-100'}`}>الاختبارات</button>
+                    <div className="flex gap-2 overflow-x-auto pb-1 max-w-[80%]">
+                        {availableCategories.map(cat => (
+                            <button 
+                                key={cat}
+                                onClick={() => setActiveTab(cat)} 
+                                className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === cat ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+                            >
+                                {CATEGORY_LABELS[cat] || cat}
+                            </button>
+                        ))}
                         <button onClick={() => setActiveTab('YEAR_WORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'YEAR_WORK' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>أعمال السنة (تجميعي)</button>
                     </div>
 
@@ -668,14 +718,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <input type="number" className="w-full p-2 border rounded-lg text-sm text-center" value={newColMax} onChange={e => setNewColMax(e.target.value)}/>
                                         </div>
                                         <div className="w-40">
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">التصنيف</label>
-                                            <select className="w-full p-2 border rounded-lg text-sm bg-white" value={newColCategory} onChange={e => setNewColCategory(e.target.value as any)}>
-                                                <option value="HOMEWORK">واجب</option>
-                                                <option value="ACTIVITY">نشاط</option>
-                                                <option value="PLATFORM_EXAM">اختبار</option>
-                                                <option value="OTHER">عام</option>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">التصنيف (التبويب)</label>
+                                            <select 
+                                                className="w-full p-2 border rounded-lg text-sm bg-white" 
+                                                value={newColCategory} 
+                                                onChange={e => setNewColCategory(e.target.value)}
+                                            >
+                                                {DEFAULT_CATEGORIES.map(cat => (
+                                                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                                ))}
+                                                <option value="CUSTOM">أخرى / جديد...</option>
                                             </select>
                                         </div>
+                                        {newColCategory === 'CUSTOM' && (
+                                            <div className="w-32">
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">اسم التبويب</label>
+                                                <input className="w-full p-2 border rounded-lg text-sm bg-yellow-50" placeholder="مثال: مشاريع" value={newCustomCategory} onChange={e => setNewCustomCategory(e.target.value)}/>
+                                            </div>
+                                        )}
                                         <button onClick={handleAddColumn} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center gap-2">
                                             <Plus size={16}/> إضافة
                                         </button>
@@ -707,16 +767,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                         />
                                                     </div>
                                                     <div className="w-32 text-center">
-                                                        <select 
-                                                            className="bg-transparent text-xs outline-none cursor-pointer"
-                                                            value={assign.category}
-                                                            onChange={e => handleUpdateColumn({...assign, category: e.target.value as any})}
-                                                        >
-                                                            <option value="HOMEWORK">واجب</option>
-                                                            <option value="ACTIVITY">نشاط</option>
-                                                            <option value="PLATFORM_EXAM">اختبار</option>
-                                                            <option value="OTHER">عام</option>
-                                                        </select>
+                                                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                                            {CATEGORY_LABELS[assign.category] || assign.category}
+                                                        </span>
                                                     </div>
                                                     <div className="w-20 text-center">
                                                         <button onClick={() => handleDeleteColumn(assign.id)} className="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"><Trash2 size={16}/></button>
@@ -784,12 +837,35 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                     </select>
                                                 </div>
                                             )}
+
+                                            {/* NEW: Category Selector for Import */}
+                                            <div className="flex items-center gap-2 border-r border-green-300 pr-4 mr-2">
+                                                <span className="text-xs font-bold text-green-700 flex items-center gap-1"><Tag size={12}/> تصنيف العمود:</span>
+                                                <select 
+                                                    className="p-1.5 border border-green-300 rounded text-xs bg-white h-8"
+                                                    value={importCategory} 
+                                                    onChange={e => setImportCategory(e.target.value)}
+                                                >
+                                                    {DEFAULT_CATEGORIES.map(cat => (
+                                                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                                    ))}
+                                                    <option value="CUSTOM">أخرى / جديد...</option>
+                                                </select>
+                                                {importCategory === 'CUSTOM' && (
+                                                    <input 
+                                                        className="p-1.5 border border-green-300 rounded text-xs bg-white h-8 w-24" 
+                                                        placeholder="اسم التبويب"
+                                                        value={customImportCategory}
+                                                        onChange={e => setCustomImportCategory(e.target.value)}
+                                                    />
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
                                     {availableHeaders.length > 0 && (
                                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                            <div className="p-3 bg-gray-50 border-b font-bold text-gray-700 text-sm">اختر الأعمدة لاستيرادها كواجبات/اختبارات</div>
+                                            <div className="p-3 bg-gray-50 border-b font-bold text-gray-700 text-sm">اختر الأعمدة لاستيرادها كـ {importCategory === 'CUSTOM' ? (customImportCategory || 'مخصص') : CATEGORY_LABELS[importCategory]}</div>
                                             <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
                                                 {availableHeaders.map(header => (
                                                     <button 
