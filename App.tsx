@@ -14,7 +14,7 @@ import {
 } from './services/storageService';
 import { checkAIConnection } from './services/geminiService';
 
-// Components Imports
+// استيراد المكونات
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
@@ -44,22 +44,28 @@ import ParentPortal from './components/ParentPortal';
 import CertificatesCenter from './components/CertificatesCenter';
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff, Activity, ClipboardList } from 'lucide-react';
+import { 
+    Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, 
+    BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, 
+    CreditCard, PenTool, Printer, Cloud, CloudOff, WifiOff, RefreshCw, 
+    AlertCircle, Loader2, FileQuestion, Library, ScanLine, 
+    ListTree, Calendar, Table, Award, ClipboardList 
+} from 'lucide-react';
 
 const App: React.FC = () => {
-    // Auth State
+    // حالة المصادقة (المستخدم الحالي)
     const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => {
         const saved = localStorage.getItem('current_user');
         return saved ? JSON.parse(saved) : null;
     });
 
-    // Data State
+    // حالة البيانات
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [theme, setTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
 
-    // UI State - Persist Current View
+    // حالة الواجهة - حفظ آخر شاشة تم فتحها
     const [currentView, setCurrentView] = useState(() => {
         return localStorage.getItem('app_last_view') || 'DASHBOARD';
     });
@@ -68,33 +74,34 @@ const App: React.FC = () => {
     const [showClassroomScreen, setShowClassroomScreen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     
-    // Sync State
+    // حالة المزامنة والاتصال
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
     const bgSyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
-    // AI Status State
+    // حالة الذكاء الاصطناعي (AI)
     const [aiStatus, setAiStatus] = useState<'IDLE' | 'CHECKING' | 'CONNECTED' | 'ERROR'>('IDLE');
 
-    // Save View on Change
+    // حفظ الشاشة الحالية عند التغيير
     useEffect(() => {
         if (currentUser) {
             localStorage.setItem('app_last_view', currentView);
         }
     }, [currentView, currentUser]);
 
+    // تحميل البيانات عند بدء التشغيل أو تسجيل الدخول
     useEffect(() => {
         if (currentUser) {
             const startUp = async () => {
-                // Load local data immediately
+                // تحميل البيانات المحلية فوراً
                 loadData();
                 
-                // Only force refresh if there is absolutely no data (fresh install)
+                // تحديث البيانات من السحابة فقط إذا كانت قاعدة البيانات المحلية فارغة (تثبيت جديد)
                 if (getStudents().length === 0) {
                     setIsLoading(true);
                     try {
                         await forceRefreshData();
                     } catch (e) {
-                        console.error("Initialization Sync Failed:", e);
+                        console.error("فشل التحديث الأولي:", e);
                     } finally {
                         loadData(); 
                         setIsLoading(false);
@@ -103,6 +110,7 @@ const App: React.FC = () => {
             };
             startUp();
             
+            // التحقق من اتصال الذكاء الاصطناعي
             const checkAI = async () => {
                 if (currentUser.role !== 'STUDENT' && currentUser.role !== 'PARENT') {
                     setAiStatus('CHECKING');
@@ -112,6 +120,7 @@ const App: React.FC = () => {
             };
             checkAI();
             
+            // الاشتراك في تحديثات المزامنة والبيانات
             const unsubSync = subscribeToSyncStatus((status) => setSyncStatus(status));
             const unsubData = subscribeToDataChanges(() => {
                 loadData();
@@ -125,24 +134,26 @@ const App: React.FC = () => {
         }
     }, [currentUser]);
 
+    // دالة تحميل وتصفية البيانات حسب دور المستخدم
     const loadData = () => {
         let allStudents = getStudents();
         let allAttendance = getAttendance();
         let allPerformance = getPerformance();
         
-        // --- DATA ISOLATION ---
+        // --- عزل البيانات حسب الصلاحيات ---
         if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
              if (currentUser.role === 'STUDENT') {
                  allStudents = allStudents.filter(s => s.id === currentUser.id);
                  allAttendance = allAttendance.filter(a => a.studentId === currentUser.id);
                  allPerformance = allPerformance.filter(p => p.studentId === currentUser.id);
              } else if (currentUser.role === 'PARENT') {
-                 // Parents see linked children (logic in ParentPortal handles aggregation)
+                 // سيتم التعامل مع الآباء في مكون ParentPortal
              } else if (currentUser.role === 'SCHOOL_MANAGER') {
                  if (currentUser.schoolId) {
                      allStudents = allStudents.filter(s => s.schoolId === currentUser.schoolId);
                  }
              } else if (currentUser.role === 'TEACHER') {
+                 // المعلم يرى طلاب مدرسته أو الطلاب الذين أضافهم بنفسه
                  allStudents = allStudents.filter(s => 
                      (currentUser.schoolId && s.schoolId === currentUser.schoolId) || 
                      s.createdById === currentUser.id || 
@@ -190,7 +201,7 @@ const App: React.FC = () => {
         setAiStatus(res.success ? 'CONNECTED' : 'ERROR');
     };
 
-    // --- CRUD WRAPPERS ---
+    // --- دوال التعامل مع البيانات (CRUD Wrappers) ---
     const handleAddStudent = (s: Student) => { addStudent(s); loadData(); };
     const handleUpdateStudent = (s: Student) => { updateStudent(s); loadData(); };
     const handleDeleteStudent = (id: string) => { deleteStudent(id); loadData(); };
@@ -239,7 +250,7 @@ const App: React.FC = () => {
         loadData(); 
     };
 
-    // --- STUDENT PORTAL ---
+    // --- بوابة الطالب ---
     if (currentUser && currentUser.role === 'STUDENT') {
         return (
             <StudentPortal 
@@ -251,7 +262,7 @@ const App: React.FC = () => {
         );
     }
 
-    // --- PARENT PORTAL ---
+    // --- بوابة ولي الأمر ---
     if (currentUser && currentUser.role === 'PARENT') {
         const allStds = getStudents(); 
         const allAtt = getAttendance();
@@ -268,12 +279,12 @@ const App: React.FC = () => {
         );
     }
 
-    // --- LOGIN SCREEN ---
+    // --- شاشة تسجيل الدخول ---
     if (!currentUser) {
         return <Login onLoginSuccess={handleLoginSuccess} />;
     }
 
-    // --- CLASSROOM SCREEN MODE ---
+    // --- وضع الشاشة الصفية (Full Screen) ---
     if (showClassroomScreen) {
         return (
             <div className="relative w-screen h-screen">
@@ -321,7 +332,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* Sidebar */}
+            {/* القائمة الجانبية (Sidebar) */}
             <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
@@ -350,7 +361,7 @@ const App: React.FC = () => {
                     
                     {currentUser.role === 'SUPER_ADMIN' && <NavItem view="ADMIN_DASHBOARD" label="إدارة النظام" icon={Settings} />}
                     
-                    {/* MANAGER SPECIFIC SIDEBAR */}
+                    {/* قائمة المدير */}
                     {isManager && (
                         <>
                             <div className="pt-4 mt-4 border-t border-gray-100">
@@ -372,7 +383,7 @@ const App: React.FC = () => {
                         </>
                     )}
 
-                    {/* TEACHER SPECIFIC SIDEBAR */}
+                    {/* قائمة المعلم */}
                     {currentUser.role === 'TEACHER' && (
                         <>
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
@@ -416,6 +427,7 @@ const App: React.FC = () => {
                     )}
                 </nav>
 
+                {/* شريط الحالة السفلي */}
                 <div className="p-4 border-t bg-gray-50 space-y-2">
                     <button 
                         onClick={handleManualSync}
@@ -432,7 +444,7 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-1">
                             {syncStatus === 'SYNCING' && <RefreshCw size={14} className="text-blue-500 animate-spin"/>}
                             {syncStatus === 'ONLINE' && <Cloud size={14} className="text-green-500"/>}
-                            {syncStatus === 'OFFLINE' && <WifiOff size={14} className="text-gray-500"/>}
+                            {syncStatus === 'OFFLINE' && <CloudOff size={14} className="text-gray-500"/>}
                             {syncStatus === 'ERROR' && <AlertCircle size={14} className="text-red-500"/>}
                             {syncStatus === 'IDLE' && <Cloud size={14} className="text-gray-400"/>}
                             
@@ -450,7 +462,7 @@ const App: React.FC = () => {
                         </div>
                     </button>
 
-                    {/* AI STATUS BUTTON */}
+                    {/* زر حالة الذكاء الاصطناعي */}
                     <button 
                         onClick={handleCheckAI}
                         disabled={aiStatus === 'CHECKING'}
@@ -487,7 +499,7 @@ const App: React.FC = () => {
                 </div>
             </aside>
 
-            {/* Main Content */}
+            {/* المحتوى الرئيسي (Main Content) */}
             <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative">
                 <header className="bg-white border-b p-4 flex justify-between items-center md:hidden">
                     <h2 className="font-bold text-gray-800">

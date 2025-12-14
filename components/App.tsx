@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
@@ -41,7 +42,7 @@ import FlexibleTrackingSheet from './FlexibleTrackingSheet';
 import ParentPortal from './ParentPortal';
 import CertificatesCenter from './CertificatesCenter';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff, Activity, ClipboardList } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, Activity, ClipboardList } from 'lucide-react';
 
 import { SchoolManagement as SchoolManagementComponent } from './SchoolManagement';
 
@@ -429,116 +430,4 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-1">
                             {syncStatus === 'SYNCING' && <RefreshCw size={14} className="text-blue-500 animate-spin"/>}
                             {syncStatus === 'ONLINE' && <Cloud size={14} className="text-green-500"/>}
-                            {syncStatus === 'OFFLINE' && <WifiOff size={14} className="text-gray-500"/>}
-                            {syncStatus === 'ERROR' && <AlertCircle size={14} className="text-red-500"/>}
-                            {syncStatus === 'IDLE' && <Cloud size={14} className="text-gray-400"/>}
-                            
-                            <span className={`font-bold ${
-                                syncStatus === 'SYNCING' ? 'text-blue-600' :
-                                syncStatus === 'ONLINE' ? 'text-green-600' :
-                                syncStatus === 'OFFLINE' ? 'text-gray-600' :
-                                syncStatus === 'ERROR' ? 'text-red-600' : 'text-gray-500'
-                            }`}>
-                                {syncStatus === 'SYNCING' ? 'جاري التحديث...' :
-                                 syncStatus === 'ONLINE' ? 'متصل (Online)' :
-                                 syncStatus === 'OFFLINE' ? 'وضع غير متصل' :
-                                 syncStatus === 'ERROR' ? 'خطأ الاتصال' : 'جاهز'}
-                            </span>
-                        </div>
-                    </button>
-
-                    <button 
-                        onClick={handleCheckAI}
-                        disabled={aiStatus === 'CHECKING'}
-                        className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded border transition-colors ${
-                            aiStatus === 'ERROR' ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'
-                        } ${
-                            aiStatus === 'CHECKING' ? 'bg-purple-50 border-purple-200' :
-                            aiStatus === 'CONNECTED' ? 'bg-green-50 border-green-200' :
-                            aiStatus === 'ERROR' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
-                        }`}
-                        title={aiStatus === 'ERROR' ? 'اضغط لإعادة الفحص' : ''}
-                    >
-                        <span className="text-gray-500 font-bold">حالة الذكاء (AI):</span>
-                        <div className="flex items-center gap-1">
-                            {aiStatus === 'CHECKING' && <Loader2 size={14} className="text-purple-500 animate-spin"/>}
-                            {aiStatus === 'CONNECTED' && <BrainCircuit size={14} className="text-green-500"/>}
-                            {aiStatus === 'ERROR' && <AlertCircle size={14} className="text-red-500"/>}
-                            
-                            <span className={`font-bold ${
-                                aiStatus === 'CHECKING' ? 'text-purple-600' :
-                                aiStatus === 'CONNECTED' ? 'text-green-600' :
-                                aiStatus === 'ERROR' ? 'text-red-600' : 'text-gray-500'
-                            }`}>
-                                {aiStatus === 'CHECKING' ? 'جاري الفحص...' :
-                                 aiStatus === 'CONNECTED' ? 'متصل' :
-                                 aiStatus === 'ERROR' ? 'خطأ' : 'غير معروف'}
-                            </span>
-                        </div>
-                    </button>
-
-                    <div className="text-center mt-2 text-[10px] text-gray-300">
-                        نظام المدرس الذكي v1.2.1
-                    </div>
-                </div>
-            </aside>
-
-            {/* Main Content */}
-            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative">
-                <header className="bg-white border-b p-4 flex justify-between items-center md:hidden">
-                    <h2 className="font-bold text-gray-800">
-                        {currentView === 'DASHBOARD' ? 'لوحة القيادة' : '...'}
-                    </h2>
-                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-gray-100 rounded-lg"><Menu/></button>
-                </header>
-
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
-                    {currentView === 'DASHBOARD' && <Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={setCurrentView} />}
-                    {currentView === 'ADMIN_DASHBOARD' && <AdminDashboard />}
-                    {currentView === 'STUDENTS' && <Students students={students} attendance={attendance} performance={performance} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={handleImportStudents} currentUser={currentUser} />}
-                    {currentView === 'ATTENDANCE' && <AttendanceComponent students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={handleImportAttendance} currentUser={currentUser} onNavigate={setCurrentView} />}
-                    {currentView === 'PERFORMANCE' && <PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={handleBulkAddPerformance} onDeletePerformance={handleDeletePerformance} currentUser={currentUser} attendance={attendance} />}
-                    {currentView === 'WORKS_TRACKING' && <WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleBulkAddPerformance} currentUser={currentUser}/>}
-                    {currentView === 'STUDENT_FOLLOWUP' && <StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser} onSaveAttendance={handleSaveAttendance}/>}
-                    {currentView === 'MONTHLY_REPORT' && <MonthlyReport students={students} attendance={attendance} performance={performance} currentUser={currentUser}/>}
-                    {currentView === 'AI_REPORTS' && <AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser}/>}
-                    {currentView === 'CLASSROOM_MANAGEMENT' && (
-                        <ClassroomManager 
-                            students={students} 
-                            attendance={attendance}
-                            performance={performance}
-                            onLaunchScreen={() => setShowClassroomScreen(true)}
-                            onNavigateToAttendance={() => setCurrentView('ATTENDANCE')}
-                            onSaveAttendance={handleSaveAttendance}
-                            onImportAttendance={handleImportAttendance}
-                            currentUser={currentUser}
-                        />
-                    )}
-                    {currentView === 'SCHOOL_MANAGEMENT' && <SchoolManagementComponent students={students} onImportStudents={handleImportStudents} onImportPerformance={handleBulkAddPerformance} onImportAttendance={handleImportAttendance} currentUser={currentUser} onUpdateTheme={setTheme}/>}
-                    {currentView === 'CUSTOM_TABLES' && <CustomTablesView currentUser={currentUser}/>}
-                    {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
-                    {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
-                    {currentView === 'LESSON_PLANNING' && <LessonPlanning />}
-                    {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser} />}
-                    {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser} />}
-                    {currentView === 'AUTO_GRADING' && <AutoGrading />}
-                    {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
-                    
-                    {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser} />}
-                    {currentView === 'SCHEDULE_VIEW' && (
-                        <ScheduleView 
-                            currentUser={currentUser}
-                            onNavigateToLesson={() => setCurrentView('LESSON_PLANNING')}
-                            onNavigateToAttendance={() => setCurrentView('ATTENDANCE')}
-                        />
-                    )}
-                    {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser} />}
-                    {currentView === 'FLEXIBLE_TRACKING' && <FlexibleTrackingSheet currentUser={currentUser} />}
-                    {currentView === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} onSaveAttendance={handleSaveAttendance} />}
-                </div>
-            </main>
-        </div>
-    );
-};
-
-export default App;
+                            {syncStatus === 'OFFLINE' && <CloudOff size={14} className="text-
