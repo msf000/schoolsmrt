@@ -1,18 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
+import { Teacher, School, SystemUser, Subject, ReportHeaderConfig, UserTheme, AcademicTerm, TermPeriod } from '../types';
 import { 
-    getSchools, getTeachers, updateTeacher,
-    getSubjects, addSubject, deleteSubject,
-    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
+    getTeachers, updateTeacher,
+    getSchools, getSubjects, addSubject, deleteSubject,
     getReportHeaderConfig, saveReportHeaderConfig,
-    getUserTheme, saveUserTheme
+    getUserTheme, saveUserTheme,
+    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm
 } from '../services/storageService';
-import { 
-    School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod 
-} from '../types';
-import { 
-    Building2, Users, Settings, 
-    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User
-} from 'lucide-react';
+import { Trash2, User, Building2, Save, Users, FileText, BookOpen, Settings, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles } from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -467,7 +463,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
         </div>
-    );
+    </div>
+  );
 };
-
-export default SchoolManagement;
