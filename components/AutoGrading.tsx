@@ -1,11 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { ScanLine, Upload, Check, X, Camera, Save, RefreshCw, FileText, Plus, Trash2, ListChecks, FileQuestion, ArrowRight } from 'lucide-react';
-import { Exam, Student, PerformanceRecord, Question } from '../types';
+import { Exam, Student, PerformanceRecord, Question, SystemUser } from '../types';
 import { getExams, getStudents, addPerformance } from '../services/storageService';
 import { gradeExamPaper } from '../services/geminiService';
 
-const AutoGrading: React.FC = () => {
+interface AutoGradingProps {
+    currentUser?: SystemUser | null;
+}
+
+const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
     const [exams, setExams] = useState<Exam[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     
@@ -27,9 +31,9 @@ const AutoGrading: React.FC = () => {
     const [tempPoints, setTempPoints] = useState(1);
 
     useEffect(() => {
-        setExams(getExams());
-        setStudents(getStudents());
-    }, []);
+        setExams(getExams(currentUser?.id));
+        setStudents(getStudents().filter(s => s.schoolId === currentUser?.schoolId || s.createdById === currentUser?.id));
+    }, [currentUser]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -138,7 +142,8 @@ const AutoGrading: React.FC = () => {
                 score: result.totalScore,
                 maxScore: result.maxTotalScore || (gradingMode === 'MANUAL' ? manualAnswers.reduce((a,b) => a + b.points, 0) : 0),
                 date: new Date().toISOString().split('T')[0],
-                notes: `تم التصحيح آلياً. ملاحظات: ${result.questions.map((q: any) => `س${q.index}: ${q.isCorrect ? 'صح' : 'خطأ'}`).join(', ')}`
+                notes: `تم التصحيح آلياً. ملاحظات: ${result.questions.map((q: any) => `س${q.index}: ${q.isCorrect ? 'صح' : 'خطأ'}`).join(', ')}`,
+                createdById: currentUser?.id
             };
             addPerformance(record);
             alert('تم حفظ النتيجة بنجاح!');

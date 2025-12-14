@@ -523,7 +523,7 @@ const App: React.FC = () => {
                     {currentView === 'LESSON_PLANNING' && <LessonPlanning />}
                     {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser} />}
                     {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser} />}
-                    {currentView === 'AUTO_GRADING' && <AutoGrading />}
+                    {currentView === 'AUTO_GRADING' && <AutoGrading currentUser={currentUser} />}
                     {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
                     {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser} />}
                     {currentView === 'SCHEDULE_VIEW' && (
