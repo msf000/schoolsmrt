@@ -142,6 +142,129 @@ const fromDbSchedule = (s: any): ScheduleItem => ({
     subjectName: s.subject_name, teacherId: s.teacher_id
 });
 
+const toDbWeeklyPlan = (w: WeeklyPlanItem) => ({
+    id: w.id, teacher_id: w.teacherId, class_id: w.classId, subject_name: w.subjectName,
+    day: w.day, period: w.period, week_start_date: w.weekStartDate,
+    lesson_topic: w.lessonTopic, homework: w.homework
+});
+const fromDbWeeklyPlan = (w: any): WeeklyPlanItem => ({
+    id: w.id, teacherId: w.teacher_id, classId: w.class_id, subjectName: w.subject_name,
+    day: w.day, period: w.period, weekStartDate: w.week_start_date,
+    lessonTopic: w.lesson_topic, homework: w.homework
+});
+
+const toDbLessonLink = (l: LessonLink) => ({
+    id: l.id, title: l.title, url: l.url, teacher_id: l.teacherId,
+    created_at: l.createdAt, grade_level: l.gradeLevel, class_name: l.className
+});
+const fromDbLessonLink = (l: any): LessonLink => ({
+    id: l.id, title: l.title, url: l.url, teacherId: l.teacher_id,
+    createdAt: l.created_at, gradeLevel: l.grade_level, className: l.class_name
+});
+
+const toDbLessonPlan = (p: StoredLessonPlan) => ({
+    id: p.id, teacher_id: p.teacherId, subject: p.subject, topic: p.topic,
+    content_json: p.contentJson, resources: p.resources, created_at: p.createdAt
+});
+const fromDbLessonPlan = (p: any): StoredLessonPlan => ({
+    id: p.id, teacherId: p.teacher_id, subject: p.subject, topic: p.topic,
+    contentJson: p.content_json, resources: p.resources, createdAt: p.created_at
+});
+
+const toDbMessage = (m: MessageLog) => ({
+    id: m.id, student_id: m.studentId, student_name: m.studentName,
+    parent_phone: m.parentPhone, type: m.type, content: m.content,
+    status: m.status, date: m.date, sent_by: m.sentBy, teacher_id: m.teacherId
+});
+const fromDbMessage = (m: any): MessageLog => ({
+    id: m.id, studentId: m.student_id, studentName: m.student_name,
+    parentPhone: m.parent_phone, type: m.type, content: m.content,
+    status: m.status, date: m.date, sentBy: m.sent_by, teacherId: m.teacher_id
+});
+
+const toDbCustomTable = (t: CustomTable) => ({
+    id: t.id, name: t.name, created_at: t.createdAt, columns: t.columns,
+    rows: t.rows, source_url: t.sourceUrl, last_updated: t.lastUpdated, teacher_id: t.teacherId
+});
+const fromDbCustomTable = (t: any): CustomTable => ({
+    id: t.id, name: t.name, createdAt: t.created_at, columns: t.columns,
+    rows: t.rows, sourceUrl: t.source_url, lastUpdated: t.last_updated, teacherId: t.teacher_id
+});
+
+const toDbExam = (e: Exam) => ({
+    id: e.id, title: e.title, subject: e.subject, grade_level: e.gradeLevel,
+    duration_minutes: e.durationMinutes, questions: e.questions,
+    is_active: e.isActive, created_at: e.createdAt, teacher_id: e.teacherId, date: e.date
+});
+const fromDbExam = (e: any): Exam => ({
+    id: e.id, title: e.title, subject: e.subject, gradeLevel: e.grade_level,
+    durationMinutes: e.duration_minutes, questions: e.questions,
+    isActive: e.is_active, createdAt: e.created_at, teacherId: e.teacher_id, date: e.date
+});
+
+const toDbQuestion = (q: Question) => ({
+    id: q.id, text: q.text, type: q.type, options: q.options,
+    correct_answer: q.correctAnswer, points: q.points, subject: q.subject,
+    grade_level: q.gradeLevel, teacher_id: q.teacherId
+});
+const fromDbQuestion = (q: any): Question => ({
+    id: q.id, text: q.text, type: q.type, options: q.options,
+    correctAnswer: q.correct_answer, points: q.points, subject: q.subject,
+    gradeLevel: q.grade_level, teacherId: q.teacher_id
+});
+
+const toDbExamResult = (r: ExamResult) => ({
+    id: r.id, exam_id: r.examId, student_id: r.studentId, student_name: r.studentName,
+    score: r.score, total_score: r.totalScore, date: r.date, answers: r.answers
+});
+const fromDbExamResult = (r: any): ExamResult => ({
+    id: r.id, examId: r.exam_id, studentId: r.student_id, studentName: r.student_name,
+    score: r.score, totalScore: r.total_score, date: r.date, answers: r.answers
+});
+
+const toDbUnit = (u: CurriculumUnit) => ({
+    id: u.id, teacher_id: u.teacherId, subject: u.subject, grade_level: u.gradeLevel,
+    title: u.title, order_index: u.orderIndex
+});
+const fromDbUnit = (u: any): CurriculumUnit => ({
+    id: u.id, teacherId: u.teacher_id, subject: u.subject, gradeLevel: u.grade_level,
+    title: u.title, orderIndex: u.order_index
+});
+
+const toDbLesson = (l: CurriculumLesson) => ({
+    id: l.id, unit_id: l.unitId, title: l.title, order_index: l.orderIndex,
+    learning_standards: l.learningStandards, micro_concept_ids: l.microConceptIds
+});
+const fromDbLesson = (l: any): CurriculumLesson => ({
+    id: l.id, unitId: l.unit_id, title: l.title, orderIndex: l.order_index,
+    learningStandards: l.learning_standards, microConceptIds: l.micro_concept_ids
+});
+
+const toDbMicroConcept = (c: MicroConcept) => ({
+    id: c.id, teacher_id: c.teacherId, subject: c.subject, name: c.name
+});
+const fromDbMicroConcept = (c: any): MicroConcept => ({
+    id: c.id, teacherId: c.teacher_id, subject: c.subject, name: c.name
+});
+
+const toDbTrackingSheet = (s: TrackingSheet) => ({
+    id: s.id, title: s.title, subject: s.subject, class_name: s.className,
+    teacher_id: s.teacherId, created_at: s.createdAt, columns: s.columns, scores: s.scores
+});
+const fromDbTrackingSheet = (s: any): TrackingSheet => ({
+    id: s.id, title: s.title, subject: s.subject, className: s.class_name,
+    teacherId: s.teacher_id, createdAt: s.created_at, columns: s.columns, scores: s.scores
+});
+
+const toDbTerm = (t: AcademicTerm) => ({
+    id: t.id, name: t.name, start_date: t.startDate, end_date: t.endDate,
+    is_current: t.isCurrent, teacher_id: t.teacherId, periods: t.periods
+});
+const fromDbTerm = (t: any): AcademicTerm => ({
+    id: t.id, name: t.name, startDate: t.start_date, endDate: t.end_date,
+    isCurrent: t.is_current, teacherId: t.teacher_id, periods: t.periods
+});
+
 // --- Helper Functions ---
 export const DEFAULT_PERIOD_TIMES = [
     "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
@@ -421,11 +544,18 @@ export const forceRefreshData = async () => {
     }
 
     try {
-        const tables = ['schools', 'teachers', 'system_users', 'students', 'attendance', 'performance', 'assignments', 'subjects', 'schedules', 'teacher_assignments', 'exams', 'questions', 'curriculum_units', 'curriculum_lessons', 'academic_terms'];
+        const tables = [
+            'schools', 'teachers', 'system_users', 'students', 'attendance', 
+            'performance', 'assignments', 'subjects', 'schedules', 
+            'weekly_plans', 'lesson_links', 'lesson_plans', 'message_logs', 
+            'custom_tables', 'exams', 'questions', 'exam_results', 
+            'curriculum_units', 'curriculum_lessons', 'micro_concepts', 
+            'tracking_sheets', 'academic_terms'
+        ];
+        
         const promises = tables.map(t => supabase.from(t).select('*'));
         const results = await Promise.all(promises);
         
-        // MAPPING INCOMING DATA
         updateCache(KEYS.SCHOOLS, (results[0].data || []).map(fromDbSchool));
         updateCache(KEYS.TEACHERS, (results[1].data || []).map(fromDbTeacher));
         updateCache(KEYS.USERS, (results[2].data || []).map(fromDbUser));
@@ -433,15 +563,24 @@ export const forceRefreshData = async () => {
         updateCache(KEYS.ATTENDANCE, (results[4].data || []).map(fromDbAttendance));
         updateCache(KEYS.PERFORMANCE, (results[5].data || []).map(fromDbPerformance));
         updateCache(KEYS.WORKS_ASSIGNMENTS, (results[6].data || []).map(fromDbAssignment));
-        updateCache(KEYS.SUBJECTS, results[7].data || []); // Assuming flat structure or minimal map
+        updateCache(KEYS.SUBJECTS, results[7].data || []);
         updateCache(KEYS.SCHEDULES, (results[8].data || []).map(fromDbSchedule));
         
-        updateCache(KEYS.ASSIGNMENTS, results[9].data || []);
-        updateCache(KEYS.EXAMS, results[10].data || []);
-        updateCache(KEYS.QUESTION_BANK, results[11].data || []);
-        updateCache(KEYS.CURRICULUM_UNITS, results[12].data || []);
-        updateCache(KEYS.CURRICULUM_LESSONS, results[13].data || []);
-        updateCache(KEYS.ACADEMIC_TERMS, results[14].data || []);
+        updateCache(KEYS.WEEKLY_PLANS, (results[9].data || []).map(fromDbWeeklyPlan));
+        updateCache(KEYS.LESSON_LINKS, (results[10].data || []).map(fromDbLessonLink));
+        updateCache(KEYS.LESSON_PLANS, (results[11].data || []).map(fromDbLessonPlan));
+        updateCache(KEYS.MESSAGES, (results[12].data || []).map(fromDbMessage));
+        updateCache(KEYS.CUSTOM_TABLES, (results[13].data || []).map(fromDbCustomTable));
+        
+        updateCache(KEYS.EXAMS, (results[14].data || []).map(fromDbExam));
+        updateCache(KEYS.QUESTION_BANK, (results[15].data || []).map(fromDbQuestion));
+        updateCache(KEYS.EXAM_RESULTS, (results[16].data || []).map(fromDbExamResult));
+        
+        updateCache(KEYS.CURRICULUM_UNITS, (results[17].data || []).map(fromDbUnit));
+        updateCache(KEYS.CURRICULUM_LESSONS, (results[18].data || []).map(fromDbLesson));
+        updateCache(KEYS.MICRO_CONCEPTS, (results[19].data || []).map(fromDbMicroConcept));
+        updateCache(KEYS.TRACKING_SHEETS, (results[20].data || []).map(fromDbTrackingSheet));
+        updateCache(KEYS.ACADEMIC_TERMS, (results[21].data || []).map(fromDbTerm));
 
         notifyDataChange();
         setSyncStatus('ONLINE');
@@ -523,13 +662,13 @@ export const getMessages = (teacherId?: string): MessageLog[] => {
 };
 export const saveMessage = async (m: MessageLog) => { 
     const list = get<MessageLog>(KEYS.MESSAGES); list.unshift(m); updateCache(KEYS.MESSAGES, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('message_logs').insert(m);
+    if(isSupabaseConfigured()) await supabase.from('message_logs').insert(toDbMessage(m));
 };
 
 export const getLessonLinks = (): LessonLink[] => get(KEYS.LESSON_LINKS);
 export const saveLessonLink = async (l: LessonLink) => { 
     const list = getLessonLinks(); list.push(l); updateCache(KEYS.LESSON_LINKS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('lesson_links').insert(l);
+    if(isSupabaseConfigured()) await supabase.from('lesson_links').insert(toDbLessonLink(l));
 };
 export const deleteLessonLink = async (id: string) => { 
     updateCache(KEYS.LESSON_LINKS, getLessonLinks().filter(x => x.id !== id)); notifyDataChange();
@@ -539,7 +678,7 @@ export const deleteLessonLink = async (id: string) => {
 export const getLessonPlans = (teacherId: string): StoredLessonPlan[] => get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.teacherId === teacherId);
 export const saveLessonPlan = async (p: StoredLessonPlan) => { 
     const list = get<StoredLessonPlan>(KEYS.LESSON_PLANS); list.push(p); updateCache(KEYS.LESSON_PLANS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('lesson_plans').insert(p);
+    if(isSupabaseConfigured()) await supabase.from('lesson_plans').insert(toDbLessonPlan(p));
 };
 export const deleteLessonPlan = async (id: string) => { 
     updateCache(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(x => x.id !== id)); notifyDataChange();
@@ -555,13 +694,13 @@ export const saveWeeklyPlanItem = async (item: WeeklyPlanItem) => {
     const list = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS);
     const idx = list.findIndex(x => x.id === item.id); if (idx > -1) list[idx] = item; else list.push(item);
     updateCache(KEYS.WEEKLY_PLANS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('weekly_plans').upsert(item);
+    if(isSupabaseConfigured()) await supabase.from('weekly_plans').upsert(toDbWeeklyPlan(item));
 };
 
 export const getCurriculumUnits = (teacherId: string): CurriculumUnit[] => get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(u => u.teacherId === teacherId);
 export const saveCurriculumUnit = async (u: CurriculumUnit) => { 
     const list = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS); list.push(u); updateCache(KEYS.CURRICULUM_UNITS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('curriculum_units').insert(u);
+    if(isSupabaseConfigured()) await supabase.from('curriculum_units').insert(toDbUnit(u));
 };
 export const deleteCurriculumUnit = async (id: string) => { 
     updateCache(KEYS.CURRICULUM_UNITS, get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(x => x.id !== id)); notifyDataChange();
@@ -573,7 +712,7 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     const list = get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS);
     const idx = list.findIndex(x => x.id === l.id); if (idx > -1) list[idx] = l; else list.push(l);
     updateCache(KEYS.CURRICULUM_LESSONS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('curriculum_lessons').upsert(l);
+    if(isSupabaseConfigured()) await supabase.from('curriculum_lessons').upsert(toDbLesson(l));
 };
 export const deleteCurriculumLesson = async (id: string) => { 
     updateCache(KEYS.CURRICULUM_LESSONS, get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS).filter(x => x.id !== id)); notifyDataChange();
@@ -583,7 +722,7 @@ export const deleteCurriculumLesson = async (id: string) => {
 export const getMicroConcepts = (teacherId: string): MicroConcept[] => get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(c => c.teacherId === teacherId);
 export const saveMicroConcept = async (c: MicroConcept) => { 
     const list = get<MicroConcept>(KEYS.MICRO_CONCEPTS); list.push(c); updateCache(KEYS.MICRO_CONCEPTS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('micro_concepts').insert(c);
+    if(isSupabaseConfigured()) await supabase.from('micro_concepts').insert(toDbMicroConcept(c));
 };
 export const deleteMicroConcept = async (id: string) => { 
     updateCache(KEYS.MICRO_CONCEPTS, get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(x => x.id !== id)); notifyDataChange();
@@ -599,7 +738,7 @@ export const saveExam = async (e: Exam) => {
     const list = get<Exam>(KEYS.EXAMS);
     const idx = list.findIndex(x => x.id === e.id); if (idx > -1) list[idx] = e; else list.push(e);
     updateCache(KEYS.EXAMS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('exams').upsert(e);
+    if(isSupabaseConfigured()) await supabase.from('exams').upsert(toDbExam(e));
 };
 export const deleteExam = async (id: string) => { 
     updateCache(KEYS.EXAMS, get<Exam>(KEYS.EXAMS).filter(x => x.id !== id)); notifyDataChange();
@@ -613,7 +752,7 @@ export const getExamResults = (examId?: string): ExamResult[] => {
 };
 export const saveExamResult = async (r: ExamResult) => { 
     const list = get<ExamResult>(KEYS.EXAM_RESULTS); list.push(r); updateCache(KEYS.EXAM_RESULTS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('exam_results').insert(r);
+    if(isSupabaseConfigured()) await supabase.from('exam_results').insert(toDbExamResult(r));
 };
 export const deleteExamResult = async (id: string) => { 
     updateCache(KEYS.EXAM_RESULTS, get<ExamResult>(KEYS.EXAM_RESULTS).filter(x => x.id !== id)); notifyDataChange();
@@ -625,7 +764,7 @@ export const saveQuestionToBank = async (q: Question) => {
     const list = get<Question>(KEYS.QUESTION_BANK);
     const idx = list.findIndex(x => x.id === q.id); if (idx > -1) list[idx] = q; else list.push(q);
     updateCache(KEYS.QUESTION_BANK, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('questions').upsert(q);
+    if(isSupabaseConfigured()) await supabase.from('questions').upsert(toDbQuestion(q));
 };
 export const deleteQuestionFromBank = async (id: string) => { 
     updateCache(KEYS.QUESTION_BANK, get<Question>(KEYS.QUESTION_BANK).filter(x => x.id !== id)); notifyDataChange();
@@ -641,7 +780,7 @@ export const saveTrackingSheet = async (s: TrackingSheet) => {
     const list = get<TrackingSheet>(KEYS.TRACKING_SHEETS);
     const idx = list.findIndex(x => x.id === s.id); if (idx > -1) list[idx] = s; else list.push(s);
     updateCache(KEYS.TRACKING_SHEETS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('tracking_sheets').upsert(s);
+    if(isSupabaseConfigured()) await supabase.from('tracking_sheets').upsert(toDbTrackingSheet(s));
 };
 export const deleteTrackingSheet = async (id: string) => { 
     updateCache(KEYS.TRACKING_SHEETS, get<TrackingSheet>(KEYS.TRACKING_SHEETS).filter(x => x.id !== id)); notifyDataChange();
@@ -655,12 +794,12 @@ export const getCustomTables = (teacherId?: string): CustomTable[] => {
 };
 export const addCustomTable = async (t: CustomTable) => { 
     const list = get<CustomTable>(KEYS.CUSTOM_TABLES); list.push(t); updateCache(KEYS.CUSTOM_TABLES, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('custom_tables').insert(t);
+    if(isSupabaseConfigured()) await supabase.from('custom_tables').insert(toDbCustomTable(t));
 };
 export const updateCustomTable = async (t: CustomTable) => { 
     const list = get<CustomTable>(KEYS.CUSTOM_TABLES); const idx = list.findIndex(x => x.id === t.id); if (idx > -1) list[idx] = t; 
     updateCache(KEYS.CUSTOM_TABLES, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('custom_tables').update(t).eq('id', t.id);
+    if(isSupabaseConfigured()) await supabase.from('custom_tables').update(toDbCustomTable(t)).eq('id', t.id);
 };
 export const deleteCustomTable = async (id: string) => { 
     updateCache(KEYS.CUSTOM_TABLES, get<CustomTable>(KEYS.CUSTOM_TABLES).filter(x => x.id !== id)); notifyDataChange();
@@ -676,7 +815,7 @@ export const saveAcademicTerm = async (term: AcademicTerm) => {
     const list = get<AcademicTerm>(KEYS.ACADEMIC_TERMS);
     const idx = list.findIndex(t => t.id === term.id); if (idx > -1) list[idx] = term; else list.push(term);
     updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('academic_terms').upsert(term);
+    if(isSupabaseConfigured()) await supabase.from('academic_terms').upsert(toDbTerm(term));
 };
 export const deleteAcademicTerm = async (id: string) => { 
     updateCache(KEYS.ACADEMIC_TERMS, get<AcademicTerm>(KEYS.ACADEMIC_TERMS).filter(t => t.id !== id)); notifyDataChange();
@@ -690,7 +829,8 @@ export const setCurrentTerm = async (id: string, teacherId?: string) => {
         return t;
     });
     updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('academic_terms').upsert(list.filter(t => t.teacherId === teacherId));
+    const target = list.find(t => t.id === id && t.teacherId === teacherId);
+    if(target && isSupabaseConfigured()) await supabase.from('academic_terms').upsert(toDbTerm(target));
 };
 
 export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig => {
@@ -1019,6 +1159,18 @@ CREATE TABLE IF NOT EXISTS academic_terms (
     is_current BOOLEAN,
     teacher_id TEXT,
     periods JSONB
+);
+
+CREATE TABLE IF NOT EXISTS weekly_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    class_id TEXT,
+    subject_name TEXT,
+    day TEXT,
+    period INTEGER,
+    week_start_date TEXT,
+    lesson_topic TEXT,
+    homework TEXT
 );
 `;
 };
