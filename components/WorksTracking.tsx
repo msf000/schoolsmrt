@@ -97,14 +97,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
     const [sheetData, setSheetData] = useState<any[]>([]); // Store raw data to calc max scores
     const [workbookRef, setWorkbookRef] = useState<any>(null);
+    
+    // State for column configurations in the import table
+    const [columnConfigs, setColumnConfigs] = useState<Record<string, { maxScore: string, url: string }>>({});
 
     // -- Settings Modal State --
     const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET' | 'DISTRIBUTION'>('MANUAL');
     const [newColTitle, setNewColTitle] = useState('');
     const [newColMax, setNewColMax] = useState('10');
-    const [newColUrl, setNewColUrl] = useState(''); // NEW: URL for manual column
+    const [newColUrl, setNewColUrl] = useState(''); 
     const [newColCategory, setNewColCategory] = useState<string>('HOMEWORK');
-    const [newCustomCategory, setNewCustomCategory] = useState(''); // For Manual
+    const [newCustomCategory, setNewCustomCategory] = useState(''); 
     
     // --- Mobile Grading Mode State ---
     const [mobileGradingMode, setMobileGradingMode] = useState(false);
@@ -125,6 +128,25 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setMobileGradingMode(true);
         }
     }, []);
+
+    // Helper to auto-calculate max scores when sheet data is loaded
+    useEffect(() => {
+        if (availableHeaders.length > 0 && sheetData.length > 0) {
+            const initialConfigs: Record<string, { maxScore: string, url: string }> = {};
+            availableHeaders.forEach(header => {
+                let maxVal = 0;
+                sheetData.forEach(r => {
+                    const v = parseFloat(r[header]);
+                    if(!isNaN(v) && v > maxVal) maxVal = v;
+                });
+                initialConfigs[header] = { 
+                    maxScore: maxVal > 0 ? maxVal.toString() : '10', 
+                    url: '' 
+                };
+            });
+            setColumnConfigs(initialConfigs);
+        }
+    }, [availableHeaders, sheetData]);
 
     const findStudentNameInRow = (row: any): string | undefined => {
         for (const key of STUDENT_NAME_HEADERS) {
@@ -422,22 +444,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return;
         }
 
-        // Auto Calc Max
-        let max = 10;
-        if (sheetData && sheetData.length > 0) {
-            let maxVal = 0;
-            sheetData.forEach(r => {
-                const v = parseFloat(r[header]);
-                if(!isNaN(v) && v > maxVal) maxVal = v;
-            });
-            if(maxVal > 0) max = maxVal;
-        }
+        const config = columnConfigs[header] || { maxScore: '10', url: '' };
+        const max = parseFloat(config.maxScore) || 10;
 
         const newAssign: Assignment = {
             id: Date.now().toString(),
             title: header,
             category: categoryToUse, 
             maxScore: max,
+            url: config.url,
             isVisible: true,
             teacherId: currentUser?.id,
             sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header }),
@@ -446,7 +461,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         };
         saveAssignment(newAssign);
         setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-        alert(`تم إضافة العمود "${header}" (درجة عظمى: ${max})`);
+        alert(`تم إضافة العمود "${header}" بنجاح!`);
+    };
+
+    const handleColumnConfigChange = (header: string, field: 'maxScore' | 'url', value: string) => {
+        setColumnConfigs(prev => ({
+            ...prev,
+            [header]: {
+                ...prev[header],
+                [field]: value
+            }
+        }));
     };
 
     const saveYearWorkSettings = () => {
@@ -1034,7 +1059,155 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </div>
                             )}
 
-                            {/* ... (SHEET AND DISTRIBUTION TABS - Unchanged) ... */}
+                            {/* --- SHEET TAB (UPDATED UI) --- */}
+                            {settingsTab === 'SHEET' && (
+                                <div className="space-y-6">
+                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm">
+                                        <label className="block text-sm font-bold text-green-800 mb-2">رابط ملف Google Sheet (تأكد من صلاحية العرض)</label>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                className="flex-1 p-2 border border-green-300 rounded-lg text-sm dir-ltr text-left outline-none focus:ring-2 focus:ring-green-500" 
+                                                value={googleSheetUrl} 
+                                                onChange={e => setGoogleSheetUrl(e.target.value)}
+                                                placeholder="https://docs.google.com/spreadsheets/d/..."
+                                            />
+                                            <button 
+                                                onClick={handleFetchSheetHeaders} 
+                                                disabled={isFetchingStructure} 
+                                                className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center gap-2 shadow-sm disabled:opacity-50"
+                                            >
+                                                {isFetchingStructure ? <Loader2 size={16} className="animate-spin"/> : <CloudLightning size={16}/>}
+                                                جلب الأعمدة
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {availableHeaders.length > 0 && (
+                                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                            {/* Filters Bar */}
+                                            <div className="p-3 bg-gray-50 border-b flex flex-wrap gap-4 items-center">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-500 block mb-1">تصنيف العمود:</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <Tag size={14} className="text-green-600"/>
+                                                        <select 
+                                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
+                                                            value={importCategory} 
+                                                            onChange={e => setImportCategory(e.target.value)}
+                                                        >
+                                                            {DEFAULT_CATEGORIES.map(cat => (
+                                                                <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                                            ))}
+                                                            <option value="CUSTOM">أخرى...</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                {importCategory === 'CUSTOM' && (
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 block mb-1">اسم مخصص:</label>
+                                                        <input className="p-1.5 border rounded text-xs w-32 bg-yellow-50" value={customImportCategory} onChange={e => setCustomImportCategory(e.target.value)} placeholder="مشروع..."/>
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="w-[1px] h-8 bg-gray-300"></div>
+
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-500 block mb-1">من ورقة:</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <FileSpreadsheet size={14} className="text-blue-600"/>
+                                                        <select 
+                                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
+                                                            value={selectedSheetName} 
+                                                            onChange={e => { setSelectedSheetName(e.target.value); handleFetchSheetHeaders(); }} // Re-fetch logic simplified for demo
+                                                        >
+                                                            {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="w-[1px] h-8 bg-gray-300"></div>
+
+                                                <div className="flex gap-2">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 block mb-1">الاستيراد إلى:</label>
+                                                        <select 
+                                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[100px]" 
+                                                            value={settingPeriodId} 
+                                                            onChange={e => setSettingPeriodId(e.target.value)}
+                                                        >
+                                                            <option value="">الفترة (عام)</option>
+                                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 block mb-1">&nbsp;</label>
+                                                        <select 
+                                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
+                                                            value={settingTermId} 
+                                                            onChange={e => { setSettingTermId(e.target.value); setSettingPeriodId(''); }}
+                                                        >
+                                                            <option value="">اختر الفصل...</option>
+                                                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Columns Table */}
+                                            <div className="max-h-[400px] overflow-y-auto">
+                                                <div className="grid grid-cols-12 gap-2 p-3 bg-gray-100 text-[10px] font-bold text-gray-500 border-b uppercase">
+                                                    <div className="col-span-2 text-center">إجراء</div>
+                                                    <div className="col-span-5">رابط المصدر (اختياري)</div>
+                                                    <div className="col-span-2 text-center">الدرجة العظمى</div>
+                                                    <div className="col-span-3 text-right">اسم العمود (من الملف)</div>
+                                                </div>
+                                                
+                                                <div className="divide-y">
+                                                    {availableHeaders.map(h => {
+                                                        const config = columnConfigs[h] || { maxScore: '10', url: '' };
+                                                        return (
+                                                            <div key={h} className="grid grid-cols-12 gap-2 p-2 items-center hover:bg-green-50 transition-colors group">
+                                                                <div className="col-span-2 text-center">
+                                                                    <button 
+                                                                        onClick={() => handleImportColumnFromSheet(h)}
+                                                                        className="w-full py-1.5 bg-white border border-green-500 text-green-600 rounded text-xs font-bold hover:bg-green-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-1"
+                                                                    >
+                                                                        <DownloadCloud size={14}/> استيراد
+                                                                    </button>
+                                                                </div>
+                                                                <div className="col-span-5">
+                                                                    <input 
+                                                                        className="w-full p-1.5 border rounded text-xs bg-gray-50 focus:bg-white outline-none dir-ltr text-left" 
+                                                                        placeholder="https://..."
+                                                                        value={config.url}
+                                                                        onChange={e => handleColumnConfigChange(h, 'url', e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                <div className="col-span-2">
+                                                                    <input 
+                                                                        type="number" 
+                                                                        className="w-full p-1.5 border rounded text-xs text-center font-bold bg-white focus:ring-1 focus:ring-green-500 outline-none" 
+                                                                        value={config.maxScore}
+                                                                        onChange={e => handleColumnConfigChange(h, 'maxScore', e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                <div className="col-span-3 text-right font-bold text-gray-700 text-xs truncate" title={h}>
+                                                                    {h}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                            <div className="p-2 bg-gray-50 text-[10px] text-gray-400 text-center border-t">
+                                                * يتم حساب الدرجة العظمى تلقائياً من البيانات، ويمكنك تعديلها يدوياً.
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ... (DISTRIBUTION TAB - Unchanged) ... */}
                             {settingsTab === 'DISTRIBUTION' && (
                                 <div className="max-w-2xl mx-auto space-y-6">
                                     {/* ... Existing Distribution code ... */}
@@ -1065,59 +1238,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <button onClick={saveYearWorkSettings} className="bg-orange-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-700">حفظ التوزيع</button>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-
-                            {settingsTab === 'SHEET' && (
-                                <div className="space-y-6">
-                                    {/* ... Existing Sheet Tab code ... */}
-                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 space-y-3">
-                                        <label className="block text-sm font-bold text-green-800">رابط ملف Google Sheet</label>
-                                        <div className="flex gap-2">
-                                            <input className="flex-1 p-2 border border-green-300 rounded-lg text-sm dir-ltr" value={googleSheetUrl} onChange={e => setGoogleSheetUrl(e.target.value)}/>
-                                            <button onClick={handleFetchSheetHeaders} disabled={isFetchingStructure} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm">جلب الأعمدة</button>
-                                        </div>
-                                    </div>
-
-                                    {availableHeaders.length > 0 && (
-                                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                                            <h4 className="font-bold text-gray-700 mb-3">اختر الأعمدة للاستيراد</h4>
-                                            
-                                            <div className="flex items-center gap-4 mb-4">
-                                                <div className="flex-1">
-                                                    <label className="block text-xs font-bold text-gray-500 mb-1">التصنيف (التبويب)</label>
-                                                    <select 
-                                                        className="w-full p-2 border rounded-lg text-sm bg-white" 
-                                                        value={importCategory} 
-                                                        onChange={e => setImportCategory(e.target.value)}
-                                                    >
-                                                        {DEFAULT_CATEGORIES.map(cat => (
-                                                            <option key={cat.id} value={cat.id}>{cat.label}</option>
-                                                        ))}
-                                                        <option value="CUSTOM">أخرى / جديد...</option>
-                                                    </select>
-                                                </div>
-                                                {importCategory === 'CUSTOM' && (
-                                                    <div className="flex-1">
-                                                        <label className="block text-xs font-bold text-gray-500 mb-1">اسم التبويب</label>
-                                                        <input className="w-full p-2 border rounded-lg text-sm bg-yellow-50" placeholder="مثال: مشاريع" value={customImportCategory} onChange={e => setCustomImportCategory(e.target.value)}/>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
-                                                {availableHeaders.map(h => (
-                                                    <button 
-                                                        key={h} 
-                                                        onClick={() => handleImportColumnFromSheet(h)}
-                                                        className="px-3 py-2 bg-gray-100 hover:bg-green-50 hover:text-green-700 border border-gray-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                                                    >
-                                                        <Plus size={14}/> {h}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
                         </div>
