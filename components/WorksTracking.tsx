@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
@@ -13,12 +14,6 @@ interface WorksTrackingProps {
     onAddPerformance: (records: PerformanceRecord[]) => void;
     currentUser?: SystemUser | null;
 }
-
-const IGNORED_COLUMNS = [
-    'name', 'id', 'class', 'grade', 'student', 'section', 'email', 'phone', 'mobile', 'gender', 'national', 'date', 'time', 'timestamp',
-    'الاسم', 'اسم', 'الطالب', 'طالب', 'الفصل', 'الصف', 'الهوية', 'السجل', 'المدني', 'الجوال', 'هاتف', 'بريد', 'ملاحظات', 'ملاحظة', 'جنس', 'تاريخ',
-    'note', 'nationalid', 'student_name', 'full_name', 'الاسم الثلاثي', 'الاسم الرباعي'
-];
 
 const STUDENT_NAME_HEADERS = [
     'الاسم', 'اسم', 'اسم الطالب', 'الطالب', 'اسمك', 'لطالب', 
@@ -942,6 +937,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <option value="">اختر الفصل...</option>
                                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                         </select>
+                                        <select 
+                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
+                                            value={settingPeriodId} 
+                                            onChange={e => setSettingPeriodId(e.target.value)}
+                                        >
+                                            <option value="">الفترة (عام)</option>
+                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
                                     </div>
 
                                     {/* Add New Column Form */}
@@ -987,15 +990,40 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <div className="p-3 bg-gray-50 border-b text-xs font-bold text-gray-500 flex">
                                             <div className="flex-1">عنوان العمود</div>
                                             <div className="w-24 text-center">الدرجة</div>
+                                            <div className="w-48 text-center">الرابط</div>
                                             <div className="w-32 text-center">التصنيف</div>
                                             <div className="w-20 text-center">حذف</div>
                                         </div>
                                         <div className="divide-y max-h-60 overflow-y-auto">
                                             {settingsAssignments.length > 0 ? settingsAssignments.map(assign => (
                                                 <div key={assign.id} className="p-3 flex items-center hover:bg-gray-50">
-                                                    <div className="flex-1 text-sm font-bold text-gray-700">{assign.title}</div>
-                                                    <div className="w-24 text-center text-sm">{assign.maxScore}</div>
-                                                    <div className="w-32 text-center"><span className="text-xs bg-gray-100 px-2 py-1 rounded">{CATEGORY_LABELS[assign.category] || assign.category}</span></div>
+                                                    <div className="flex-1">
+                                                        <input 
+                                                            className="w-full bg-transparent outline-none font-bold text-gray-700 text-sm" 
+                                                            value={assign.title} 
+                                                            onChange={e => handleUpdateColumn({...assign, title: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div className="w-24 text-center">
+                                                        <input 
+                                                            className="w-full bg-transparent outline-none text-center text-sm font-mono" 
+                                                            value={assign.maxScore} 
+                                                            onChange={e => handleUpdateColumn({...assign, maxScore: Number(e.target.value)})}
+                                                        />
+                                                    </div>
+                                                    <div className="w-48 text-center">
+                                                        <input 
+                                                            className="w-full bg-transparent outline-none text-xs text-blue-600 dir-ltr" 
+                                                            value={assign.url || ''} 
+                                                            placeholder="أضف رابط..."
+                                                            onChange={e => handleUpdateColumn({...assign, url: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div className="w-32 text-center">
+                                                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                                            {CATEGORY_LABELS[assign.category] || assign.category}
+                                                        </span>
+                                                    </div>
                                                     <div className="w-20 text-center">
                                                         <button onClick={() => handleDeleteColumn(assign.id)} className="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"><Trash2 size={16}/></button>
                                                     </div>
@@ -1006,9 +1034,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </div>
                             )}
 
-                            {/* --- DISTRIBUTION TAB --- */}
+                            {/* ... (SHEET AND DISTRIBUTION TABS - Unchanged) ... */}
                             {settingsTab === 'DISTRIBUTION' && (
                                 <div className="max-w-2xl mx-auto space-y-6">
+                                    {/* ... Existing Distribution code ... */}
                                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
                                         <h4 className="font-bold text-orange-800 mb-2 flex items-center gap-2">
                                             <PieChart size={18}/> توزيع درجات أعمال السنة
@@ -1039,9 +1068,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </div>
                             )}
 
-                            {/* --- SHEET TAB --- */}
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6">
+                                    {/* ... Existing Sheet Tab code ... */}
                                     <div className="bg-green-50 p-4 rounded-xl border border-green-200 space-y-3">
                                         <label className="block text-sm font-bold text-green-800">رابط ملف Google Sheet</label>
                                         <div className="flex gap-2">
