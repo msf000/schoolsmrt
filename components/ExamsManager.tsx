@@ -1,23 +1,32 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Exam, Question, SystemUser, Subject } from '../types';
-import { getExams, saveExam, deleteExam, getSubjects, getQuestionBank } from '../services/storageService';
-import { Plus, Trash2, Edit, FileQuestion, Calendar, CheckCircle, XCircle, Save, ArrowLeft, Check, ListChecks, Type, Printer, Library, FileText, Download, Copy } from 'lucide-react';
+import { Exam, Question, SystemUser, Subject, ExamResult } from '../types';
+import { getExams, saveExam, deleteExam, getSubjects, getQuestionBank, getExamResults, deleteExamResult } from '../services/storageService';
+import { Plus, Trash2, Edit, FileQuestion, Calendar, CheckCircle, XCircle, Save, ArrowLeft, Check, ListChecks, Type, Printer, Library, FileText, Download, Copy, BarChart2, Search, Filter } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface ExamsManagerProps {
     currentUser: SystemUser;
 }
 
 const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
-    const [view, setView] = useState<'LIST' | 'EDITOR' | 'PRINT'>('LIST');
+    const [view, setView] = useState<'LIST' | 'EDITOR' | 'PRINT' | 'RESULTS'>('LIST');
     const [exams, setExams] = useState<Exam[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [questionBank, setQuestionBank] = useState<Question[]>([]);
     
     // Edit State
     const [editingExam, setEditingExam] = useState<Exam | null>(null);
+    
+    // Bank Import State
     const [isBankModalOpen, setIsBankModalOpen] = useState(false);
     const [selectedBankQuestions, setSelectedBankQuestions] = useState<Set<string>>(new Set());
+    const [bankSearch, setBankSearch] = useState('');
+    const [bankFilterGrade, setBankFilterGrade] = useState('');
+
+    // Results State
+    const [selectedExamResults, setSelectedExamResults] = useState<ExamResult[]>([]);
+    const [analytics, setAnalytics] = useState({ avg: 0, max: 0, min: 0, count: 0 });
 
     // Question Form State
     const [qText, setQText] = useState('');
@@ -70,12 +79,53 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     };
 
     const handleDeleteExam = (id: string) => {
-        if (confirm('هل أنت متأكد من حذف الاختبار؟')) {
+        if (confirm('هل أنت متأكد من حذف الاختبار؟ سيتم حذف جميع النتائج المرتبطة به.')) {
             deleteExam(id);
             setExams(getExams(currentUser.id));
         }
     };
 
+    // --- Results Logic ---
+    const handleViewResults = (exam: Exam) => {
+        setEditingExam(exam);
+        const results = getExamResults(exam.id);
+        setSelectedExamResults(results);
+        
+        // Calc Stats
+        if (results.length > 0) {
+            const scores = results.map(r => r.score);
+            const avg = Math.round(scores.reduce((a,b) => a+b, 0) / scores.length * 10) / 10;
+            setAnalytics({
+                avg,
+                max: Math.max(...scores),
+                min: Math.min(...scores),
+                count: results.length
+            });
+        } else {
+            setAnalytics({ avg: 0, max: 0, min: 0, count: 0 });
+        }
+        
+        setView('RESULTS');
+    };
+
+    const handleExportResults = () => {
+        if (!editingExam) return;
+        const data = selectedExamResults.map((r, i) => ({
+            '#': i + 1,
+            'اسم الطالب': r.studentName,
+            'الدرجة': r.score,
+            'الدرجة الكلية': r.totalScore,
+            'النسبة': `${Math.round((r.score/r.totalScore)*100)}%`,
+            'تاريخ التقديم': new Date(r.date).toLocaleDateString('ar-SA') + ' ' + new Date(r.date).toLocaleTimeString('ar-SA')
+        }));
+        
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "النتائج");
+        XLSX.writeFile(wb, `نتائج_${editingExam.title}.xlsx`);
+    };
+
+    // --- Question Logic ---
     const addQuestion = () => {
         if (!qText) return alert('نص السؤال مطلوب');
         if (!qCorrect) return alert('حدد الإجابة الصحيحة');
@@ -109,6 +159,12 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     };
 
     // --- Bank Import Logic ---
+    const filteredBankQuestions = questionBank.filter(q => {
+        const matchesSearch = q.text.includes(bankSearch);
+        const matchesGrade = !bankFilterGrade || q.gradeLevel === bankFilterGrade;
+        return matchesSearch && matchesGrade;
+    });
+
     const toggleBankSelection = (id: string) => {
         const newSet = new Set(selectedBankQuestions);
         if (newSet.has(id)) newSet.delete(id);
@@ -278,10 +334,11 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                         <td className="p-4 font-mono text-gray-500">{exam.questions.length}</td>
                                         <td className="p-4 text-center">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${exam.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                {exam.isActive ? 'نشط' : 'مسودة'}
+                                                {exam.isActive ? 'نشط (Online)' : 'مسودة'}
                                             </span>
                                         </td>
                                         <td className="p-4 flex justify-center gap-2">
+                                            <button onClick={() => handleViewResults(exam)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded" title="النتائج"><BarChart2 size={16}/></button>
                                             <button onClick={() => { setEditingExam(exam); setView('PRINT'); }} className="p-2 text-gray-600 hover:bg-gray-100 rounded" title="طباعة الورقة"><Printer size={16}/></button>
                                             <button onClick={() => { setEditingExam(exam); setView('EDITOR'); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded" title="تعديل"><Edit size={16}/></button>
                                             <button onClick={() => handleDeleteExam(exam.id)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="حذف"><Trash2 size={16}/></button>
@@ -293,6 +350,90 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                         </table>
                     </div>
                 </>
+            )}
+
+            {view === 'RESULTS' && editingExam && (
+                <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
+                    <div className="p-4 border-b bg-indigo-50 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setView('LIST')} className="p-2 hover:bg-white rounded-full"><ArrowLeft size={20} className="text-indigo-700"/></button>
+                            <div>
+                                <h3 className="font-bold text-indigo-900 text-lg">نتائج: {editingExam.title}</h3>
+                                <p className="text-xs text-indigo-600">{editingExam.gradeLevel} - {editingExam.subject}</p>
+                            </div>
+                        </div>
+                        <button onClick={handleExportResults} className="bg-white border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100">
+                            <Download size={18}/> تصدير Excel
+                        </button>
+                    </div>
+
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-4 gap-4 p-6 bg-white border-b">
+                        <div className="bg-gray-50 p-4 rounded-xl border text-center">
+                            <span className="text-xs text-gray-500 font-bold block mb-1">عدد الطلاب</span>
+                            <span className="text-2xl font-black text-gray-800">{analytics.count}</span>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+                            <span className="text-xs text-blue-600 font-bold block mb-1">متوسط الدرجات</span>
+                            <span className="text-2xl font-black text-blue-800">{analytics.avg}</span>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-xl border border-green-100 text-center">
+                            <span className="text-xs text-green-600 font-bold block mb-1">أعلى درجة</span>
+                            <span className="text-2xl font-black text-green-800">{analytics.max}</span>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-center">
+                            <span className="text-xs text-red-600 font-bold block mb-1">أدنى درجة</span>
+                            <span className="text-2xl font-black text-red-800">{analytics.min}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-gray-50 text-gray-600 font-bold sticky top-0">
+                                <tr>
+                                    <th className="p-4">#</th>
+                                    <th className="p-4">اسم الطالب</th>
+                                    <th className="p-4 text-center">الدرجة</th>
+                                    <th className="p-4 text-center">النسبة</th>
+                                    <th className="p-4 text-center">وقت التسليم</th>
+                                    <th className="p-4 text-center">إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {selectedExamResults.map((result, i) => (
+                                    <tr key={result.id} className="hover:bg-gray-50">
+                                        <td className="p-4 text-gray-400">{i + 1}</td>
+                                        <td className="p-4 font-bold text-gray-800">{result.studentName}</td>
+                                        <td className="p-4 text-center font-bold text-lg">
+                                            <span className={result.score >= (result.totalScore * 0.9) ? 'text-green-600' : result.score < (result.totalScore * 0.5) ? 'text-red-600' : 'text-gray-800'}>
+                                                {result.score}
+                                            </span>
+                                            <span className="text-xs text-gray-400 font-normal"> / {result.totalScore}</span>
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${(result.score/result.totalScore) >= 0.9 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                {Math.round((result.score/result.totalScore)*100)}%
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-center text-xs text-gray-500 font-mono">
+                                            {new Date(result.date).toLocaleString('ar-SA')}
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <button 
+                                                onClick={() => { if(confirm('حذف نتيجة الطالب؟')) { deleteExamResult(result.id); handleViewResults(editingExam); } }} 
+                                                className="text-red-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50"
+                                                title="حذف النتيجة (إعادة)"
+                                            >
+                                                <Trash2 size={16}/>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {selectedExamResults.length === 0 && <tr><td colSpan={6} className="p-12 text-center text-gray-400">لا توجد نتائج مسجلة حتى الآن</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
 
             {view === 'EDITOR' && editingExam && (
@@ -490,30 +631,56 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             {/* Bank Modal */}
             {isBankModalOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Library size={18}/> استيراد من بنك الأسئلة</h3>
                             <button onClick={() => setIsBankModalOpen(false)}><XCircle className="text-gray-400 hover:text-red-500"/></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                            {questionBank.length > 0 ? questionBank.map(q => (
+                        
+                        {/* Filters */}
+                        <div className="p-4 border-b bg-white flex gap-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute top-2.5 right-3 text-gray-400" size={16}/>
+                                <input 
+                                    className="w-full pr-9 pl-3 py-2 border rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors"
+                                    placeholder="بحث في الأسئلة..."
+                                    value={bankSearch}
+                                    onChange={e => setBankSearch(e.target.value)}
+                                />
+                            </div>
+                            <select 
+                                className="p-2 border rounded-lg text-sm bg-gray-50"
+                                value={bankFilterGrade}
+                                onChange={e => setBankFilterGrade(e.target.value)}
+                            >
+                                <option value="">كل الصفوف</option>
+                                {["الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط"].map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                            {filteredBankQuestions.length > 0 ? filteredBankQuestions.map(q => (
                                 <div key={q.id} className={`p-3 border rounded-lg cursor-pointer transition-all ${selectedBankQuestions.has(q.id) ? 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-200' : 'hover:bg-gray-50'}`} onClick={() => toggleBankSelection(q.id)}>
                                     <div className="flex justify-between items-start">
                                         <div className="flex items-center gap-2">
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedBankQuestions.has(q.id) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-400'}`}>
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedBankQuestions.has(q.id) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-400'}`}>
                                                 {selectedBankQuestions.has(q.id) && <Check size={12} className="text-white"/>}
                                             </div>
-                                            <span className="font-bold text-gray-800">{q.text}</span>
+                                            <span className="font-bold text-gray-800 text-sm">{q.text}</span>
                                         </div>
-                                        <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500 whitespace-nowrap">{q.gradeLevel}</span>
+                                        <span className="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500 whitespace-nowrap ml-2">{q.gradeLevel}</span>
                                     </div>
-                                    <div className="text-xs text-gray-500 mt-1 mr-6">{q.type === 'MCQ' ? 'خيارات متعددة' : 'صح وخطأ'} • {q.points} درجات</div>
+                                    <div className="text-xs text-gray-500 mt-1 mr-6 flex gap-3">
+                                        <span>{q.type === 'MCQ' ? 'خيارات' : 'صح/خطأ'}</span>
+                                        <span>• {q.points} درجات</span>
+                                    </div>
                                 </div>
-                            )) : <div className="text-center py-8 text-gray-400">لا توجد أسئلة في البنك. انتقل لصفحة بنك الأسئلة للإضافة.</div>}
+                            )) : <div className="text-center py-8 text-gray-400">لا توجد أسئلة مطابقة للبحث.</div>}
                         </div>
-                        <div className="p-4 border-t flex justify-end gap-2">
-                            <button onClick={() => setIsBankModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>
-                            <button onClick={importFromBank} disabled={selectedBankQuestions.size === 0} className="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
+                        
+                        <div className="p-4 border-t flex justify-end gap-2 bg-gray-50">
+                            <button onClick={() => setIsBankModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 font-bold hover:bg-white transition-colors">إلغاء</button>
+                            <button onClick={importFromBank} disabled={selectedBankQuestions.size === 0} className="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors shadow-sm">
                                 <Copy size={16}/> استيراد ({selectedBankQuestions.size})
                             </button>
                         </div>

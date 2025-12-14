@@ -433,6 +433,10 @@ export const saveExamResult = async (r: ExamResult) => {
     const list = get<ExamResult>(KEYS.EXAM_RESULTS); list.push(r); updateCache(KEYS.EXAM_RESULTS, list); notifyDataChange();
     await supabase.from('exam_results').insert(r);
 };
+export const deleteExamResult = async (id: string) => { 
+    updateCache(KEYS.EXAM_RESULTS, get<ExamResult>(KEYS.EXAM_RESULTS).filter(x => x.id !== id)); notifyDataChange();
+    await supabase.from('exam_results').delete().eq('id', id);
+};
 
 export const getQuestionBank = (teacherId: string): Question[] => get<Question>(KEYS.QUESTION_BANK).filter(q => q.teacherId === teacherId);
 export const saveQuestionToBank = async (q: Question) => { 
