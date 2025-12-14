@@ -4,9 +4,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, SystemUser, WeeklyPlanItem, AcademicTerm, Exam } from '../types';
-import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, SystemUser, WeeklyPlanItem, AcademicTerm, Exam, Assignment } from '../types';
+import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms, getAssignments } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle, PieChart as PieIcon, AlertTriangle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -80,6 +80,108 @@ const TodoWidget: React.FC = () => {
                     </div>
                 ))}
                 {todos.length === 0 && <p className="text-center text-xs text-gray-400 mt-4">لا توجد مهام.. استمتع يومك! 🎉</p>}
+            </div>
+        </div>
+    );
+};
+
+const GradingProgressWidget: React.FC<{ students: Student[], performance: PerformanceRecord[], currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ students, performance, currentUser, onNavigate }) => {
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
+    
+    useEffect(() => {
+        if(currentUser) setAssignments(getAssignments('ALL', currentUser.id));
+    }, [currentUser]);
+
+    const stats = useMemo(() => {
+        let missingCount = 0;
+        let totalRequired = 0;
+        
+        // Only count if assignment is visible
+        const activeAssignments = assignments.filter(a => a.isVisible && a.category !== 'YEAR_WORK');
+        
+        activeAssignments.forEach(assign => {
+            // Find students who SHOULD have this assignment
+            students.forEach(s => {
+                totalRequired++;
+                const hasGrade = performance.some(p => p.studentId === s.id && (p.notes === assign.id || p.title === assign.title));
+                if (!hasGrade) missingCount++;
+            });
+        });
+
+        const completion = totalRequired > 0 ? Math.round(((totalRequired - missingCount) / totalRequired) * 100) : 100;
+        return { missingCount, completion, totalAssignments: activeAssignments.length };
+    }, [assignments, students, performance]);
+
+    return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full cursor-pointer hover:border-purple-200 transition-colors" onClick={() => onNavigate('WORKS_TRACKING')}>
+            <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <Table size={18} className="text-purple-600"/> تقدم الرصد
+            </h3>
+            <div className="flex-1 flex flex-col justify-center items-center">
+                <div className="relative w-24 h-24 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90">
+                        <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100" />
+                        <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-purple-600 transition-all duration-1000" strokeDasharray={2 * Math.PI * 40} strokeDashoffset={2 * Math.PI * 40 * (1 - stats.completion / 100)} strokeLinecap="round" />
+                    </svg>
+                    <span className="absolute font-black text-xl text-purple-700">{stats.completion}%</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-2 font-bold">
+                    {stats.missingCount > 0 ? `متبقي ${stats.missingCount} درجة لرصدها` : 'تم رصد جميع الدرجات!'}
+                </p>
+                <div className="text-[10px] text-gray-400 mt-1">{stats.totalAssignments} أعمدة (واجبات/اختبارات)</div>
+            </div>
+        </div>
+    );
+};
+
+const AtRiskWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], onStudentClick: (id: string) => void }> = ({ students, attendance, performance, onStudentClick }) => {
+    const riskyStudents = useMemo(() => {
+        return students.map(s => {
+            const sAtt = attendance.filter(a => a.studentId === s.id);
+            const sPerf = performance.filter(p => p.studentId === s.id);
+            
+            const totalDays = sAtt.length;
+            const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+            const absenceRate = totalDays > 0 ? (absent / totalDays) * 100 : 0;
+
+            const totalScore = sPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
+            const avgScore = sPerf.length > 0 ? (totalScore / sPerf.length) * 100 : 100;
+
+            const risks = [];
+            if (absenceRate > 15) risks.push('غياب');
+            if (avgScore < 50) risks.push('أكاديمي');
+
+            return { ...s, risks, absenceRate, avgScore };
+        }).filter(s => s.risks.length > 0).slice(0, 5); // Limit to 5
+    }, [students, attendance, performance]);
+
+    return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm">
+                <AlertTriangle size={18} className="text-red-500"/> طلاب بحاجة لمتابعة
+            </h3>
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+                {riskyStudents.length > 0 ? riskyStudents.map(s => (
+                    <div 
+                        key={s.id} 
+                        onClick={() => onStudentClick(s.id)}
+                        className="flex items-center justify-between p-2 rounded-lg bg-red-50 border border-red-100 cursor-pointer hover:bg-red-100 transition-colors"
+                    >
+                        <div>
+                            <span className="font-bold text-xs text-gray-800 block">{s.name}</span>
+                            <span className="text-[10px] text-gray-500">{s.className}</span>
+                        </div>
+                        <div className="flex gap-1">
+                            {s.risks.includes('غياب') && <span className="text-[9px] bg-white text-red-600 px-1.5 py-0.5 rounded border border-red-200 font-bold">غياب {Math.round(s.absenceRate)}%</span>}
+                            {s.risks.includes('أكاديمي') && <span className="text-[9px] bg-white text-orange-600 px-1.5 py-0.5 rounded border border-orange-200 font-bold">معدل {Math.round(s.avgScore)}%</span>}
+                        </div>
+                    </div>
+                )) : (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                        <CheckCircle size={24} className="mb-2 text-green-200"/>
+                        <p className="text-xs">الوضع ممتاز! لا يوجد طلاب في خطر.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -169,132 +271,141 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       {/* Main KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Students */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden group hover:border-indigo-200 transition-all cursor-pointer" onClick={() => onNavigate('STUDENTS')}>
-              <div className="absolute right-0 top-0 w-2 h-full bg-indigo-500"></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
               <div>
-                  <p className="text-gray-500 text-xs font-bold mb-1">إجمالي الطلاب</p>
+                  <p className="text-gray-400 text-xs font-bold uppercase mb-1">إجمالي الطلاب</p>
                   <h3 className="text-3xl font-black text-gray-800">{stats.totalStudents}</h3>
-                  <span className="text-[10px] text-indigo-500 font-bold bg-indigo-50 px-2 py-0.5 rounded-full mt-2 inline-block">مسجلين في النظام</span>
               </div>
-              <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+              <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600 group-hover:scale-110 transition-transform">
                   <Users size={24}/>
               </div>
           </div>
 
           {/* Card 2: Attendance */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden group hover:border-green-200 transition-all cursor-pointer" onClick={() => onNavigate('ATTENDANCE')}>
-              <div className="absolute right-0 top-0 w-2 h-full bg-green-500"></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
               <div>
-                  <p className="text-gray-500 text-xs font-bold mb-1">نسبة الحضور اليوم</p>
-                  <h3 className="text-3xl font-black text-gray-800">{stats.attendanceRate}%</h3>
-                  <div className="flex gap-2 mt-2">
-                      <span className="text-[10px] text-green-700 bg-green-50 px-2 py-0.5 rounded font-bold">{stats.present} حاضر</span>
-                      <span className="text-[10px] text-red-700 bg-red-50 px-2 py-0.5 rounded font-bold">{stats.absent} غائب</span>
+                  <p className="text-gray-400 text-xs font-bold uppercase mb-1">حضور اليوم</p>
+                  <div className="flex items-end gap-2">
+                      <h3 className="text-3xl font-black text-gray-800">{stats.attendanceRate}%</h3>
+                      <span className="text-xs text-red-500 font-bold mb-1.5 bg-red-50 px-1 rounded">{stats.absent} غياب</span>
                   </div>
               </div>
-              <div className="h-16 w-16">
-                  <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                          <Pie data={stats.attendanceData} cx="50%" cy="50%" innerRadius={15} outerRadius={25} dataKey="value" stroke="none">
-                              <Cell fill="#10b981" />
-                              <Cell fill="#ef4444" />
-                          </Pie>
-                      </PieChart>
-                  </ResponsiveContainer>
+              <div className="bg-green-50 p-3 rounded-xl text-green-600 group-hover:scale-110 transition-transform">
+                  <Clock size={24}/>
               </div>
           </div>
 
-          {/* Card 3: Performance */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden group hover:border-purple-200 transition-all cursor-pointer" onClick={() => onNavigate('PERFORMANCE')}>
-              <div className="absolute right-0 top-0 w-2 h-full bg-purple-500"></div>
+          {/* Card 3: Avg Score */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
               <div>
-                  <p className="text-gray-500 text-xs font-bold mb-1">متوسط الأداء الأكاديمي</p>
+                  <p className="text-gray-400 text-xs font-bold uppercase mb-1">متوسط التحصيل</p>
                   <h3 className="text-3xl font-black text-gray-800">{stats.avgScore}%</h3>
-                  <span className="text-[10px] text-purple-500 font-bold bg-purple-50 px-2 py-0.5 rounded-full mt-2 inline-block">للفترة الحالية</span>
               </div>
-              <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
+              <div className="bg-purple-50 p-3 rounded-xl text-purple-600 group-hover:scale-110 transition-transform">
                   <Activity size={24}/>
               </div>
           </div>
 
-          {/* Card 4: Quick Actions */}
-          <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-5 rounded-2xl shadow-lg text-white flex flex-col justify-center gap-3">
-              <h3 className="font-bold text-sm flex items-center gap-2 text-gray-200"><Clock size={16}/> إجراءات سريعة</h3>
-              <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => onNavigate('ATTENDANCE')} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-xs font-bold transition-colors text-center">
-                      تسجيل الحضور
-                  </button>
-                  <button onClick={() => onNavigate('WORKS_TRACKING')} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-xs font-bold transition-colors text-center">
-                      رصد الدرجات
-                  </button>
+          {/* Card 4: Action */}
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 rounded-2xl shadow-lg flex items-center justify-between text-white cursor-pointer hover:shadow-xl transition-all" onClick={() => onNavigate('AI_REPORTS')}>
+              <div>
+                  <p className="text-indigo-100 text-xs font-bold uppercase mb-1">تحليل ذكي</p>
+                  <h3 className="text-lg font-bold">تقرير الأداء</h3>
+                  <p className="text-[10px] text-indigo-200 mt-1">توليد تقرير بالذكاء الاصطناعي</p>
+              </div>
+              <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
+                  <Award size={24}/>
               </div>
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content Area */}
-          <div className="lg:col-span-2 space-y-6">
-              
-              {/* Top Students */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                      <h3 className="font-bold text-gray-800 flex items-center gap-2"><Trophy className="text-yellow-500" size={20}/> لوحة الشرف (الأعلى أداءً)</h3>
-                      <button onClick={() => onNavigate('STUDENT_FOLLOWUP')} className="text-xs text-blue-600 font-bold hover:underline">عرض التفاصيل</button>
-                  </div>
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {topStudents.length > 0 ? topStudents.map((s, idx) => (
-                          <div key={s.id} className="flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-yellow-200 hover:bg-yellow-50/30 transition-all group cursor-pointer" onClick={() => handleRiskClick(s.id)}>
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shadow-sm ${idx === 0 ? 'bg-yellow-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700' : idx === 2 ? 'bg-orange-300 text-white' : 'bg-blue-100 text-blue-600'}`}>
-                                  {idx + 1}
-                              </div>
-                              <div className="flex-1">
-                                  <h4 className="font-bold text-gray-800 text-sm group-hover:text-yellow-700 transition-colors">{s.name}</h4>
-                                  <p className="text-[10px] text-gray-400">{s.className}</p>
-                              </div>
-                              <div className="text-right">
-                                  <span className="block font-black text-lg text-gray-800">{s.avg}%</span>
-                              </div>
-                          </div>
-                      )) : <div className="col-span-2 text-center py-8 text-gray-400 text-sm">لا توجد بيانات كافية للتقييم</div>}
-                  </div>
-              </div>
+      {/* Middle Section: Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-80">
+          
+          {/* 1. At Risk Widget (New) */}
+          <div className="lg:col-span-1">
+              <AtRiskWidget 
+                  students={students} 
+                  attendance={attendance} 
+                  performance={performance} 
+                  onStudentClick={handleRiskClick} 
+              />
+          </div>
 
-              {/* Attendance Chart Place holder (Simplified) */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><CalendarDays className="text-teal-600"/> ملخص الحضور الأسبوعي</h3>
-                  <div className="h-48 w-full bg-gray-50 rounded-xl flex items-center justify-center border border-dashed border-gray-200">
-                      <p className="text-gray-400 text-sm flex items-col gap-2 flex-col items-center">
-                          <TrendingUp size={24}/>
-                          يتم تجميع البيانات تلقائياً عند تسجيل الحضور اليومي
-                      </p>
-                  </div>
+          {/* 2. Grading Progress */}
+          <div className="lg:col-span-1">
+              <GradingProgressWidget 
+                  students={students} 
+                  performance={performance} 
+                  currentUser={currentUser}
+                  onNavigate={onNavigate}
+              />
+          </div>
+
+          {/* 3. Todo List */}
+          <div className="lg:col-span-1">
+              <TodoWidget />
+          </div>
+      </div>
+
+      {/* Bottom Section: Charts & Lists */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Chart */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                      <TrendingUp size={18} className="text-blue-500"/> الأداء الأكاديمي (أفضل 5 طلاب)
+                  </h3>
+              </div>
+              <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topStudents} barSize={40}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                          <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
+                          <YAxis domain={[0, 100]} />
+                          <Tooltip 
+                              contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                              cursor={{fill: '#f8fafc'}}
+                          />
+                          <Bar dataKey="avg" fill="#6366f1" radius={[6, 6, 0, 0]}>
+                              {topStudents.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                          </Bar>
+                      </BarChart>
+                  </ResponsiveContainer>
               </div>
           </div>
 
-          {/* Sidebar Area */}
-          <div className="lg:col-span-1 space-y-6">
-              <TodoWidget />
-              
-              {/* Quick Navigation Panel */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                  <h3 className="font-bold text-gray-800 mb-4 text-sm">روابط سريعة</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => onNavigate('STUDENTS')} className="flex flex-col items-center justify-center p-3 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors">
-                          <Users size={20} className="mb-2"/>
-                          <span className="text-xs font-bold">الطلاب</span>
-                      </button>
-                      <button onClick={() => onNavigate('PERFORMANCE')} className="flex flex-col items-center justify-center p-3 bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100 transition-colors">
-                          <Award size={20} className="mb-2"/>
-                          <span className="text-xs font-bold">الدرجات</span>
-                      </button>
-                      <button onClick={() => onNavigate('AI_REPORTS')} className="flex flex-col items-center justify-center p-3 bg-teal-50 text-teal-700 rounded-xl hover:bg-teal-100 transition-colors">
-                          <FileQuestion size={20} className="mb-2"/>
-                          <span className="text-xs font-bold">تقارير AI</span>
-                      </button>
-                      <button onClick={() => onNavigate('MESSAGE_CENTER')} className="flex flex-col items-center justify-center p-3 bg-orange-50 text-orange-700 rounded-xl hover:bg-orange-100 transition-colors">
-                          <MessageCircle size={20} className="mb-2"/>
-                          <span className="text-xs font-bold">الرسائل</span>
-                      </button>
+          {/* Attendance Pie */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                  <PieIcon size={18} className="text-green-500"/> ملخص الحضور اليومي
+              </h3>
+              <div className="h-64 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                          <Pie
+                              data={stats.attendanceData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={80}
+                              paddingAngle={5}
+                              dataKey="value"
+                          >
+                              {stats.attendanceData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : '#ef4444'} />
+                              ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend verticalAlign="bottom" iconType="circle" />
+                      </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Text */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-3xl font-black text-gray-800">{stats.attendanceRate}%</span>
+                      <span className="text-[10px] text-gray-400">نسبة الحضور</span>
                   </div>
               </div>
           </div>

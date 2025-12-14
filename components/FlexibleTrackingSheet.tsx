@@ -2,13 +2,42 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject, AcademicTerm } from '../types';
 import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects, getAcademicTerms } from '../services/storageService';
-import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search, Filter, Clipboard, Zap, Calculator, FileText } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
 
 interface FlexibleTrackingSheetProps {
     currentUser: SystemUser;
 }
+
+const PRESET_TEMPLATES = [
+    { 
+        id: 'QURAN', label: 'متابعة القرآن الكريم', icon: FileText,
+        columns: [
+            { id: 'c1', title: 'التلاوة (5)', type: 'NUMBER', maxScore: 5 },
+            { id: 'c2', title: 'الحفظ (10)', type: 'NUMBER', maxScore: 10 },
+            { id: 'c3', title: 'التجويد (5)', type: 'NUMBER', maxScore: 5 },
+            { id: 'c4', title: 'ملاحظات', type: 'TEXT' }
+        ]
+    },
+    { 
+        id: 'PROJECT', label: 'تقييم المشاريع', icon: LayoutGrid,
+        columns: [
+            { id: 'c1', title: 'فكرة المشروع (5)', type: 'NUMBER', maxScore: 5 },
+            { id: 'c2', title: 'التنفيذ (10)', type: 'NUMBER', maxScore: 10 },
+            { id: 'c3', title: 'العرض (5)', type: 'NUMBER', maxScore: 5 },
+            { id: 'c4', title: 'تسليم في الموعد', type: 'CHECKBOX' }
+        ]
+    },
+    { 
+        id: 'DAILY', label: 'متابعة يومية', icon: Table,
+        columns: [
+            { id: 'c1', title: 'واجب', type: 'CHECKBOX' },
+            { id: 'c2', title: 'مشاركة', type: 'RATING' },
+            { id: 'c3', title: 'سلوك', type: 'CHECKBOX' }
+        ]
+    }
+];
 
 const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUser }) => {
     const [view, setView] = useState<'LIST' | 'EDITOR'>('LIST');
@@ -60,19 +89,20 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         });
     }, [sheets, selectedTermId, terms]);
 
-    const createNewSheet = () => {
+    const createNewSheet = (templateId?: string) => {
         const defaultClass = uniqueClasses.length > 0 ? (uniqueClasses[0] || '') : '';
+        const template = PRESET_TEMPLATES.find(t => t.id === templateId);
         
         const newSheet: TrackingSheet = {
             id: Date.now().toString(),
-            title: 'سجل جديد',
+            title: template ? template.label : 'سجل جديد',
             subject: subjects.length > 0 ? subjects[0].name : '',
             className: defaultClass,
             teacherId: currentUser.id,
             createdAt: new Date().toISOString(),
-            columns: [
-                { id: 'c1', title: 'مشاركة 1', type: 'NUMBER', maxScore: 5 },
-                { id: 'c2', title: 'واجب', type: 'CHECKBOX' }
+            columns: template ? template.columns.map(c => ({...c, id: `col_${Date.now()}_${Math.random()}`})) as any : [
+                { id: `col_${Date.now()}_1`, title: 'مشاركة 1', type: 'NUMBER', maxScore: 5 },
+                { id: `col_${Date.now()}_2`, title: 'واجب', type: 'CHECKBOX' }
             ],
             scores: {}
         };
@@ -124,13 +154,16 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                 'اسم الطالب': student.name,
             };
             
+            let total = 0;
             activeSheet.columns.forEach(col => {
                 let val = activeSheet.scores[student.id]?.[col.id];
+                if (col.type === 'NUMBER') total += Number(val || 0);
+                
                 if (col.type === 'CHECKBOX') val = val ? '✓' : '';
                 else if (col.type === 'NUMBER' && val) val = `${val}/${col.maxScore || 10}`;
                 rowData[col.title] = val || '';
             });
-            
+            rowData['المجموع'] = total;
             return rowData;
         });
 
@@ -170,6 +203,42 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setActiveSheet({ ...activeSheet, scores: newScores });
     };
 
+    // --- New Features: Paste & Fill ---
+    const handlePaste = (e: React.ClipboardEvent, startStudentIdx: number, colId: string) => {
+        e.preventDefault();
+        if (!activeSheet) return;
+        const clipboardData = e.clipboardData.getData('text');
+        const rows = clipboardData.split(/\r\n|\n|\r/).filter(val => val.trim() !== '');
+        
+        const newScores = { ...activeSheet.scores };
+        
+        rows.forEach((val, i) => {
+            const targetStudentIdx = startStudentIdx + i;
+            if (targetStudentIdx < filteredStudents.length) {
+                const studentId = filteredStudents[targetStudentIdx].id;
+                if (!newScores[studentId]) newScores[studentId] = {};
+                
+                // Parse based on column type? For now just raw value for Text/Number
+                // You might want to validate number
+                newScores[studentId][colId] = val;
+            }
+        });
+        setActiveSheet({ ...activeSheet, scores: newScores });
+    };
+
+    const handleFillColumn = (colId: string) => {
+        if (!activeSheet) return;
+        const val = prompt('أدخل القيمة لتعميمها على جميع الطلاب:');
+        if (val === null) return;
+
+        const newScores = { ...activeSheet.scores };
+        filteredStudents.forEach(s => {
+            if (!newScores[s.id]) newScores[s.id] = {};
+            newScores[s.id][colId] = val;
+        });
+        setActiveSheet({ ...activeSheet, scores: newScores });
+    };
+
     const filteredStudents = useMemo(() => {
         let filtered = students.filter(s => s.className === tempClass);
         if (searchTerm) {
@@ -198,14 +267,14 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             {view === 'LIST' && (
                 <>
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                         <div>
                             <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                 <Table className="text-purple-600"/> سجلات الرصد المرنة
                             </h2>
                             <p className="text-sm text-gray-500">سجلات خاصة منفصلة عن النظام الرئيسي (مثل: سجل القرآن، متابعة المشاريع...)</p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                             <div className="flex items-center bg-white border rounded-lg px-3 py-2 shadow-sm">
                                 <Filter size={16} className="text-gray-400 ml-1"/>
                                 <select 
@@ -217,9 +286,18 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                                     {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
                             </div>
-                            <button onClick={createNewSheet} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md">
-                                <Plus size={18}/> سجل جديد
-                            </button>
+                            {/* Templates Dropdown */}
+                            <div className="group relative">
+                                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md">
+                                    <Plus size={18}/> سجل جديد
+                                </button>
+                                <div className="absolute left-0 mt-1 w-48 bg-white border rounded-lg shadow-xl hidden group-hover:block z-50">
+                                    <button onClick={() => createNewSheet()} className="block w-full text-right px-4 py-2 hover:bg-gray-50 text-sm font-bold border-b">سجل فارغ</button>
+                                    {PRESET_TEMPLATES.map(t => (
+                                        <button key={t.id} onClick={() => createNewSheet(t.id)} className="block w-full text-right px-4 py-2 hover:bg-gray-50 text-sm">{t.label}</button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -292,9 +370,12 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                                     <th className="p-3 border w-12 text-center bg-gray-100">#</th>
                                     <th className="p-3 border w-48 bg-gray-100 sticky right-0 z-30 shadow-md">اسم الطالب</th>
                                     {activeSheet.columns.map((col, idx) => (
-                                        <th key={col.id} className="p-2 border min-w-[150px] relative group">
-                                            <div className="flex flex-col gap-1">
-                                                <input className="bg-transparent font-bold outline-none w-full text-center" value={col.title} onChange={e => updateColumn(col.id, { title: e.target.value })} />
+                                        <th key={col.id} className="p-2 border min-w-[150px] relative group bg-gray-50">
+                                            <div className="flex flex-col gap-1 items-center">
+                                                <div className="flex items-center gap-1 w-full">
+                                                    <input className="bg-transparent font-bold outline-none w-full text-center" value={col.title} onChange={e => updateColumn(col.id, { title: e.target.value })} />
+                                                    <button onClick={() => handleFillColumn(col.id)} className="text-gray-400 hover:text-green-600" title="تعبئة تلقائية"><Zap size={12}/></button>
+                                                </div>
                                                 <div className="flex justify-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                                                     <select className="text-[10px] bg-white border rounded" value={col.type} onChange={e => updateColumn(col.id, { type: e.target.value as any })}>
                                                         <option value="NUMBER">رقم</option>
@@ -310,51 +391,60 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                                             </div>
                                         </th>
                                     ))}
+                                    <th className="p-3 border w-24 bg-gray-100 text-center"><Calculator size={14} className="inline mr-1"/> المجموع</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredStudents.map((student, i) => (
-                                    <tr key={student.id} className="hover:bg-blue-50/30 transition-colors border-b">
-                                        <td className="p-3 border text-center text-gray-500 bg-gray-50">{i + 1}</td>
-                                        <td className="p-3 border font-bold text-gray-800 bg-white sticky right-0 z-10 shadow-sm">{student.name}</td>
-                                        {activeSheet.columns.map(col => {
-                                            const val = activeSheet.scores[student.id]?.[col.id];
-                                            return (
-                                                <td key={col.id} className="p-0 border relative">
-                                                    {col.type === 'CHECKBOX' ? (
-                                                        <div className="flex justify-center items-center h-full py-2">
+                                {filteredStudents.map((student, i) => {
+                                    let rowTotal = 0;
+                                    return (
+                                        <tr key={student.id} className="hover:bg-blue-50/30 transition-colors border-b group">
+                                            <td className="p-3 border text-center text-gray-500 bg-gray-50">{i + 1}</td>
+                                            <td className="p-3 border font-bold text-gray-800 bg-white sticky right-0 z-10 shadow-sm">{student.name}</td>
+                                            {activeSheet.columns.map(col => {
+                                                const val = activeSheet.scores[student.id]?.[col.id];
+                                                if (col.type === 'NUMBER') rowTotal += Number(val || 0);
+                                                
+                                                return (
+                                                    <td key={col.id} className="p-0 border relative">
+                                                        {col.type === 'CHECKBOX' ? (
+                                                            <div className="flex justify-center items-center h-full py-2">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    className="w-5 h-5 cursor-pointer accent-purple-600"
+                                                                    checked={!!val} 
+                                                                    onChange={e => updateScore(student.id, col.id, e.target.checked)} 
+                                                                />
+                                                            </div>
+                                                        ) : col.type === 'RATING' ? (
+                                                            <div className="h-full py-2">
+                                                                {renderRatingStars(student.id, col.id, val)}
+                                                            </div>
+                                                        ) : col.type === 'NUMBER' ? (
                                                             <input 
-                                                                type="checkbox" 
-                                                                className="w-5 h-5 cursor-pointer accent-purple-600"
-                                                                checked={!!val} 
-                                                                onChange={e => updateScore(student.id, col.id, e.target.checked)} 
+                                                                type="number" 
+                                                                className="w-full h-full p-2 text-center outline-none bg-transparent focus:bg-blue-50 font-mono font-bold text-purple-700" 
+                                                                value={val || ''} 
+                                                                onChange={e => updateScore(student.id, col.id, e.target.value)}
+                                                                onPaste={(e) => handlePaste(e, i, col.id)}
+                                                                placeholder={`/${col.maxScore || 10}`}
                                                             />
-                                                        </div>
-                                                    ) : col.type === 'RATING' ? (
-                                                        <div className="h-full py-2">
-                                                            {renderRatingStars(student.id, col.id, val)}
-                                                        </div>
-                                                    ) : col.type === 'NUMBER' ? (
-                                                        <input 
-                                                            type="number" 
-                                                            className="w-full h-full p-2 text-center outline-none bg-transparent focus:bg-blue-50" 
-                                                            value={val || ''} 
-                                                            onChange={e => updateScore(student.id, col.id, e.target.value)}
-                                                            placeholder={`/${col.maxScore || 10}`}
-                                                        />
-                                                    ) : (
-                                                        <input 
-                                                            className="w-full h-full p-2 text-right outline-none bg-transparent focus:bg-blue-50" 
-                                                            value={val || ''} 
-                                                            onChange={e => updateScore(student.id, col.id, e.target.value)}
-                                                        />
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                                {filteredStudents.length === 0 && <tr><td colSpan={activeSheet.columns.length + 2} className="p-10 text-center text-gray-400">اختر فصلاً لعرض الطلاب</td></tr>}
+                                                        ) : (
+                                                            <input 
+                                                                className="w-full h-full p-2 text-right outline-none bg-transparent focus:bg-blue-50" 
+                                                                value={val || ''} 
+                                                                onChange={e => updateScore(student.id, col.id, e.target.value)}
+                                                                onPaste={(e) => handlePaste(e, i, col.id)}
+                                                            />
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="p-3 border bg-gray-50 text-center font-black text-gray-800">{rowTotal}</td>
+                                        </tr>
+                                    );
+                                })}
+                                {filteredStudents.length === 0 && <tr><td colSpan={activeSheet.columns.length + 3} className="p-10 text-center text-gray-400">اختر فصلاً لعرض الطلاب</td></tr>}
                             </tbody>
                         </table>
                     </div>

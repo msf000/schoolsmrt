@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart, ChevronRight, PenTool, Clipboard, Printer } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart, ChevronRight, PenTool, Clipboard, Printer, MoreVertical } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -269,6 +269,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             }
         });
         if (modified) { setScores(newScores); if (autoSaveEnabled) { setTimeout(() => handleSaveScores(true), 500); } }
+    };
+
+    // --- Fill Column Feature ---
+    const handleColumnFill = (assignmentId: string, maxScore: number) => {
+        const val = prompt(`أدخل الدرجة لتعميمها على جميع الطلاب (Max: ${maxScore}):`, maxScore.toString());
+        if (val === null) return;
+        
+        const numVal = parseFloat(val);
+        if (isNaN(numVal)) return alert('الرجاء إدخال رقم صحيح');
+
+        const newScores = { ...scores };
+        filteredStudents.forEach(s => {
+            if (!newScores[s.id]) newScores[s.id] = {};
+            newScores[s.id][assignmentId] = val;
+        });
+        setScores(newScores);
+        if (autoSaveEnabled) setTimeout(() => handleSaveScores(true), 500);
     };
 
     const handleSaveScores = (silent = false) => {
@@ -609,9 +626,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 {filteredAssignments.map(assign => (
                                                     <th key={assign.id} className={`border-l min-w-[80px] group relative bg-white print:border print:text-black ${compactMode ? 'p-1' : 'p-2'}`}>
                                                         <div className="flex flex-col items-center">
-                                                            <span className="flex items-center gap-1 truncate max-w-[100px]">
-                                                                {assign.title}
-                                                            </span>
+                                                            <div className="flex items-center gap-1 truncate max-w-[120px] justify-center">
+                                                                <span className="truncate">{assign.title}</span>
+                                                                {/* NEW: Fill Column Button */}
+                                                                <button 
+                                                                    onClick={() => handleColumnFill(assign.id, assign.maxScore)} 
+                                                                    className="text-gray-400 hover:text-green-600 print:hidden"
+                                                                    title="تعبئة تلقائية للجميع"
+                                                                >
+                                                                    <Zap size={12} className="fill-current"/>
+                                                                </button>
+                                                            </div>
                                                             <span className="text-[9px] text-gray-400 bg-white px-1 rounded border print:hidden">Max: {assign.maxScore}</span>
                                                         </div>
                                                     </th>
