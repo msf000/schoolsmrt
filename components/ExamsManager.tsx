@@ -60,6 +60,18 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
         setView('EDITOR'); 
     };
 
+    const duplicateExam = (examToCopy: Exam) => {
+        const newExam: Exam = {
+            ...examToCopy,
+            id: Date.now().toString(),
+            title: `${examToCopy.title} (نسخة)`,
+            isActive: false,
+            createdAt: new Date().toISOString()
+        };
+        saveExam(newExam);
+        setExams(getExams(currentUser.id));
+    };
+
     const resetQuestionForm = () => {
         setQText('');
         setQType('MCQ');
@@ -338,6 +350,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                             </span>
                                         </td>
                                         <td className="p-4 flex justify-center gap-2">
+                                            <button onClick={() => duplicateExam(exam)} className="p-2 text-teal-600 hover:bg-teal-50 rounded" title="نسخ"><Copy size={16}/></button>
                                             <button onClick={() => handleViewResults(exam)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded" title="النتائج"><BarChart2 size={16}/></button>
                                             <button onClick={() => { setEditingExam(exam); setView('PRINT'); }} className="p-2 text-gray-600 hover:bg-gray-100 rounded" title="طباعة الورقة"><Printer size={16}/></button>
                                             <button onClick={() => { setEditingExam(exam); setView('EDITOR'); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded" title="تعديل"><Edit size={16}/></button>

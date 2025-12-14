@@ -5,8 +5,8 @@ import {
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, SystemUser, WeeklyPlanItem, AcademicTerm, Exam, Assignment, Question } from '../types';
-import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms, getAssignments, getQuestionBank } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle, PieChart as PieIcon, AlertTriangle, Library, ScanLine, BrainCircuit } from 'lucide-react';
+import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms, getAssignments, getQuestionBank, getTeacherPeriodTimings } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle, PieChart as PieIcon, AlertTriangle, Library, ScanLine, BrainCircuit, PlayCircle, MonitorPlay } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -21,6 +21,101 @@ interface DashboardProps {
 const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6']; // Green, Red, Amber, Blue
 
 // --- Widgets ---
+
+const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
+    const [currentSession, setCurrentSession] = useState<ScheduleItem | null>(null);
+    const [timeLeft, setTimeLeft] = useState('');
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+        if(!currentUser) return;
+        const timings = getTeacherPeriodTimings(currentUser.id);
+        const schedules = getSchedules().filter(s => s.teacherId === currentUser.id);
+        
+        const update = () => {
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const today = days[now.getDay()];
+
+            let activeSession = null;
+            let pStart = 0;
+            let pEnd = 0;
+
+            timings.forEach((t, idx) => {
+                const [startStr, endStr] = t.split(' - ');
+                const [sh, sm] = startStr.split(':').map(Number);
+                const [eh, em] = endStr.split(':').map(Number);
+                
+                // Convert 12h to 24h roughly if needed, or assume 24h/12h consistent format
+                // Assuming format "07:00" etc.
+                const startVal = sh * 60 + sm;
+                const endVal = eh < sh ? (eh + 12) * 60 + em : eh * 60 + em; // Handle PM crossover simply
+
+                if (currentTime >= startVal && currentTime < endVal) {
+                    const session = schedules.find(s => s.day === today && s.period === (idx + 1));
+                    if (session) {
+                        activeSession = session;
+                        pStart = startVal;
+                        pEnd = endVal;
+                    }
+                }
+            });
+
+            if (activeSession) {
+                setCurrentSession(activeSession);
+                const duration = pEnd - pStart;
+                const elapsed = currentTime - pStart;
+                const remaining = pEnd - currentTime;
+                setTimeLeft(`${remaining} دقيقة متبقية`);
+                setProgress((elapsed / duration) * 100);
+            } else {
+                setCurrentSession(null);
+            }
+        };
+
+        update();
+        const interval = setInterval(update, 60000);
+        return () => clearInterval(interval);
+    }, [currentUser]);
+
+    if (!currentSession) return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full justify-center items-center text-gray-400">
+            <Clock size={32} className="mb-2 opacity-50"/>
+            <p className="text-sm font-bold">لا توجد حصة حالياً</p>
+        </div>
+    );
+
+    return (
+        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-4 rounded-xl shadow-md border border-indigo-700 flex flex-col h-full relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-10 -mt-10"></div>
+            
+            <div className="flex justify-between items-start relative z-10">
+                <div>
+                    <h3 className="font-bold text-lg mb-1">الحصة {currentSession.period}</h3>
+                    <p className="text-indigo-200 text-xs font-bold">{currentSession.subjectName}</p>
+                </div>
+                <span className="bg-white/20 px-2 py-1 rounded text-xs font-bold">{currentSession.classId}</span>
+            </div>
+
+            <div className="mt-auto relative z-10">
+                <div className="flex justify-between text-xs mb-1 opacity-90">
+                    <span>التقدم</span>
+                    <span>{timeLeft}</span>
+                </div>
+                <div className="w-full bg-black/20 h-2 rounded-full overflow-hidden mb-3">
+                    <div className="bg-green-400 h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                </div>
+                <button 
+                    onClick={() => onNavigate('CLASSROOM_MANAGEMENT')}
+                    className="w-full py-2 bg-white text-indigo-900 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors shadow-sm"
+                >
+                    <MonitorPlay size={14}/> فتح الفصل
+                </button>
+            </div>
+        </div>
+    );
+};
 
 const TodoWidget: React.FC = () => {
     const [todos, setTodos] = useState<{id: string, text: string, done: boolean}[]>(() => {
@@ -306,9 +401,17 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       </div>
 
       {/* Middle Section: Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-80">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-auto lg:h-80">
           
-          {/* 1. At Risk Widget */}
+          {/* 1. Current Session Widget (New) */}
+          <div className="lg:col-span-1">
+              <CurrentSessionWidget 
+                  currentUser={currentUser}
+                  onNavigate={onNavigate}
+              />
+          </div>
+
+          {/* 2. At Risk Widget */}
           <div className="lg:col-span-1">
               <AtRiskWidget 
                   students={students} 
@@ -318,7 +421,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               />
           </div>
 
-          {/* 2. Exams Widget (New) */}
+          {/* 3. Exams Widget */}
           <div className="lg:col-span-1">
               <ExamsWidget 
                   currentUser={currentUser}
@@ -326,7 +429,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               />
           </div>
 
-          {/* 3. Todo List */}
+          {/* 4. Todo List */}
           <div className="lg:col-span-1">
               <TodoWidget />
           </div>

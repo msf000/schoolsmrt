@@ -1,3 +1,4 @@
+
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Subject, ScheduleItem, TeacherAssignment, Assignment, WeeklyPlanItem, 
@@ -41,7 +42,7 @@ const KEYS = {
     PERIOD_TIMINGS: 'period_timings'
 };
 
-// --- Period Timings Constants & Functions (Moved Up) ---
+// --- Period Timings Constants & Functions ---
 export const DEFAULT_PERIOD_TIMES = [
     "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
     "09:45 - 10:30", "10:30 - 11:15", "11:15 - 12:00", 
@@ -605,9 +606,254 @@ export const getTableDisplayName = (table: string): string => {
 };
 
 export const getDatabaseUpdateSQL = (): string => {
-    return `-- Update SQL Placeholder`;
+    return `-- Run this SQL in Supabase Query Editor to update tables for new features
+
+-- 1. Exams and Questions
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    subject TEXT,
+    grade_level TEXT,
+    duration_minutes INTEGER,
+    questions JSONB,
+    is_active BOOLEAN,
+    created_at TEXT,
+    teacher_id TEXT,
+    date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+    id TEXT PRIMARY KEY,
+    text TEXT,
+    type TEXT,
+    options JSONB,
+    correct_answer TEXT,
+    points INTEGER,
+    subject TEXT,
+    grade_level TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS exam_results (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT,
+    student_id TEXT,
+    student_name TEXT,
+    score INTEGER,
+    total_score INTEGER,
+    date TEXT,
+    answers JSONB
+);
+
+-- 2. Curriculum
+CREATE TABLE IF NOT EXISTS curriculum_units (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    grade_level TEXT,
+    title TEXT,
+    order_index INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT,
+    title TEXT,
+    order_index INTEGER,
+    learning_standards JSONB,
+    micro_concept_ids JSONB
+);
+
+CREATE TABLE IF NOT EXISTS micro_concepts (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    name TEXT
+);
+
+-- 3. Lesson Plans & Links
+CREATE TABLE IF NOT EXISTS lesson_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    topic TEXT,
+    content_json TEXT,
+    resources JSONB,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lesson_links (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    url TEXT,
+    teacher_id TEXT,
+    created_at TEXT,
+    grade_level TEXT,
+    class_name TEXT
+);
+
+-- 4. Tracking Sheets
+CREATE TABLE IF NOT EXISTS tracking_sheets (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    subject TEXT,
+    class_name TEXT,
+    teacher_id TEXT,
+    created_at TEXT,
+    columns JSONB,
+    scores JSONB
+);
+
+-- 5. Academic Terms
+CREATE TABLE IF NOT EXISTS academic_terms (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    is_current BOOLEAN,
+    teacher_id TEXT,
+    periods JSONB
+);
+`;
 };
 
 export const getDatabaseSchemaSQL = () => {
-    return `-- Schema SQL Placeholder`;
+    return `-- Run this in Supabase SQL Editor to Create All Tables
+
+CREATE TABLE IF NOT EXISTS schools (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    ministry_code TEXT,
+    education_administration TEXT,
+    type TEXT,
+    manager_name TEXT,
+    manager_national_id TEXT,
+    phone TEXT,
+    student_count INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS system_users (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    email TEXT,
+    national_id TEXT,
+    password TEXT,
+    role TEXT,
+    school_id TEXT,
+    status TEXT,
+    is_demo BOOLEAN,
+    phone TEXT
+);
+
+CREATE TABLE IF NOT EXISTS teachers (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    national_id TEXT,
+    email TEXT,
+    phone TEXT,
+    password TEXT,
+    subject_specialty TEXT,
+    school_id TEXT,
+    manager_id TEXT,
+    subscription_status TEXT,
+    subscription_end_date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    national_id TEXT,
+    class_id TEXT,
+    school_id TEXT,
+    created_by_id TEXT,
+    grade_level TEXT,
+    class_name TEXT,
+    email TEXT,
+    phone TEXT,
+    parent_id TEXT,
+    parent_name TEXT,
+    parent_phone TEXT,
+    parent_email TEXT,
+    password TEXT,
+    seat_index INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS attendance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT,
+    date TEXT,
+    status TEXT,
+    subject TEXT,
+    period INTEGER,
+    behavior_status TEXT,
+    behavior_note TEXT,
+    excuse_note TEXT,
+    excuse_file TEXT,
+    created_by_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS performance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT,
+    subject TEXT,
+    title TEXT,
+    category TEXT,
+    score REAL,
+    max_score REAL,
+    date TEXT,
+    notes TEXT,
+    created_by_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    category TEXT,
+    max_score REAL,
+    url TEXT,
+    is_visible BOOLEAN,
+    order_index INTEGER,
+    source_metadata TEXT,
+    teacher_id TEXT,
+    term_id TEXT,
+    period_id TEXT,
+    class_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    day TEXT,
+    period INTEGER,
+    subject_name TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS custom_tables (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    created_at TEXT,
+    columns JSONB,
+    rows JSONB,
+    source_url TEXT,
+    last_updated TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS message_logs (
+    id TEXT PRIMARY KEY,
+    student_id TEXT,
+    student_name TEXT,
+    parent_phone TEXT,
+    type TEXT,
+    content TEXT,
+    status TEXT,
+    date TEXT,
+    sent_by TEXT,
+    teacher_id TEXT
+);
+
+-- Include updates as well
+${getDatabaseUpdateSQL()}
+`;
 };
