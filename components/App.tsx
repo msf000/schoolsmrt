@@ -390,7 +390,7 @@ const App: React.FC = () => {
                                 <label className="px-4 text-xs font-bold text-gray-400 block mb-2">الاختبارات والتقييم</label>
                                 <NavItem view="QUESTION_BANK" label="بنك الأسئلة" icon={Library} />
                                 <NavItem view="EXAMS_MANAGER" label="الاختبارات" icon={FileQuestion} />
-                                <NavItem view="AUTO_GRADING" label="التصحيح الآلي" icon={ScanLine} />
+                                <NavItem view="AUTO_GRADING" label="المصحح الآلي (AI)" icon={ScanLine} />
                                 <NavItem view="FLEXIBLE_TRACKING" label="سجلات خاصة" icon={FileSpreadsheet} />
                             </div>
 
@@ -521,7 +521,7 @@ const App: React.FC = () => {
                     {currentView === 'MESSAGE_CENTER' && <MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
                     {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
                     {currentView === 'LESSON_PLANNING' && <LessonPlanning />}
-                    {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser} />}
+                    {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser!} />}
                     {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser!} />}
                     {currentView === 'AUTO_GRADING' && <AutoGrading currentUser={currentUser} />}
                     {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser!} />}

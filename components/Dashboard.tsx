@@ -4,9 +4,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, SystemUser, WeeklyPlanItem, AcademicTerm, Exam, Assignment } from '../types';
-import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms, getAssignments } from '../services/storageService';
-import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle, PieChart as PieIcon, AlertTriangle } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, SystemUser, WeeklyPlanItem, AcademicTerm, Exam, Assignment, Question } from '../types';
+import { getSchedules, getWeeklyPlans, getExams, getAcademicTerms, getAssignments, getQuestionBank } from '../services/storageService';
+import { Users, Clock, AlertCircle, Award, TrendingUp, Activity, Smile, Calendar, CheckSquare, Plus, Trash2, Trophy, ArrowRight, CalendarDays, FileQuestion, Filter, MessageCircle, Table, CheckCircle, PieChart as PieIcon, AlertTriangle, Library, ScanLine, BrainCircuit } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface DashboardProps {
@@ -85,51 +85,37 @@ const TodoWidget: React.FC = () => {
     );
 };
 
-const GradingProgressWidget: React.FC<{ students: Student[], performance: PerformanceRecord[], currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ students, performance, currentUser, onNavigate }) => {
-    const [assignments, setAssignments] = useState<Assignment[]>([]);
-    
+const ExamsWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
+    const [exams, setExams] = useState<Exam[]>([]);
+    const [questions, setQuestions] = useState<Question[]>([]);
+
     useEffect(() => {
-        if(currentUser) setAssignments(getAssignments('ALL', currentUser.id));
+        if(currentUser?.id) {
+            setExams(getExams(currentUser.id));
+            setQuestions(getQuestionBank(currentUser.id));
+        }
     }, [currentUser]);
 
-    const stats = useMemo(() => {
-        let missingCount = 0;
-        let totalRequired = 0;
-        
-        // Only count if assignment is visible
-        const activeAssignments = assignments.filter(a => a.isVisible && a.category !== 'YEAR_WORK');
-        
-        activeAssignments.forEach(assign => {
-            // Find students who SHOULD have this assignment
-            students.forEach(s => {
-                totalRequired++;
-                const hasGrade = performance.some(p => p.studentId === s.id && (p.notes === assign.id || p.title === assign.title));
-                if (!hasGrade) missingCount++;
-            });
-        });
-
-        const completion = totalRequired > 0 ? Math.round(((totalRequired - missingCount) / totalRequired) * 100) : 100;
-        return { missingCount, completion, totalAssignments: activeAssignments.length };
-    }, [assignments, students, performance]);
+    const activeExams = exams.filter(e => e.isActive).length;
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full cursor-pointer hover:border-purple-200 transition-colors" onClick={() => onNavigate('WORKS_TRACKING')}>
-            <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                <Table size={18} className="text-purple-600"/> تقدم الرصد
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <FileQuestion size={18} className="text-purple-600"/> الاختبارات والبنك
             </h3>
-            <div className="flex-1 flex flex-col justify-center items-center">
-                <div className="relative w-24 h-24 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90">
-                        <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100" />
-                        <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-purple-600 transition-all duration-1000" strokeDasharray={2 * Math.PI * 40} strokeDashoffset={2 * Math.PI * 40 * (1 - stats.completion / 100)} strokeLinecap="round" />
-                    </svg>
-                    <span className="absolute font-black text-xl text-purple-700">{stats.completion}%</span>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+                <div onClick={() => onNavigate('EXAMS_MANAGER')} className="bg-purple-50 p-3 rounded-lg border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors text-center">
+                    <span className="block text-2xl font-black text-purple-700">{activeExams}</span>
+                    <span className="text-[10px] text-purple-600 font-bold">اختبارات نشطة</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-2 font-bold">
-                    {stats.missingCount > 0 ? `متبقي ${stats.missingCount} درجة لرصدها` : 'تم رصد جميع الدرجات!'}
-                </p>
-                <div className="text-[10px] text-gray-400 mt-1">{stats.totalAssignments} أعمدة (واجبات/اختبارات)</div>
+                <div onClick={() => onNavigate('QUESTION_BANK')} className="bg-blue-50 p-3 rounded-lg border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors text-center">
+                    <span className="block text-2xl font-black text-blue-700">{questions.length}</span>
+                    <span className="text-[10px] text-blue-600 font-bold">أسئلة في البنك</span>
+                </div>
             </div>
+            <button onClick={() => onNavigate('AUTO_GRADING')} className="w-full mt-auto py-2 bg-gray-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-black transition-colors">
+                <ScanLine size={14}/> المصحح الآلي (AI)
+            </button>
         </div>
     );
 };
@@ -314,7 +300,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                   <p className="text-[10px] text-indigo-200 mt-1">توليد تقرير بالذكاء الاصطناعي</p>
               </div>
               <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                  <Award size={24}/>
+                  <BrainCircuit size={24}/>
               </div>
           </div>
       </div>
@@ -322,7 +308,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       {/* Middle Section: Widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-80">
           
-          {/* 1. At Risk Widget (New) */}
+          {/* 1. At Risk Widget */}
           <div className="lg:col-span-1">
               <AtRiskWidget 
                   students={students} 
@@ -332,11 +318,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               />
           </div>
 
-          {/* 2. Grading Progress */}
+          {/* 2. Exams Widget (New) */}
           <div className="lg:col-span-1">
-              <GradingProgressWidget 
-                  students={students} 
-                  performance={performance} 
+              <ExamsWidget 
                   currentUser={currentUser}
                   onNavigate={onNavigate}
               />

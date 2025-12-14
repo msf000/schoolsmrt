@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Question, SystemUser, Subject } from '../types';
 import { getQuestionBank, saveQuestionToBank, deleteQuestionFromBank, getSubjects } from '../services/storageService';
-import { Plus, Trash2, Edit, Search, Filter, Save, X, Library, CheckCircle, FileQuestion, GraduationCap } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Filter, Save, X, Library, CheckCircle, FileQuestion, GraduationCap, Download, Upload } from 'lucide-react';
 
 interface QuestionBankProps {
     currentUser: SystemUser;
@@ -47,6 +47,47 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
         }
     };
 
+    const handleExport = () => {
+        if (filteredQuestions.length === 0) return alert('لا توجد أسئلة للتصدير');
+        const dataStr = JSON.stringify(filteredQuestions, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `questions_bank_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+    };
+
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const imported = JSON.parse(event.target?.result as string);
+                if (Array.isArray(imported)) {
+                    let count = 0;
+                    imported.forEach((q: any) => {
+                        if (q.text && q.type) {
+                            // Ensure new ID to avoid conflict, assign to current user
+                            const newQ: Question = { ...q, id: Date.now() + Math.random().toString(), teacherId: currentUser.id };
+                            saveQuestionToBank(newQ);
+                            count++;
+                        }
+                    });
+                    setQuestions(getQuestionBank(currentUser.id));
+                    alert(`تم استيراد ${count} سؤال بنجاح!`);
+                } else {
+                    alert('ملف غير صالح.');
+                }
+            } catch (error) {
+                alert('خطأ في قراءة الملف.');
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const openEditor = (q?: Question) => {
         if (q) setEditingQuestion(q);
         else setEditingQuestion({
@@ -65,16 +106,25 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
 
     return (
         <div className="p-6 h-full bg-gray-50 animate-fade-in flex flex-col">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                         <Library className="text-purple-600"/> بنك الأسئلة المركزي
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">مستودع الأسئلة لإعادة استخدامها في الاختبارات والواجبات.</p>
                 </div>
-                <button onClick={() => openEditor()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md transition-transform hover:scale-105">
-                    <Plus size={18}/> سؤال جديد
-                </button>
+                <div className="flex gap-2">
+                    <label className="bg-white border text-gray-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-50 flex items-center gap-2 cursor-pointer shadow-sm text-sm">
+                        <Upload size={16}/> استيراد
+                        <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                    </label>
+                    <button onClick={handleExport} className="bg-white border text-gray-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-50 flex items-center gap-2 shadow-sm text-sm">
+                        <Download size={16}/> تصدير
+                    </button>
+                    <button onClick={() => openEditor()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md transition-transform hover:scale-105 text-sm">
+                        <Plus size={18}/> سؤال جديد
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
