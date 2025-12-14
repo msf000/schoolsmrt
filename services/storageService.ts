@@ -227,8 +227,11 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
 // --- AUTHENTICATION & SYNC ---
 
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
+    let cloudUser: SystemUser | undefined;
+    let cloudError = null;
+
     try {
-        // Direct Supabase Query for Authentication (Cloud First)
+        // 1. Try Cloud Authentication
         const { data, error } = await supabase
             .from('system_users')
             .select('*')
@@ -238,28 +241,34 @@ export const authenticateUser = async (identifier: string, password: string): Pr
             .single();
             
         if (data && !error) {
-            return data as SystemUser;
-        }
-        
-        // Fallback to local cache only if offline or sync hasn't happened
-        if (error && !navigator.onLine) {
-             const localUsers = getSystemUsers();
-             return localUsers.find(u => 
-                 (u.email === identifier || u.nationalId === identifier) && 
-                 u.password === password && 
-                 u.status === 'ACTIVE'
-             );
+            cloudUser = data as SystemUser;
+        } else {
+            cloudError = error;
         }
     } catch (e) {
-        console.error("Auth Error", e);
+        cloudError = e;
     }
-    return undefined;
+
+    // 2. Return cloud user if found
+    if (cloudUser) return cloudUser;
+
+    // 3. Fallback to Local Cache if Cloud failed (even if online, e.g. table doesn't exist yet or connection blocked)
+    // This allows the app to work for the first user/demo mode or if cloud config is bad
+    console.warn("Cloud Auth failed or user not found, checking local storage...", cloudError);
+    
+    const localUsers = getSystemUsers();
+    const localUser = localUsers.find(u => 
+        (u.email === identifier || u.nationalId === identifier) && 
+        u.password === password && 
+        u.status === 'ACTIVE'
+    );
+
+    return localUser;
 };
 
 export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
     try {
         const cleanId = nationalId.trim();
-        // Direct Supabase Query
         const { data, error } = await supabase
             .from('students')
             .select('*')
@@ -272,18 +281,35 @@ export const authenticateStudent = async (nationalId: string, password: string):
              if (password === studentPass) return { ...data, role: 'STUDENT' };
         }
     } catch (e) {}
+    
+    // Local Fallback for students
+    const localStudents = getStudents();
+    const student = localStudents.find(s => s.nationalId === nationalId.trim());
+    if (student) {
+        const defaultPass = student.nationalId?.slice(-4);
+        const studentPass = student.password || defaultPass;
+        if (password === studentPass) return { ...student, role: 'STUDENT' };
+    }
+
     return undefined;
 };
 
 export const forceRefreshData = async () => {
     setSyncStatus('SYNCING');
+    
+    // Check connection first to avoid waiting on timeouts if totally offline/bad config
+    const check = await checkConnection();
+    if (!check.success) {
+        console.warn("Skipping sync: Cloud unreachable or unconfigured.");
+        setSyncStatus('OFFLINE'); // or ERROR
+        return false;
+    }
+
     try {
-        // Fetch all core tables to ensure local storage is up to date
         const tables = ['schools', 'teachers', 'system_users', 'students', 'attendance', 'performance', 'assignments', 'subjects', 'schedules', 'teacher_assignments', 'exams', 'questions', 'curriculum_units', 'curriculum_lessons', 'academic_terms'];
         const promises = tables.map(t => supabase.from(t).select('*'));
         const results = await Promise.all(promises);
         
-        // Update Local Storage Cache
         updateCache(KEYS.SCHOOLS, results[0].data || []);
         updateCache(KEYS.TEACHERS, results[1].data || []);
         updateCache(KEYS.USERS, results[2].data || []);

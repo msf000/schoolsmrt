@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
-import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync } from '../services/storageService';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync, checkConnection } from '../services/storageService';
+import { updateSupabaseConfig } from '../services/supabaseClient';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, Settings, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone, Database, Wifi, Save, RefreshCw } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -18,6 +19,35 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+
+  // Config Modal State
+  const [showConfig, setShowConfig] = useState(false);
+  const [supaUrl, setSupaUrl] = useState('');
+  const [supaKey, setSupaKey] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'IDLE' | 'CHECKING' | 'SUCCESS' | 'ERROR'>('IDLE');
+
+  useEffect(() => {
+      // Load existing config if available
+      setSupaUrl(localStorage.getItem('custom_supabase_url') || '');
+      setSupaKey(localStorage.getItem('custom_supabase_key') || '');
+  }, []);
+
+  const handleTestConnection = async () => {
+      setConnectionStatus('CHECKING');
+      const success = updateSupabaseConfig(supaUrl, supaKey);
+      if (!success) {
+          setConnectionStatus('ERROR');
+          return;
+      }
+      const res = await checkConnection();
+      setConnectionStatus(res.success ? 'SUCCESS' : 'ERROR');
+  };
+
+  const handleSaveConfig = () => {
+      if (!supaUrl || !supaKey) return;
+      updateSupabaseConfig(supaUrl, supaKey);
+      window.location.reload(); // Reload to apply new client
+  };
 
   // Auto-login handler for registration success
   const handleRegisterSuccess = (email: string, pass: string) => {
@@ -117,7 +147,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     <div className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto custom-scrollbar" dir="rtl">
       <div className="min-h-full w-full flex flex-col justify-center items-center p-4 py-10">
       
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in relative">
+            
+            {/* Config Button */}
+            <button 
+                onClick={() => setShowConfig(true)}
+                className="absolute top-4 left-4 z-20 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                title="إعدادات الاتصال"
+            >
+                <Settings size={20}/>
+            </button>
+
             {/* Header */}
             <div className="bg-primary p-8 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-full bg-white/5 backdrop-blur-[1px]"></div>
@@ -220,6 +260,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2 border border-red-100 animate-pulse">
                             <ShieldCheck size={16} />
                             {error}
+                            <button type="button" onClick={() => setShowConfig(true)} className="mr-auto text-xs underline hover:text-red-800">إصلاح الاتصال؟</button>
                         </div>
                     )}
 
@@ -265,6 +306,60 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         
         <p className="mt-6 text-gray-400 text-xs text-center pb-6">Smart School System (Cloud) &copy; {new Date().getFullYear()}</p>
       </div>
+
+      {/* Database Configuration Modal */}
+      {showConfig && (
+          <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                  <div className="flex justify-between items-center mb-6 border-b pb-4">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2"><Database size={20} className="text-primary"/> إعدادات الاتصال بالسحابة</h3>
+                      <button onClick={() => setShowConfig(false)} className="text-gray-400 hover:text-gray-600"><ShieldCheck size={20}/></button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                      <div className={`p-3 rounded-lg border text-sm flex items-center gap-2 ${connectionStatus === 'SUCCESS' ? 'bg-green-50 text-green-700 border-green-200' : connectionStatus === 'ERROR' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600'}`}>
+                          {connectionStatus === 'CHECKING' && <RefreshCw size={16} className="animate-spin"/>}
+                          {connectionStatus === 'SUCCESS' && <Wifi size={16}/>}
+                          {connectionStatus === 'ERROR' && <AlertCircle size={16}/>}
+                          <span>
+                              {connectionStatus === 'IDLE' ? 'أدخل البيانات ثم اضغط فحص الاتصال' :
+                               connectionStatus === 'CHECKING' ? 'جاري محاولة الاتصال...' :
+                               connectionStatus === 'SUCCESS' ? 'تم الاتصال بنجاح! يمكنك الحفظ.' :
+                               'فشل الاتصال. تحقق من الرابط والمفتاح.'}
+                          </span>
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">رابط المشروع (Supabase URL)</label>
+                          <input 
+                              type="text" 
+                              className="w-full p-2 border rounded-lg dir-ltr font-mono text-xs" 
+                              placeholder="https://xyz.supabase.co"
+                              value={supaUrl}
+                              onChange={e => setSupaUrl(e.target.value)}
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">مفتاح API (Anon Key)</label>
+                          <input 
+                              type="password" 
+                              className="w-full p-2 border rounded-lg dir-ltr font-mono text-xs" 
+                              placeholder="eyJh..."
+                              value={supaKey}
+                              onChange={e => setSupaKey(e.target.value)}
+                          />
+                      </div>
+
+                      <div className="flex gap-3 pt-4">
+                          <button onClick={handleTestConnection} className="flex-1 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">فحص الاتصال</button>
+                          <button onClick={handleSaveConfig} disabled={connectionStatus !== 'SUCCESS'} className="flex-1 py-2 bg-primary text-white font-bold rounded-lg hover:bg-teal-800 disabled:opacity-50 flex items-center justify-center gap-2">
+                              <Save size={16}/> حفظ وإعادة تشغيل
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
