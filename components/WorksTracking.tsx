@@ -98,7 +98,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [sheetData, setSheetData] = useState<any[]>([]); // Store raw data to calc max scores
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     
-    // State for column configurations in the import table (Max Score, URL)
+    // NEW: State for column configurations in the import table (Max Score, URL)
     const [columnConfigs, setColumnConfigs] = useState<Record<string, { maxScore: string, url: string }>>({});
 
     // -- Settings Modal State --
