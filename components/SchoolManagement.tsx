@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Teacher, School, SystemUser, Subject, ReportHeaderConfig, UserTheme, AcademicTerm, TermPeriod } from '../types';
 import { 
-    getTeachers, updateTeacher,
-    getSchools, getSubjects, addSubject, deleteSubject,
+    getSchools, getTeachers, updateTeacher,
+    getSubjects, addSubject, deleteSubject,
+    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
     getReportHeaderConfig, saveReportHeaderConfig,
     getUserTheme, saveUserTheme,
-    getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
     getTeacherPeriodTimings, saveTeacherPeriodTimings, DEFAULT_PERIOD_TIMES
 } from '../services/storageService';
-import { Trash2, User, Building2, Save, Users, FileText, BookOpen, Settings, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles, Clock, RotateCcw } from 'lucide-react';
+import { 
+    School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod 
+} from '../types';
+import { 
+    Building2, Users, Settings, 
+    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw
+} from 'lucide-react';
 
 interface SchoolManagementProps {
     students: any[]; 
@@ -199,7 +204,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       if (currentUser) { 
           const configWithId = { ...reportConfig, teacherId: currentUser.id }; 
           saveReportHeaderConfig(configWithId); 
-          saveUserTheme(userTheme); 
+          saveUserTheme(userTheme);
           saveTeacherPeriodTimings(currentUser.id, periodTimings);
           if(onUpdateTheme) onUpdateTheme(userTheme); 
           alert('تم الحفظ بنجاح'); 
@@ -232,9 +237,9 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   };
 
   return (
-    <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
-        {/* Scrollable Tabs */}
-        <div className="mb-6 flex overflow-x-auto gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm no-scrollbar">
+    <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
+        {/* Tabs */}
+        <div className="mb-6 flex overflow-x-auto gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm">
             <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><LayoutGrid size={16} className="inline mr-2"/> لوحة التحكم</button>
             {isManager && <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'TEACHERS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Users size={16} className="inline mr-2"/> المعلمين</button>}
             <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><BookOpen size={16} className="inline mr-2"/> {isManager ? 'قائمة المواد' : 'موادي وفصولي'}</button>
@@ -242,8 +247,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Settings size={16} className="inline mr-2"/> {isManager ? 'إعدادات المدرسة' : 'الإعدادات الشخصية'}</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
-            {/* ... (DASHBOARD, TEACHERS, SUBJECTS, CALENDAR tabs remain unchanged) ... */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
             {/* DASHBOARD TAB */}
             {activeTab === 'DASHBOARD' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -507,3 +511,5 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
     </div>
   );
 };
+
+export default SchoolManagement;
