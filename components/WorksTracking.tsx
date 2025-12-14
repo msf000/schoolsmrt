@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart, ChevronRight, PenTool } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart, ChevronRight, PenTool, Clipboard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 
@@ -340,6 +340,46 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             autoSaveTimerRef.current = setTimeout(() => {
                 handleSaveScores(true); 
             }, 2000); 
+        }
+    };
+
+    // --- Excel-Like Paste Function ---
+    const handlePaste = (e: React.ClipboardEvent, startStudentIdx: number, assignmentId: string) => {
+        e.preventDefault();
+        const clipboardData = e.clipboardData.getData('text');
+        
+        // Split by newline to get rows
+        const rows = clipboardData.split(/\r\n|\n|\r/).filter(val => val.trim() !== '');
+        
+        const newScores = { ...scores };
+        let modified = false;
+
+        rows.forEach((val, i) => {
+            const targetStudentIdx = startStudentIdx + i;
+            
+            // Ensure we don't overflow the student list
+            if (targetStudentIdx < filteredStudents.length) {
+                const studentId = filteredStudents[targetStudentIdx].id;
+                
+                // Initialize student record if missing
+                if (!newScores[studentId]) newScores[studentId] = {};
+                
+                // Validate if it's a number (or allow text if needed, but performance is usually numeric)
+                const num = parseFloat(val);
+                if (!isNaN(num)) {
+                    newScores[studentId][assignmentId] = num.toString();
+                    modified = true;
+                }
+            }
+        });
+
+        if (modified) {
+            setScores(newScores);
+            // Trigger auto-save immediately after paste
+            if (autoSaveEnabled) {
+                // We use a slight delay to ensure state update processes
+                setTimeout(() => handleSaveScores(true), 500); 
+            }
         }
     };
 
@@ -826,7 +866,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                     </>
                                                 )}
                                                 {filteredAssignments.map(assign => (
-                                                    <th key={assign.id} className="p-2 border-l min-w-[120px] group relative">
+                                                    <th key={assign.id} className="p-2 border-l min-w-[120px] group relative bg-white">
                                                         <div className="flex flex-col items-center">
                                                             <span className="flex items-center gap-1">
                                                                 {assign.title}
@@ -836,6 +876,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                         </div>
                                                     </th>
                                                 ))}
+                                                {/* DYNAMIC SUM COLUMN FOR CATEGORY */}
+                                                {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY' || activeTab === 'PLATFORM_EXAM') && (
+                                                    <th className="p-2 border-l w-24 bg-teal-50 text-teal-800 font-bold">الإجمالي</th>
+                                                )}
                                             </>
                                         )}
                                     </tr>
@@ -874,7 +918,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         let totalScore = 0;
                                         let totalMax = 0;
 
-                                        if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') {
+                                        if (activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY' || activeTab === 'PLATFORM_EXAM') {
                                             filteredAssignments.forEach(a => {
                                                 const rawVal = scores[student.id]?.[a.id];
                                                 if (rawVal !== undefined && rawVal !== '') {
@@ -911,16 +955,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 )}
 
                                                 {filteredAssignments.map(assign => (
-                                                    <td key={assign.id} className="p-0 border-l relative h-10">
+                                                    <td key={assign.id} className="p-0 border-l relative h-10 group">
                                                         <input 
                                                             type="number"
                                                             className={`w-full h-full p-2 text-center outline-none bg-transparent focus:bg-indigo-50 font-medium ${scores[student.id]?.[assign.id] ? 'text-indigo-700 font-bold' : 'text-gray-400'} ${isAbsent && scores[student.id]?.[assign.id] ? 'ring-2 ring-red-300' : ''}`}
                                                             value={scores[student.id]?.[assign.id] || ''}
                                                             onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
+                                                            onPaste={(e) => handlePaste(e, idx, assign.id)}
                                                             placeholder="-"
                                                         />
                                                     </td>
                                                 ))}
+
+                                                {/* DYNAMIC SUM COLUMN FOR CATEGORY */}
+                                                {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY' || activeTab === 'PLATFORM_EXAM') && (
+                                                    <td className="p-3 border-l font-black text-teal-800 bg-teal-50 text-center">
+                                                        {totalScore}
+                                                    </td>
+                                                )}
                                             </tr>
                                         );
                                     })}
