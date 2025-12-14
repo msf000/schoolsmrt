@@ -7,7 +7,7 @@ import {
     Exam, ExamResult, Question, CurriculumUnit, CurriculumLesson, MicroConcept,
     TrackingSheet, AcademicTerm, TermPeriod
 } from '../types';
-import { supabase } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 // --- Local Storage Keys ---
 const KEYS = {
@@ -104,16 +104,16 @@ const notifyDataChange = () => {
 export const getSchools = (): School[] => get(KEYS.SCHOOLS);
 export const addSchool = async (s: School) => { 
     const list = getSchools(); list.push(s); updateCache(KEYS.SCHOOLS, list); notifyDataChange();
-    await supabase.from('schools').insert(s);
+    if(isSupabaseConfigured()) await supabase.from('schools').insert(s);
 };
 export const updateSchool = async (s: School) => { 
     const list = getSchools(); const idx = list.findIndex(x => x.id === s.id); 
     if (idx > -1) list[idx] = s; updateCache(KEYS.SCHOOLS, list); notifyDataChange();
-    await supabase.from('schools').update(s).eq('id', s.id);
+    if(isSupabaseConfigured()) await supabase.from('schools').update(s).eq('id', s.id);
 };
 export const deleteSchool = async (id: string) => { 
     updateCache(KEYS.SCHOOLS, getSchools().filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('schools').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('schools').delete().eq('id', id);
 };
 
 export const getTeachers = (): Teacher[] => get(KEYS.TEACHERS);
@@ -134,50 +134,50 @@ export const addTeacher = async (t: Teacher) => {
     // Save system user locally and to cloud
     await addSystemUser(systemUser);
     
-    await supabase.from('teachers').insert(t);
+    if(isSupabaseConfigured()) await supabase.from('teachers').insert(t);
 };
 export const updateTeacher = async (t: Teacher) => { 
     const list = getTeachers(); const idx = list.findIndex(x => x.id === t.id); 
     if (idx > -1) list[idx] = t; updateCache(KEYS.TEACHERS, list); notifyDataChange();
-    await supabase.from('teachers').update(t).eq('id', t.id);
+    if(isSupabaseConfigured()) await supabase.from('teachers').update(t).eq('id', t.id);
 };
 
 export const getSystemUsers = (): SystemUser[] => get(KEYS.USERS);
 export const addSystemUser = async (u: SystemUser) => { 
     const list = getSystemUsers(); list.push(u); updateCache(KEYS.USERS, list); notifyDataChange();
-    await supabase.from('system_users').insert(u);
+    if(isSupabaseConfigured()) await supabase.from('system_users').insert(u);
 };
 export const updateSystemUser = async (u: SystemUser) => { 
     const list = getSystemUsers(); const idx = list.findIndex(x => x.id === u.id); 
     if (idx > -1) list[idx] = u; updateCache(KEYS.USERS, list); notifyDataChange();
-    await supabase.from('system_users').update(u).eq('id', u.id);
+    if(isSupabaseConfigured()) await supabase.from('system_users').update(u).eq('id', u.id);
 };
 export const deleteSystemUser = async (id: string) => { 
     updateCache(KEYS.USERS, getSystemUsers().filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('system_users').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('system_users').delete().eq('id', id);
 };
 
 export const getStudents = (): Student[] => get(KEYS.STUDENTS);
 export const addStudent = async (s: Student) => { 
     const list = getStudents(); list.push(s); updateCache(KEYS.STUDENTS, list); notifyDataChange();
-    await supabase.from('students').insert(s);
+    if(isSupabaseConfigured()) await supabase.from('students').insert(s);
 };
 export const updateStudent = async (s: Student) => { 
     const list = getStudents(); const idx = list.findIndex(x => x.id === s.id); 
     if (idx > -1) list[idx] = s; updateCache(KEYS.STUDENTS, list); notifyDataChange();
-    await supabase.from('students').update(s).eq('id', s.id);
+    if(isSupabaseConfigured()) await supabase.from('students').update(s).eq('id', s.id);
 };
 export const deleteStudent = async (id: string) => { 
     updateCache(KEYS.STUDENTS, getStudents().filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('students').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('students').delete().eq('id', id);
 };
 export const deleteAllStudents = async () => {
     updateCache(KEYS.STUDENTS, []); notifyDataChange();
-    await supabase.from('students').delete().neq('id', '0'); 
+    if(isSupabaseConfigured()) await supabase.from('students').delete().neq('id', '0'); 
 };
 export const bulkAddStudents = async (students: Student[]) => { 
     const list = getStudents(); updateCache(KEYS.STUDENTS, [...list, ...students]); notifyDataChange();
-    await supabase.from('students').insert(students);
+    if(isSupabaseConfigured()) await supabase.from('students').insert(students);
 };
 export const bulkUpsertStudents = async (students: Student[], key: keyof Student = 'nationalId') => {
     let list = getStudents();
@@ -187,7 +187,7 @@ export const bulkUpsertStudents = async (students: Student[], key: keyof Student
         else list.push(s);
     });
     updateCache(KEYS.STUDENTS, list); notifyDataChange();
-    await supabase.from('students').upsert(students, { onConflict: key as string });
+    if(isSupabaseConfigured()) await supabase.from('students').upsert(students, { onConflict: key as string });
 };
 
 export const getAttendance = (): AttendanceRecord[] => get(KEYS.ATTENDANCE);
@@ -198,7 +198,7 @@ export const saveAttendance = async (records: AttendanceRecord[]) => {
         if (idx > -1) list[idx] = r; else list.push(r);
     });
     updateCache(KEYS.ATTENDANCE, list); notifyDataChange();
-    await supabase.from('attendance').upsert(records);
+    if(isSupabaseConfigured()) await supabase.from('attendance').upsert(records);
 };
 export const bulkAddAttendance = saveAttendance;
 
@@ -208,11 +208,11 @@ export const addPerformance = async (p: PerformanceRecord) => {
     const idx = list.findIndex(x => x.id === p.id); 
     if (idx > -1) list[idx] = p; else list.push(p);
     updateCache(KEYS.PERFORMANCE, list); notifyDataChange();
-    await supabase.from('performance').upsert(p);
+    if(isSupabaseConfigured()) await supabase.from('performance').upsert(p);
 };
 export const deletePerformance = async (id: string) => { 
     updateCache(KEYS.PERFORMANCE, getPerformance().filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('performance').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('performance').delete().eq('id', id);
 };
 export const bulkAddPerformance = async (records: PerformanceRecord[]) => { 
     const list = getPerformance(); 
@@ -221,7 +221,7 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
         if (idx > -1) list[idx] = r; else list.push(r);
     });
     updateCache(KEYS.PERFORMANCE, list); notifyDataChange();
-    await supabase.from('performance').upsert(records);
+    if(isSupabaseConfigured()) await supabase.from('performance').upsert(records);
 };
 
 // --- AUTHENTICATION & SYNC ---
@@ -230,30 +230,31 @@ export const authenticateUser = async (identifier: string, password: string): Pr
     let cloudUser: SystemUser | undefined;
     let cloudError = null;
 
-    try {
-        // 1. Try Cloud Authentication
-        const { data, error } = await supabase
-            .from('system_users')
-            .select('*')
-            .or(`email.eq.${identifier},national_id.eq.${identifier}`)
-            .eq('password', password)
-            .eq('status', 'ACTIVE')
-            .single();
-            
-        if (data && !error) {
-            cloudUser = data as SystemUser;
-        } else {
-            cloudError = error;
+    // 1. Try Cloud Authentication ONLY if configured
+    if (isSupabaseConfigured()) {
+        try {
+            const { data, error } = await supabase
+                .from('system_users')
+                .select('*')
+                .or(`email.eq.${identifier},national_id.eq.${identifier}`)
+                .eq('password', password)
+                .eq('status', 'ACTIVE')
+                .single();
+                
+            if (data && !error) {
+                cloudUser = data as SystemUser;
+            } else {
+                cloudError = error;
+            }
+        } catch (e) {
+            cloudError = e;
         }
-    } catch (e) {
-        cloudError = e;
     }
 
     // 2. Return cloud user if found
     if (cloudUser) return cloudUser;
 
-    // 3. Fallback to Local Cache if Cloud failed (even if online, e.g. table doesn't exist yet or connection blocked)
-    // This allows the app to work for the first user/demo mode or if cloud config is bad
+    // 3. Fallback to Local Cache
     console.warn("Cloud Auth failed or user not found, checking local storage...", cloudError);
     
     const localUsers = getSystemUsers();
@@ -267,20 +268,23 @@ export const authenticateUser = async (identifier: string, password: string): Pr
 };
 
 export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
-    try {
-        const cleanId = nationalId.trim();
-        const { data, error } = await supabase
-            .from('students')
-            .select('*')
-            .eq('national_id', cleanId)
-            .single();
+    // Try Cloud if configured
+    if (isSupabaseConfigured()) {
+        try {
+            const cleanId = nationalId.trim();
+            const { data, error } = await supabase
+                .from('students')
+                .select('*')
+                .eq('national_id', cleanId)
+                .single();
 
-        if (data && !error) {
-             const defaultPass = cleanId.slice(-4);
-             const studentPass = data.password || defaultPass;
-             if (password === studentPass) return { ...data, role: 'STUDENT' };
-        }
-    } catch (e) {}
+            if (data && !error) {
+                 const defaultPass = cleanId.slice(-4);
+                 const studentPass = data.password || defaultPass;
+                 if (password === studentPass) return { ...data, role: 'STUDENT' };
+            }
+        } catch (e) {}
+    }
     
     // Local Fallback for students
     const localStudents = getStudents();
@@ -294,14 +298,25 @@ export const authenticateStudent = async (nationalId: string, password: string):
     return undefined;
 };
 
+export const checkConnection = async () => {
+    if (!isSupabaseConfigured()) return { success: false };
+    try {
+        const { error } = await supabase.from('schools').select('count', { count: 'exact', head: true });
+        return { success: !error };
+    } catch { return { success: false }; }
+};
+
 export const forceRefreshData = async () => {
+    if (!isSupabaseConfigured()) {
+        setSyncStatus('OFFLINE');
+        return false;
+    }
+
     setSyncStatus('SYNCING');
     
-    // Check connection first to avoid waiting on timeouts if totally offline/bad config
     const check = await checkConnection();
     if (!check.success) {
-        console.warn("Skipping sync: Cloud unreachable or unconfigured.");
-        setSyncStatus('OFFLINE'); // or ERROR
+        setSyncStatus('ERROR'); // Changed to ERROR to indicate attempt failure
         return false;
     }
 
@@ -345,11 +360,11 @@ export const getSubjects = (teacherId?: string): Subject[] => {
 };
 export const addSubject = async (s: Subject) => { 
     const list = get<Subject>(KEYS.SUBJECTS); list.push(s); updateCache(KEYS.SUBJECTS, list); notifyDataChange();
-    await supabase.from('subjects').insert(s);
+    if(isSupabaseConfigured()) await supabase.from('subjects').insert(s);
 };
 export const deleteSubject = async (id: string) => { 
     updateCache(KEYS.SUBJECTS, get<Subject>(KEYS.SUBJECTS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('subjects').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('subjects').delete().eq('id', id);
 };
 
 export const getSchedules = (): ScheduleItem[] => get(KEYS.SCHEDULES);
@@ -357,11 +372,11 @@ export const saveScheduleItem = async (item: ScheduleItem) => {
     let list = getSchedules(); 
     const idx = list.findIndex(x => x.id === item.id); if (idx > -1) list[idx] = item; else list.push(item);
     updateCache(KEYS.SCHEDULES, list); notifyDataChange();
-    await supabase.from('schedules').upsert(item);
+    if(isSupabaseConfigured()) await supabase.from('schedules').upsert(item);
 };
 export const deleteScheduleItem = async (id: string) => { 
     updateCache(KEYS.SCHEDULES, getSchedules().filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('schedules').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('schedules').delete().eq('id', id);
 };
 
 export const getTeacherAssignments = (): TeacherAssignment[] => get(KEYS.ASSIGNMENTS);
@@ -378,11 +393,11 @@ export const saveAssignment = async (a: Assignment) => {
     const list = get<Assignment>(KEYS.WORKS_ASSIGNMENTS); 
     const idx = list.findIndex(x => x.id === a.id); if (idx > -1) list[idx] = a; else list.push(a);
     updateCache(KEYS.WORKS_ASSIGNMENTS, list); notifyDataChange();
-    await supabase.from('assignments').upsert(a);
+    if(isSupabaseConfigured()) await supabase.from('assignments').upsert(a);
 };
 export const deleteAssignment = async (id: string) => { 
     updateCache(KEYS.WORKS_ASSIGNMENTS, get<Assignment>(KEYS.WORKS_ASSIGNMENTS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('assignments').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('assignments').delete().eq('id', id);
 };
 
 export const getWorksMasterUrl = () => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
@@ -406,27 +421,27 @@ export const getMessages = (teacherId?: string): MessageLog[] => {
 };
 export const saveMessage = async (m: MessageLog) => { 
     const list = get<MessageLog>(KEYS.MESSAGES); list.unshift(m); updateCache(KEYS.MESSAGES, list); notifyDataChange();
-    await supabase.from('message_logs').insert(m);
+    if(isSupabaseConfigured()) await supabase.from('message_logs').insert(m);
 };
 
 export const getLessonLinks = (): LessonLink[] => get(KEYS.LESSON_LINKS);
 export const saveLessonLink = async (l: LessonLink) => { 
     const list = getLessonLinks(); list.push(l); updateCache(KEYS.LESSON_LINKS, list); notifyDataChange();
-    await supabase.from('lesson_links').insert(l);
+    if(isSupabaseConfigured()) await supabase.from('lesson_links').insert(l);
 };
 export const deleteLessonLink = async (id: string) => { 
     updateCache(KEYS.LESSON_LINKS, getLessonLinks().filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('lesson_links').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('lesson_links').delete().eq('id', id);
 };
 
 export const getLessonPlans = (teacherId: string): StoredLessonPlan[] => get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.teacherId === teacherId);
 export const saveLessonPlan = async (p: StoredLessonPlan) => { 
     const list = get<StoredLessonPlan>(KEYS.LESSON_PLANS); list.push(p); updateCache(KEYS.LESSON_PLANS, list); notifyDataChange();
-    await supabase.from('lesson_plans').insert(p);
+    if(isSupabaseConfigured()) await supabase.from('lesson_plans').insert(p);
 };
 export const deleteLessonPlan = async (id: string) => { 
     updateCache(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('lesson_plans').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('lesson_plans').delete().eq('id', id);
 };
 
 export const getWeeklyPlans = (teacherId?: string): WeeklyPlanItem[] => {
@@ -438,17 +453,17 @@ export const saveWeeklyPlanItem = async (item: WeeklyPlanItem) => {
     const list = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS);
     const idx = list.findIndex(x => x.id === item.id); if (idx > -1) list[idx] = item; else list.push(item);
     updateCache(KEYS.WEEKLY_PLANS, list); notifyDataChange();
-    await supabase.from('weekly_plans').upsert(item);
+    if(isSupabaseConfigured()) await supabase.from('weekly_plans').upsert(item);
 };
 
 export const getCurriculumUnits = (teacherId: string): CurriculumUnit[] => get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(u => u.teacherId === teacherId);
 export const saveCurriculumUnit = async (u: CurriculumUnit) => { 
     const list = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS); list.push(u); updateCache(KEYS.CURRICULUM_UNITS, list); notifyDataChange();
-    await supabase.from('curriculum_units').insert(u);
+    if(isSupabaseConfigured()) await supabase.from('curriculum_units').insert(u);
 };
 export const deleteCurriculumUnit = async (id: string) => { 
     updateCache(KEYS.CURRICULUM_UNITS, get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('curriculum_units').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('curriculum_units').delete().eq('id', id);
 };
 
 export const getCurriculumLessons = (): CurriculumLesson[] => get(KEYS.CURRICULUM_LESSONS);
@@ -456,21 +471,21 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     const list = get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS);
     const idx = list.findIndex(x => x.id === l.id); if (idx > -1) list[idx] = l; else list.push(l);
     updateCache(KEYS.CURRICULUM_LESSONS, list); notifyDataChange();
-    await supabase.from('curriculum_lessons').upsert(l);
+    if(isSupabaseConfigured()) await supabase.from('curriculum_lessons').upsert(l);
 };
 export const deleteCurriculumLesson = async (id: string) => { 
     updateCache(KEYS.CURRICULUM_LESSONS, get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('curriculum_lessons').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
 
 export const getMicroConcepts = (teacherId: string): MicroConcept[] => get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(c => c.teacherId === teacherId);
 export const saveMicroConcept = async (c: MicroConcept) => { 
     const list = get<MicroConcept>(KEYS.MICRO_CONCEPTS); list.push(c); updateCache(KEYS.MICRO_CONCEPTS, list); notifyDataChange();
-    await supabase.from('micro_concepts').insert(c);
+    if(isSupabaseConfigured()) await supabase.from('micro_concepts').insert(c);
 };
 export const deleteMicroConcept = async (id: string) => { 
     updateCache(KEYS.MICRO_CONCEPTS, get<MicroConcept>(KEYS.MICRO_CONCEPTS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('micro_concepts').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('micro_concepts').delete().eq('id', id);
 };
 
 export const getExams = (teacherId?: string): Exam[] => {
@@ -482,11 +497,11 @@ export const saveExam = async (e: Exam) => {
     const list = get<Exam>(KEYS.EXAMS);
     const idx = list.findIndex(x => x.id === e.id); if (idx > -1) list[idx] = e; else list.push(e);
     updateCache(KEYS.EXAMS, list); notifyDataChange();
-    await supabase.from('exams').upsert(e);
+    if(isSupabaseConfigured()) await supabase.from('exams').upsert(e);
 };
 export const deleteExam = async (id: string) => { 
     updateCache(KEYS.EXAMS, get<Exam>(KEYS.EXAMS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('exams').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('exams').delete().eq('id', id);
 };
 
 export const getExamResults = (examId?: string): ExamResult[] => {
@@ -496,11 +511,11 @@ export const getExamResults = (examId?: string): ExamResult[] => {
 };
 export const saveExamResult = async (r: ExamResult) => { 
     const list = get<ExamResult>(KEYS.EXAM_RESULTS); list.push(r); updateCache(KEYS.EXAM_RESULTS, list); notifyDataChange();
-    await supabase.from('exam_results').insert(r);
+    if(isSupabaseConfigured()) await supabase.from('exam_results').insert(r);
 };
 export const deleteExamResult = async (id: string) => { 
     updateCache(KEYS.EXAM_RESULTS, get<ExamResult>(KEYS.EXAM_RESULTS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('exam_results').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('exam_results').delete().eq('id', id);
 };
 
 export const getQuestionBank = (teacherId: string): Question[] => get<Question>(KEYS.QUESTION_BANK).filter(q => q.teacherId === teacherId);
@@ -508,11 +523,11 @@ export const saveQuestionToBank = async (q: Question) => {
     const list = get<Question>(KEYS.QUESTION_BANK);
     const idx = list.findIndex(x => x.id === q.id); if (idx > -1) list[idx] = q; else list.push(q);
     updateCache(KEYS.QUESTION_BANK, list); notifyDataChange();
-    await supabase.from('questions').upsert(q);
+    if(isSupabaseConfigured()) await supabase.from('questions').upsert(q);
 };
 export const deleteQuestionFromBank = async (id: string) => { 
     updateCache(KEYS.QUESTION_BANK, get<Question>(KEYS.QUESTION_BANK).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('questions').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('questions').delete().eq('id', id);
 };
 
 export const getTrackingSheets = (teacherId?: string): TrackingSheet[] => {
@@ -524,11 +539,11 @@ export const saveTrackingSheet = async (s: TrackingSheet) => {
     const list = get<TrackingSheet>(KEYS.TRACKING_SHEETS);
     const idx = list.findIndex(x => x.id === s.id); if (idx > -1) list[idx] = s; else list.push(s);
     updateCache(KEYS.TRACKING_SHEETS, list); notifyDataChange();
-    await supabase.from('tracking_sheets').upsert(s);
+    if(isSupabaseConfigured()) await supabase.from('tracking_sheets').upsert(s);
 };
 export const deleteTrackingSheet = async (id: string) => { 
     updateCache(KEYS.TRACKING_SHEETS, get<TrackingSheet>(KEYS.TRACKING_SHEETS).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('tracking_sheets').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('tracking_sheets').delete().eq('id', id);
 };
 
 export const getCustomTables = (teacherId?: string): CustomTable[] => {
@@ -538,16 +553,16 @@ export const getCustomTables = (teacherId?: string): CustomTable[] => {
 };
 export const addCustomTable = async (t: CustomTable) => { 
     const list = get<CustomTable>(KEYS.CUSTOM_TABLES); list.push(t); updateCache(KEYS.CUSTOM_TABLES, list); notifyDataChange();
-    await supabase.from('custom_tables').insert(t);
+    if(isSupabaseConfigured()) await supabase.from('custom_tables').insert(t);
 };
 export const updateCustomTable = async (t: CustomTable) => { 
     const list = get<CustomTable>(KEYS.CUSTOM_TABLES); const idx = list.findIndex(x => x.id === t.id); if (idx > -1) list[idx] = t; 
     updateCache(KEYS.CUSTOM_TABLES, list); notifyDataChange();
-    await supabase.from('custom_tables').update(t).eq('id', t.id);
+    if(isSupabaseConfigured()) await supabase.from('custom_tables').update(t).eq('id', t.id);
 };
 export const deleteCustomTable = async (id: string) => { 
     updateCache(KEYS.CUSTOM_TABLES, get<CustomTable>(KEYS.CUSTOM_TABLES).filter(x => x.id !== id)); notifyDataChange();
-    await supabase.from('custom_tables').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('custom_tables').delete().eq('id', id);
 };
 
 export const getAcademicTerms = (teacherId?: string): AcademicTerm[] => {
@@ -559,11 +574,11 @@ export const saveAcademicTerm = async (term: AcademicTerm) => {
     const list = get<AcademicTerm>(KEYS.ACADEMIC_TERMS);
     const idx = list.findIndex(t => t.id === term.id); if (idx > -1) list[idx] = term; else list.push(term);
     updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
-    await supabase.from('academic_terms').upsert(term);
+    if(isSupabaseConfigured()) await supabase.from('academic_terms').upsert(term);
 };
 export const deleteAcademicTerm = async (id: string) => { 
     updateCache(KEYS.ACADEMIC_TERMS, get<AcademicTerm>(KEYS.ACADEMIC_TERMS).filter(t => t.id !== id)); notifyDataChange();
-    await supabase.from('academic_terms').delete().eq('id', id);
+    if(isSupabaseConfigured()) await supabase.from('academic_terms').delete().eq('id', id);
 };
 export const setCurrentTerm = async (id: string, teacherId?: string) => {
     const list = get<AcademicTerm>(KEYS.ACADEMIC_TERMS).map(t => {
@@ -573,7 +588,7 @@ export const setCurrentTerm = async (id: string, teacherId?: string) => {
         return t;
     });
     updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
-    await supabase.from('academic_terms').upsert(list.filter(t => t.teacherId === teacherId));
+    if(isSupabaseConfigured()) await supabase.from('academic_terms').upsert(list.filter(t => t.teacherId === teacherId));
 };
 
 export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig => {
@@ -620,18 +635,15 @@ export const restoreBackup = (json: string) => {
     }
 };
 
-export const checkConnection = async () => {
-    try {
-        const { error } = await supabase.from('schools').select('count', { count: 'exact', head: true });
-        return { success: !error };
-    } catch { return { success: false }; }
-};
 export const fetchCloudTableData = async (table: string) => {
+    if(!isSupabaseConfigured()) return [];
     const { data } = await supabase.from(table).select('*').limit(50);
     return data;
 };
 export const validateCloudSchema = async () => { return { missingTables: [] }; };
-export const clearCloudTable = async (table: string) => { await supabase.from(table).delete().neq('id', '0'); };
+export const clearCloudTable = async (table: string) => { 
+    if(isSupabaseConfigured()) await supabase.from(table).delete().neq('id', '0'); 
+};
 export const resetCloudDatabase = async () => { /* Dangerous, implementation skipped */ };
 export const backupCloudDatabase = async () => { return "{}"; };
 export const restoreCloudDatabase = async (json: string) => { };
@@ -670,118 +682,6 @@ export const getTableDisplayName = (table: string): string => {
 };
 
 export const getDatabaseUpdateSQL = (): string => {
-    return `-- Run this SQL in Supabase Query Editor to update tables for new features
-
--- 1. Exams and Questions
-CREATE TABLE IF NOT EXISTS exams (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    subject TEXT,
-    grade_level TEXT,
-    duration_minutes INTEGER,
-    questions JSONB,
-    is_active BOOLEAN,
-    created_at TEXT,
-    teacher_id TEXT,
-    date TEXT
-);
-
-CREATE TABLE IF NOT EXISTS questions (
-    id TEXT PRIMARY KEY,
-    text TEXT,
-    type TEXT,
-    options JSONB,
-    correct_answer TEXT,
-    points INTEGER,
-    subject TEXT,
-    grade_level TEXT,
-    teacher_id TEXT
-);
-
-CREATE TABLE IF NOT EXISTS exam_results (
-    id TEXT PRIMARY KEY,
-    exam_id TEXT,
-    student_id TEXT,
-    student_name TEXT,
-    score INTEGER,
-    total_score INTEGER,
-    date TEXT,
-    answers JSONB
-);
-
--- 2. Curriculum
-CREATE TABLE IF NOT EXISTS curriculum_units (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    subject TEXT,
-    grade_level TEXT,
-    title TEXT,
-    order_index INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS curriculum_lessons (
-    id TEXT PRIMARY KEY,
-    unit_id TEXT,
-    title TEXT,
-    order_index INTEGER,
-    learning_standards JSONB,
-    micro_concept_ids JSONB
-);
-
-CREATE TABLE IF NOT EXISTS micro_concepts (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    subject TEXT,
-    name TEXT
-);
-
--- 3. Lesson Plans & Links
-CREATE TABLE IF NOT EXISTS lesson_plans (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    subject TEXT,
-    topic TEXT,
-    content_json TEXT,
-    resources JSONB,
-    created_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS lesson_links (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    url TEXT,
-    teacher_id TEXT,
-    created_at TEXT,
-    grade_level TEXT,
-    class_name TEXT
-);
-
--- 4. Tracking Sheets
-CREATE TABLE IF NOT EXISTS tracking_sheets (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    subject TEXT,
-    class_name TEXT,
-    teacher_id TEXT,
-    created_at TEXT,
-    columns JSONB,
-    scores JSONB
-);
-
--- 5. Academic Terms
-CREATE TABLE IF NOT EXISTS academic_terms (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    start_date TEXT,
-    end_date TEXT,
-    is_current BOOLEAN,
-    teacher_id TEXT,
-    periods JSONB
-);
-`;
-};
-
-export const getDatabaseSchemaSQL = () => {
     return `-- Run this in Supabase SQL Editor to Create All Tables
 
 CREATE TABLE IF NOT EXISTS schools (
@@ -917,7 +817,108 @@ CREATE TABLE IF NOT EXISTS message_logs (
     teacher_id TEXT
 );
 
--- Include updates as well
-${getDatabaseUpdateSQL()}
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    subject TEXT,
+    grade_level TEXT,
+    duration_minutes INTEGER,
+    questions JSONB,
+    is_active BOOLEAN,
+    created_at TEXT,
+    teacher_id TEXT,
+    date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+    id TEXT PRIMARY KEY,
+    text TEXT,
+    type TEXT,
+    options JSONB,
+    correct_answer TEXT,
+    points INTEGER,
+    subject TEXT,
+    grade_level TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS exam_results (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT,
+    student_id TEXT,
+    student_name TEXT,
+    score INTEGER,
+    total_score INTEGER,
+    date TEXT,
+    answers JSONB
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_units (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    grade_level TEXT,
+    title TEXT,
+    order_index INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT,
+    title TEXT,
+    order_index INTEGER,
+    learning_standards JSONB,
+    micro_concept_ids JSONB
+);
+
+CREATE TABLE IF NOT EXISTS micro_concepts (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lesson_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    topic TEXT,
+    content_json TEXT,
+    resources JSONB,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lesson_links (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    url TEXT,
+    teacher_id TEXT,
+    created_at TEXT,
+    grade_level TEXT,
+    class_name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tracking_sheets (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    subject TEXT,
+    class_name TEXT,
+    teacher_id TEXT,
+    created_at TEXT,
+    columns JSONB,
+    scores JSONB
+);
+
+CREATE TABLE IF NOT EXISTS academic_terms (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    is_current BOOLEAN,
+    teacher_id TEXT,
+    periods JSONB
+);
 `;
 };
+
+export const getDatabaseSchemaSQL = getDatabaseUpdateSQL;

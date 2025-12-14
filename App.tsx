@@ -12,6 +12,7 @@ import {
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
     forceRefreshData
 } from './services/storageService';
+import { isSupabaseConfigured } from './services/supabaseClient';
 import { checkAIConnection } from './services/geminiService';
 
 // Component Imports with corrected paths
@@ -88,8 +89,8 @@ const App: React.FC = () => {
                 // Load local data immediately without forcing refresh
                 loadData();
                 
-                // Only force refresh if there is absolutely no data (fresh install)
-                if (getStudents().length === 0) {
+                // Only force refresh if there is absolutely no data (fresh install) AND cloud is configured
+                if (getStudents().length === 0 && isSupabaseConfigured()) {
                     setIsLoading(true);
                     try {
                         await forceRefreshData();
