@@ -281,7 +281,27 @@ export const authenticateStudent = async (nationalId: string, password: string):
             if (data && !error) {
                  const defaultPass = cleanId.slice(-4);
                  const studentPass = data.password || defaultPass;
-                 if (password === studentPass) return { ...data, role: 'STUDENT' };
+                 
+                 if (password === studentPass) {
+                     // MAP FROM SNAKE_CASE (DB) TO CAMELCASE (APP)
+                     return { 
+                         id: data.id,
+                         name: data.name,
+                         nationalId: data.national_id,
+                         classId: data.class_id,
+                         gradeLevel: data.grade_level,
+                         className: data.class_name,
+                         email: data.email,
+                         phone: data.phone,
+                         parentName: data.parent_name,
+                         parentPhone: data.parent_phone,
+                         parentEmail: data.parent_email,
+                         password: data.password,
+                         schoolId: data.school_id,
+                         seatIndex: data.seat_index,
+                         role: 'STUDENT'
+                     };
+                 }
             }
         } catch (e) {}
     }
@@ -328,7 +348,18 @@ export const forceRefreshData = async () => {
         updateCache(KEYS.SCHOOLS, results[0].data || []);
         updateCache(KEYS.TEACHERS, results[1].data || []);
         updateCache(KEYS.USERS, results[2].data || []);
-        updateCache(KEYS.STUDENTS, results[3].data || []);
+        
+        // Students: Map back to camelCase just in case direct storage is needed in App format
+        const studentData = (results[3].data || []).map((s: any) => ({
+             id: s.id, name: s.name, nationalId: s.national_id, 
+             classId: s.class_id, gradeLevel: s.grade_level, className: s.class_name,
+             email: s.email, phone: s.phone, parentName: s.parent_name,
+             parentPhone: s.parent_phone, parentEmail: s.parent_email,
+             password: s.password, schoolId: s.school_id, seatIndex: s.seat_index,
+             createdById: s.created_by_id
+        }));
+        updateCache(KEYS.STUDENTS, studentData);
+        
         updateCache(KEYS.ATTENDANCE, results[4].data || []);
         updateCache(KEYS.PERFORMANCE, results[5].data || []);
         updateCache(KEYS.WORKS_ASSIGNMENTS, results[6].data || []);
