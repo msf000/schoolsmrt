@@ -131,6 +131,7 @@ export const addTeacher = async (t: Teacher) => {
         schoolId: t.schoolId, 
         status: 'ACTIVE'
     };
+    // Save system user locally and to cloud
     await addSystemUser(systemUser);
     
     await supabase.from('teachers').insert(t);
@@ -223,9 +224,11 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
     await supabase.from('performance').upsert(records);
 };
 
+// --- AUTHENTICATION & SYNC ---
+
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
     try {
-        // Direct Supabase Query for Authentication
+        // Direct Supabase Query for Authentication (Cloud First)
         const { data, error } = await supabase
             .from('system_users')
             .select('*')
@@ -234,7 +237,9 @@ export const authenticateUser = async (identifier: string, password: string): Pr
             .eq('status', 'ACTIVE')
             .single();
             
-        if (data && !error) return data as SystemUser;
+        if (data && !error) {
+            return data as SystemUser;
+        }
         
         // Fallback to local cache only if offline or sync hasn't happened
         if (error && !navigator.onLine) {
@@ -254,8 +259,6 @@ export const authenticateUser = async (identifier: string, password: string): Pr
 export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
     try {
         const cleanId = nationalId.trim();
-        const defaultPass = cleanId.slice(-4);
-        
         // Direct Supabase Query
         const { data, error } = await supabase
             .from('students')
@@ -264,6 +267,7 @@ export const authenticateStudent = async (nationalId: string, password: string):
             .single();
 
         if (data && !error) {
+             const defaultPass = cleanId.slice(-4);
              const studentPass = data.password || defaultPass;
              if (password === studentPass) return { ...data, role: 'STUDENT' };
         }
@@ -274,12 +278,12 @@ export const authenticateStudent = async (nationalId: string, password: string):
 export const forceRefreshData = async () => {
     setSyncStatus('SYNCING');
     try {
-        // We fetch everything to ensure full sync on login. 
-        // Optimally, we could filter by school_id/teacher_id in the query for large datasets.
+        // Fetch all core tables to ensure local storage is up to date
         const tables = ['schools', 'teachers', 'system_users', 'students', 'attendance', 'performance', 'assignments', 'subjects', 'schedules', 'teacher_assignments', 'exams', 'questions', 'curriculum_units', 'curriculum_lessons', 'academic_terms'];
         const promises = tables.map(t => supabase.from(t).select('*'));
         const results = await Promise.all(promises);
         
+        // Update Local Storage Cache
         updateCache(KEYS.SCHOOLS, results[0].data || []);
         updateCache(KEYS.TEACHERS, results[1].data || []);
         updateCache(KEYS.USERS, results[2].data || []);
