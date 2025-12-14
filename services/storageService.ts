@@ -1,5 +1,3 @@
-
-
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Subject, ScheduleItem, TeacherAssignment, Assignment, WeeklyPlanItem, 
@@ -1231,3 +1229,5 @@ CREATE TABLE IF NOT EXISTS "academic_terms" (
 ALTER TABLE "academic_terms" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Access" ON "academic_terms";
 CREATE POLICY "Public Access" ON "academic_terms" FOR ALL USING (true) WITH CHECK (true);
+`;
+};
