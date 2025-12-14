@@ -32,6 +32,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
         hw: 10, act: 10, att: 5, exam: 20
     });
+    
+    // Header config for print
+    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
@@ -41,6 +44,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
 
         setAssignments(getAssignments('ALL', currentUser?.id));
+        setHeaderConfig(getReportHeaderConfig(currentUser?.id));
         
         const savedConfig = localStorage.getItem('works_year_config');
         if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
@@ -217,13 +221,19 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         <option value="">كل الفترات</option>
                         {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
+                    
+                    {student && (
+                        <button onClick={() => window.print()} className="bg-gray-800 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-black transition-colors flex items-center gap-2">
+                            <Printer size={16}/> تقرير
+                        </button>
+                    )}
                 </div>
             </div>
 
             {student && stats ? (
                 <div className="space-y-6">
                     {/* Student Info Card */}
-                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm relative overflow-hidden">
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm relative overflow-hidden print:hidden">
                         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-purple-500 to-indigo-600"></div>
                         <div className="flex flex-col md:flex-row justify-between gap-6">
                             <div className="flex items-center gap-4">
@@ -263,7 +273,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     </div>
 
                     {/* NEW: Year Work Breakdown */}
-                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm print:hidden">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-gray-700 flex items-center gap-2"><PieChart size={18}/> توزيع أعمال السنة (تجميعي)</h3>
                             <span className="bg-gray-900 text-white px-3 py-1 rounded-full text-xs font-bold">{stats.yearWorkData.totalYearWork.toFixed(1)} / {stats.yearWorkData.maxYearWork}</span>
@@ -308,7 +318,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
                         {/* Grade Trend Chart */}
                         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                             <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى الأكاديمي</h3>
@@ -353,7 +363,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     </div>
 
                     {/* Detailed Lists */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
                         {/* Attendance Log */}
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                             <div className="p-4 bg-teal-50 border-b border-teal-100 font-bold text-teal-800 flex justify-between">
@@ -406,9 +416,100 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         </div>
                     </div>
 
+                    {/* --- PRINT ONLY REPORT --- */}
+                    <div className="hidden print:block bg-white p-8">
+                        <div className="flex justify-between items-center border-b-2 border-black pb-6 mb-6">
+                            <div className="text-right text-sm font-bold w-1/3">
+                                <p>المملكة العربية السعودية</p>
+                                <p>وزارة التعليم</p>
+                                <p>{headerConfig?.schoolName}</p>
+                            </div>
+                            <div className="text-center w-1/3">
+                                {headerConfig?.logoBase64 && <img src={headerConfig.logoBase64} alt="logo" className="h-20 mx-auto mb-2"/>}
+                                <h1 className="text-xl font-black">إشعار مستوى طالب</h1>
+                            </div>
+                            <div className="text-left text-sm font-bold w-1/3">
+                                <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                                <p>العام الدراسي: {headerConfig?.academicYear}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between border border-gray-400 p-4 mb-6 rounded">
+                            <div><span className="font-bold">اسم الطالب:</span> {student.name}</div>
+                            <div><span className="font-bold">الصف:</span> {student.gradeLevel} - {student.className}</div>
+                            <div><span className="font-bold">رقم الهوية:</span> {student.nationalId}</div>
+                        </div>
+
+                        <div className="mb-6">
+                            <h3 className="font-bold text-lg mb-2 border-b">ملخص الأداء</h3>
+                            <div className="grid grid-cols-4 gap-4 text-center border border-gray-400 rounded p-4 bg-gray-50">
+                                <div>
+                                    <p className="font-bold">نسبة الحضور</p>
+                                    <p className="text-xl">{stats.attRate}%</p>
+                                </div>
+                                <div>
+                                    <p className="font-bold">أيام الغياب</p>
+                                    <p className="text-xl">{stats.absent}</p>
+                                </div>
+                                <div>
+                                    <p className="font-bold">نقاط السلوك</p>
+                                    <p className="text-xl">{stats.posBeh}</p>
+                                </div>
+                                <div>
+                                    <p className="font-bold">المجموع التراكمي</p>
+                                    <p className="text-xl">{stats.yearWorkData.totalYearWork}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mb-8">
+                            <h3 className="font-bold text-lg mb-2 border-b">تفاصيل المواد (أعمال السنة)</h3>
+                            <table className="w-full text-center border-collapse text-sm">
+                                <thead>
+                                    <tr className="bg-gray-100 border border-gray-400">
+                                        <th className="p-2 border border-gray-400">المادة</th>
+                                        <th className="p-2 border border-gray-400">واجبات ({yearWorkConfig.hw})</th>
+                                        <th className="p-2 border border-gray-400">مشاركة ({yearWorkConfig.act})</th>
+                                        <th className="p-2 border border-gray-400">اختبارات ({yearWorkConfig.exam})</th>
+                                        <th className="p-2 border border-gray-400">حضور ({yearWorkConfig.att})</th>
+                                        <th className="p-2 border border-gray-400">المجموع</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {stats.subjectsData.map((sub) => (
+                                        <tr key={sub.name}>
+                                            <td className="p-2 border border-gray-400 font-bold">{sub.name}</td>
+                                            {/* Note: This is a simulation for breakdown per subject, real breakdown logic needed if data exists per subject. Using average for demo */}
+                                            <td className="p-2 border border-gray-400">-</td>
+                                            <td className="p-2 border border-gray-400">-</td>
+                                            <td className="p-2 border border-gray-400">-</td>
+                                            <td className="p-2 border border-gray-400">-</td>
+                                            <td className="p-2 border border-gray-400 font-bold">{sub.avg}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex justify-between items-end mt-12 px-8">
+                            <div className="text-center">
+                                <p className="font-bold mb-8">المرشد الطلابي</p>
+                                <p>.........................</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="font-bold mb-8">وكيل الشؤون التعليمية</p>
+                                <p>.........................</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="font-bold mb-8">مدير المدرسة</p>
+                                <p>{headerConfig?.schoolManager || '.........................'}</p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl bg-white">
+                <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl bg-white print:hidden">
                     <Search size={64} className="mb-6 opacity-20"/>
                     <p className="text-xl font-bold">ابحث عن طالب لعرض ملفه</p>
                     <p className="text-sm">استخدم مربع البحث أعلاه</p>

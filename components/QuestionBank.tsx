@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Question, SystemUser, Subject } from '../types';
 import { getQuestionBank, saveQuestionToBank, deleteQuestionFromBank, getSubjects } from '../services/storageService';
-import { Plus, Trash2, Edit, Search, Filter, Save, X, Library, CheckCircle, FileQuestion, GraduationCap, Download, Upload } from 'lucide-react';
+import { generateStructuredQuiz } from '../services/geminiService';
+import { Plus, Trash2, Edit, Search, Filter, Save, X, Library, CheckCircle, FileQuestion, GraduationCap, Download, Upload, Sparkles, Loader2 } from 'lucide-react';
 
 interface QuestionBankProps {
     currentUser: SystemUser;
@@ -16,6 +17,13 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [subjects, setSubjects] = useState<Subject[]>([]);
+
+    // AI Generation State
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [aiTopic, setAiTopic] = useState('');
+    const [aiCount, setAiCount] = useState(3);
+    const [aiDifficulty, setAiDifficulty] = useState('MEDIUM');
+    const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
         if(currentUser?.id) {
@@ -70,7 +78,6 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                     let count = 0;
                     imported.forEach((q: any) => {
                         if (q.text && q.type) {
-                            // Ensure new ID to avoid conflict, assign to current user
                             const newQ: Question = { ...q, id: Date.now() + Math.random().toString(), teacherId: currentUser.id };
                             saveQuestionToBank(newQ);
                             count++;
@@ -86,6 +93,48 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
             }
         };
         reader.readAsText(file);
+    };
+
+    const handleAiGenerate = async () => {
+        if (!aiTopic || !filterSubject || !filterGrade) {
+            alert('الرجاء تحديد المادة والصف من الفلاتر وكتابة الموضوع.');
+            return;
+        }
+        setIsGenerating(true);
+        try {
+            const generatedQuestions = await generateStructuredQuiz(filterSubject, aiTopic, filterGrade, aiCount, aiDifficulty);
+            
+            let addedCount = 0;
+            if (Array.isArray(generatedQuestions)) {
+                generatedQuestions.forEach((q: any) => {
+                    const newQ: Question = {
+                        id: Date.now() + Math.random().toString(),
+                        text: q.question,
+                        type: 'MCQ',
+                        options: q.options || [],
+                        correctAnswer: q.correctAnswer,
+                        points: 1,
+                        teacherId: currentUser.id,
+                        subject: filterSubject,
+                        gradeLevel: filterGrade,
+                        difficulty: aiDifficulty as any
+                    };
+                    saveQuestionToBank(newQ);
+                    addedCount++;
+                });
+                setQuestions(getQuestionBank(currentUser.id));
+                setIsAiModalOpen(false);
+                setAiTopic('');
+                alert(`تم توليد وإضافة ${addedCount} سؤال للبنك بنجاح!`);
+            } else {
+                alert('لم يتمكن النظام من توليد أسئلة صالحة. حاول تغيير صيغة الموضوع.');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('حدث خطأ أثناء التوليد.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const openEditor = (q?: Question) => {
@@ -113,7 +162,10 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">مستودع الأسئلة لإعادة استخدامها في الاختبارات والواجبات.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                    <button onClick={() => setIsAiModalOpen(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:opacity-90 flex items-center gap-2 shadow-md text-sm">
+                        <Sparkles size={16}/> توليد بالذكاء (AI)
+                    </button>
                     <label className="bg-white border text-gray-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-50 flex items-center gap-2 cursor-pointer shadow-sm text-sm">
                         <Upload size={16}/> استيراد
                         <input type="file" accept=".json" onChange={handleImport} className="hidden" />
@@ -202,12 +254,73 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                     <div className="flex flex-col items-center justify-center h-full text-gray-400 py-20">
                         <Library size={64} className="mb-4 opacity-20"/>
                         <p className="font-bold text-lg">لا توجد أسئلة في البنك</p>
-                        <p className="text-sm">أضف أسئلة جديدة لتتمكن من استخدامها في الاختبارات لاحقاً.</p>
+                        <p className="text-sm">أضف أسئلة جديدة أو استخدم التوليد بالذكاء الاصطناعي.</p>
                     </div>
                 )}
             </div>
 
-            {/* Editor Modal */}
+            {/* AI Generation Modal */}
+            {isAiModalOpen && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-bounce-in">
+                        <div className="flex justify-between items-center mb-6 border-b pb-4">
+                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                                <Sparkles className="text-purple-600"/> توليد أسئلة ذكية
+                            </h3>
+                            <button onClick={() => setIsAiModalOpen(false)}><X size={20} className="text-gray-400"/></button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800">
+                                سيتم استخدام المادة والصف المحددين في الفلتر:
+                                <br/>
+                                <b>{filterSubject || 'غير محدد'}</b> - <b>{filterGrade || 'غير محدد'}</b>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">موضوع الدرس</label>
+                                <input 
+                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="مثال: الجملة الاسمية، قانون نيوتن..."
+                                    value={aiTopic}
+                                    onChange={e => setAiTopic(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">عدد الأسئلة</label>
+                                    <select className="w-full p-2 border rounded-lg bg-white" value={aiCount} onChange={e => setAiCount(Number(e.target.value))}>
+                                        <option value="3">3 أسئلة</option>
+                                        <option value="5">5 أسئلة</option>
+                                        <option value="10">10 أسئلة</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">الصعوبة</label>
+                                    <select className="w-full p-2 border rounded-lg bg-white" value={aiDifficulty} onChange={e => setAiDifficulty(e.target.value)}>
+                                        <option value="EASY">سهل</option>
+                                        <option value="MEDIUM">متوسط</option>
+                                        <option value="HARD">صعب</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={handleAiGenerate} 
+                                disabled={isGenerating || !aiTopic}
+                                className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2 mt-4 shadow-lg"
+                            >
+                                {isGenerating ? <Loader2 className="animate-spin"/> : <Sparkles size={18}/>}
+                                {isGenerating ? 'جاري التوليد...' : 'توليد وإضافة للبنك'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Editor Modal (Existing) */}
             {isModalOpen && editingQuestion && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 flex flex-col max-h-[90vh]">

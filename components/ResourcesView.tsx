@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { LessonLink, SystemUser, Subject } from '../types';
 import { getLessonLinks, saveLessonLink, deleteLessonLink, getSubjects } from '../services/storageService';
-import { Plus, Trash2, ExternalLink, Search, Link as LinkIcon, BookOpen, Video, FileText, Globe } from 'lucide-react';
+import { suggestQuickActivity } from '../services/geminiService'; // Re-using service or add new one
+import { Plus, Trash2, ExternalLink, Search, Link as LinkIcon, BookOpen, Video, FileText, Globe, Sparkles, Loader2 } from 'lucide-react';
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
 interface ResourcesViewProps {
     currentUser: SystemUser;
@@ -22,6 +24,10 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
     const [newUrl, setNewUrl] = useState('');
     const [newGrade, setNewGrade] = useState('');
     const [newClass, setNewClass] = useState('');
+
+    // AI Suggestion State
+    const [isSuggesting, setIsSuggesting] = useState(false);
+    const [suggestionTopic, setSuggestionTopic] = useState('');
 
     useEffect(() => {
         if(currentUser?.id) {
@@ -53,6 +59,41 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
         }
     };
 
+    // --- AI Suggestion Logic ---
+    const handleAiSuggest = async () => {
+        if (!suggestionTopic) return;
+        setIsSuggesting(true);
+        try {
+            // Using a direct call here for specific prompt, ideally move to geminiService
+            const apiKey = process.env.API_KEY || '';
+            if(!apiKey) throw new Error("API Key Missing");
+            
+            const ai = new GoogleGenAI({ apiKey });
+            const prompt = `Suggest 3 educational YouTube video titles and search queries for: "${suggestionTopic}" for grade: "${newGrade || 'General'}". 
+            Format as JSON array: [{"title": "Video Title", "searchQuery": "YouTube Search Query"}].`;
+            
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { responseMimeType: "application/json" }
+            });
+            
+            const suggestions = JSON.parse(response.text || "[]");
+            if (suggestions.length > 0) {
+                // Pick first one to pre-fill
+                setNewTitle(suggestions[0].title);
+                setNewUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(suggestions[0].searchQuery)}`);
+                alert('تم اقتراح عنوان ورابط بحث. يمكنك التعديل ثم الحفظ.');
+            } else {
+                alert('لم يتم العثور على اقتراحات.');
+            }
+        } catch (e) {
+            alert('فشل الاقتراح الذكي.');
+        } finally {
+            setIsSuggesting(false);
+        }
+    };
+
     const filteredLinks = useMemo(() => {
         return links.filter(l => 
             (!targetGrade || l.gradeLevel === targetGrade) &&
@@ -72,10 +113,28 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                 {/* Add Form */}
                 <div className="w-full md:w-1/3 bg-white p-6 rounded-xl border border-gray-200 h-fit">
                     <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Plus className="text-teal-600"/> إضافة مصدر جديد</h3>
+                    
+                    {/* AI Helper */}
+                    <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 mb-4">
+                        <label className="text-xs font-bold text-purple-800 mb-1 flex items-center gap-1"><Sparkles size={12}/> اقتراح ذكي</label>
+                        <div className="flex gap-2">
+                            <input 
+                                className="flex-1 p-1.5 border rounded text-xs" 
+                                placeholder="موضوع الدرس..." 
+                                value={suggestionTopic}
+                                onChange={e => setSuggestionTopic(e.target.value)}
+                            />
+                            <button 
+                                onClick={handleAiSuggest} 
+                                disabled={isSuggesting || !suggestionTopic}
+                                className="bg-purple-600 text-white px-2 rounded text-xs font-bold disabled:opacity-50"
+                            >
+                                {isSuggesting ? <Loader2 size={12} className="animate-spin"/> : 'اقتراح'}
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="space-y-4">
-                        <input className="w-full p-2 border rounded" placeholder="عنوان المصدر" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-                        <input className="w-full p-2 border rounded dir-ltr text-left" placeholder="https://..." value={newUrl} onChange={e => setNewUrl(e.target.value)} />
-                        
                         <select className="w-full p-2 border rounded text-xs" value={newGrade} onChange={e => setNewGrade(e.target.value)}>
                             <option value="">الصف المستهدف (اختياري)</option>
                             {[
@@ -86,6 +145,9 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                             ].map(g => <option key={g} value={g}>{g}</option>)}
                         </select>
 
+                        <input className="w-full p-2 border rounded" placeholder="عنوان المصدر" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                        <input className="w-full p-2 border rounded dir-ltr text-left" placeholder="https://..." value={newUrl} onChange={e => setNewUrl(e.target.value)} />
+                        
                         <button onClick={handleAdd} className="w-full bg-teal-600 text-white py-2 rounded font-bold hover:bg-teal-700">إضافة</button>
                     </div>
                 </div>
