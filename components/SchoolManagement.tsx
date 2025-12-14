@@ -356,6 +356,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     <div className="p-4 border-t bg-white animate-slide-up">
                                         <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><ListTree size={14}/> الفترات (Periods)</h5>
                                         <div className="space-y-2 mb-4">
+                                            {/* SORTED PERIODS FOR DISPLAY: Chronologically or Name based */}
                                             {term.periods?.sort((a,b) => {
                                                 if (a.startDate && b.startDate && a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
                                                 return a.name.localeCompare(b.name, 'ar');
