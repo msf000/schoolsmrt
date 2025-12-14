@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { ScanLine, Construction, Upload, Check, X, Camera, Save, RefreshCw, FileText, ChevronRight, Plus, Trash2, ListChecks, FileQuestion } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ScanLine, Upload, Check, X, Camera, Save, RefreshCw, FileText, Plus, Trash2, ListChecks, FileQuestion, ArrowRight } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, Question } from '../types';
 import { getExams, getStudents, addPerformance } from '../services/storageService';
 import { gradeExamPaper } from '../services/geminiService';
@@ -83,7 +83,8 @@ const AutoGrading: React.FC = () => {
                 durationMinutes: 0,
                 questions: questions,
                 isActive: true,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                teacherId: ''
             };
         }
 
@@ -146,22 +147,16 @@ const AutoGrading: React.FC = () => {
             setImageFile(null);
             setImagePreview(null);
             setSelectedStudentId('');
-            // Optional: Reset manual form
-            // setManualAnswers([]); setManualTitle('');
         }
     };
 
-    // Toggle specific question result
     const toggleQuestionResult = (index: number) => {
         if (!result) return;
         const newQuestions = [...result.questions];
         const q = newQuestions[index];
         q.isCorrect = !q.isCorrect;
         q.score = q.isCorrect ? (q.maxPoints || 1) : 0; 
-        
-        // Recalculate total
         const newTotal = newQuestions.reduce((acc, curr) => acc + (curr.score || 0), 0);
-        
         setResult({ ...result, questions: newQuestions, totalScore: newTotal });
     };
 
