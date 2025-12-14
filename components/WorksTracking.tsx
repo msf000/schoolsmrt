@@ -40,16 +40,6 @@ const CATEGORY_LABELS: Record<string, string> = {
     'OTHER': 'عام'
 };
 
-interface SyncDiff {
-    type: 'NEW_SCORE' | 'UPDATE_SCORE' | 'DELETE_SCORE' | 'NEW_COLUMN';
-    details: string;
-    studentName?: string;
-    oldVal?: string | number;
-    newVal?: string | number;
-    record?: PerformanceRecord; 
-    assignment?: Assignment; 
-}
-
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
@@ -90,12 +80,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSheetSyncing, setIsSheetSyncing] = useState(false);
     const [syncStatusMsg, setSyncStatusMsg] = useState('');
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
-    const [activityTarget, setActivityTarget] = useState(15);
-
-    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-    const [syncDiffs, setSyncDiffs] = useState<SyncDiff[]>([]);
 
     const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
         hw: 10, act: 10, att: 5, exam: 20
@@ -116,10 +101,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isFetchingStructure, setIsFetchingStructure] = useState(false);
     const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
     const [sheetData, setSheetData] = useState<any[]>([]); // Store raw data to calc max scores
-    const [selectedHeaders, setSelectedHeaders] = useState<Set<string>>(new Set());
-    const [unmatchedStudents, setUnmatchedStudents] = useState<string[]>([]);
     const [workbookRef, setWorkbookRef] = useState<any>(null);
-    const [syncStep, setSyncStep] = useState<'URL' | 'SELECTION'>('URL');
 
     // -- Settings Modal State --
     const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET' | 'DISTRIBUTION'>('MANUAL');
@@ -129,10 +111,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [newColCategory, setNewColCategory] = useState<string>('HOMEWORK');
     const [newCustomCategory, setNewCustomCategory] = useState(''); // For Manual
     
-    // -- Local State for Sheet Column Overrides --
-    const [sheetColMaxScores, setSheetColMaxScores] = useState<Record<string, string>>({});
-    const [sheetColUrls, setSheetColUrls] = useState<Record<string, string>>({}); // NEW: URLs for sheet columns
-
     // --- Mobile Grading Mode State ---
     const [mobileGradingMode, setMobileGradingMode] = useState(false);
     const [selectedMobileAssignment, setSelectedMobileAssignment] = useState<Assignment | null>(null);
@@ -153,8 +131,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, []);
 
-    // ... (Existing helper functions like findStudentNameInRow, fetchAssignments, handleQuickSheetSync remain unchanged) ...
-    // Assuming they are present as per previous code... 
     const findStudentNameInRow = (row: any): string | undefined => {
         for (const key of STUDENT_NAME_HEADERS) {
             if (row[key]) return String(row[key]);
@@ -258,7 +234,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [googleSheetUrl, assignments, students, selectedSubject, currentUser, onAddPerformance]);
 
-    // ... (Effects for loading data) ...
     useEffect(() => {
         if (currentUser) {
             const subs = getSubjects(currentUser.id);
@@ -389,7 +364,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setTimeout(() => setIsSaving(false), 500);
     };
 
-    // ... (Column Management and Import Logic - Standard) ...
     const handleAddColumn = () => {
         if (!newColTitle) return;
         const categoryToUse = newColCategory === 'CUSTOM' ? newCustomCategory : newColCategory;
@@ -438,8 +412,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
                 setAvailableHeaders(headers);
                 setSheetData(data);
-                setSheetColMaxScores({});
-                setSheetColUrls({});
             }
         } catch (e: any) {
             alert(e.message);
@@ -448,44 +420,29 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    const handleSheetSelectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const sheet = e.target.value;
-        setSelectedSheetName(sheet);
-        if (workbookRef) {
-            const { headers, data } = getSheetHeadersAndData(workbookRef, sheet);
-            setAvailableHeaders(headers);
-            setSheetData(data);
-            setSheetColMaxScores({});
-            setSheetColUrls({});
-        }
-    };
-
-    const getColumnMaxScore = (header: string): number => {
-        if (!sheetData || sheetData.length === 0) return 10;
-        let max = 0;
-        sheetData.forEach(row => {
-            const val = parseFloat(row[header]);
-            if (!isNaN(val) && val > max) max = val;
-        });
-        return max > 0 ? max : 10;
-    };
-
-    const handleImportColumnFromSheet = (header: string, manualMax?: string, manualUrl?: string) => {
+    const handleImportColumnFromSheet = (header: string) => {
         const categoryToUse = importCategory === 'CUSTOM' ? customImportCategory : importCategory;
         if (!categoryToUse) {
             alert('الرجاء تحديد تصنيف العمود (التبويب) أولاً');
             return;
         }
 
-        const calculatedMax = getColumnMaxScore(header);
-        const finalMax = manualMax ? Number(manualMax) : calculatedMax;
+        // Auto Calc Max
+        let max = 10;
+        if (sheetData && sheetData.length > 0) {
+            let maxVal = 0;
+            sheetData.forEach(r => {
+                const v = parseFloat(r[header]);
+                if(!isNaN(v) && v > maxVal) maxVal = v;
+            });
+            if(maxVal > 0) max = maxVal;
+        }
 
         const newAssign: Assignment = {
             id: Date.now().toString(),
             title: header,
             category: categoryToUse, 
-            maxScore: finalMax,
-            url: manualUrl, 
+            maxScore: max,
             isVisible: true,
             teacherId: currentUser?.id,
             sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header }),
@@ -494,7 +451,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         };
         saveAssignment(newAssign);
         setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-        alert(`تم إضافة العمود "${header}" (درجة عظمى: ${finalMax}) إلى تبويب: ${CATEGORY_LABELS[categoryToUse] || categoryToUse}`);
+        alert(`تم إضافة العمود "${header}" (درجة عظمى: ${max})`);
     };
 
     const saveYearWorkSettings = () => {
@@ -502,9 +459,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         alert('تم حفظ توزيع الدرجات بنجاح');
     };
 
-    // --- Year Work Calculation (Unchanged) ---
     const calculateYearWork = (student: Student) => {
-        // ... (Existing implementation kept for brevity, it is same as previous) ...
         const relevantAssignments = assignments.filter(a => {
             const termMatch = !selectedTermId || a.termId === selectedTermId;
             const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId;
@@ -987,14 +942,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <option value="">اختر الفصل...</option>
                                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                         </select>
-                                        <select 
-                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
-                                            value={settingPeriodId} 
-                                            onChange={e => setSettingPeriodId(e.target.value)}
-                                        >
-                                            <option value="">الفترة (عام)</option>
-                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                        </select>
                                     </div>
 
                                     {/* Add New Column Form */}
@@ -1040,40 +987,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <div className="p-3 bg-gray-50 border-b text-xs font-bold text-gray-500 flex">
                                             <div className="flex-1">عنوان العمود</div>
                                             <div className="w-24 text-center">الدرجة</div>
-                                            <div className="w-48 text-center">الرابط</div>
                                             <div className="w-32 text-center">التصنيف</div>
                                             <div className="w-20 text-center">حذف</div>
                                         </div>
                                         <div className="divide-y max-h-60 overflow-y-auto">
                                             {settingsAssignments.length > 0 ? settingsAssignments.map(assign => (
                                                 <div key={assign.id} className="p-3 flex items-center hover:bg-gray-50">
-                                                    <div className="flex-1">
-                                                        <input 
-                                                            className="w-full bg-transparent outline-none font-bold text-gray-700 text-sm" 
-                                                            value={assign.title} 
-                                                            onChange={e => handleUpdateColumn({...assign, title: e.target.value})}
-                                                        />
-                                                    </div>
-                                                    <div className="w-24 text-center">
-                                                        <input 
-                                                            className="w-full bg-transparent outline-none text-center text-sm font-mono" 
-                                                            value={assign.maxScore} 
-                                                            onChange={e => handleUpdateColumn({...assign, maxScore: Number(e.target.value)})}
-                                                        />
-                                                    </div>
-                                                    <div className="w-48 text-center">
-                                                        <input 
-                                                            className="w-full bg-transparent outline-none text-xs text-blue-600 dir-ltr" 
-                                                            value={assign.url || ''} 
-                                                            placeholder="أضف رابط..."
-                                                            onChange={e => handleUpdateColumn({...assign, url: e.target.value})}
-                                                        />
-                                                    </div>
-                                                    <div className="w-32 text-center">
-                                                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                                            {CATEGORY_LABELS[assign.category] || assign.category}
-                                                        </span>
-                                                    </div>
+                                                    <div className="flex-1 text-sm font-bold text-gray-700">{assign.title}</div>
+                                                    <div className="w-24 text-center text-sm">{assign.maxScore}</div>
+                                                    <div className="w-32 text-center"><span className="text-xs bg-gray-100 px-2 py-1 rounded">{CATEGORY_LABELS[assign.category] || assign.category}</span></div>
                                                     <div className="w-20 text-center">
                                                         <button onClick={() => handleDeleteColumn(assign.id)} className="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"><Trash2 size={16}/></button>
                                                     </div>
@@ -1084,10 +1006,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </div>
                             )}
 
-                            {/* ... (SHEET AND DISTRIBUTION TABS - Unchanged) ... */}
+                            {/* --- DISTRIBUTION TAB --- */}
                             {settingsTab === 'DISTRIBUTION' && (
                                 <div className="max-w-2xl mx-auto space-y-6">
-                                    {/* ... Existing Distribution code ... */}
                                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
                                         <h4 className="font-bold text-orange-800 mb-2 flex items-center gap-2">
                                             <PieChart size={18}/> توزيع درجات أعمال السنة
@@ -1118,9 +1039,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </div>
                             )}
 
+                            {/* --- SHEET TAB --- */}
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6">
-                                    {/* ... Existing Sheet Tab code ... */}
                                     <div className="bg-green-50 p-4 rounded-xl border border-green-200 space-y-3">
                                         <label className="block text-sm font-bold text-green-800">رابط ملف Google Sheet</label>
                                         <div className="flex gap-2">
@@ -1128,6 +1049,46 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <button onClick={handleFetchSheetHeaders} disabled={isFetchingStructure} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm">جلب الأعمدة</button>
                                         </div>
                                     </div>
+
+                                    {availableHeaders.length > 0 && (
+                                        <div className="bg-white p-4 rounded-xl border border-gray-200">
+                                            <h4 className="font-bold text-gray-700 mb-3">اختر الأعمدة للاستيراد</h4>
+                                            
+                                            <div className="flex items-center gap-4 mb-4">
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-bold text-gray-500 mb-1">التصنيف (التبويب)</label>
+                                                    <select 
+                                                        className="w-full p-2 border rounded-lg text-sm bg-white" 
+                                                        value={importCategory} 
+                                                        onChange={e => setImportCategory(e.target.value)}
+                                                    >
+                                                        {DEFAULT_CATEGORIES.map(cat => (
+                                                            <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                                        ))}
+                                                        <option value="CUSTOM">أخرى / جديد...</option>
+                                                    </select>
+                                                </div>
+                                                {importCategory === 'CUSTOM' && (
+                                                    <div className="flex-1">
+                                                        <label className="block text-xs font-bold text-gray-500 mb-1">اسم التبويب</label>
+                                                        <input className="w-full p-2 border rounded-lg text-sm bg-yellow-50" placeholder="مثال: مشاريع" value={customImportCategory} onChange={e => setCustomImportCategory(e.target.value)}/>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
+                                                {availableHeaders.map(h => (
+                                                    <button 
+                                                        key={h} 
+                                                        onClick={() => handleImportColumnFromSheet(h)}
+                                                        className="px-3 py-2 bg-gray-100 hover:bg-green-50 hover:text-green-700 border border-gray-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                                    >
+                                                        <Plus size={14}/> {h}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
