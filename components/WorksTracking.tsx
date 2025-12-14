@@ -3,9 +3,11 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart, ChevronRight, PenTool, Clipboard } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart, ChevronRight, PenTool, Clipboard, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
+
+// ... (Rest of imports same as before) ...
 
 interface WorksTrackingProps {
     students: Student[];
@@ -113,6 +115,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [mobileGradingMode, setMobileGradingMode] = useState(false);
     const [selectedMobileAssignment, setSelectedMobileAssignment] = useState<Assignment | null>(null);
 
+    // --- Compact Mode for Printing ---
+    const [compactMode, setCompactMode] = useState(false);
+
     useEffect(() => {
         const syncData = async () => {
             const savedUrl = getWorksMasterUrl();
@@ -129,7 +134,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, []);
 
-    // Helper to auto-calculate max scores when sheet data is loaded
+    // ... (Helper functions: findStudentNameInRow, handleQuickSheetSync, useEffect for data loading remain mostly same) ...
+    // Note: Re-implementing them briefly for file completeness in response
+
     useEffect(() => {
         if (availableHeaders.length > 0 && sheetData.length > 0) {
             const initialConfigs: Record<string, { maxScore: string, url: string }> = {};
@@ -139,30 +146,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     const v = parseFloat(r[header]);
                     if(!isNaN(v) && v > maxVal) maxVal = v;
                 });
-                // Default max score logic: round up to nearest 5 or 10, or just use max found if small
                 let suggestedMax = maxVal > 0 ? Math.ceil(maxVal) : 10;
                 if (suggestedMax > 10 && suggestedMax <= 15) suggestedMax = 15;
                 if (suggestedMax > 15 && suggestedMax <= 20) suggestedMax = 20;
-                
-                initialConfigs[header] = { 
-                    maxScore: suggestedMax.toString(), 
-                    url: '' 
-                };
+                initialConfigs[header] = { maxScore: suggestedMax.toString(), url: '' };
             });
             setColumnConfigs(initialConfigs);
         }
     }, [availableHeaders, sheetData]);
 
     const findStudentNameInRow = (row: any): string | undefined => {
-        for (const key of STUDENT_NAME_HEADERS) {
-            if (row[key]) return String(row[key]);
-        }
+        for (const key of STUDENT_NAME_HEADERS) { if (row[key]) return String(row[key]); }
         const rowKeys = Object.keys(row);
         for (const key of rowKeys) {
             const lowerKey = key.toLowerCase().trim();
-            if (STUDENT_NAME_HEADERS.some(h => lowerKey === h || lowerKey.includes(h))) {
-                return String(row[key]);
-            }
+            if (STUDENT_NAME_HEADERS.some(h => lowerKey === h || lowerKey.includes(h))) { return String(row[key]); }
         }
         return undefined;
     };
@@ -171,66 +169,31 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!googleSheetUrl) return;
         setIsSheetSyncing(true);
         setSyncStatusMsg('جاري الاتصال بـ Google Sheet...');
-
         try {
             const { workbook } = await fetchWorkbookStructureUrl(googleSheetUrl);
             const linkedAssignments = assignments.filter(a => a.sourceMetadata);
-            
-            if (linkedAssignments.length === 0) {
-                if(!isAuto) alert('لا توجد أعمدة مرتبطة بملف Google Sheet. قم بربط الأعمدة أولاً من الإعدادات.');
-                setIsSheetSyncing(false);
-                return;
-            }
-
+            if (linkedAssignments.length === 0) { if(!isAuto) alert('لا توجد أعمدة مرتبطة.'); setIsSheetSyncing(false); return; }
             const assignmentsBySheet: Record<string, Assignment[]> = {};
-            linkedAssignments.forEach(a => {
-                try {
-                    const meta = JSON.parse(a.sourceMetadata!);
-                    const sheet = meta.sheet;
-                    if (!assignmentsBySheet[sheet]) assignmentsBySheet[sheet] = [];
-                    assignmentsBySheet[sheet].push(a);
-                } catch (e) { console.error("Invalid metadata", a); }
-            });
-
+            linkedAssignments.forEach(a => { try { const meta = JSON.parse(a.sourceMetadata!); const sheet = meta.sheet; if (!assignmentsBySheet[sheet]) assignmentsBySheet[sheet] = []; assignmentsBySheet[sheet].push(a); } catch (e) {} });
             const newRecords: PerformanceRecord[] = [];
             let updatedCount = 0;
-
             for (const sheetName of Object.keys(assignmentsBySheet)) {
                 if (!workbook.SheetNames.includes(sheetName)) continue;
-
                 const { data } = getSheetHeadersAndData(workbook, sheetName);
                 const sheetAssignments = assignmentsBySheet[sheetName];
-
                 for (const row of data) {
                     const identifier = findStudentNameInRow(row); 
                     if (!identifier) continue;
-
-                    const student = students.find(s => 
-                        s.name === identifier || 
-                        s.nationalId === identifier ||
-                        s.name.includes(identifier)
-                    );
-
+                    const student = students.find(s => s.name === identifier || s.nationalId === identifier || s.name.includes(identifier));
                     if (student) {
                         sheetAssignments.forEach(assign => {
                             const meta = JSON.parse(assign.sourceMetadata!);
-                            const header = meta.header;
-                            const rawVal = row[header];
-
+                            const rawVal = row[meta.header];
                             if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
                                 const numVal = parseFloat(rawVal);
                                 if (!isNaN(numVal)) {
                                     newRecords.push({
-                                        id: `${student.id}_${assign.id}`, 
-                                        studentId: student.id,
-                                        subject: selectedSubject || 'عام',
-                                        title: assign.title,
-                                        category: assign.category,
-                                        score: numVal,
-                                        maxScore: assign.maxScore,
-                                        date: new Date().toISOString().split('T')[0],
-                                        notes: assign.id,
-                                        createdById: currentUser?.id
+                                        id: `${student.id}_${assign.id}`, studentId: student.id, subject: selectedSubject || 'عام', title: assign.title, category: assign.category, score: numVal, maxScore: assign.maxScore, date: new Date().toISOString().split('T')[0], notes: assign.id, createdById: currentUser?.id
                                     });
                                     updatedCount++;
                                 }
@@ -239,50 +202,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     }
                 }
             }
-
-            if (newRecords.length > 0) {
-                onAddPerformance(newRecords);
-                if(!isAuto) alert(`تم تحديث ${updatedCount} درجة بنجاح من الملف!`);
-            } else {
-                if(!isAuto) alert('لم يتم العثور على درجات جديدة أو مطابقة للطلاب.');
-            }
-
-        } catch (e: any) {
-            console.error(e);
-            if(!isAuto) alert(`فشل التحديث: ${e.message}`);
-        } finally {
-            setIsSheetSyncing(false);
-            setSyncStatusMsg('');
-        }
+            if (newRecords.length > 0) { onAddPerformance(newRecords); if(!isAuto) alert(`تم تحديث ${updatedCount} درجة!`); } else { if(!isAuto) alert('لم يتم العثور على درجات جديدة.'); }
+        } catch (e: any) { console.error(e); if(!isAuto) alert(`فشل التحديث: ${e.message}`); } finally { setIsSheetSyncing(false); setSyncStatusMsg(''); }
     }, [googleSheetUrl, assignments, students, selectedSubject, currentUser, onAddPerformance]);
 
     useEffect(() => {
         if (currentUser) {
-            const subs = getSubjects(currentUser.id);
-            setSubjects(subs);
-            const loadedTerms = getAcademicTerms(currentUser.id);
-            setTerms(loadedTerms);
-            const savedUrl = getWorksMasterUrl();
-            if (savedUrl) setGoogleSheetUrl(savedUrl);
-            const savedConfig = localStorage.getItem('works_year_config');
-            if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
-
+            const subs = getSubjects(currentUser.id); setSubjects(subs);
+            const loadedTerms = getAcademicTerms(currentUser.id); setTerms(loadedTerms);
+            const savedUrl = getWorksMasterUrl(); if (savedUrl) setGoogleSheetUrl(savedUrl);
+            const savedConfig = localStorage.getItem('works_year_config'); if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
             if (!localStorage.getItem('works_term_id')) {
                 const current = loadedTerms.find(t => t.isCurrent);
-                if (current) {
-                    setSelectedTermId(current.id);
-                    setSettingTermId(current.id); 
-                } else if (loadedTerms.length > 0) {
-                    setSelectedTermId(loadedTerms[0].id);
-                    setSettingTermId(loadedTerms[0].id);
-                }
-            } else {
-                setSettingTermId(selectedTermId);
-            }
-
-            if (!localStorage.getItem('works_subject') && subs.length > 0) {
-                setSelectedSubject(subs[0].name);
-            }
+                if (current) { setSelectedTermId(current.id); setSettingTermId(current.id); } else if (loadedTerms.length > 0) { setSelectedTermId(loadedTerms[0].id); setSettingTermId(loadedTerms[0].id); }
+            } else { setSettingTermId(selectedTermId); }
+            if (!localStorage.getItem('works_subject') && subs.length > 0) { setSelectedSubject(subs[0].name); }
         }
     }, [currentUser]);
 
@@ -295,103 +229,53 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const availableCategories = useMemo(() => {
         const cats = new Set<string>();
         DEFAULT_CATEGORIES.forEach(c => cats.add(c.id));
-        assignments.forEach(a => {
-            if (a.category && a.category !== 'YEAR_WORK') cats.add(a.category);
-        });
+        assignments.forEach(a => { if (a.category && a.category !== 'YEAR_WORK') cats.add(a.category); });
         return Array.from(cats);
     }, [assignments]);
 
-    // Initialize Scores Map
     useEffect(() => {
         const newScores: Record<string, Record<string, string>> = {};
         let filtered = students;
         if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass);
-        
         filtered.forEach(s => {
             newScores[s.id] = {};
-            const studentPerf = performance.filter(p => 
-                p.studentId === s.id && 
-                p.subject === selectedSubject &&
-                (activeTab === 'YEAR_WORK' || p.category === activeTab)
-            );
-
+            const studentPerf = performance.filter(p => p.studentId === s.id && p.subject === selectedSubject && (activeTab === 'YEAR_WORK' || p.category === activeTab));
             studentPerf.forEach(p => {
-                if (p.notes && assignments.some(a => a.id === p.notes)) { 
-                     newScores[s.id][p.notes] = p.score.toString();
-                } else { 
-                     const assign = assignments.find(a => a.title === p.title);
-                     if (assign) {
-                         newScores[s.id][assign.id] = p.score.toString();
-                     }
-                }
+                if (p.notes && assignments.some(a => a.id === p.notes)) { newScores[s.id][p.notes] = p.score.toString(); } 
+                else { const assign = assignments.find(a => a.title === p.title); if (assign) { newScores[s.id][assign.id] = p.score.toString(); } }
             });
         });
         setScores(newScores);
     }, [students, selectedClass, performance, selectedSubject, activeTab, assignments]);
 
     const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
-        setScores(prev => ({
-            ...prev,
-            [studentId]: { ...prev[studentId], [assignmentId]: val }
-        }));
-
-        if (autoSaveEnabled) {
-            if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-            autoSaveTimerRef.current = setTimeout(() => {
-                handleSaveScores(true); 
-            }, 2000); 
-        }
+        setScores(prev => ({ ...prev, [studentId]: { ...prev[studentId], [assignmentId]: val } }));
+        if (autoSaveEnabled) { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = setTimeout(() => { handleSaveScores(true); }, 2000); }
     };
 
-    // --- Excel-Like Paste Function ---
     const handlePaste = (e: React.ClipboardEvent, startStudentIdx: number, assignmentId: string) => {
         e.preventDefault();
         const clipboardData = e.clipboardData.getData('text');
-        
-        // Split by newline to get rows
         const rows = clipboardData.split(/\r\n|\n|\r/).filter(val => val.trim() !== '');
-        
         const newScores = { ...scores };
         let modified = false;
-
         rows.forEach((val, i) => {
             const targetStudentIdx = startStudentIdx + i;
-            
-            // Ensure we don't overflow the student list
             if (targetStudentIdx < filteredStudents.length) {
                 const studentId = filteredStudents[targetStudentIdx].id;
-                
-                // Initialize student record if missing
                 if (!newScores[studentId]) newScores[studentId] = {};
-                
-                // Validate if it's a number (or allow text if needed, but performance is usually numeric)
                 const num = parseFloat(val);
-                if (!isNaN(num)) {
-                    newScores[studentId][assignmentId] = num.toString();
-                    modified = true;
-                }
+                if (!isNaN(num)) { newScores[studentId][assignmentId] = num.toString(); modified = true; }
             }
         });
-
-        if (modified) {
-            setScores(newScores);
-            // Trigger auto-save immediately after paste
-            if (autoSaveEnabled) {
-                // We use a slight delay to ensure state update processes
-                setTimeout(() => handleSaveScores(true), 500); 
-            }
-        }
+        if (modified) { setScores(newScores); if (autoSaveEnabled) { setTimeout(() => handleSaveScores(true), 500); } }
     };
 
     const handleSaveScores = (silent = false) => {
-        if (!selectedSubject) {
-            if(!silent) alert('الرجاء اختيار المادة');
-            return;
-        }
+        if (!selectedSubject) { if(!silent) alert('الرجاء اختيار المادة'); return; }
         setIsSaving(true);
         const recordsToSave: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
-
         Object.keys(scores).forEach(studentId => {
             Object.keys(scores[studentId]).forEach(assignmentId => {
                 const val = scores[studentId][assignmentId];
@@ -399,30 +283,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     const assignment = assignments.find(a => a.id === assignmentId);
                     if (assignment) {
                         const existingRecord = performance.find(p => p.studentId === studentId && (p.notes === assignmentId || p.title === assignment.title));
-                        
                         if (!existingRecord || existingRecord.score !== parseFloat(val)) {
-                            recordsToSave.push({
-                                id: existingRecord ? existingRecord.id : `${studentId}_${assignmentId}`,
-                                studentId,
-                                subject: selectedSubject,
-                                title: assignment.title,
-                                category: assignment.category,
-                                score: parseFloat(val),
-                                maxScore: assignment.maxScore,
-                                date: existingRecord ? existingRecord.date : today,
-                                notes: assignment.id,
-                                createdById: currentUser?.id
-                            });
+                            recordsToSave.push({ id: existingRecord ? existingRecord.id : `${studentId}_${assignmentId}`, studentId, subject: selectedSubject, title: assignment.title, category: assignment.category, score: parseFloat(val), maxScore: assignment.maxScore, date: existingRecord ? existingRecord.date : today, notes: assignment.id, createdById: currentUser?.id });
                         }
                     }
                 }
             });
         });
-
-        if (recordsToSave.length > 0) {
-            onAddPerformance(recordsToSave);
-            setLastSaved(new Date());
-        }
+        if (recordsToSave.length > 0) { onAddPerformance(recordsToSave); setLastSaved(new Date()); }
         setTimeout(() => setIsSaving(false), 500);
     };
 
@@ -430,36 +298,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!newColTitle) return;
         const categoryToUse = newColCategory === 'CUSTOM' ? newCustomCategory : newColCategory;
         if (!categoryToUse) return;
-
-        const newAssign: Assignment = {
-            id: Date.now().toString(),
-            title: newColTitle,
-            category: categoryToUse,
-            maxScore: Number(newColMax),
-            url: newColUrl,
-            isVisible: true,
-            teacherId: currentUser?.id,
-            termId: settingTermId || selectedTermId,
-            periodId: settingPeriodId || selectedPeriodId
-        };
+        const newAssign: Assignment = { id: Date.now().toString(), title: newColTitle, category: categoryToUse, maxScore: Number(newColMax), url: newColUrl, isVisible: true, teacherId: currentUser?.id, termId: settingTermId || selectedTermId, periodId: settingPeriodId || selectedPeriodId };
         saveAssignment(newAssign);
         setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-        setNewColTitle('');
-        setNewColUrl('');
-        setNewCustomCategory('');
+        setNewColTitle(''); setNewColUrl(''); setNewCustomCategory('');
     };
 
-    const handleDeleteColumn = (id: string) => {
-        if(confirm('حذف هذا العمود والدرجات المرتبطة به؟')) {
-            deleteAssignment(id);
-            setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-        }
-    };
-
-    const handleUpdateColumn = (a: Assignment) => {
-        saveAssignment(a);
-        setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-    };
+    const handleDeleteColumn = (id: string) => { if(confirm('حذف هذا العمود والدرجات المرتبطة به؟')) { deleteAssignment(id); setAssignments(getAssignments('ALL', currentUser?.id, isManager)); } };
+    const handleUpdateColumn = (a: Assignment) => { saveAssignment(a); setAssignments(getAssignments('ALL', currentUser?.id, isManager)); };
 
     const handleFetchSheetHeaders = async () => {
         if (!googleSheetUrl) return;
@@ -467,118 +313,46 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         try {
             saveWorksMasterUrl(googleSheetUrl);
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
-            setWorkbookRef(workbook);
-            setSheetNames(sheetNames);
-            if (sheetNames.length > 0) {
-                setSelectedSheetName(sheetNames[0]);
-                const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
-                setAvailableHeaders(headers);
-                setSheetData(data);
-            }
-        } catch (e: any) {
-            alert(e.message);
-        } finally {
-            setIsFetchingStructure(false);
-        }
+            setWorkbookRef(workbook); setSheetNames(sheetNames);
+            if (sheetNames.length > 0) { setSelectedSheetName(sheetNames[0]); const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]); setAvailableHeaders(headers); setSheetData(data); }
+        } catch (e: any) { alert(e.message); } finally { setIsFetchingStructure(false); }
     };
 
     const handleImportColumnFromSheet = (header: string) => {
         const categoryToUse = importCategory === 'CUSTOM' ? customImportCategory : importCategory;
-        if (!categoryToUse) {
-            alert('الرجاء تحديد تصنيف العمود (التبويب) أولاً');
-            return;
-        }
-
+        if (!categoryToUse) { alert('الرجاء تحديد تصنيف العمود (التبويب) أولاً'); return; }
         const config = columnConfigs[header] || { maxScore: '10', url: '' };
         const max = parseFloat(config.maxScore) || 10;
-
-        const newAssign: Assignment = {
-            id: Date.now().toString(),
-            title: header,
-            category: categoryToUse, 
-            maxScore: max,
-            url: config.url,
-            isVisible: true,
-            teacherId: currentUser?.id,
-            sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header }),
-            termId: settingTermId || selectedTermId,
-            periodId: settingPeriodId || selectedPeriodId
-        };
-        saveAssignment(newAssign);
-        setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-        alert(`تم إضافة العمود "${header}" بنجاح!`);
+        const newAssign: Assignment = { id: Date.now().toString(), title: header, category: categoryToUse, maxScore: max, url: config.url, isVisible: true, teacherId: currentUser?.id, sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header }), termId: settingTermId || selectedTermId, periodId: settingPeriodId || selectedPeriodId };
+        saveAssignment(newAssign); setAssignments(getAssignments('ALL', currentUser?.id, isManager)); alert(`تم إضافة العمود "${header}" بنجاح!`);
     };
 
-    // Helper to update local config for a specific column
-    const handleColumnConfigChange = (header: string, field: 'maxScore' | 'url', value: string) => {
-        setColumnConfigs(prev => ({
-            ...prev,
-            [header]: {
-                ...prev[header],
-                [field]: value
-            }
-        }));
-    };
-
-    const saveYearWorkSettings = () => {
-        localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig));
-        alert('تم حفظ توزيع الدرجات بنجاح');
-    };
+    const handleColumnConfigChange = (header: string, field: 'maxScore' | 'url', value: string) => { setColumnConfigs(prev => ({ ...prev, [header]: { ...prev[header], [field]: value } })); };
+    const saveYearWorkSettings = () => { localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig)); alert('تم حفظ توزيع الدرجات بنجاح'); };
 
     const calculateYearWork = (student: Student) => {
-        const relevantAssignments = assignments.filter(a => {
-            const termMatch = !selectedTermId || a.termId === selectedTermId;
-            const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId;
-            return termMatch && periodMatch;
-        });
-        
+        const relevantAssignments = assignments.filter(a => { const termMatch = !selectedTermId || a.termId === selectedTermId; const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId; return termMatch && periodMatch; });
         const relevantAssignmentIds = new Set(relevantAssignments.map(a => a.id));
         const activeTerm = terms.find(t => t.id === selectedTermId);
-        let dateStart = activeTerm?.startDate;
-        let dateEnd = activeTerm?.endDate;
-
-        if (selectedPeriodId && activeTerm?.periods) {
-            const p = activeTerm.periods.find(p => p.id === selectedPeriodId);
-            if (p) {
-                dateStart = p.startDate;
-                dateEnd = p.endDate;
-            }
-        }
-
-        const studentPerf = performance.filter(p => {
-            if (p.studentId !== student.id || p.subject !== selectedSubject) return false;
-            if (p.notes && relevantAssignmentIds.has(p.notes)) return true;
-            return relevantAssignments.some(a => a.title === p.title);
-        });
-
-        // 1. Homework
+        let dateStart = activeTerm?.startDate; let dateEnd = activeTerm?.endDate;
+        if (selectedPeriodId && activeTerm?.periods) { const p = activeTerm.periods.find(p => p.id === selectedPeriodId); if (p) { dateStart = p.startDate; dateEnd = p.endDate; } }
+        const studentPerf = performance.filter(p => { if (p.studentId !== student.id || p.subject !== selectedSubject) return false; if (p.notes && relevantAssignmentIds.has(p.notes)) return true; return relevantAssignments.some(a => a.title === p.title); });
+        
         const hwCols = relevantAssignments.filter(a => a.category === 'HOMEWORK');
         let hwTotalScore = 0; let hwTotalMax = 0;
-        hwCols.forEach(col => {
-            const p = studentPerf.find(r => r.notes === col.id || r.title === col.title);
-            if (p) { hwTotalScore += p.score; hwTotalMax += p.maxScore; } else { hwTotalMax += col.maxScore; }
-        });
+        hwCols.forEach(col => { const p = studentPerf.find(r => r.notes === col.id || r.title === col.title); if (p) { hwTotalScore += p.score; hwTotalMax += p.maxScore; } else { hwTotalMax += col.maxScore; } });
         const hwGrade = hwTotalMax > 0 ? (hwTotalScore / hwTotalMax) * yearWorkConfig.hw : 0;
 
-        // 2. Activity
         const actCols = relevantAssignments.filter(a => a.category === 'ACTIVITY');
         let actTotalScore = 0; let actTotalMax = 0;
-        actCols.forEach(col => {
-            const p = studentPerf.find(r => r.notes === col.id || r.title === col.title);
-            if (p) { actTotalScore += p.score; actTotalMax += p.maxScore; } else { actTotalMax += col.maxScore; }
-        });
+        actCols.forEach(col => { const p = studentPerf.find(r => r.notes === col.id || r.title === col.title); if (p) { actTotalScore += p.score; actTotalMax += p.maxScore; } else { actTotalMax += col.maxScore; } });
         const actGrade = actTotalMax > 0 ? (actTotalScore / actTotalMax) * yearWorkConfig.act : 0;
 
-        // 3. Exams
         const examCols = relevantAssignments.filter(a => a.category === 'PLATFORM_EXAM');
         let examTotalScore = 0; let examTotalMax = 0;
-        examCols.forEach(col => {
-            const p = studentPerf.find(r => r.notes === col.id || r.title === col.title);
-            if (p) { examTotalScore += p.score; examTotalMax += p.maxScore; } else { examTotalMax += col.maxScore; }
-        });
+        examCols.forEach(col => { const p = studentPerf.find(r => r.notes === col.id || r.title === col.title); if (p) { examTotalScore += p.score; examTotalMax += p.maxScore; } else { examTotalMax += col.maxScore; } });
         const examGrade = examTotalMax > 0 ? (examTotalScore / examTotalMax) * yearWorkConfig.exam : 0;
 
-        // 4. Attendance
         let studentAtt = attendance.filter(a => a.studentId === student.id && (!selectedSubject || a.subject === selectedSubject));
         if (dateStart && dateEnd) { studentAtt = studentAtt.filter(a => a.date >= dateStart! && a.date <= dateEnd!); }
         const totalDays = studentAtt.length;
@@ -586,74 +360,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         const attGrade = totalDays > 0 ? (presentDays / totalDays) * yearWorkConfig.att : (totalDays === 0 ? yearWorkConfig.att : 0);
 
         const total = hwGrade + actGrade + examGrade + attGrade;
-
         return { 
-            hwGrade: Math.round(hwGrade * 10) / 10,
-            actGrade: Math.round(actGrade * 10) / 10,
-            examGrade: Math.round(examGrade * 10) / 10,
-            attGrade: Math.round(attGrade * 10) / 10,
-            total: Math.round(total * 10) / 10,
-            hwCompletion: hwTotalMax > 0 ? Math.round((hwTotalScore/hwTotalMax)*100) : 0,
-            actCompletion: actTotalMax > 0 ? Math.round((actTotalScore/actTotalMax)*100) : 0
+            hwGrade: Math.round(hwGrade * 10) / 10, actGrade: Math.round(actGrade * 10) / 10, examGrade: Math.round(examGrade * 10) / 10, attGrade: Math.round(attGrade * 10) / 10, total: Math.round(total * 10) / 10, hwCompletion: hwTotalMax > 0 ? Math.round((hwTotalScore/hwTotalMax)*100) : 0, actCompletion: actTotalMax > 0 ? Math.round((actTotalScore/actTotalMax)*100) : 0
         };
     };
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
-    
-    const activePeriods = useMemo(() => {
-        if (!activeTerm?.periods) return [];
-        return [...activeTerm.periods].sort((a, b) => {
-            const dateA = a.startDate || '';
-            const dateB = b.startDate || '';
-            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
-            return a.name.localeCompare(b.name, 'ar');
-        });
-    }, [activeTerm]);
-    
+    const activePeriods = useMemo(() => { if (!activeTerm?.periods) return []; return [...activeTerm.periods].sort((a, b) => { const dateA = a.startDate || ''; const dateB = b.startDate || ''; if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB); return a.name.localeCompare(b.name, 'ar'); }); }, [activeTerm]);
     const settingsTermObj = terms.find(t => t.id === settingTermId);
-    const settingsPeriods = useMemo(() => {
-        if (!settingsTermObj?.periods) return [];
-        return [...settingsTermObj.periods].sort((a, b) => {
-            const dateA = a.startDate || '';
-            const dateB = b.startDate || '';
-            if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
-            return a.name.localeCompare(b.name, 'ar');
-        });
-    }, [settingsTermObj]);
-
-    const uniqueClasses = useMemo(() => {
-        const classes = new Set(students.map(s => s.className).filter(Boolean));
-        return Array.from(classes).sort();
-    }, [students]);
-
-    const filteredStudents = useMemo(() => {
-        let filtered = students;
-        if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass);
-        if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm));
-        return filtered.sort((a,b) => {
-            if (a.className === b.className) return a.name.localeCompare(b.name);
-            return (a.className || '').localeCompare(b.className || '');
-        });
-    }, [students, selectedClass, searchTerm]);
-
-    const filteredAssignments = useMemo(() => {
-        if (activeTab === 'YEAR_WORK') return [];
-        return assignments.filter(a => {
-            const termMatch = !selectedTermId || (a.termId === selectedTermId);
-            const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId;
-            const categoryMatch = a.category === activeTab;
-            return termMatch && periodMatch && categoryMatch;
-        }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-    }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
-
-    const settingsAssignments = useMemo(() => {
-        if (activeTab === 'YEAR_WORK') return [];
-        return assignments.filter(a => {
-            const termMatch = !settingTermId || a.termId === settingTermId;
-            const periodMatch = !settingPeriodId || a.periodId === settingPeriodId;
-            return termMatch && periodMatch;
-        }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-    }, [assignments, settingTermId, settingPeriodId, activeTab]);
+    const settingsPeriods = useMemo(() => { if (!settingsTermObj?.periods) return []; return [...settingsTermObj.periods].sort((a, b) => { const dateA = a.startDate || ''; const dateB = b.startDate || ''; if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB); return a.name.localeCompare(b.name, 'ar'); }); }, [settingsTermObj]);
+    const uniqueClasses = useMemo(() => { const classes = new Set(students.map(s => s.className).filter(Boolean)); return Array.from(classes).sort(); }, [students]);
+    const filteredStudents = useMemo(() => { let filtered = students; if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass); if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm)); return filtered.sort((a,b) => { if (a.className === b.className) return a.name.localeCompare(b.name); return (a.className || '').localeCompare(b.className || ''); }); }, [students, selectedClass, searchTerm]);
+    const filteredAssignments = useMemo(() => { if (activeTab === 'YEAR_WORK') return []; return assignments.filter(a => { const termMatch = !selectedTermId || (a.termId === selectedTermId); const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId; const categoryMatch = a.category === activeTab; return termMatch && periodMatch && categoryMatch; }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)); }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
+    const settingsAssignments = useMemo(() => { if (activeTab === 'YEAR_WORK') return []; return assignments.filter(a => { const termMatch = !settingTermId || a.termId === settingTermId; const periodMatch = !settingPeriodId || a.periodId === settingPeriodId; return termMatch && periodMatch; }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)); }, [assignments, settingTermId, settingPeriodId, activeTab]);
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative">
@@ -665,12 +384,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             )}
 
-            {/* HEADER AREA */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 flex flex-col gap-4">
+            {/* HEADER AREA - Hidden when printing */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 flex flex-col gap-4 print:hidden">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-4">
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Table className="text-purple-600"/> سجل الرصد والمتابعة</h2>
-                        {/* Auto Save Toggle - Desktop Only */}
                         {activeTab !== 'YEAR_WORK' && (
                             <div 
                                 className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-full border cursor-pointer transition-colors text-xs font-bold ${autoSaveEnabled ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-500'}`}
@@ -711,7 +429,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
                 </div>
 
-                {/* Sub Header & Buttons (Dynamic Tabs) */}
                 <div className="flex flex-wrap justify-between items-center gap-4 border-t pt-4">
                     <div className="flex gap-2 overflow-x-auto pb-1 max-w-full md:max-w-[80%] no-scrollbar">
                         {availableCategories.map(cat => (
@@ -727,6 +444,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     </div>
 
                     <div className="flex gap-2 w-full md:w-auto justify-end">
+                        <button onClick={() => window.print()} className="flex items-center gap-1 bg-white border text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 shadow-sm">
+                            <Printer size={16}/> طباعة
+                        </button>
+                        <button onClick={() => setCompactMode(!compactMode)} className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold shadow-sm ${compactMode ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-white border text-gray-700 hover:bg-gray-50'}`}>
+                            <Maximize size={16}/> عرض مضغوط
+                        </button>
+                        
                         {/* Mobile Toggle Mode */}
                         <div className="md:hidden flex bg-gray-100 rounded-lg p-1">
                             <button onClick={() => setMobileGradingMode(false)} className={`p-2 rounded ${!mobileGradingMode ? 'bg-white shadow text-purple-700' : 'text-gray-500'}`}><Grid size={16}/></button>
@@ -756,10 +480,28 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             </div>
 
+            {/* PRINT HEADER (Only visible when printing) */}
+            <div className="hidden print:block mb-4 border-b-2 border-black pb-4">
+                <div className="flex justify-between items-center text-sm font-bold">
+                    <div className="text-right">
+                        <p>المملكة العربية السعودية</p>
+                        <p>وزارة التعليم</p>
+                    </div>
+                    <div className="text-center">
+                        <h1 className="text-xl font-black mb-2">كشف رصد الدرجات - {CATEGORY_LABELS[activeTab] || activeTab}</h1>
+                        <p>المادة: {selectedSubject} | الفصل: {selectedClass}</p>
+                    </div>
+                    <div className="text-left">
+                        <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                        <p>{activeTerm ? activeTerm.name : ''}</p>
+                    </div>
+                </div>
+            </div>
+
             {/* CONTENT AREA */}
             {mobileGradingMode && activeTab !== 'YEAR_WORK' ? (
                 /* --- MOBILE LIST VIEW (BY ASSIGNMENT) --- */
-                <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-hidden flex flex-col print:hidden">
                     {!selectedMobileAssignment ? (
                         /* List of Assignments */
                         <div className="grid gap-3 overflow-y-auto pb-20">
@@ -838,47 +580,45 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             ) : (
                 /* --- DESKTOP TABLE VIEW --- */
                 filteredStudents.length > 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 overflow-hidden flex flex-col">
+                    <div className={`bg-white rounded-xl shadow-sm border border-gray-200 flex-1 overflow-hidden flex flex-col ${compactMode ? 'text-xs' : 'text-sm'}`}>
                         <div className="flex-1 overflow-auto custom-scrollbar">
-                            <table className="w-full text-center text-sm border-collapse min-w-[800px]">
-                                <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
+                            <table className="w-full text-center border-collapse min-w-[800px] print:border-collapse print:w-full">
+                                <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm print:bg-gray-100 print:text-black">
                                     <tr>
-                                        <th className="p-3 border-l w-12 bg-gray-50">#</th>
-                                        <th className="p-3 border-l w-64 text-right bg-gray-50 sticky right-0 z-20 shadow-md">اسم الطالب</th>
-                                        {!selectedClass && <th className="p-3 border-l w-32 bg-gray-50">الفصل</th>}
+                                        <th className={`border-l bg-gray-50 print:border print:bg-gray-100 w-10 ${compactMode ? 'p-1' : 'p-3'}`}>#</th>
+                                        <th className={`border-l text-right bg-gray-50 sticky right-0 z-20 shadow-md print:border print:bg-gray-100 print:static print:shadow-none w-64 ${compactMode ? 'p-1' : 'p-3'}`}>اسم الطالب</th>
                                         
                                         {activeTab === 'YEAR_WORK' ? (
                                             <>
-                                                <th className="p-3 border-l bg-blue-50 text-blue-800">واجبات ({yearWorkConfig.hw})</th>
-                                                <th className="p-3 border-l bg-blue-50 text-blue-600 font-normal">% الإنجاز</th>
-                                                <th className="p-3 border-l bg-amber-50 text-amber-800">أنشطة ({yearWorkConfig.act})</th>
-                                                <th className="p-3 border-l bg-amber-50 text-amber-600 font-normal">% الإنجاز</th>
-                                                <th className="p-3 border-l bg-green-50 text-green-800">حضور ({yearWorkConfig.att})</th>
-                                                <th className="p-3 border-l bg-purple-50 text-purple-800">اختبارات ({yearWorkConfig.exam})</th>
-                                                <th className="p-3 border-l bg-gray-800 text-white">المجموع ({yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam})</th>
+                                                <th className={`border-l bg-blue-50 text-blue-800 print:border print:bg-white print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>واجبات ({yearWorkConfig.hw})</th>
+                                                <th className={`border-l bg-blue-50 text-blue-600 font-normal print:hidden ${compactMode ? 'p-1' : 'p-3'}`}>% الإنجاز</th>
+                                                <th className={`border-l bg-amber-50 text-amber-800 print:border print:bg-white print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>أنشطة ({yearWorkConfig.act})</th>
+                                                <th className={`border-l bg-amber-50 text-amber-600 font-normal print:hidden ${compactMode ? 'p-1' : 'p-3'}`}>% الإنجاز</th>
+                                                <th className={`border-l bg-green-50 text-green-800 print:border print:bg-white print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>حضور ({yearWorkConfig.att})</th>
+                                                <th className={`border-l bg-purple-50 text-purple-800 print:border print:bg-white print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>اختبارات ({yearWorkConfig.exam})</th>
+                                                <th className={`border-l bg-gray-800 text-white print:border print:bg-gray-200 print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>المجموع ({yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam})</th>
                                             </>
                                         ) : (
                                             <>
                                                 {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
                                                     <>
-                                                        <th className="p-2 border-l w-24 bg-gray-100 font-bold text-gray-600">% الإنجاز</th>
-                                                        <th className="p-2 border-l w-24 bg-gray-200 font-bold text-gray-800">المجموع</th>
+                                                        <th className={`border-l w-16 bg-gray-100 font-bold text-gray-600 print:hidden ${compactMode ? 'p-1' : 'p-2'}`}>% الإنجاز</th>
+                                                        <th className={`border-l w-16 bg-gray-200 font-bold text-gray-800 print:border print:bg-gray-100 ${compactMode ? 'p-1' : 'p-2'}`}>المجموع</th>
                                                     </>
                                                 )}
                                                 {filteredAssignments.map(assign => (
-                                                    <th key={assign.id} className="p-2 border-l min-w-[120px] group relative bg-white">
+                                                    <th key={assign.id} className={`border-l min-w-[80px] group relative bg-white print:border print:text-black ${compactMode ? 'p-1' : 'p-2'}`}>
                                                         <div className="flex flex-col items-center">
-                                                            <span className="flex items-center gap-1">
+                                                            <span className="flex items-center gap-1 truncate max-w-[100px]">
                                                                 {assign.title}
-                                                                {assign.url && <a href={assign.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700" title="فتح الرابط"><Link2 size={12}/></a>}
                                                             </span>
-                                                            <span className="text-[10px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
+                                                            <span className="text-[9px] text-gray-400 bg-white px-1 rounded border print:hidden">Max: {assign.maxScore}</span>
                                                         </div>
                                                     </th>
                                                 ))}
                                                 {/* DYNAMIC SUM COLUMN FOR CATEGORY */}
                                                 {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY' || activeTab === 'PLATFORM_EXAM') && (
-                                                    <th className="p-2 border-l w-24 bg-teal-50 text-teal-800 font-bold">الإجمالي</th>
+                                                    <th className={`border-l w-20 bg-teal-50 text-teal-800 font-bold print:border print:bg-gray-200 print:text-black ${compactMode ? 'p-1' : 'p-2'}`}>الإجمالي</th>
                                                 )}
                                             </>
                                         )}
@@ -894,21 +634,20 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         if (activeTab === 'YEAR_WORK') {
                                             const yearStats = calculateYearWork(student);
                                             return (
-                                                <tr key={student.id} className="hover:bg-gray-50 border-b">
-                                                    <td className="p-3 border-l text-gray-500">{idx + 1}</td>
-                                                    <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10">{student.name}</td>
-                                                    {!selectedClass && <td className="p-3 border-l text-gray-500 text-xs">{student.className}</td>}
+                                                <tr key={student.id} className="hover:bg-gray-50 border-b print:border-black">
+                                                    <td className={`border-l text-gray-500 print:border print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>{idx + 1}</td>
+                                                    <td className={`border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 print:border print:static print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>{student.name}</td>
                                                     
-                                                    <td className="p-3 border-l text-blue-700 font-bold">{yearStats.hwGrade}</td>
-                                                    <td className="p-3 border-l text-blue-500 text-xs">{yearStats.hwCompletion}%</td>
+                                                    <td className={`border-l text-blue-700 font-bold print:border print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>{yearStats.hwGrade}</td>
+                                                    <td className={`border-l text-blue-500 text-xs print:hidden ${compactMode ? 'p-1' : 'p-3'}`}>{yearStats.hwCompletion}%</td>
                                                     
-                                                    <td className="p-3 border-l text-amber-700 font-bold">{yearStats.actGrade}</td>
-                                                    <td className="p-3 border-l text-amber-500 text-xs">{yearStats.actCompletion}%</td>
+                                                    <td className={`border-l text-amber-700 font-bold print:border print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>{yearStats.actGrade}</td>
+                                                    <td className={`border-l text-amber-500 text-xs print:hidden ${compactMode ? 'p-1' : 'p-3'}`}>{yearStats.actCompletion}%</td>
                                                     
-                                                    <td className="p-3 border-l text-green-700 font-bold">{yearStats.attGrade}</td>
-                                                    <td className="p-3 border-l text-purple-700 font-bold">{yearStats.examGrade}</td>
+                                                    <td className={`border-l text-green-700 font-bold print:border print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>{yearStats.attGrade}</td>
+                                                    <td className={`border-l text-purple-700 font-bold print:border print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>{yearStats.examGrade}</td>
                                                     
-                                                    <td className="p-3 border-l font-black text-gray-900 bg-gray-100">{yearStats.total}</td>
+                                                    <td className={`border-l font-black text-gray-900 bg-gray-100 print:border print:bg-gray-200 ${compactMode ? 'p-1' : 'p-3'}`}>{yearStats.total}</td>
                                                 </tr>
                                             );
                                         }
@@ -932,44 +671,45 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         }
 
                                         return (
-                                            <tr key={student.id} className={`hover:bg-gray-50 border-b transition-colors ${isAbsent ? 'bg-red-50/40' : ''}`}>
-                                                <td className="p-3 border-l text-gray-500">{idx + 1}</td>
-                                                <td className="p-3 border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm flex items-center justify-between">
+                                            <tr key={student.id} className={`hover:bg-gray-50 border-b transition-colors print:border-black ${isAbsent ? 'bg-red-50/40 print:bg-white' : ''}`}>
+                                                <td className={`border-l text-gray-500 print:border print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>{idx + 1}</td>
+                                                <td className={`border-l text-right font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm flex items-center justify-between print:border print:static print:text-black print:shadow-none ${compactMode ? 'p-1' : 'p-3'}`}>
                                                     <span>{student.name}</span>
-                                                    {isAbsent && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold mr-2 border border-red-200">غائب</span>}
+                                                    {isAbsent && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold mr-2 border border-red-200 print:hidden">غائب</span>}
                                                 </td>
-                                                {!selectedClass && <td className="p-3 border-l text-gray-500 text-xs">{student.className}</td>}
                                                 
                                                 {/* Completion & Total Columns */}
                                                 {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY') && (
                                                     <>
-                                                        <td className="p-3 border-l">
+                                                        <td className={`border-l print:hidden ${compactMode ? 'p-1' : 'p-3'}`}>
                                                             <span className={`px-2 py-1 rounded font-bold text-xs ${completionRate >= 80 ? 'bg-green-100 text-green-700' : completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                                                                 {completionRate}%
                                                             </span>
                                                         </td>
-                                                        <td className="p-3 border-l font-bold text-gray-800 bg-gray-50">
-                                                            {totalScore} <span className="text-gray-400 text-[10px]">/ {totalMax}</span>
+                                                        <td className={`border-l font-bold text-gray-800 bg-gray-50 print:bg-gray-100 print:border print:text-black ${compactMode ? 'p-1' : 'p-3'}`}>
+                                                            {totalScore}
                                                         </td>
                                                     </>
                                                 )}
 
                                                 {filteredAssignments.map(assign => (
-                                                    <td key={assign.id} className="p-0 border-l relative h-10 group">
+                                                    <td key={assign.id} className={`p-0 border-l relative group h-8 print:border print:border-black`}>
                                                         <input 
                                                             type="number"
-                                                            className={`w-full h-full p-2 text-center outline-none bg-transparent focus:bg-indigo-50 font-medium ${scores[student.id]?.[assign.id] ? 'text-indigo-700 font-bold' : 'text-gray-400'} ${isAbsent && scores[student.id]?.[assign.id] ? 'ring-2 ring-red-300' : ''}`}
+                                                            className={`w-full h-full text-center outline-none bg-transparent focus:bg-indigo-50 font-medium print:hidden ${compactMode ? 'p-1' : 'p-2'} ${scores[student.id]?.[assign.id] ? 'text-indigo-700 font-bold' : 'text-gray-400'} ${isAbsent && scores[student.id]?.[assign.id] ? 'ring-2 ring-red-300' : ''}`}
                                                             value={scores[student.id]?.[assign.id] || ''}
                                                             onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
                                                             onPaste={(e) => handlePaste(e, idx, assign.id)}
                                                             placeholder="-"
                                                         />
+                                                        {/* Print Only Span */}
+                                                        <span className="hidden print:block text-center w-full font-bold">{scores[student.id]?.[assign.id] || ''}</span>
                                                     </td>
                                                 ))}
 
                                                 {/* DYNAMIC SUM COLUMN FOR CATEGORY */}
                                                 {(activeTab === 'HOMEWORK' || activeTab === 'ACTIVITY' || activeTab === 'PLATFORM_EXAM') && (
-                                                    <td className="p-3 border-l font-black text-teal-800 bg-teal-50 text-center">
+                                                    <td className={`border-l font-black text-teal-800 bg-teal-50 text-center print:bg-gray-200 print:text-black print:border ${compactMode ? 'p-1' : 'p-3'}`}>
                                                         {totalScore}
                                                     </td>
                                                 )}
@@ -983,16 +723,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white print:hidden">
                         <Table size={48} className="mb-4 opacity-20"/>
                         <p>لا توجد بيانات للعرض. تأكد من اختيار الفلتر المناسب.</p>
                     </div>
                 )
             )}
 
-            {/* SETTINGS MODAL */}
+            {/* ... (Settings Modal code remains same) ... */}
             {isSettingsOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    {/* ... Existing Modal Content ... */}
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-bounce-in overflow-hidden">
                         <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Settings size={18}/> إدارة الأعمدة والربط</h3>

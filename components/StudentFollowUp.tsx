@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Subject, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, getReportHeaderConfig, forceRefreshData } from '../services/storageService';
-import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap } from 'lucide-react';
+import { FileText, Printer, Search, Target, Check, X, Smile, Frown, AlertCircle, Activity as ActivityIcon, BookOpen, TrendingUp, Calculator, Award, Loader2, BarChart2, Gift, Star, Medal, ThumbsUp, Clock, LineChart as LineChartIcon, Calendar, Share2, Users, RefreshCw, List, Phone, MapPin, Zap, PieChart } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine, PieChart, Pie } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, ReferenceLine, PieChart as RePieChart, Pie } from 'recharts';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -28,6 +28,10 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
     // Filter State
     const [selectedTermId, setSelectedTermId] = useState<string>('');
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
+    const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
+        hw: 10, act: 10, att: 5, exam: 20
+    });
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
@@ -35,6 +39,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         const current = loadedTerms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+
+        setAssignments(getAssignments('ALL', currentUser?.id));
+        
+        const savedConfig = localStorage.getItem('works_year_config');
+        if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
 
         const navStudentId = localStorage.getItem('nav_context_student_id');
         if (navStudentId) {
@@ -98,8 +107,42 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
             avg: Math.round((subjectStats[sub].total / subjectStats[sub].count) * 100)
         })).sort((a,b) => b.avg - a.avg);
 
-        return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf };
-    }, [student, attendance, performance, activeTerm]);
+        // --- Year Work Breakdown Calculation ---
+        const termAssignments = assignments.filter(a => !activeTerm || a.termId === activeTerm.id);
+        
+        const calcCategory = (cat: string, weight: number) => {
+            const catAssigns = termAssignments.filter(a => a.category === cat);
+            let total = 0;
+            let maxTotal = 0;
+            catAssigns.forEach(assign => {
+                const rec = sPerf.find(p => p.notes === assign.id || p.title === assign.title);
+                if (rec) { total += rec.score; maxTotal += rec.maxScore; } 
+                else { maxTotal += assign.maxScore; }
+            });
+            const pct = maxTotal > 0 ? total / maxTotal : 0;
+            return {
+                obtained: Math.round(pct * weight * 10) / 10,
+                total: weight,
+                percentage: Math.round(pct * 100)
+            };
+        };
+
+        const hwStats = calcCategory('HOMEWORK', yearWorkConfig.hw);
+        const actStats = calcCategory('ACTIVITY', yearWorkConfig.act);
+        const examStats = calcCategory('PLATFORM_EXAM', yearWorkConfig.exam);
+        const attStats = { 
+            obtained: Math.round((attRate / 100) * yearWorkConfig.att * 10) / 10,
+            total: yearWorkConfig.att,
+            percentage: attRate
+        };
+
+        const totalYearWork = hwStats.obtained + actStats.obtained + examStats.obtained + attStats.obtained;
+        const maxYearWork = yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.exam + yearWorkConfig.att;
+
+        const yearWorkData = { hwStats, actStats, examStats, attStats, totalYearWork, maxYearWork };
+
+        return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf, yearWorkData };
+    }, [student, attendance, performance, activeTerm, assignments, yearWorkConfig]);
 
     const handleShareWhatsApp = () => {
         if (!student || !stats) return;
@@ -134,7 +177,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-auto">
             
             {/* Header / Search */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200 print:hidden">
                 <div className="flex items-center gap-3">
                     <div className="bg-purple-100 p-2 rounded-lg text-purple-600"><FileText size={24}/></div>
                     <div>
@@ -194,7 +237,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                                         <span className="bg-gray-100 px-2 py-0.5 rounded flex items-center gap-1"><MapPin size={12}/> ID: {student.nationalId}</span>
                                     </div>
                                     {student.parentPhone && (
-                                        <div className="flex items-center gap-2 mt-2 text-green-600 text-xs font-bold bg-green-50 w-fit px-2 py-1 rounded cursor-pointer hover:bg-green-100" onClick={handleShareWhatsApp}>
+                                        <div className="flex items-center gap-2 mt-2 text-green-600 text-xs font-bold bg-green-50 w-fit px-2 py-1 rounded cursor-pointer hover:bg-green-100 print:hidden" onClick={handleShareWhatsApp}>
                                             <Phone size={12}/> ولي الأمر: {student.parentPhone} (مراسلة)
                                         </div>
                                     )}
@@ -219,7 +262,53 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* NEW: Year Work Breakdown */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-gray-700 flex items-center gap-2"><PieChart size={18}/> توزيع أعمال السنة (تجميعي)</h3>
+                            <span className="bg-gray-900 text-white px-3 py-1 rounded-full text-xs font-bold">{stats.yearWorkData.totalYearWork.toFixed(1)} / {stats.yearWorkData.maxYearWork}</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {/* Homework */}
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex flex-col items-center">
+                                <span className="text-xs font-bold text-blue-500 mb-1">الواجبات ({yearWorkConfig.hw})</span>
+                                <div className="text-2xl font-black text-blue-700">{stats.yearWorkData.hwStats.obtained}</div>
+                                <div className="w-full bg-blue-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div className="bg-blue-600 h-full rounded-full" style={{width: `${stats.yearWorkData.hwStats.percentage}%`}}></div>
+                                </div>
+                            </div>
+                            
+                            {/* Activity */}
+                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex flex-col items-center">
+                                <span className="text-xs font-bold text-amber-500 mb-1">الأنشطة ({yearWorkConfig.act})</span>
+                                <div className="text-2xl font-black text-amber-700">{stats.yearWorkData.actStats.obtained}</div>
+                                <div className="w-full bg-amber-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div className="bg-amber-600 h-full rounded-full" style={{width: `${stats.yearWorkData.actStats.percentage}%`}}></div>
+                                </div>
+                            </div>
+
+                            {/* Attendance */}
+                            <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex flex-col items-center">
+                                <span className="text-xs font-bold text-green-500 mb-1">الحضور ({yearWorkConfig.att})</span>
+                                <div className="text-2xl font-black text-green-700">{stats.yearWorkData.attStats.obtained}</div>
+                                <div className="w-full bg-green-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div className="bg-green-600 h-full rounded-full" style={{width: `${stats.yearWorkData.attStats.percentage}%`}}></div>
+                                </div>
+                            </div>
+
+                            {/* Exams */}
+                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 flex flex-col items-center">
+                                <span className="text-xs font-bold text-purple-500 mb-1">الاختبارات ({yearWorkConfig.exam})</span>
+                                <div className="text-2xl font-black text-purple-700">{stats.yearWorkData.examStats.obtained}</div>
+                                <div className="w-full bg-purple-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div className="bg-purple-600 h-full rounded-full" style={{width: `${stats.yearWorkData.examStats.percentage}%`}}></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-1">
                         {/* Grade Trend Chart */}
                         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                             <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى الأكاديمي</h3>
@@ -264,7 +353,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students, performance
                     </div>
 
                     {/* Detailed Lists */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-1">
                         {/* Attendance Log */}
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                             <div className="p-4 bg-teal-50 border-b border-teal-100 font-bold text-teal-800 flex justify-between">
