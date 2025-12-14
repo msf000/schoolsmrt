@@ -44,7 +44,7 @@ import ParentPortal from './ParentPortal';
 import CertificatesCenter from './CertificatesCenter';
 import ReloadPrompt from './ReloadPrompt';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, Loader2, FileQuestion, Library, ScanLine, ListTree, Calendar, Table, Award, ClipboardList } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, Loader2, FileQuestion, Library, ScanLine, ListTree, Calendar, Table, Award, ClipboardList, CalendarCheck } from 'lucide-react';
 
 import { SchoolManagement as SchoolManagementComponent } from './SchoolManagement';
 
@@ -338,7 +338,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* Sidebar */}
+            {/* Sidebar (Desktop Only) */}
             <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
@@ -496,16 +496,16 @@ const App: React.FC = () => {
                     </button>
 
                     <div className="text-center mt-2 text-[10px] text-gray-300">
-                        نظام المدرس الذكي v1.2.1 (Cloud)
+                        نظام المدرس الذكي v1.2.1 (Mobile Ready)
                     </div>
                 </div>
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative">
+            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative mb-16 md:mb-0">
                 <header className="bg-white border-b p-4 flex justify-between items-center md:hidden">
                     <h2 className="font-bold text-gray-800">
-                        {currentView === 'DASHBOARD' ? 'لوحة القيادة' : '...'}
+                        {currentView === 'DASHBOARD' ? 'لوحة القيادة' : currentView === 'ATTENDANCE' ? 'تسجيل الحضور' : currentView === 'STUDENTS' ? 'سجل الطلاب' : '...'}
                     </h2>
                     <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-gray-100 rounded-lg"><Menu/></button>
                 </header>
@@ -554,6 +554,26 @@ const App: React.FC = () => {
                     {currentView === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} onSaveAttendance={handleSaveAttendance} />}
                 </div>
             </main>
+
+            {/* Mobile Bottom Navigation */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                <button onClick={() => setCurrentView('DASHBOARD')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentView === 'DASHBOARD' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400'}`}>
+                    <LayoutGrid size={20} />
+                    <span className="text-[10px] font-bold">الرئيسية</span>
+                </button>
+                <button onClick={() => setCurrentView('ATTENDANCE')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentView === 'ATTENDANCE' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400'}`}>
+                    <CalendarCheck size={20} />
+                    <span className="text-[10px] font-bold">التحضير</span>
+                </button>
+                <button onClick={() => setCurrentView('STUDENTS')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentView === 'STUDENTS' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400'}`}>
+                    <Users size={20} />
+                    <span className="text-[10px] font-bold">الطلاب</span>
+                </button>
+                <button onClick={() => setIsSidebarOpen(true)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors text-gray-400 hover:text-indigo-600`}>
+                    <Menu size={20} />
+                    <span className="text-[10px] font-bold">القائمة</span>
+                </button>
+            </div>
         </div>
     );
 };

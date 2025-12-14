@@ -136,7 +136,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
             )}
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col overflow-hidden w-full h-full relative">
+            <div className="flex-1 flex flex-col overflow-hidden w-full h-full relative mb-16 md:mb-0">
                 <header className="md:hidden bg-white p-4 border-b flex justify-between items-center shadow-sm z-20 shrink-0">
                     <div className="font-bold text-gray-800 flex items-center gap-2">
                         <Award className="text-teal-600"/> بوابة الطالب
@@ -157,6 +157,26 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     {view === 'EXAMS' && <StudentExamsView student={currentUser} />}
                     {view === 'LIBRARY' && <StudentLibrary student={currentUser} />}
                 </main>
+            </div>
+
+            {/* Mobile Bottom Nav */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                <button onClick={() => setView('DASHBOARD')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${view === 'DASHBOARD' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                    <LayoutGrid size={20} />
+                    <span className="text-[10px] font-bold">الرئيسية</span>
+                </button>
+                <button onClick={() => setView('TIMETABLE')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${view === 'TIMETABLE' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                    <Clock size={20} />
+                    <span className="text-[10px] font-bold">الجدول</span>
+                </button>
+                <button onClick={() => setView('EXAMS')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${view === 'EXAMS' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                    <FileQuestion size={20} />
+                    <span className="text-[10px] font-bold">واجبات</span>
+                </button>
+                <button onClick={() => setIsMobileMenuOpen(true)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors text-gray-400 hover:text-teal-600`}>
+                    <Menu size={20} />
+                    <span className="text-[10px] font-bold">القائمة</span>
+                </button>
             </div>
         </div>
     );
