@@ -98,7 +98,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [sheetData, setSheetData] = useState<any[]>([]); // Store raw data to calc max scores
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     
-    // NEW: State for column configurations in the import table (Max Score, URL)
+    // State for column configurations in the import table (Max Score, URL)
     const [columnConfigs, setColumnConfigs] = useState<Record<string, { maxScore: string, url: string }>>({});
 
     // -- Settings Modal State --
@@ -1137,23 +1137,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                     <div>
                                                         <label className="text-[10px] font-bold text-gray-500 block mb-1">الاستيراد إلى:</label>
                                                         <select 
-                                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[100px]" 
-                                                            value={settingPeriodId} 
-                                                            onChange={e => setSettingPeriodId(e.target.value)}
-                                                        >
-                                                            <option value="">الفترة (عام)</option>
-                                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-gray-500 block mb-1">&nbsp;</label>
-                                                        <select 
                                                             className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" 
                                                             value={settingTermId} 
                                                             onChange={e => { setSettingTermId(e.target.value); setSettingPeriodId(''); }}
                                                         >
                                                             <option value="">اختر الفصل...</option>
                                                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 block mb-1">&nbsp;</label>
+                                                        <select 
+                                                            className="p-1.5 border rounded text-xs bg-white font-bold min-w-[100px]" 
+                                                            value={settingPeriodId} 
+                                                            onChange={e => setSettingPeriodId(e.target.value)}
+                                                        >
+                                                            <option value="">الفترة (عام)</option>
+                                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                         </select>
                                                     </div>
                                                 </div>
