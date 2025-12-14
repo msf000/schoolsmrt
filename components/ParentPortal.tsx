@@ -254,9 +254,9 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                 </div>
                             )}
 
-                            <div className="p-4">
+                            <div className="p-4 overflow-x-auto">
                                 {stats.recentAtt.length > 0 ? (
-                                    <div className="space-y-3">
+                                    <div className="space-y-3 min-w-[300px]">
                                         {stats.recentAtt.map(rec => (
                                             <div key={rec.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                                                 <div className="flex items-center gap-3">
@@ -297,9 +297,9 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                 <h3 className="font-bold text-purple-800 flex items-center gap-2"><Award size={18}/> آخر الدرجات ({activeTerm ? activeTerm.name : 'عام'})</h3>
                                 <span className="text-xs bg-white px-2 py-1 rounded text-purple-600 font-bold">المتوسط: {stats.avgScore}%</span>
                             </div>
-                            <div className="p-4">
+                            <div className="p-4 overflow-x-auto">
                                 {stats.recentPerf.length > 0 ? (
-                                    <div className="space-y-3">
+                                    <div className="space-y-3 min-w-[300px]">
                                         {stats.recentPerf.map(perf => (
                                             <div key={perf.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                                                 <div>
@@ -338,28 +338,30 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                         <div className="p-4 border-b bg-gray-50">
                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Bell size={18} className="text-indigo-600"/> التنبيهات والرسائل الواردة</h3>
                         </div>
-                        <div className="divide-y divide-gray-100">
-                            {messages.length > 0 ? messages.map(msg => (
-                                <div key={msg.id} className="p-4 hover:bg-gray-50 transition-colors">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`p-1.5 rounded-full ${msg.type === 'WHATSAPP' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                {msg.type === 'WHATSAPP' ? <Phone size={14}/> : <Mail size={14}/>}
-                                            </span>
-                                            <span className="font-bold text-gray-800 text-sm">{msg.sentBy || 'الإدارة المدرسية'}</span>
+                        <div className="divide-y divide-gray-100 overflow-x-auto">
+                            <div className="min-w-[300px]">
+                                {messages.length > 0 ? messages.map(msg => (
+                                    <div key={msg.id} className="p-4 hover:bg-gray-50 transition-colors">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`p-1.5 rounded-full ${msg.type === 'WHATSAPP' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                    {msg.type === 'WHATSAPP' ? <Phone size={14}/> : <Mail size={14}/>}
+                                                </span>
+                                                <span className="font-bold text-gray-800 text-sm">{msg.sentBy || 'الإدارة المدرسية'}</span>
+                                            </div>
+                                            <span className="text-xs text-gray-400">{formatDualDate(msg.date)}</span>
                                         </div>
-                                        <span className="text-xs text-gray-400">{formatDualDate(msg.date)}</span>
+                                        <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                            {msg.content}
+                                        </p>
                                     </div>
-                                    <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                        {msg.content}
-                                    </p>
-                                </div>
-                            )) : (
-                                <div className="p-10 text-center text-gray-400 flex flex-col items-center">
-                                    <Mail size={48} className="mb-4 opacity-20"/>
-                                    <p>لا توجد رسائل جديدة</p>
-                                </div>
-                            )}
+                                )) : (
+                                    <div className="p-10 text-center text-gray-400 flex flex-col items-center">
+                                        <Mail size={48} className="mb-4 opacity-20"/>
+                                        <p>لا توجد رسائل جديدة</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -533,47 +535,51 @@ const ParentCalendar: React.FC<{ attendance: AttendanceRecord[], exams: Exam[], 
                 </div>
             </div>
             
-            <div className="grid grid-cols-7 text-center border-b bg-gray-50 text-xs font-bold text-gray-500">
-                <div className="p-3">الأحد</div>
-                <div className="p-3">الاثنين</div>
-                <div className="p-3">الثلاثاء</div>
-                <div className="p-3">الأربعاء</div>
-                <div className="p-3">الخميس</div>
-                <div className="p-3">الجمعة</div>
-                <div className="p-3">السبت</div>
-            </div>
+            <div className="overflow-x-auto">
+                <div className="min-w-[600px]">
+                    <div className="grid grid-cols-7 text-center border-b bg-gray-50 text-xs font-bold text-gray-500">
+                        <div className="p-3">الأحد</div>
+                        <div className="p-3">الاثنين</div>
+                        <div className="p-3">الثلاثاء</div>
+                        <div className="p-3">الأربعاء</div>
+                        <div className="p-3">الخميس</div>
+                        <div className="p-3">الجمعة</div>
+                        <div className="p-3">السبت</div>
+                    </div>
 
-            <div className="grid grid-cols-7 text-center">
-                {Array.from({ length: startDay }).map((_, i) => (
-                    <div key={`empty-${i}`} className="h-24 border-b border-l bg-gray-50/30"></div>
-                ))}
-                {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const day = i + 1;
-                    const status = getDayStatus(day);
-                    return (
-                        <div key={day} className="h-24 border-b border-l p-1 relative hover:bg-gray-50 transition-colors flex flex-col items-center justify-start pt-2 group">
-                            <span className="text-xs font-bold text-gray-700">{day}</span>
-                            {status && (
-                                <div className="mt-1 w-full px-1">
-                                    <span className={`text-[10px] font-bold px-2 py-1 rounded block w-full truncate ${
-                                        status.type === 'EXAM' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                                        status.type === 'ABSENT' ? 'bg-red-100 text-red-700' :
-                                        status.type === 'LATE' ? 'bg-yellow-100 text-yellow-700' :
-                                        'bg-green-100 text-green-700'
-                                    }`} title={status.detail || status.label}>
-                                        {status.type === 'EXAM' && <FileQuestion size={10} className="inline ml-1"/>}
-                                        {status.label}
-                                    </span>
-                                    {status.detail && (
-                                        <div className="absolute z-10 bottom-full mb-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                            {status.detail}
+                    <div className="grid grid-cols-7 text-center">
+                        {Array.from({ length: startDay }).map((_, i) => (
+                            <div key={`empty-${i}`} className="h-24 border-b border-l bg-gray-50/30"></div>
+                        ))}
+                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day = i + 1;
+                            const status = getDayStatus(day);
+                            return (
+                                <div key={day} className="h-24 border-b border-l p-1 relative hover:bg-gray-50 transition-colors flex flex-col items-center justify-start pt-2 group">
+                                    <span className="text-xs font-bold text-gray-700">{day}</span>
+                                    {status && (
+                                        <div className="mt-1 w-full px-1">
+                                            <span className={`text-[10px] font-bold px-2 py-1 rounded block w-full truncate ${
+                                                status.type === 'EXAM' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                                status.type === 'ABSENT' ? 'bg-red-100 text-red-700' :
+                                                status.type === 'LATE' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-green-100 text-green-700'
+                                            }`} title={status.detail || status.label}>
+                                                {status.type === 'EXAM' && <FileQuestion size={10} className="inline ml-1"/>}
+                                                {status.label}
+                                            </span>
+                                            {status.detail && (
+                                                <div className="absolute z-10 bottom-full mb-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                    {status.detail}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
             
             <div className="p-4 flex gap-4 text-xs font-bold text-gray-500 bg-gray-50 border-t flex-wrap">

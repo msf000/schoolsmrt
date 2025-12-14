@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
     getSchools, getTeachers, updateTeacher,
@@ -244,17 +245,17 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   };
 
   return (
-    <div className="p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
+    <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
         {/* Tabs */}
-        <div className="mb-6 flex overflow-x-auto gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm">
-            <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><LayoutGrid size={16} className="inline mr-2"/> لوحة التحكم</button>
-            {isManager && <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'TEACHERS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Users size={16} className="inline mr-2"/> المعلمين</button>}
-            <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><BookOpen size={16} className="inline mr-2"/> {isManager ? 'قائمة المواد' : 'موادي وفصولي'}</button>
-            <button onClick={() => setActiveTab('CALENDAR')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'CALENDAR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><CalendarDays size={16} className="inline mr-2"/> التقويم الدراسي</button>
-            <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Settings size={16} className="inline mr-2"/> {isManager ? 'إعدادات المدرسة' : 'الإعدادات الشخصية'}</button>
+        <div className="mb-6 flex overflow-x-auto gap-2 md:gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm">
+            <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><LayoutGrid size={16} className="mr-2"/> لوحة التحكم</button>
+            {isManager && <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'TEACHERS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Users size={16} className="mr-2"/> المعلمين</button>}
+            <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><BookOpen size={16} className="mr-2"/> {isManager ? 'المواد' : 'موادي'}</button>
+            <button onClick={() => setActiveTab('CALENDAR')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'CALENDAR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><CalendarDays size={16} className="mr-2"/> التقويم</button>
+            <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Settings size={16} className="mr-2"/> الإعدادات</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-16">
             {/* DASHBOARD TAB */}
             {activeTab === 'DASHBOARD' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -288,30 +289,32 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             {/* TEACHERS TAB */}
             {activeTab === 'TEACHERS' && isManager && (
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                    <table className="w-full text-right text-sm">
-                        <thead className="bg-gray-50 text-gray-700 font-bold border-b">
-                            <tr>
-                                <th className="p-4">الاسم</th>
-                                <th className="p-4">التخصص</th>
-                                <th className="p-4">البريد</th>
-                                <th className="p-4 text-center">الاشتراك</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {teachers.map(t => (
-                                <tr key={t.id} className="hover:bg-gray-50">
-                                    <td className="p-4 font-bold text-gray-800">{t.name}</td>
-                                    <td className="p-4 text-gray-600">{t.subjectSpecialty}</td>
-                                    <td className="p-4 text-gray-600 font-mono text-xs">{t.email}</td>
-                                    <td className="p-4 text-center">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${t.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {t.subscriptionStatus || 'FREE'}
-                                        </span>
-                                    </td>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-gray-50 text-gray-700 font-bold border-b">
+                                <tr>
+                                    <th className="p-4 whitespace-nowrap">الاسم</th>
+                                    <th className="p-4 whitespace-nowrap">التخصص</th>
+                                    <th className="p-4 whitespace-nowrap">البريد</th>
+                                    <th className="p-4 text-center whitespace-nowrap">الاشتراك</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y">
+                                {teachers.map(t => (
+                                    <tr key={t.id} className="hover:bg-gray-50">
+                                        <td className="p-4 font-bold text-gray-800">{t.name}</td>
+                                        <td className="p-4 text-gray-600">{t.subjectSpecialty}</td>
+                                        <td className="p-4 text-gray-600 font-mono text-xs">{t.email}</td>
+                                        <td className="p-4 text-center">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${t.subscriptionStatus === 'PRO' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                {t.subscriptionStatus || 'FREE'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
@@ -322,7 +325,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         <input className="flex-1 p-2 border rounded-lg" placeholder="اسم المادة الجديدة..." value={newSubject} onChange={e => setNewSubject(e.target.value)} />
                         <button onClick={handleAddSubject} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700">إضافة</button>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                         {subjects.map(s => (
                             <div key={s.id} className="p-3 bg-gray-50 border rounded-lg flex justify-between items-center group hover:border-indigo-200 transition-colors">
                                 <span className="font-bold text-gray-700">{s.name}</span>
@@ -338,19 +341,19 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 <div className="space-y-6">
                     {/* Add Term */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
-                        <div className="flex-1">
+                        <div className="flex-1 w-full">
                             <label className="block text-xs font-bold text-gray-500 mb-1">اسم الفصل الدراسي</label>
                             <input className="w-full p-2 border rounded text-sm" placeholder="الفصل الدراسي الأول 1446" value={newTermName} onChange={e => setNewTermName(e.target.value)}/>
                         </div>
-                        <div>
+                        <div className="w-full md:w-auto">
                             <label className="block text-xs font-bold text-gray-500 mb-1">البداية</label>
                             <input type="date" className="w-full p-2 border rounded text-sm" value={newTermStart} onChange={e => setNewTermStart(e.target.value)}/>
                         </div>
-                        <div>
+                        <div className="w-full md:w-auto">
                             <label className="block text-xs font-bold text-gray-500 mb-1">النهاية</label>
                             <input type="date" className="w-full p-2 border rounded text-sm" value={newTermEnd} onChange={e => setNewTermEnd(e.target.value)}/>
                         </div>
-                        <button onClick={handleAddTerm} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center gap-2">
+                        <button onClick={handleAddTerm} className="w-full md:w-auto bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center justify-center gap-2">
                             <Plus size={16}/> إضافة فصل
                         </button>
                     </div>
@@ -391,17 +394,17 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                             {!term.periods?.length && <p className="text-xs text-gray-400 italic">لا توجد فترات مضافة.</p>}
                                         </div>
                                         
-                                        <div className="flex gap-2 items-end border-t pt-3">
-                                            <div className="flex-1">
+                                        <div className="flex flex-col md:flex-row gap-2 items-end border-t pt-3">
+                                            <div className="flex-1 w-full">
                                                 <input className="w-full p-1.5 border rounded text-xs" placeholder="اسم الفترة (الأولى...)" value={newPeriodName} onChange={e => setNewPeriodName(e.target.value)}/>
                                             </div>
-                                            <div>
+                                            <div className="w-full md:w-auto">
                                                 <input type="date" className="w-full p-1.5 border rounded text-xs" value={newPeriodStart} onChange={e => setNewPeriodStart(e.target.value)}/>
                                             </div>
-                                            <div>
+                                            <div className="w-full md:w-auto">
                                                 <input type="date" className="w-full p-1.5 border rounded text-xs" value={newPeriodEnd} onChange={e => setNewPeriodEnd(e.target.value)}/>
                                             </div>
-                                            <button onClick={() => handleAddPeriod(term)} className="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
+                                            <button onClick={() => handleAddPeriod(term)} className="w-full md:w-auto bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
                                                 إضافة فترة
                                             </button>
                                         </div>

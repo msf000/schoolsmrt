@@ -35,20 +35,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setStatusMessage('جاري التحقق من البيانات...');
-    setSystemMode(true); // Default to Online mode for Cloud login
+    setStatusMessage('جاري التحقق...');
+    setSystemMode(true); // Default to Online mode
 
     try {
         const cleanIdentifier = identifier.trim();
 
         // 1. Parent Login Logic
         if (roleMode === 'PARENT') {
-            // Need to ensure we have students data locally or fetch it
             let allStudents = getStudents();
-            
-            // If no local data, try to sync first (lightweight) if connected
             if (allStudents.length === 0 && isSupabaseConfigured()) {
-                 setStatusMessage('جاري البحث في قاعدة البيانات...');
+                 setStatusMessage('مزامنة البيانات...');
                  await initAutoSync();
                  allStudents = getStudents();
             }
@@ -66,7 +63,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setLoading(false);
                 return;
             } else {
-                setError('رقم الجوال غير مسجل كولي أمر لأي طالب (تأكد من صحة الرقم أو تواصل مع المدرسة).');
+                setError('رقم الجوال غير مسجل.');
                 setLoading(false);
                 return;
             }
@@ -76,61 +73,47 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (roleMode === 'STUDENT') {
             const studentUser = await authenticateStudent(cleanIdentifier, password);
             if (studentUser) {
-                // Sync data specific to student if needed, but usually authenticateStudent fetches record
                 onLoginSuccess(studentUser, rememberMe);
                 setLoading(false);
                 return;
             } else {
-                setError('بيانات الطالب غير صحيحة (تأكد من رقم الهوية وكلمة المرور).');
+                setError('بيانات الطالب غير صحيحة.');
                 setLoading(false);
                 return;
             }
         }
 
-        // 3. Staff Logic (Cloud Auth)
+        // 3. Staff Logic
         const user = await authenticateUser(cleanIdentifier, password);
         
         if (user) {
             if (user.role === 'STUDENT') {
-                setError('هذا الحساب مخصص للطلاب. الرجاء الدخول من تبويب الطالب.');
+                setError('يرجى الدخول من تبويب الطالب.');
                 setLoading(false);
             } else {
-                // CRITICAL: Force Sync on new device before letting them in
-                setStatusMessage('جاري تحميل بيانات المدرسة من السحابة...');
+                setStatusMessage('تحميل البيانات...');
                 const syncSuccess = await initAutoSync();
-                
-                if (syncSuccess) {
-                    onLoginSuccess(user, rememberMe);
-                } else {
-                    // Fallback: If local data exists, let them in with warning
-                    if (getStudents().length > 0) {
-                        onLoginSuccess(user, rememberMe);
-                    } else {
-                        setError('تم التحقق من الحساب ولكن فشل تحميل البيانات. تحقق من الاتصال بالإنترنت.');
-                    }
-                }
+                onLoginSuccess(user, rememberMe);
                 setLoading(false);
             }
         } else {
-            // Failed to authenticate
             if (!isSupabaseConfigured()) {
-                setError('لم يتم إعداد الاتصال بالسحابة. يرجى التواصل مع الدعم الفني.');
+                setError('خطأ في إعدادات الاتصال.');
             } else {
-                setError('البيانات المدخلة غير صحيحة أو المستخدم غير موجود.');
+                setError('بيانات الدخول غير صحيحة.');
             }
             setLoading(false);
         }
     } catch (e: any) {
         console.error(e);
-        setError('حدث خطأ غير متوقع: ' + e.message);
+        setError('خطأ غير متوقع: ' + e.message);
         setLoading(false);
     }
   };
 
   const handleReset = () => {
-      if (confirm('تحذير: سيتم تصفير الذاكرة المؤقتة للمتصفح. هل أنت متأكد؟')) {
+      if (confirm('هل أنت متأكد من مسح جميع البيانات المحلية؟')) {
           clearDatabase();
-          alert('تم مسح البيانات بنجاح.');
       }
   };
 
@@ -139,62 +122,59 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto custom-scrollbar" dir="rtl">
-      <div className="min-h-full w-full flex flex-col justify-center items-center p-4 py-10">
+    <div className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto custom-scrollbar flex flex-col justify-center min-h-[100dvh]" dir="rtl">
+      <div className="w-full max-w-md mx-auto p-4">
       
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in relative">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 animate-fade-in relative">
             
             {/* Header */}
-            <div className="bg-primary p-8 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-full bg-white/5 backdrop-blur-[1px]"></div>
-                <div className="relative z-10">
-                    <div className="w-20 h-20 bg-white/20 rounded-2xl mx-auto flex items-center justify-center backdrop-blur-sm border border-white/30 mb-4 shadow-lg">
-                        <GraduationCap size={40} className="text-white" />
+            <div className="bg-indigo-600 p-8 text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full bg-white/10 backdrop-blur-[2px]"></div>
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                
+                <div className="relative z-10 flex flex-col items-center">
+                    <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/40 mb-3 shadow-lg">
+                        <GraduationCap size={32} className="text-white" />
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-1">نظام المدرس الذكي (Cloud)</h1>
-                    <p className="text-teal-100 text-sm">بوابة الدخول الموحدة</p>
+                    <h1 className="text-2xl font-bold text-white mb-1">نظام المتابع الذكي</h1>
+                    <p className="text-indigo-100 text-xs font-medium">بوابة الدخول الموحدة</p>
                 </div>
             </div>
 
             {/* Role Switcher */}
-            <div className="flex border-b">
-                <button onClick={() => setRoleMode('STAFF')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${roleMode === 'STAFF' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-gray-500 hover:bg-gray-50'}`}>
-                    <User size={18}/> الكادر التعليمي
+            <div className="flex border-b bg-gray-50/50">
+                <button onClick={() => setRoleMode('STAFF')} className={`flex-1 py-4 text-xs font-bold flex flex-col gap-1 items-center justify-center transition-all ${roleMode === 'STAFF' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+                    <User size={20}/> المعلمين
                 </button>
-                <button onClick={() => setRoleMode('STUDENT')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${roleMode === 'STUDENT' ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50' : 'text-gray-500 hover:bg-gray-50'}`}>
-                    <Users size={18}/> الطلاب
+                <button onClick={() => setRoleMode('STUDENT')} className={`flex-1 py-4 text-xs font-bold flex flex-col gap-1 items-center justify-center transition-all ${roleMode === 'STUDENT' ? 'text-purple-600 border-b-2 border-purple-600 bg-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+                    <Users size={20}/> الطلاب
                 </button>
-                <button onClick={() => setRoleMode('PARENT')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${roleMode === 'PARENT' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>
-                    <Baby size={18}/> ولي الأمر
+                <button onClick={() => setRoleMode('PARENT')} className={`flex-1 py-4 text-xs font-bold flex flex-col gap-1 items-center justify-center transition-all ${roleMode === 'PARENT' ? 'text-green-600 border-b-2 border-green-600 bg-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+                    <Baby size={20}/> ولي الأمر
                 </button>
             </div>
 
             {/* Form */}
-            <div className="p-8">
+            <div className="p-6 md:p-8">
                 <div className="mb-6 text-center">
-                    <h2 className="text-xl font-bold text-gray-800">
-                        {roleMode === 'STAFF' ? 'دخول المعلمين والإداريين' : roleMode === 'STUDENT' ? 'دخول الطلاب' : 'دخول أولياء الأمور'}
+                    <h2 className="text-lg font-bold text-gray-800">
+                        {roleMode === 'STAFF' ? 'أهلاً بك أيها المعلم 👋' : roleMode === 'STUDENT' ? 'مرحباً بك يا بطل 🌟' : 'حياكم الله أولياء الأمور 👨‍👩‍👧‍👦'}
                     </h2>
-                    <p className="text-gray-400 text-sm mt-1">
-                        {roleMode === 'PARENT' ? 'أدخل رقم الجوال المسجل في النظام' : 
-                         roleMode === 'STUDENT' ? 'أدخل رقم الهوية للدخول' : 
-                         'أدخل بياناتك للدخول إلى النظام'}
-                    </p>
                 </div>
 
-                <form onSubmit={handleLogin} className="space-y-5">
+                <form onSubmit={handleLogin} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                            {roleMode === 'PARENT' ? 'رقم الجوال' : roleMode === 'STUDENT' ? 'رقم الهوية / السجل' : 'البريد الإلكتروني / الهوية'}
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 mr-1">
+                            {roleMode === 'PARENT' ? 'رقم الجوال' : roleMode === 'STUDENT' ? 'رقم الهوية / السجل' : 'البريد أو الهوية'}
                         </label>
-                        <div className="relative">
+                        <div className="relative group">
                             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                {roleMode === 'PARENT' ? <Phone size={18} className="text-gray-400"/> : <User size={18} className="text-gray-400" />}
+                                {roleMode === 'PARENT' ? <Phone size={18} className="text-gray-400 group-focus-within:text-indigo-500"/> : <User size={18} className="text-gray-400 group-focus-within:text-indigo-500" />}
                             </div>
                             <input 
                                 type={roleMode === 'PARENT' ? "tel" : "text"}
                                 required
-                                className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dir-ltr text-right"
+                                className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all dir-ltr text-right text-sm font-bold text-gray-800"
                                 placeholder={roleMode === 'PARENT' ? "05xxxxxxxx" : roleMode === 'STUDENT' ? "10xxxxxxxx" : "user@email.com"}
                                 value={identifier}
                                 onChange={(e) => setIdentifier(e.target.value)}
@@ -204,18 +184,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
                     {roleMode !== 'PARENT' && (
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                                {roleMode === 'STUDENT' ? 'كلمة المرور' : 'كلمة المرور'}
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 mr-1">
+                                كلمة المرور
                             </label>
-                            <div className="relative">
+                            <div className="relative group">
                                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                    <Lock size={18} className="text-gray-400" />
+                                    <Lock size={18} className="text-gray-400 group-focus-within:text-indigo-500" />
                                 </div>
                                 <input 
                                     type={showPassword ? 'text' : 'password'}
                                     required
-                                    className="w-full pr-10 pl-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dir-ltr text-right"
-                                    placeholder={roleMode === 'STUDENT' ? "كلمة المرور أو آخر 4 أرقام من الهوية" : "••••••••"}
+                                    className="w-full pr-10 pl-12 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all dir-ltr text-right text-sm font-bold text-gray-800"
+                                    placeholder="••••••••"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                 />
@@ -227,28 +207,24 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
-                            {roleMode === 'STUDENT' && <p className="text-[10px] text-gray-400 mt-1 mr-1">* كلمة المرور الافتراضية هي آخر 4 أرقام من الهوية</p>}
                         </div>
                     )}
 
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between pt-1">
                         <button 
                             type="button"
                             onClick={() => setRememberMe(!rememberMe)}
-                            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                            className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-800 transition-colors"
                         >
-                            {rememberMe ? <CheckSquare size={18} className="text-primary"/> : <Square size={18} className="text-gray-400"/>}
-                            تذكر بيانات دخولي
+                            {rememberMe ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16} className="text-gray-400"/>}
+                            تذكرني
                         </button>
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex flex-col gap-1 border border-red-100 animate-pulse">
-                            <div className="flex items-center gap-2 font-bold">
-                                <ShieldCheck size={16} />
-                                خطأ في الدخول
-                            </div>
-                            <p>{error}</p>
+                        <div className="bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl flex items-center gap-2 border border-red-100 animate-pulse">
+                            <ShieldCheck size={16} />
+                            {error}
                         </div>
                     )}
 
@@ -256,18 +232,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         id="login-btn"
                         type="submit" 
                         disabled={loading}
-                        className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group ${
+                        className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group ${
                             roleMode === 'STUDENT' ? 'bg-purple-600 hover:bg-purple-700' :
                             roleMode === 'PARENT' ? 'bg-green-600 hover:bg-green-700' :
-                            'bg-gray-900 hover:bg-black'
+                            'bg-indigo-900 hover:bg-black'
                         }`}
                     >
-                        {loading ? <Loader2 size={20} className="animate-spin" /> : <>دخول للنظام <ArrowRight size={18} className="group-hover:-translate-x-1 transition-transform"/></>}
+                        {loading ? <Loader2 size={20} className="animate-spin" /> : <>دخول <ArrowRight size={18} className="group-hover:-translate-x-1 transition-transform"/></>}
                     </button>
                     
                     {loading && statusMessage && (
-                        <div className="text-center text-xs text-gray-500 animate-pulse flex items-center justify-center gap-2">
-                            <CloudLightning size={12}/> {statusMessage}
+                        <div className="text-center text-[10px] text-gray-400 animate-pulse">
+                            {statusMessage}
                         </div>
                     )}
                 </form>
@@ -276,25 +252,26 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     <div className="mt-4 text-center">
                         <button 
                             onClick={() => setView('REGISTER')}
-                            className="text-primary font-bold text-sm hover:underline flex items-center justify-center gap-1 w-full py-2 hover:bg-teal-50 rounded-lg transition-colors"
+                            className="text-indigo-600 font-bold text-xs hover:underline py-2 transition-colors"
                         >
-                            <UserPlus size={16}/> معلم جديد؟ سجل حسابك الآن
+                            إنشاء حساب جديد
                         </button>
                     </div>
                 )}
                 
-                <div className="text-[10px] text-gray-400 text-center mt-8 flex items-center justify-center gap-3 border-t pt-4">
-                    <span className={`flex items-center gap-1 ${isSupabaseConfigured() ? 'text-green-600' : 'text-gray-400'}`}>
-                        <CloudLightning size={12}/> {isSupabaseConfigured() ? 'متصل بالسحابة' : 'وضع محلي'}
+                {/* Minimal Footer */}
+                <div className="mt-6 flex justify-center items-center gap-4 border-t border-dashed border-gray-100 pt-4 opacity-50 hover:opacity-100 transition-opacity">
+                    <span className={`text-[10px] flex items-center gap-1 ${isSupabaseConfigured() ? 'text-green-600' : 'text-gray-400'}`}>
+                        <CloudLightning size={10}/> {isSupabaseConfigured() ? 'Cloud' : 'Local'}
                     </span>
-                    <button onClick={handleReset} className="text-red-300 hover:text-red-500 flex items-center gap-1 transition-colors" title="مسح كافة البيانات المحلية">
-                        <Trash2 size={12}/> إعادة ضبط
+                    <button onClick={handleReset} className="text-[10px] text-red-400 hover:text-red-600 flex items-center gap-1">
+                        <Trash2 size={10}/> Reset
                     </button>
                 </div>
             </div>
         </div>
         
-        <p className="mt-6 text-gray-400 text-xs text-center pb-6">Smart School System (Cloud) &copy; {new Date().getFullYear()}</p>
+        <p className="mt-4 text-gray-300 text-[10px] text-center">Smart School System v2.0</p>
       </div>
     </div>
   );

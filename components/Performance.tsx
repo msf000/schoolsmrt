@@ -379,7 +379,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                   {isSuccess && <div className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 animate-bounce-in"><Check size={16}/> تم الحفظ بنجاح!</div>}
               </div>
 
-              {/* Assignment Selector (New) */}
+              {/* Assignment Selector */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
                   <div className="md:col-span-1">
                       <label className="block text-xs font-bold text-gray-600 mb-1">الفصل</label>
@@ -389,7 +389,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                       </select>
                   </div>
                   
-                  <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                       {/* Integrated Assignment Selection */}
                       <div className="md:col-span-2">
                           <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1"><Link size={12}/> ربط بعمود (Assignment)</label>
@@ -488,7 +488,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       )}
 
       {activeTab === 'ENTRY' && !isManager && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-lg text-gray-700">إضافة درجة لطالب واحد</h3>
@@ -548,7 +548,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                     </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">المادة</label>
                         <input className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none" value={subject} onChange={e => setSubject(e.target.value)} placeholder="مثال: رياضيات"/>
@@ -564,7 +564,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">عنوان التقييم</label>
                         <input className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none ${selectedAssignmentId ? 'bg-gray-100' : 'bg-white'}`} value={title} onChange={e => setTitle(e.target.value)} placeholder="مثال: اختبار الوحدة الأولى" readOnly={!!selectedAssignmentId} required/>

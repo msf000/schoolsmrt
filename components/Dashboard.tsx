@@ -345,12 +345,12 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               <h1 className="text-2xl font-black text-gray-800">لوحة المتابعة اليومية</h1>
               <p className="text-gray-500 text-sm mt-1">نظرة شاملة على أداء وحضور الطلاب</p>
           </div>
-          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm w-full md:w-auto">
               <Filter size={16} className="text-gray-400 mr-1 ml-1"/>
               <select 
                   value={selectedTermId}
                   onChange={(e) => setSelectedTermId(e.target.value)}
-                  className="bg-transparent text-sm font-bold outline-none text-purple-700 min-w-[150px]"
+                  className="bg-transparent text-sm font-bold outline-none text-purple-700 flex-1 md:min-w-[150px]"
               >
                   <option value="">كل الفترات</option>
                   {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

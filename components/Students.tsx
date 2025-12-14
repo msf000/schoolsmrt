@@ -298,31 +298,31 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   );
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
+    <div className="p-4 md:p-6 space-y-6 animate-fade-in h-full flex flex-col">
       {/* Header & Controls */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <User className="text-purple-600"/> سجل الطلاب
             </h2>
-            <p className="text-sm text-gray-500 mt-1">إدارة بيانات الطلاب، التعديل، والمتابعة الفردية.</p>
+            <p className="text-xs md:text-sm text-gray-500 mt-1">إدارة بيانات الطلاب، التعديل، والمتابعة الفردية.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
             {/* Filters */}
-            <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200 w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200 w-full md:w-auto">
                 <Filter size={16} className="text-gray-400 ml-1"/>
                 <select 
-                    className="bg-transparent text-sm font-bold text-gray-700 outline-none w-full md:w-auto"
+                    className="bg-transparent text-sm font-bold text-gray-700 outline-none flex-1 md:w-auto min-w-[120px]"
                     value={filterGrade}
                     onChange={e => { setFilterGrade(e.target.value); setFilterClass(''); }}
                 >
                     <option value="">جميع الصفوف</option>
                     {existingGrades.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
-                <div className="w-[1px] h-4 bg-gray-300 mx-1"></div>
+                <div className="w-[1px] h-4 bg-gray-300 mx-1 hidden md:block"></div>
                 <select 
-                    className="bg-transparent text-sm font-bold text-gray-700 outline-none w-full md:w-auto"
+                    className="bg-transparent text-sm font-bold text-gray-700 outline-none flex-1 md:w-auto min-w-[120px]"
                     value={filterClass}
                     onChange={e => setFilterClass(e.target.value)}
                 >
@@ -332,7 +332,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             </div>
 
             {/* Search */}
-            <div className="relative flex-1 md:flex-none">
+            <div className="relative flex-1 md:flex-none w-full md:w-auto">
                 <Search className="absolute right-3 top-2.5 text-gray-400" size={18} />
                 <input 
                     type="text" 
@@ -344,16 +344,16 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             </div>
 
             {/* Actions (Hidden for Manager) */}
-            <div className="flex gap-2 w-full md:w-auto">
+            <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                 {!isManager && (
                     <>
-                        <button onClick={() => setIsPrintCardsOpen(true)} className="flex-1 md:flex-none bg-white text-gray-700 border px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm" title="طباعة بطاقات الدخول">
+                        <button onClick={() => setIsPrintCardsOpen(true)} className="flex-1 md:flex-none bg-white text-gray-700 border px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap" title="طباعة بطاقات الدخول">
                             <CreditCard size={18} /> بطاقات
                         </button>
-                        <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm">
+                        <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
                             <FileSpreadsheet size={18} /> استيراد
                         </button>
-                        <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm">
+                        <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
                             <UserPlus size={18} /> إضافة
                         </button>
                         {students.length > 0 && (
@@ -369,8 +369,8 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
 
       {/* Main Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
-        <div className="flex-1 overflow-auto">
-            <table className="w-full text-right">
+        <div className="flex-1 overflow-x-auto">
+            <table className="w-full text-right min-w-[800px]">
             <thead className="bg-gray-50 text-gray-600 font-bold text-xs uppercase sticky top-0 z-10 shadow-sm">
                 <tr>
                 <th className="p-4">#</th>
