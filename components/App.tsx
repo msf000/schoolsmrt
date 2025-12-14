@@ -12,6 +12,7 @@ import {
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
     forceRefreshData
 } from '../services/storageService';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 import { checkAIConnection } from '../services/geminiService';
 
 import Login from './Login';
@@ -85,16 +86,16 @@ const App: React.FC = () => {
     useEffect(() => {
         if (currentUser) {
             const startUp = async () => {
-                // Load local data immediately without forcing refresh
+                // Load local data immediately for instant UI
                 loadData();
                 
-                // Only force refresh if there is absolutely no data (fresh install)
-                if (getStudents().length === 0) {
+                // Force sync with cloud on startup if configured (Cloud First Approach)
+                if (isSupabaseConfigured()) {
                     setIsLoading(true);
                     try {
                         await forceRefreshData();
                     } catch (e) {
-                        console.error("Initialization Sync Failed:", e);
+                        console.error("Cloud Sync Failed:", e);
                     } finally {
                         loadData(); 
                         setIsLoading(false);
@@ -316,7 +317,7 @@ const App: React.FC = () => {
             {isLoading && (
                 <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center animate-fade-in">
                     <Loader2 size={48} className="text-indigo-600 animate-spin mb-4"/>
-                    <h3 className="text-xl font-bold text-gray-800">جاري تحميل البيانات...</h3>
+                    <h3 className="text-xl font-bold text-gray-800">جاري تحميل البيانات من السحابة...</h3>
                     <p className="text-gray-500">يرجى الانتظار قليلاً للمزامنة</p>
                 </div>
             )}
@@ -448,7 +449,6 @@ const App: React.FC = () => {
                         </div>
                     </button>
 
-                    {/* زر حالة الذكاء الاصطناعي */}
                     <button 
                         onClick={handleCheckAI}
                         disabled={aiStatus === 'CHECKING'}
@@ -480,12 +480,12 @@ const App: React.FC = () => {
                     </button>
 
                     <div className="text-center mt-2 text-[10px] text-gray-300">
-                        نظام المدرس الذكي v1.2.1
+                        نظام المدرس الذكي v1.2.1 (Cloud)
                     </div>
                 </div>
             </aside>
 
-            {/* المحتوى الرئيسي (Main Content) */}
+            {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative">
                 <header className="bg-white border-b p-4 flex justify-between items-center md:hidden">
                     <h2 className="font-bold text-gray-800">

@@ -42,7 +42,107 @@ const KEYS = {
     PERIOD_TIMINGS: 'period_timings'
 };
 
-// --- Period Timings Constants & Functions ---
+// --- DB MAPPERS (CamelCase <-> SnakeCase) ---
+
+const toDbSchool = (s: School) => ({
+    id: s.id, name: s.name, ministry_code: s.ministryCode,
+    education_administration: s.educationAdministration, type: s.type,
+    manager_name: s.managerName, manager_national_id: s.managerNationalId,
+    phone: s.phone, student_count: s.studentCount
+});
+const fromDbSchool = (s: any): School => ({
+    id: s.id, name: s.name, ministryCode: s.ministry_code,
+    educationAdministration: s.education_administration, type: s.type,
+    managerName: s.manager_name, managerNationalId: s.manager_national_id,
+    phone: s.phone, studentCount: s.student_count
+});
+
+const toDbTeacher = (t: Teacher) => ({
+    id: t.id, name: t.name, national_id: t.nationalId, email: t.email,
+    phone: t.phone, password: t.password, subject_specialty: t.subjectSpecialty,
+    school_id: t.schoolId, manager_id: t.managerId,
+    subscription_status: t.subscriptionStatus, subscription_end_date: t.subscriptionEndDate
+});
+const fromDbTeacher = (t: any): Teacher => ({
+    id: t.id, name: t.name, nationalId: t.national_id, email: t.email,
+    phone: t.phone, password: t.password, subjectSpecialty: t.subject_specialty,
+    schoolId: t.school_id, managerId: t.manager_id,
+    subscriptionStatus: t.subscription_status, subscriptionEndDate: t.subscription_end_date
+});
+
+const toDbUser = (u: SystemUser) => ({
+    id: u.id, name: u.name, email: u.email, national_id: u.nationalId,
+    password: u.password, role: u.role, school_id: u.schoolId,
+    status: u.status, is_demo: u.isDemo, phone: u.phone
+});
+const fromDbUser = (u: any): SystemUser => ({
+    id: u.id, name: u.name, email: u.email, nationalId: u.national_id,
+    password: u.password, role: u.role, schoolId: u.school_id,
+    status: u.status, isDemo: u.is_demo, phone: u.phone
+});
+
+const toDbStudent = (s: Student) => ({
+    id: s.id, name: s.name, national_id: s.nationalId, class_id: s.classId,
+    school_id: s.schoolId, created_by_id: s.createdById, grade_level: s.gradeLevel,
+    class_name: s.className, email: s.email, phone: s.phone,
+    parent_name: s.parentName, parent_phone: s.parentPhone, parent_email: s.parentEmail,
+    password: s.password, seat_index: s.seatIndex
+});
+const fromDbStudent = (s: any): Student => ({
+    id: s.id, name: s.name, nationalId: s.national_id, classId: s.class_id,
+    schoolId: s.school_id, createdById: s.created_by_id, gradeLevel: s.grade_level,
+    className: s.class_name, email: s.email, phone: s.phone,
+    parentName: s.parent_name, parentPhone: s.parent_phone, parentEmail: s.parent_email,
+    password: s.password, seatIndex: s.seat_index
+});
+
+const toDbAttendance = (a: AttendanceRecord) => ({
+    id: a.id, student_id: a.studentId, date: a.date, status: a.status,
+    subject: a.subject, period: a.period, behavior_status: a.behaviorStatus,
+    behavior_note: a.behaviorNote, excuse_note: a.excuseNote, excuse_file: a.excuseFile,
+    created_by_id: a.createdById
+});
+const fromDbAttendance = (a: any): AttendanceRecord => ({
+    id: a.id, studentId: a.student_id, date: a.date, status: a.status,
+    subject: a.subject, period: a.period, behaviorStatus: a.behavior_status,
+    behaviorNote: a.behavior_note, excuseNote: a.excuse_note, excuseFile: a.excuse_file,
+    createdById: a.created_by_id
+});
+
+const toDbPerformance = (p: PerformanceRecord) => ({
+    id: p.id, student_id: p.studentId, subject: p.subject, title: p.title,
+    category: p.category, score: p.score, max_score: p.maxScore,
+    date: p.date, notes: p.notes, created_by_id: p.createdById
+});
+const fromDbPerformance = (p: any): PerformanceRecord => ({
+    id: p.id, studentId: p.student_id, subject: p.subject, title: p.title,
+    category: p.category, score: p.score, maxScore: p.max_score,
+    date: p.date, notes: p.notes, createdById: p.created_by_id
+});
+
+const toDbAssignment = (a: Assignment) => ({
+    id: a.id, title: a.title, category: a.category, max_score: a.maxScore,
+    url: a.url, is_visible: a.isVisible, order_index: a.orderIndex,
+    source_metadata: a.sourceMetadata, teacher_id: a.teacherId,
+    term_id: a.termId, period_id: a.periodId, class_id: a.classId
+});
+const fromDbAssignment = (a: any): Assignment => ({
+    id: a.id, title: a.title, category: a.category, maxScore: a.max_score,
+    url: a.url, isVisible: a.is_visible, orderIndex: a.order_index,
+    sourceMetadata: a.source_metadata, teacherId: a.teacher_id,
+    termId: a.term_id, periodId: a.period_id, classId: a.class_id
+});
+
+const toDbSchedule = (s: ScheduleItem) => ({
+    id: s.id, class_id: s.classId, day: s.day, period: s.period,
+    subject_name: s.subjectName, teacher_id: s.teacherId
+});
+const fromDbSchedule = (s: any): ScheduleItem => ({
+    id: s.id, classId: s.class_id, day: s.day, period: s.period,
+    subjectName: s.subject_name, teacherId: s.teacher_id
+});
+
+// --- Helper Functions ---
 export const DEFAULT_PERIOD_TIMES = [
     "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
     "09:45 - 10:30", "10:30 - 11:15", "11:15 - 12:00", 
@@ -59,7 +159,6 @@ export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) =
     notifyDataChange();
 };
 
-// --- Helper Functions ---
 const get = <T>(key: string): T[] => {
     try {
         const data = localStorage.getItem(key);
@@ -104,12 +203,12 @@ const notifyDataChange = () => {
 export const getSchools = (): School[] => get(KEYS.SCHOOLS);
 export const addSchool = async (s: School) => { 
     const list = getSchools(); list.push(s); updateCache(KEYS.SCHOOLS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('schools').insert(s);
+    if(isSupabaseConfigured()) await supabase.from('schools').insert(toDbSchool(s));
 };
 export const updateSchool = async (s: School) => { 
     const list = getSchools(); const idx = list.findIndex(x => x.id === s.id); 
     if (idx > -1) list[idx] = s; updateCache(KEYS.SCHOOLS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('schools').update(s).eq('id', s.id);
+    if(isSupabaseConfigured()) await supabase.from('schools').update(toDbSchool(s)).eq('id', s.id);
 };
 export const deleteSchool = async (id: string) => { 
     updateCache(KEYS.SCHOOLS, getSchools().filter(x => x.id !== id)); notifyDataChange();
@@ -120,7 +219,6 @@ export const getTeachers = (): Teacher[] => get(KEYS.TEACHERS);
 export const addTeacher = async (t: Teacher) => { 
     const list = getTeachers(); list.push(t); updateCache(KEYS.TEACHERS, list); notifyDataChange();
     
-    // Add to System Users first to allow login
     const systemUser: SystemUser = {
         id: t.id, 
         name: t.name, 
@@ -131,26 +229,25 @@ export const addTeacher = async (t: Teacher) => {
         schoolId: t.schoolId, 
         status: 'ACTIVE'
     };
-    // Save system user locally and to cloud
     await addSystemUser(systemUser);
     
-    if(isSupabaseConfigured()) await supabase.from('teachers').insert(t);
+    if(isSupabaseConfigured()) await supabase.from('teachers').insert(toDbTeacher(t));
 };
 export const updateTeacher = async (t: Teacher) => { 
     const list = getTeachers(); const idx = list.findIndex(x => x.id === t.id); 
     if (idx > -1) list[idx] = t; updateCache(KEYS.TEACHERS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('teachers').update(t).eq('id', t.id);
+    if(isSupabaseConfigured()) await supabase.from('teachers').update(toDbTeacher(t)).eq('id', t.id);
 };
 
 export const getSystemUsers = (): SystemUser[] => get(KEYS.USERS);
 export const addSystemUser = async (u: SystemUser) => { 
     const list = getSystemUsers(); list.push(u); updateCache(KEYS.USERS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('system_users').insert(u);
+    if(isSupabaseConfigured()) await supabase.from('system_users').insert(toDbUser(u));
 };
 export const updateSystemUser = async (u: SystemUser) => { 
     const list = getSystemUsers(); const idx = list.findIndex(x => x.id === u.id); 
     if (idx > -1) list[idx] = u; updateCache(KEYS.USERS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('system_users').update(u).eq('id', u.id);
+    if(isSupabaseConfigured()) await supabase.from('system_users').update(toDbUser(u)).eq('id', u.id);
 };
 export const deleteSystemUser = async (id: string) => { 
     updateCache(KEYS.USERS, getSystemUsers().filter(x => x.id !== id)); notifyDataChange();
@@ -160,12 +257,12 @@ export const deleteSystemUser = async (id: string) => {
 export const getStudents = (): Student[] => get(KEYS.STUDENTS);
 export const addStudent = async (s: Student) => { 
     const list = getStudents(); list.push(s); updateCache(KEYS.STUDENTS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('students').insert(s);
+    if(isSupabaseConfigured()) await supabase.from('students').insert(toDbStudent(s));
 };
 export const updateStudent = async (s: Student) => { 
     const list = getStudents(); const idx = list.findIndex(x => x.id === s.id); 
     if (idx > -1) list[idx] = s; updateCache(KEYS.STUDENTS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('students').update(s).eq('id', s.id);
+    if(isSupabaseConfigured()) await supabase.from('students').update(toDbStudent(s)).eq('id', s.id);
 };
 export const deleteStudent = async (id: string) => { 
     updateCache(KEYS.STUDENTS, getStudents().filter(x => x.id !== id)); notifyDataChange();
@@ -177,7 +274,7 @@ export const deleteAllStudents = async () => {
 };
 export const bulkAddStudents = async (students: Student[]) => { 
     const list = getStudents(); updateCache(KEYS.STUDENTS, [...list, ...students]); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('students').insert(students);
+    if(isSupabaseConfigured()) await supabase.from('students').insert(students.map(toDbStudent));
 };
 export const bulkUpsertStudents = async (students: Student[], key: keyof Student = 'nationalId') => {
     let list = getStudents();
@@ -187,7 +284,8 @@ export const bulkUpsertStudents = async (students: Student[], key: keyof Student
         else list.push(s);
     });
     updateCache(KEYS.STUDENTS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('students').upsert(students, { onConflict: key as string });
+    const dbKey = key === 'nationalId' ? 'national_id' : key;
+    if(isSupabaseConfigured()) await supabase.from('students').upsert(students.map(toDbStudent), { onConflict: dbKey as string });
 };
 
 export const getAttendance = (): AttendanceRecord[] => get(KEYS.ATTENDANCE);
@@ -198,7 +296,7 @@ export const saveAttendance = async (records: AttendanceRecord[]) => {
         if (idx > -1) list[idx] = r; else list.push(r);
     });
     updateCache(KEYS.ATTENDANCE, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('attendance').upsert(records);
+    if(isSupabaseConfigured()) await supabase.from('attendance').upsert(records.map(toDbAttendance));
 };
 export const bulkAddAttendance = saveAttendance;
 
@@ -208,7 +306,7 @@ export const addPerformance = async (p: PerformanceRecord) => {
     const idx = list.findIndex(x => x.id === p.id); 
     if (idx > -1) list[idx] = p; else list.push(p);
     updateCache(KEYS.PERFORMANCE, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('performance').upsert(p);
+    if(isSupabaseConfigured()) await supabase.from('performance').upsert(toDbPerformance(p));
 };
 export const deletePerformance = async (id: string) => { 
     updateCache(KEYS.PERFORMANCE, getPerformance().filter(x => x.id !== id)); notifyDataChange();
@@ -221,7 +319,7 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
         if (idx > -1) list[idx] = r; else list.push(r);
     });
     updateCache(KEYS.PERFORMANCE, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('performance').upsert(records);
+    if(isSupabaseConfigured()) await supabase.from('performance').upsert(records.map(toDbPerformance));
 };
 
 // --- AUTHENTICATION & SYNC ---
@@ -230,7 +328,6 @@ export const authenticateUser = async (identifier: string, password: string): Pr
     let cloudUser: SystemUser | undefined;
     let cloudError = null;
 
-    // 1. Try Cloud Authentication ONLY if configured
     if (isSupabaseConfigured()) {
         try {
             const { data, error } = await supabase
@@ -242,7 +339,8 @@ export const authenticateUser = async (identifier: string, password: string): Pr
                 .single();
                 
             if (data && !error) {
-                cloudUser = data as SystemUser;
+                // IMPORTANT: Map cloud snake_case to local camelCase
+                cloudUser = fromDbUser(data);
             } else {
                 cloudError = error;
             }
@@ -251,10 +349,8 @@ export const authenticateUser = async (identifier: string, password: string): Pr
         }
     }
 
-    // 2. Return cloud user if found
     if (cloudUser) return cloudUser;
 
-    // 3. Fallback to Local Cache
     console.warn("Cloud Auth failed or user not found, checking local storage...", cloudError);
     
     const localUsers = getSystemUsers();
@@ -268,7 +364,6 @@ export const authenticateUser = async (identifier: string, password: string): Pr
 };
 
 export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
-    // Try Cloud if configured
     if (isSupabaseConfigured()) {
         try {
             const cleanId = nationalId.trim();
@@ -283,22 +378,8 @@ export const authenticateStudent = async (nationalId: string, password: string):
                  const studentPass = data.password || defaultPass;
                  
                  if (password === studentPass) {
-                     // MAP FROM SNAKE_CASE (DB) TO CAMELCASE (APP)
                      return { 
-                         id: data.id,
-                         name: data.name,
-                         nationalId: data.national_id,
-                         classId: data.class_id,
-                         gradeLevel: data.grade_level,
-                         className: data.class_name,
-                         email: data.email,
-                         phone: data.phone,
-                         parentName: data.parent_name,
-                         parentPhone: data.parent_phone,
-                         parentEmail: data.parent_email,
-                         password: data.password,
-                         schoolId: data.school_id,
-                         seatIndex: data.seat_index,
+                         ...fromDbStudent(data),
                          role: 'STUDENT'
                      };
                  }
@@ -306,7 +387,6 @@ export const authenticateStudent = async (nationalId: string, password: string):
         } catch (e) {}
     }
     
-    // Local Fallback for students
     const localStudents = getStudents();
     const student = localStudents.find(s => s.nationalId === nationalId.trim());
     if (student) {
@@ -336,7 +416,7 @@ export const forceRefreshData = async () => {
     
     const check = await checkConnection();
     if (!check.success) {
-        setSyncStatus('ERROR'); // Changed to ERROR to indicate attempt failure
+        setSyncStatus('ERROR');
         return false;
     }
 
@@ -345,26 +425,17 @@ export const forceRefreshData = async () => {
         const promises = tables.map(t => supabase.from(t).select('*'));
         const results = await Promise.all(promises);
         
-        updateCache(KEYS.SCHOOLS, results[0].data || []);
-        updateCache(KEYS.TEACHERS, results[1].data || []);
-        updateCache(KEYS.USERS, results[2].data || []);
+        // MAPPING INCOMING DATA
+        updateCache(KEYS.SCHOOLS, (results[0].data || []).map(fromDbSchool));
+        updateCache(KEYS.TEACHERS, (results[1].data || []).map(fromDbTeacher));
+        updateCache(KEYS.USERS, (results[2].data || []).map(fromDbUser));
+        updateCache(KEYS.STUDENTS, (results[3].data || []).map(fromDbStudent));
+        updateCache(KEYS.ATTENDANCE, (results[4].data || []).map(fromDbAttendance));
+        updateCache(KEYS.PERFORMANCE, (results[5].data || []).map(fromDbPerformance));
+        updateCache(KEYS.WORKS_ASSIGNMENTS, (results[6].data || []).map(fromDbAssignment));
+        updateCache(KEYS.SUBJECTS, results[7].data || []); // Assuming flat structure or minimal map
+        updateCache(KEYS.SCHEDULES, (results[8].data || []).map(fromDbSchedule));
         
-        // Students: Map back to camelCase just in case direct storage is needed in App format
-        const studentData = (results[3].data || []).map((s: any) => ({
-             id: s.id, name: s.name, nationalId: s.national_id, 
-             classId: s.class_id, gradeLevel: s.grade_level, className: s.class_name,
-             email: s.email, phone: s.phone, parentName: s.parent_name,
-             parentPhone: s.parent_phone, parentEmail: s.parent_email,
-             password: s.password, schoolId: s.school_id, seatIndex: s.seat_index,
-             createdById: s.created_by_id
-        }));
-        updateCache(KEYS.STUDENTS, studentData);
-        
-        updateCache(KEYS.ATTENDANCE, results[4].data || []);
-        updateCache(KEYS.PERFORMANCE, results[5].data || []);
-        updateCache(KEYS.WORKS_ASSIGNMENTS, results[6].data || []);
-        updateCache(KEYS.SUBJECTS, results[7].data || []);
-        updateCache(KEYS.SCHEDULES, results[8].data || []);
         updateCache(KEYS.ASSIGNMENTS, results[9].data || []);
         updateCache(KEYS.EXAMS, results[10].data || []);
         updateCache(KEYS.QUESTION_BANK, results[11].data || []);
@@ -403,7 +474,7 @@ export const saveScheduleItem = async (item: ScheduleItem) => {
     let list = getSchedules(); 
     const idx = list.findIndex(x => x.id === item.id); if (idx > -1) list[idx] = item; else list.push(item);
     updateCache(KEYS.SCHEDULES, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('schedules').upsert(item);
+    if(isSupabaseConfigured()) await supabase.from('schedules').upsert(toDbSchedule(item));
 };
 export const deleteScheduleItem = async (id: string) => { 
     updateCache(KEYS.SCHEDULES, getSchedules().filter(x => x.id !== id)); notifyDataChange();
@@ -424,7 +495,7 @@ export const saveAssignment = async (a: Assignment) => {
     const list = get<Assignment>(KEYS.WORKS_ASSIGNMENTS); 
     const idx = list.findIndex(x => x.id === a.id); if (idx > -1) list[idx] = a; else list.push(a);
     updateCache(KEYS.WORKS_ASSIGNMENTS, list); notifyDataChange();
-    if(isSupabaseConfigured()) await supabase.from('assignments').upsert(a);
+    if(isSupabaseConfigured()) await supabase.from('assignments').upsert(toDbAssignment(a));
 };
 export const deleteAssignment = async (id: string) => { 
     updateCache(KEYS.WORKS_ASSIGNMENTS, get<Assignment>(KEYS.WORKS_ASSIGNMENTS).filter(x => x.id !== id)); notifyDataChange();
