@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync, checkConnection } from '../services/storageService';
-import { updateSupabaseConfig } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, Settings, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone, Database, Wifi, Save, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync } from '../services/storageService';
+import { isSupabaseConfigured } from '../services/supabaseClient';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -19,35 +19,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
-
-  // Config Modal State
-  const [showConfig, setShowConfig] = useState(false);
-  const [supaUrl, setSupaUrl] = useState('');
-  const [supaKey, setSupaKey] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState<'IDLE' | 'CHECKING' | 'SUCCESS' | 'ERROR'>('IDLE');
-
-  useEffect(() => {
-      // Load existing config if available
-      setSupaUrl(localStorage.getItem('custom_supabase_url') || '');
-      setSupaKey(localStorage.getItem('custom_supabase_key') || '');
-  }, []);
-
-  const handleTestConnection = async () => {
-      setConnectionStatus('CHECKING');
-      const success = updateSupabaseConfig(supaUrl, supaKey);
-      if (!success) {
-          setConnectionStatus('ERROR');
-          return;
-      }
-      const res = await checkConnection();
-      setConnectionStatus(res.success ? 'SUCCESS' : 'ERROR');
-  };
-
-  const handleSaveConfig = () => {
-      if (!supaUrl || !supaKey) return;
-      updateSupabaseConfig(supaUrl, supaKey);
-      window.location.reload(); // Reload to apply new client
-  };
 
   // Auto-login handler for registration success
   const handleRegisterSuccess = (email: string, pass: string) => {
@@ -70,9 +41,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     try {
         const cleanIdentifier = identifier.trim();
 
-        // 1. Parent Login Logic (Needs local students synced or cloud fetch)
+        // 1. Parent Login Logic
         if (roleMode === 'PARENT') {
-            const allStudents = getStudents();
+            // Need to ensure we have students data locally or fetch it
+            let allStudents = getStudents();
+            
+            // If no local data, try to sync first (lightweight) if connected
+            if (allStudents.length === 0 && isSupabaseConfigured()) {
+                 setStatusMessage('جاري البحث في قاعدة البيانات...');
+                 await initAutoSync();
+                 allStudents = getStudents();
+            }
+
             const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
             
             if (children.length > 0) {
@@ -86,28 +66,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setLoading(false);
                 return;
             } else {
-                setError('رقم الجوال غير مسجل كولي أمر لأي طالب (تأكد من المزامنة).');
+                setError('رقم الجوال غير مسجل كولي أمر لأي طالب (تأكد من صحة الرقم أو تواصل مع المدرسة).');
                 setLoading(false);
                 return;
             }
         }
 
-        // 2. Student Login Logic (Specific function)
+        // 2. Student Login Logic
         if (roleMode === 'STUDENT') {
             const studentUser = await authenticateStudent(cleanIdentifier, password);
             if (studentUser) {
+                // Sync data specific to student if needed, but usually authenticateStudent fetches record
                 onLoginSuccess(studentUser, rememberMe);
                 setLoading(false);
                 return;
             } else {
-                setError('بيانات الطالب غير صحيحة (تأكد من رقم الهوية وآخر 4 أرقام).');
+                setError('بيانات الطالب غير صحيحة (تأكد من رقم الهوية وكلمة المرور).');
                 setLoading(false);
                 return;
             }
         }
 
         // 3. Staff Logic (Cloud Auth)
-        // roleMode here is effectively 'STAFF'
         const user = await authenticateUser(cleanIdentifier, password);
         
         if (user) {
@@ -115,19 +95,34 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setError('هذا الحساب مخصص للطلاب. الرجاء الدخول من تبويب الطالب.');
                 setLoading(false);
             } else {
-                // Ensure data sync before proceeding
-                setStatusMessage('جاري استرجاع بياناتك من السحابة...');
-                await initAutoSync();
-                onLoginSuccess(user, rememberMe);
+                // CRITICAL: Force Sync on new device before letting them in
+                setStatusMessage('جاري تحميل بيانات المدرسة من السحابة...');
+                const syncSuccess = await initAutoSync();
+                
+                if (syncSuccess) {
+                    onLoginSuccess(user, rememberMe);
+                } else {
+                    // Fallback: If local data exists, let them in with warning
+                    if (getStudents().length > 0) {
+                        onLoginSuccess(user, rememberMe);
+                    } else {
+                        setError('تم التحقق من الحساب ولكن فشل تحميل البيانات. تحقق من الاتصال بالإنترنت.');
+                    }
+                }
                 setLoading(false);
             }
         } else {
-            setError('البيانات المدخلة غير صحيحة أو خطأ في الاتصال بالسحابة.');
+            // Failed to authenticate
+            if (!isSupabaseConfigured()) {
+                setError('لم يتم إعداد الاتصال بالسحابة. يرجى التواصل مع الدعم الفني.');
+            } else {
+                setError('البيانات المدخلة غير صحيحة أو المستخدم غير موجود.');
+            }
             setLoading(false);
         }
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
-        setError('حدث خطأ أثناء تسجيل الدخول.');
+        setError('حدث خطأ غير متوقع: ' + e.message);
         setLoading(false);
     }
   };
@@ -149,15 +144,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in relative">
             
-            {/* Config Button */}
-            <button 
-                onClick={() => setShowConfig(true)}
-                className="absolute top-4 left-4 z-20 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
-                title="إعدادات الاتصال"
-            >
-                <Settings size={20}/>
-            </button>
-
             {/* Header */}
             <div className="bg-primary p-8 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-full bg-white/5 backdrop-blur-[1px]"></div>
@@ -257,10 +243,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2 border border-red-100 animate-pulse">
-                            <ShieldCheck size={16} />
-                            {error}
-                            <button type="button" onClick={() => setShowConfig(true)} className="mr-auto text-xs underline hover:text-red-800">إصلاح الاتصال؟</button>
+                        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex flex-col gap-1 border border-red-100 animate-pulse">
+                            <div className="flex items-center gap-2 font-bold">
+                                <ShieldCheck size={16} />
+                                خطأ في الدخول
+                            </div>
+                            <p>{error}</p>
                         </div>
                     )}
 
@@ -278,8 +266,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     </button>
                     
                     {loading && statusMessage && (
-                        <div className="text-center text-xs text-gray-500 animate-pulse">
-                            {statusMessage}
+                        <div className="text-center text-xs text-gray-500 animate-pulse flex items-center justify-center gap-2">
+                            <CloudLightning size={12}/> {statusMessage}
                         </div>
                     )}
                 </form>
@@ -296,7 +284,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 )}
                 
                 <div className="text-[10px] text-gray-400 text-center mt-8 flex items-center justify-center gap-3 border-t pt-4">
-                    <span className="flex items-center gap-1 text-green-600"><CloudLightning size={12}/> متصل بالسحابة</span>
+                    <span className={`flex items-center gap-1 ${isSupabaseConfigured() ? 'text-green-600' : 'text-gray-400'}`}>
+                        <CloudLightning size={12}/> {isSupabaseConfigured() ? 'متصل بالسحابة' : 'وضع محلي'}
+                    </span>
                     <button onClick={handleReset} className="text-red-300 hover:text-red-500 flex items-center gap-1 transition-colors" title="مسح كافة البيانات المحلية">
                         <Trash2 size={12}/> إعادة ضبط
                     </button>
@@ -306,60 +296,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         
         <p className="mt-6 text-gray-400 text-xs text-center pb-6">Smart School System (Cloud) &copy; {new Date().getFullYear()}</p>
       </div>
-
-      {/* Database Configuration Modal */}
-      {showConfig && (
-          <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-                  <div className="flex justify-between items-center mb-6 border-b pb-4">
-                      <h3 className="font-bold text-gray-800 flex items-center gap-2"><Database size={20} className="text-primary"/> إعدادات الاتصال بالسحابة</h3>
-                      <button onClick={() => setShowConfig(false)} className="text-gray-400 hover:text-gray-600"><ShieldCheck size={20}/></button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                      <div className={`p-3 rounded-lg border text-sm flex items-center gap-2 ${connectionStatus === 'SUCCESS' ? 'bg-green-50 text-green-700 border-green-200' : connectionStatus === 'ERROR' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600'}`}>
-                          {connectionStatus === 'CHECKING' && <RefreshCw size={16} className="animate-spin"/>}
-                          {connectionStatus === 'SUCCESS' && <Wifi size={16}/>}
-                          {connectionStatus === 'ERROR' && <AlertCircle size={16}/>}
-                          <span>
-                              {connectionStatus === 'IDLE' ? 'أدخل البيانات ثم اضغط فحص الاتصال' :
-                               connectionStatus === 'CHECKING' ? 'جاري محاولة الاتصال...' :
-                               connectionStatus === 'SUCCESS' ? 'تم الاتصال بنجاح! يمكنك الحفظ.' :
-                               'فشل الاتصال. تحقق من الرابط والمفتاح.'}
-                          </span>
-                      </div>
-
-                      <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">رابط المشروع (Supabase URL)</label>
-                          <input 
-                              type="text" 
-                              className="w-full p-2 border rounded-lg dir-ltr font-mono text-xs" 
-                              placeholder="https://xyz.supabase.co"
-                              value={supaUrl}
-                              onChange={e => setSupaUrl(e.target.value)}
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">مفتاح API (Anon Key)</label>
-                          <input 
-                              type="password" 
-                              className="w-full p-2 border rounded-lg dir-ltr font-mono text-xs" 
-                              placeholder="eyJh..."
-                              value={supaKey}
-                              onChange={e => setSupaKey(e.target.value)}
-                          />
-                      </div>
-
-                      <div className="flex gap-3 pt-4">
-                          <button onClick={handleTestConnection} className="flex-1 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">فحص الاتصال</button>
-                          <button onClick={handleSaveConfig} disabled={connectionStatus !== 'SUCCESS'} className="flex-1 py-2 bg-primary text-white font-bold rounded-lg hover:bg-teal-800 disabled:opacity-50 flex items-center justify-center gap-2">
-                              <Save size={16}/> حفظ وإعادة تشغيل
-                          </button>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      )}
     </div>
   );
 };

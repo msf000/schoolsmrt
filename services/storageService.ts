@@ -77,7 +77,7 @@ const toDbUser = (u: SystemUser) => ({
 });
 const fromDbUser = (u: any): SystemUser => ({
     id: u.id, name: u.name, email: u.email, nationalId: u.national_id,
-    password: u.password, role: u.role, schoolId: u.school_id,
+    password: u.password, role: u.role?.toUpperCase(), schoolId: u.school_id,
     status: u.status, isDemo: u.is_demo, phone: u.phone
 });
 
@@ -449,8 +449,8 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
 
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
     let cloudUser: SystemUser | undefined;
-    let cloudError = null;
-
+    
+    // 1. Try Cloud First if Configured
     if (isSupabaseConfigured()) {
         try {
             const { data, error } = await supabase
@@ -462,20 +462,19 @@ export const authenticateUser = async (identifier: string, password: string): Pr
                 .single();
                 
             if (data && !error) {
-                // IMPORTANT: Map cloud snake_case to local camelCase
+                // Ensure correct case for Role
                 cloudUser = fromDbUser(data);
-            } else {
-                cloudError = error;
+                if (cloudUser.role) cloudUser.role = cloudUser.role.toUpperCase() as any;
             }
         } catch (e) {
-            cloudError = e;
+            console.error("Cloud Auth Error:", e);
         }
     }
 
     if (cloudUser) return cloudUser;
 
-    console.warn("Cloud Auth failed or user not found, checking local storage...", cloudError);
-    
+    // 2. Fallback to Local Storage (Offline Mode)
+    // Only if cloud check failed or returned no user
     const localUsers = getSystemUsers();
     const localUser = localUsers.find(u => 
         (u.email === identifier || u.nationalId === identifier) && 
@@ -522,14 +521,16 @@ export const authenticateStudent = async (nationalId: string, password: string):
 };
 
 export const checkConnection = async () => {
-    if (!isSupabaseConfigured()) return { success: false };
+    if (!isSupabaseConfigured()) return { success: false, message: 'Cloud not configured' };
     try {
         const { error } = await supabase.from('schools').select('count', { count: 'exact', head: true });
-        return { success: !error };
-    } catch { return { success: false }; }
+        return { success: !error, message: error ? error.message : 'Connected' };
+    } catch (e: any) { 
+        return { success: false, message: e.message }; 
+    }
 };
 
-export const forceRefreshData = async () => {
+export const forceRefreshData = async (): Promise<boolean> => {
     if (!isSupabaseConfigured()) {
         setSyncStatus('OFFLINE');
         return false;
@@ -537,6 +538,7 @@ export const forceRefreshData = async () => {
 
     setSyncStatus('SYNCING');
     
+    // Simple check before heavy lifting
     const check = await checkConnection();
     if (!check.success) {
         setSyncStatus('ERROR');
@@ -556,6 +558,7 @@ export const forceRefreshData = async () => {
         const promises = tables.map(t => supabase.from(t).select('*'));
         const results = await Promise.all(promises);
         
+        // Handle results: even empty arrays are valid updates (means table is empty in cloud)
         updateCache(KEYS.SCHOOLS, (results[0].data || []).map(fromDbSchool));
         updateCache(KEYS.TEACHERS, (results[1].data || []).map(fromDbTeacher));
         updateCache(KEYS.USERS, (results[2].data || []).map(fromDbUser));
