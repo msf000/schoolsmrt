@@ -98,7 +98,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [sheetData, setSheetData] = useState<any[]>([]); // Store raw data to calc max scores
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     
-    // State for column configurations in the import table
+    // NEW: State for column configurations in the import table (Max Score, URL)
     const [columnConfigs, setColumnConfigs] = useState<Record<string, { maxScore: string, url: string }>>({});
 
     // -- Settings Modal State --
@@ -139,8 +139,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     const v = parseFloat(r[header]);
                     if(!isNaN(v) && v > maxVal) maxVal = v;
                 });
+                // Default max score logic: round up to nearest 5 or 10, or just use max found if small
+                let suggestedMax = maxVal > 0 ? Math.ceil(maxVal) : 10;
+                if (suggestedMax > 10 && suggestedMax <= 15) suggestedMax = 15;
+                if (suggestedMax > 15 && suggestedMax <= 20) suggestedMax = 20;
+                
                 initialConfigs[header] = { 
-                    maxScore: maxVal > 0 ? maxVal.toString() : '10', 
+                    maxScore: suggestedMax.toString(), 
                     url: '' 
                 };
             });
@@ -464,6 +469,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         alert(`تم إضافة العمود "${header}" بنجاح!`);
     };
 
+    // Helper to update local config for a specific column
     const handleColumnConfigChange = (header: string, field: 'maxScore' | 'url', value: string) => {
         setColumnConfigs(prev => ({
             ...prev,
