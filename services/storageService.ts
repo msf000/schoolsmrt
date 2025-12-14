@@ -1,3 +1,4 @@
+
 import { 
     Student, Teacher, School, SystemUser, AttendanceRecord, PerformanceRecord, 
     Subject, ScheduleItem, TeacherAssignment, Assignment, WeeklyPlanItem, 
@@ -37,7 +38,8 @@ const KEYS = {
     MICRO_CONCEPTS: 'micro_concepts',
     TRACKING_SHEETS: 'tracking_sheets',
     ACADEMIC_TERMS: 'academic_terms',
-    WORKS_MASTER_URL: 'works_master_url'
+    WORKS_MASTER_URL: 'works_master_url',
+    PERIOD_TIMINGS: 'period_timings'
 };
 
 // --- Helper Functions ---
@@ -629,6 +631,23 @@ export const setCurrentTerm = async (id: string, teacherId?: string) => {
     });
     updateCache(KEYS.ACADEMIC_TERMS, list); notifyDataChange();
     await supabase.from('academic_terms').upsert(list.filter(t => t.teacherId === teacherId));
+};
+
+// --- Period Timings ---
+export const DEFAULT_PERIOD_TIMES = [
+    "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
+    "09:45 - 10:30", "10:30 - 11:15", "11:15 - 12:00", 
+    "12:00 - 12:45", "12:45 - 01:30"
+];
+
+export const getTeacherPeriodTimings = (teacherId?: string): string[] => {
+    const stored = localStorage.getItem(KEYS.PERIOD_TIMINGS);
+    return stored ? JSON.parse(stored) : DEFAULT_PERIOD_TIMES;
+};
+
+export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) => {
+    localStorage.setItem(KEYS.PERIOD_TIMINGS, JSON.stringify(timings));
+    notifyDataChange();
 };
 
 export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig => {
