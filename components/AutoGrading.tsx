@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ScanLine, Upload, Check, X, Camera, Save, RefreshCw, FileText, Plus, Trash2, ListChecks, FileQuestion, ArrowRight } from 'lucide-react';
+import { ScanLine, Upload, Check, X, Camera, Save, RefreshCw, FileText, Plus, Trash2, ListChecks, FileQuestion, ArrowRight, BrainCircuit } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, Question, SystemUser } from '../types';
 import { getExams, getStudents, addPerformance } from '../services/storageService';
 import { gradeExamPaper } from '../services/geminiService';
@@ -31,6 +31,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
     const [tempPoints, setTempPoints] = useState(1);
 
     useEffect(() => {
+        // Only fetch exams and students related to this user/school
         setExams(getExams(currentUser?.id));
         setStudents(getStudents().filter(s => s.schoolId === currentUser?.schoolId || s.createdById === currentUser?.id));
     }, [currentUser]);
@@ -73,7 +74,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
             const questions: Question[] = manualAnswers.map((a, i) => ({
                 id: a.id,
                 text: `السؤال رقم ${i + 1}`, // Generic text
-                type: 'MCQ', // Assume MCQ/Short Answer for simplicity
+                type: 'MCQ', 
                 options: [],
                 correctAnswer: a.answer,
                 points: a.points
@@ -98,7 +99,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
         try {
             const gradingResult = await gradeExamPaper(imagePreview!, targetExam);
             
-            // Auto-match student if detected
+            // Auto-match student if detected name matches any in list
             if (gradingResult.studentNameDetected) {
                 const match = students.find(s => s.name.includes(gradingResult.studentNameDetected) || gradingResult.studentNameDetected.includes(s.name));
                 if (match) setSelectedStudentId(match.id);
@@ -168,12 +169,12 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
             <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-purple-600 rounded-lg text-white shadow-lg shadow-purple-200">
+                <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl text-white shadow-lg">
                     <ScanLine size={24}/>
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">المصحح الآلي الذكي</h2>
-                    <p className="text-sm text-gray-500">تصحيح أوراق الاختبارات باستخدام الذكاء الاصطناعي</p>
+                    <h2 className="text-2xl font-bold text-gray-800">المصحح الآلي الذكي (AI)</h2>
+                    <p className="text-sm text-gray-500">تصحيح أوراق الاختبارات تلقائياً باستخدام الذكاء الاصطناعي</p>
                 </div>
             </div>
 
@@ -198,7 +199,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                         </div>
 
                         {gradingMode === 'SYSTEM' ? (
-                            <div>
+                            <div className="animate-fade-in">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">1. اختر الاختبار (المحفوظ مسبقاً)</label>
                                 <select 
                                     className="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none"
@@ -210,7 +211,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                                         <option key={e.id} value={e.id}>{e.title} ({e.subject})</option>
                                     ))}
                                 </select>
-                                {exams.length === 0 && <p className="text-xs text-red-500 mt-1">لا توجد اختبارات نشطة. قم بإنشاء اختبار أولاً.</p>}
+                                {exams.length === 0 && <p className="text-xs text-red-500 mt-2 bg-red-50 p-2 rounded border border-red-100">لا توجد اختبارات نشطة. قم بإنشاء اختبار في "إدارة الاختبارات" أولاً.</p>}
                             </div>
                         ) : (
                             <div className="space-y-4 animate-fade-in">
@@ -245,9 +246,9 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                                         <button onClick={addManualAnswer} className="bg-purple-600 text-white p-2 rounded hover:bg-purple-700"><Plus size={18}/></button>
                                     </div>
                                     
-                                    <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
+                                    <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar bg-white rounded border p-2">
                                         {manualAnswers.map((a, idx) => (
-                                            <div key={a.id} className="flex justify-between items-center bg-white p-2 rounded border text-sm">
+                                            <div key={a.id} className="flex justify-between items-center bg-gray-50 p-2 rounded text-sm border-b last:border-0">
                                                 <span className="font-bold text-gray-600">س{idx+1}</span>
                                                 <span className="font-bold text-purple-700">{a.answer}</span>
                                                 <span className="text-gray-400 text-xs">({a.points} درجة)</span>
@@ -261,12 +262,13 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                         )}
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">2. رفع صورة الورقة</label>
-                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">2. رفع صورة ورقة الطالب</label>
+                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group bg-gray-50">
                                 <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileChange}/>
                                 <div className="flex flex-col items-center gap-3 text-gray-400 group-hover:text-purple-600 transition-colors">
                                     <Camera size={40}/>
                                     <span className="font-bold">اضغط أو اسحب الصورة هنا</span>
+                                    <span className="text-xs text-gray-400">يدعم JPG, PNG (تأكد من وضوح الصورة)</span>
                                 </div>
                             </div>
                         </div>
@@ -274,16 +276,16 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                         <button 
                             onClick={handleAutoGrade}
                             disabled={isGrading || !imagePreview || (gradingMode==='SYSTEM' && !selectedExamId) || (gradingMode==='MANUAL' && manualAnswers.length===0)}
-                            className="w-full py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
+                            className="w-full py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none disabled:shadow-none"
                         >
-                            {isGrading ? <RefreshCw className="animate-spin"/> : <ScanLine/>}
-                            {isGrading ? 'جاري تحليل الورقة...' : 'بدء التصحيح'}
+                            {isGrading ? <RefreshCw className="animate-spin"/> : <BrainCircuit/>}
+                            {isGrading ? 'جاري تحليل الورقة...' : 'بدء التصحيح بالذكاء الاصطناعي'}
                         </button>
                     </div>
 
-                    <div className="w-full md:w-1/3 bg-gray-100 rounded-xl border border-gray-200 flex items-center justify-center relative overflow-hidden">
+                    <div className="w-full md:w-1/3 bg-gray-100 rounded-xl border border-gray-200 flex items-center justify-center relative overflow-hidden group">
                         {imagePreview ? (
-                            <img src={imagePreview} className="max-w-full max-h-full object-contain" alt="Preview"/>
+                            <img src={imagePreview} className="max-w-full max-h-full object-contain transition-transform group-hover:scale-105" alt="Preview"/>
                         ) : (
                             <div className="text-gray-400 text-center">
                                 <FileText size={48} className="mx-auto mb-2 opacity-50"/>
@@ -297,47 +299,51 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
             {step === 'REVIEW' && result && (
                 <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
                     {/* Result Panel */}
-                    <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+                    <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden animate-slide-up">
                         <div className="p-6 border-b bg-gray-50 flex justify-between items-center">
                             <div>
-                                <h3 className="font-bold text-gray-800 text-lg">نتيجة التصحيح</h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-gray-500 text-sm">الطالب المقترح:</span>
+                                <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                    <Check className="text-green-600"/> نتيجة التصحيح
+                                </h3>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-gray-500 text-sm font-bold">الطالب:</span>
                                     <select 
-                                        className="bg-white border rounded px-2 py-1 text-sm font-bold text-purple-700"
+                                        className="bg-white border rounded px-2 py-1 text-sm font-bold text-purple-700 outline-none focus:ring-1 focus:ring-purple-500"
                                         value={selectedStudentId}
                                         onChange={e => setSelectedStudentId(e.target.value)}
                                     >
-                                        <option value="">-- اختر الطالب --</option>
+                                        <option value="">-- اختر الطالب (أو ابحث) --</option>
                                         {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                     </select>
                                 </div>
                             </div>
-                            <div className="text-center">
+                            <div className="text-center bg-white p-2 rounded-lg border shadow-sm">
                                 <div className="text-3xl font-black text-purple-600">{result.totalScore}</div>
-                                <div className="text-xs text-gray-400">من {result.maxTotalScore}</div>
+                                <div className="text-xs text-gray-400 font-bold uppercase">من {result.maxTotalScore}</div>
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-gray-50/50">
                             {result.questions.map((q: any, idx: number) => (
-                                <div key={idx} onClick={() => toggleQuestionResult(idx)} className={`p-4 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${q.isCorrect ? 'bg-green-50 border-green-200 hover:bg-green-100' : 'bg-red-50 border-red-200 hover:bg-red-100'}`}>
+                                <div key={idx} onClick={() => toggleQuestionResult(idx)} className={`p-4 rounded-xl border cursor-pointer transition-all flex justify-between items-center group ${q.isCorrect ? 'bg-green-50 border-green-200 hover:bg-green-100' : 'bg-red-50 border-red-200 hover:bg-red-100'}`}>
                                     <div>
                                         <div className="font-bold text-gray-800 text-sm mb-1">س{q.index}: {q.questionText}</div>
-                                        <div className="text-xs text-gray-500">إجابة الطالب: <span className="font-bold text-gray-700">{q.studentAnswer || 'غير واضحة'}</span></div>
-                                        {q.feedback && <div className="text-xs text-orange-600 mt-1">{q.feedback}</div>}
+                                        <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded w-fit mb-1">إجابة الطالب: <span className="font-bold">{q.studentAnswer || 'غير واضحة'}</span></div>
+                                        {q.feedback && <div className="text-xs text-orange-600 font-medium">{q.feedback}</div>}
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-4">
                                         <span className="font-bold text-lg">{q.score}</span>
-                                        {q.isCorrect ? <Check className="text-green-600"/> : <X className="text-red-600"/>}
+                                        <div className={`p-1 rounded-full ${q.isCorrect ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700'}`}>
+                                            {q.isCorrect ? <Check size={16}/> : <X size={16}/>}
+                                        </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        <div className="p-4 border-t flex gap-3">
-                            <button onClick={() => setStep('UPLOAD')} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200">إلغاء</button>
-                            <button onClick={handleSaveResult} className="flex-2 w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg flex items-center justify-center gap-2">
+                        <div className="p-4 border-t flex gap-3 bg-white">
+                            <button onClick={() => setStep('UPLOAD')} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">إلغاء</button>
+                            <button onClick={handleSaveResult} className="flex-2 w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg flex items-center justify-center gap-2 transition-colors">
                                 <Save size={18}/> اعتماد وحفظ الدرجة
                             </button>
                         </div>
@@ -346,7 +352,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                     {/* Image Reference */}
                     <div className="w-full md:w-1/3 bg-gray-900 rounded-2xl overflow-hidden shadow-2xl relative group">
                         <img src={imagePreview!} className="w-full h-full object-contain" alt="Reference"/>
-                        <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">الورقة الأصلية</div>
+                        <div className="absolute top-4 right-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-md font-bold shadow-sm">الورقة الأصلية</div>
                     </div>
                 </div>
             )}

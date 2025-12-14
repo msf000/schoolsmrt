@@ -522,10 +522,10 @@ const App: React.FC = () => {
                     {currentView === 'AI_TOOLS' && <AITools students={students} performance={performance} />}
                     {currentView === 'LESSON_PLANNING' && <LessonPlanning />}
                     {currentView === 'EXAMS_MANAGER' && <ExamsManager currentUser={currentUser} />}
-                    {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser} />}
+                    {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser!} />}
                     {currentView === 'AUTO_GRADING' && <AutoGrading currentUser={currentUser} />}
-                    {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
-                    {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser} />}
+                    {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser!} />}
+                    {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser!} />}
                     {currentView === 'SCHEDULE_VIEW' && (
                         <ScheduleView 
                             currentUser={currentUser}
@@ -533,8 +533,8 @@ const App: React.FC = () => {
                             onNavigateToAttendance={() => setCurrentView('ATTENDANCE')}
                         />
                     )}
-                    {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser} />}
-                    {currentView === 'FLEXIBLE_TRACKING' && <FlexibleTrackingSheet currentUser={currentUser} />}
+                    {currentView === 'RESOURCES_VIEW' && <ResourcesView currentUser={currentUser!} />}
+                    {currentView === 'FLEXIBLE_TRACKING' && <FlexibleTrackingSheet currentUser={currentUser!} />}
                     {currentView === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} onSaveAttendance={handleSaveAttendance} />}
                 </div>
             </main>
