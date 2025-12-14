@@ -165,7 +165,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 subscriptionStatus: 'FREE' // Start teacher as free user
             };
 
-            // Await cloud save (which also adds to system_users)
+            // Await cloud save (which also adds to system_users automatically via addTeacher logic in storageService)
             await addTeacher(newTeacher);
             
             setSuccess(true);

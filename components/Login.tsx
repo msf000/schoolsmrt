@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent } from '../services/storageService';
+import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync } from '../services/storageService';
 import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, LayoutTemplate, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
@@ -17,6 +17,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   // Auto-login handler for registration success
   const handleRegisterSuccess = (email: string, pass: string) => {
@@ -33,6 +34,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setStatusMessage('جاري التحقق من البيانات...');
     setSystemMode(true); // Default to Online mode for Cloud login
 
     try {
@@ -81,16 +83,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (user) {
             if (user.role === 'STUDENT') {
                 setError('هذا الحساب مخصص للطلاب. الرجاء الدخول من تبويب الطالب.');
+                setLoading(false);
             } else {
+                // Ensure data sync before proceeding
+                setStatusMessage('جاري استرجاع بياناتك من السحابة...');
+                await initAutoSync();
                 onLoginSuccess(user, rememberMe);
+                setLoading(false);
             }
         } else {
             setError('البيانات المدخلة غير صحيحة أو خطأ في الاتصال بالسحابة.');
+            setLoading(false);
         }
     } catch (e) {
         console.error(e);
         setError('حدث خطأ أثناء تسجيل الدخول.');
-    } finally {
         setLoading(false);
     }
   };
@@ -228,6 +235,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     >
                         {loading ? <Loader2 size={20} className="animate-spin" /> : <>دخول للنظام <ArrowRight size={18} className="group-hover:-translate-x-1 transition-transform"/></>}
                     </button>
+                    
+                    {loading && statusMessage && (
+                        <div className="text-center text-xs text-gray-500 animate-pulse">
+                            {statusMessage}
+                        </div>
+                    )}
                 </form>
 
                 {roleMode === 'STAFF' && (

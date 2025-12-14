@@ -119,10 +119,20 @@ export const deleteSchool = async (id: string) => {
 export const getTeachers = (): Teacher[] => get(KEYS.TEACHERS);
 export const addTeacher = async (t: Teacher) => { 
     const list = getTeachers(); list.push(t); updateCache(KEYS.TEACHERS, list); notifyDataChange();
-    await addSystemUser({
-        id: t.id, name: t.name, email: t.email || t.id, nationalId: t.nationalId, 
-        password: t.password || '123456', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE'
-    });
+    
+    // Add to System Users first to allow login
+    const systemUser: SystemUser = {
+        id: t.id, 
+        name: t.name, 
+        email: t.email || t.id, 
+        nationalId: t.nationalId, 
+        password: t.password || '123456', 
+        role: 'TEACHER', 
+        schoolId: t.schoolId, 
+        status: 'ACTIVE'
+    };
+    await addSystemUser(systemUser);
+    
     await supabase.from('teachers').insert(t);
 };
 export const updateTeacher = async (t: Teacher) => { 
@@ -215,15 +225,29 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
 
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
     try {
+        // Direct Supabase Query for Authentication
         const { data, error } = await supabase
             .from('system_users')
             .select('*')
-            .or(`email.eq.${identifier},nationalId.eq.${identifier}`)
+            .or(`email.eq.${identifier},national_id.eq.${identifier}`)
             .eq('password', password)
             .eq('status', 'ACTIVE')
             .single();
+            
         if (data && !error) return data as SystemUser;
-    } catch (e) {}
+        
+        // Fallback to local cache only if offline or sync hasn't happened
+        if (error && !navigator.onLine) {
+             const localUsers = getSystemUsers();
+             return localUsers.find(u => 
+                 (u.email === identifier || u.nationalId === identifier) && 
+                 u.password === password && 
+                 u.status === 'ACTIVE'
+             );
+        }
+    } catch (e) {
+        console.error("Auth Error", e);
+    }
     return undefined;
 };
 
@@ -231,7 +255,14 @@ export const authenticateStudent = async (nationalId: string, password: string):
     try {
         const cleanId = nationalId.trim();
         const defaultPass = cleanId.slice(-4);
-        const { data, error } = await supabase.from('students').select('*').eq('nationalId', cleanId).single();
+        
+        // Direct Supabase Query
+        const { data, error } = await supabase
+            .from('students')
+            .select('*')
+            .eq('national_id', cleanId)
+            .single();
+
         if (data && !error) {
              const studentPass = data.password || defaultPass;
              if (password === studentPass) return { ...data, role: 'STUDENT' };
@@ -243,6 +274,8 @@ export const authenticateStudent = async (nationalId: string, password: string):
 export const forceRefreshData = async () => {
     setSyncStatus('SYNCING');
     try {
+        // We fetch everything to ensure full sync on login. 
+        // Optimally, we could filter by school_id/teacher_id in the query for large datasets.
         const tables = ['schools', 'teachers', 'system_users', 'students', 'attendance', 'performance', 'assignments', 'subjects', 'schedules', 'teacher_assignments', 'exams', 'questions', 'curriculum_units', 'curriculum_lessons', 'academic_terms'];
         const promises = tables.map(t => supabase.from(t).select('*'));
         const results = await Promise.all(promises);
@@ -267,6 +300,7 @@ export const forceRefreshData = async () => {
         setSyncStatus('ONLINE');
         return true;
     } catch (e) {
+        console.error("Sync Failed", e);
         setSyncStatus('ERROR');
         return false;
     }
