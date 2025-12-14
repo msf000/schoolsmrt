@@ -5,7 +5,7 @@ import {
     getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
     getReportHeaderConfig, saveReportHeaderConfig,
     getUserTheme, saveUserTheme,
-    getTeacherPeriodTimings, saveTeacherPeriodTimings, DEFAULT_PERIOD_TIMES
+    getTeacherPeriodTimings, saveTeacherPeriodTimings
 } from '../services/storageService';
 import { 
     School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod 
@@ -14,6 +14,12 @@ import {
     Building2, Users, Settings, 
     Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw
 } from 'lucide-react';
+
+const DEFAULT_PERIOD_TIMES = [
+    "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
+    "09:45 - 10:30", "10:30 - 11:15", "11:15 - 12:00", 
+    "12:00 - 12:45", "12:45 - 01:30"
+];
 
 interface SchoolManagementProps {
     students: any[]; 
