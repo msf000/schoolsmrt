@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
@@ -13,6 +14,7 @@ import {
 } from './services/storageService';
 import { checkAIConnection } from './services/geminiService';
 
+// Components Imports
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
@@ -40,10 +42,9 @@ import ScheduleView from './components/ScheduleView';
 import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import ParentPortal from './components/ParentPortal';
 import CertificatesCenter from './components/CertificatesCenter';
+import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
 import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, BarChart, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, UploadCloud, Loader2, FileQuestion, Library, CheckCircle2, ScanLine, ListTree, Calendar, Table, Award, Baby, WifiOff, Activity, ClipboardList } from 'lucide-react';
-
-import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
 const App: React.FC = () => {
     // Auth State
@@ -84,7 +85,7 @@ const App: React.FC = () => {
     useEffect(() => {
         if (currentUser) {
             const startUp = async () => {
-                // Load local data immediately without forcing refresh
+                // Load local data immediately
                 loadData();
                 
                 // Only force refresh if there is absolutely no data (fresh install)
@@ -115,9 +116,6 @@ const App: React.FC = () => {
             const unsubData = subscribeToDataChanges(() => {
                 loadData();
             });
-
-            // Disabled Background Sync to prevent overwriting user changes during session
-            // bgSyncTimerRef.current = setInterval(() => { ... }, ...);
 
             return () => {
                 unsubSync();
@@ -173,7 +171,7 @@ const App: React.FC = () => {
     const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
-        localStorage.removeItem('app_last_view'); // Clear view on logout
+        localStorage.removeItem('app_last_view'); 
         setSystemMode(false);
         setShowClassroomScreen(false);
         setCurrentView('DASHBOARD');
@@ -197,7 +195,6 @@ const App: React.FC = () => {
     const handleUpdateStudent = (s: Student) => { updateStudent(s); loadData(); };
     const handleDeleteStudent = (id: string) => { deleteStudent(id); loadData(); };
     
-    // ATTENDANCE: Manually saving attendance should attach teacher ID if not present
     const handleSaveAttendance = (recs: AttendanceRecord[]) => { 
         const enrichedRecs = recs.map(r => ({ ...r, createdById: r.createdById || currentUser?.id }));
         saveAttendance(enrichedRecs); 
@@ -297,7 +294,8 @@ const App: React.FC = () => {
         );
     }
 
-    // --- MAIN APP ---
+    const isManager = currentUser.role === 'SCHOOL_MANAGER';
+
     const NavItem = ({ view, label, icon: Icon }: any) => (
         <button 
             onClick={() => { setCurrentView(view); setIsSidebarOpen(false); }}
@@ -312,12 +310,9 @@ const App: React.FC = () => {
         </button>
     );
 
-    const isManager = currentUser.role === 'SCHOOL_MANAGER';
-
     return (
         <div className={`flex h-screen overflow-hidden text-right font-sans ${theme.mode === 'DARK' ? 'dark' : ''}`} dir="rtl">
             
-            {/* Global Loading Overlay (Initial Sync) */}
             {isLoading && (
                 <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center animate-fade-in">
                     <Loader2 size={48} className="text-indigo-600 animate-spin mb-4"/>
@@ -328,7 +323,6 @@ const App: React.FC = () => {
 
             {/* Sidebar */}
             <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                {/* TOP: User Profile & Logout */}
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
@@ -356,7 +350,7 @@ const App: React.FC = () => {
                     
                     {currentUser.role === 'SUPER_ADMIN' && <NavItem view="ADMIN_DASHBOARD" label="إدارة النظام" icon={Settings} />}
                     
-                    {/* MANAGER SPECIFIC SIDEBAR (MONITORING ONLY) */}
+                    {/* MANAGER SPECIFIC SIDEBAR */}
                     {isManager && (
                         <>
                             <div className="pt-4 mt-4 border-t border-gray-100">
@@ -378,7 +372,7 @@ const App: React.FC = () => {
                         </>
                     )}
 
-                    {/* TEACHER SPECIFIC SIDEBAR (FULL TOOLS) */}
+                    {/* TEACHER SPECIFIC SIDEBAR */}
                     {currentUser.role === 'TEACHER' && (
                         <>
                             <NavItem view="STUDENTS" label="الطلاب" icon={Users} />
@@ -422,7 +416,6 @@ const App: React.FC = () => {
                     )}
                 </nav>
 
-                {/* BOTTOM: Sync Status & AI Status */}
                 <div className="p-4 border-t bg-gray-50 space-y-2">
                     <button 
                         onClick={handleManualSync}
@@ -534,7 +527,6 @@ const App: React.FC = () => {
                     {currentView === 'QUESTION_BANK' && <QuestionBank currentUser={currentUser} />}
                     {currentView === 'AUTO_GRADING' && <AutoGrading />}
                     {currentView === 'SUBSCRIPTION' && <TeacherSubscription currentUser={currentUser} />}
-                    
                     {currentView === 'CURRICULUM_MAP' && <CurriculumManager currentUser={currentUser} />}
                     {currentView === 'SCHEDULE_VIEW' && (
                         <ScheduleView 
