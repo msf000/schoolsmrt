@@ -3,7 +3,11 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta name="description" content="نظام متابعة الطلاب الذكي - تسجيل حضور، درجات، وتقارير" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>نظام متابعة الطلاب</title>
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,6 +27,8 @@
             animation: {
                 'fade-in': 'fadeIn 0.3s ease-out',
                 'slide-in-right': 'slideInRight 0.3s ease-out',
+                'slide-up': 'slideUp 0.3s ease-out',
+                'bounce-in': 'bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
             },
             keyframes: {
                 fadeIn: {
@@ -32,6 +38,14 @@
                 slideInRight: {
                     '0%': { transform: 'translateX(100%)' },
                     '100%': { transform: 'translateX(0)' },
+                },
+                slideUp: {
+                    '0%': { transform: 'translateY(20px)', opacity: '0' },
+                    '100%': { transform: 'translateY(0)', opacity: '1' },
+                },
+                bounceIn: {
+                    '0%': { transform: 'scale(0.8)', opacity: '0' },
+                    '100%': { transform: 'scale(1)', opacity: '1' },
                 }
             }
           }
@@ -42,6 +56,7 @@
         html, body {
             height: 100%;
             overflow: hidden; /* Prevent body scroll, handle inside App */
+            background-color: #f8fafc;
         }
         
         /* Custom scrollbar for better aesthetics */
@@ -122,7 +137,8 @@
     "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.86.0",
     "vite": "https://aistudiocdn.com/vite@^7.2.6",
     "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "firebase/": "https://esm.sh/firebase@^12.6.0/"
+    "virtual:pwa-register": "https://aistudiocdn.com/vite-plugin-pwa@^0.19.0",
+    "vite-plugin-pwa": "https://esm.sh/vite-plugin-pwa@^1.2.0"
   }
 }
 </script>

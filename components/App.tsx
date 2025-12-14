@@ -42,6 +42,7 @@ import ScheduleView from './ScheduleView';
 import FlexibleTrackingSheet from './FlexibleTrackingSheet';
 import ParentPortal from './ParentPortal';
 import CertificatesCenter from './CertificatesCenter';
+import ReloadPrompt from './ReloadPrompt';
 
 import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, Loader2, FileQuestion, Library, ScanLine, ListTree, Calendar, Table, Award, ClipboardList } from 'lucide-react';
 
@@ -243,12 +244,15 @@ const App: React.FC = () => {
     // --- STUDENT PORTAL ---
     if (currentUser && currentUser.role === 'STUDENT') {
         return (
-            <StudentPortal 
-                currentUser={currentUser as any}
-                attendance={attendance} 
-                performance={performance} 
-                onLogout={handleLogout} 
-            />
+            <>
+                <ReloadPrompt />
+                <StudentPortal 
+                    currentUser={currentUser as any}
+                    attendance={attendance} 
+                    performance={performance} 
+                    onLogout={handleLogout} 
+                />
+            </>
         );
     }
 
@@ -259,39 +263,50 @@ const App: React.FC = () => {
         const allPerf = getPerformance();
         
         return (
-            <ParentPortal 
-                parentPhone={currentUser.email} 
-                allStudents={allStds}
-                attendance={allAtt}
-                performance={allPerf}
-                onLogout={handleLogout} 
-            />
+            <>
+                <ReloadPrompt />
+                <ParentPortal 
+                    parentPhone={currentUser.email} 
+                    allStudents={allStds}
+                    attendance={allAtt}
+                    performance={allPerf}
+                    onLogout={handleLogout} 
+                />
+            </>
         );
     }
 
     // --- LOGIN SCREEN ---
     if (!currentUser) {
-        return <Login onLoginSuccess={handleLoginSuccess} />;
+        return (
+            <>
+                <ReloadPrompt />
+                <Login onLoginSuccess={handleLoginSuccess} />
+            </>
+        );
     }
 
     // --- CLASSROOM SCREEN MODE ---
     if (showClassroomScreen) {
         return (
-            <div className="relative w-screen h-screen">
-                <button 
-                    onClick={() => setShowClassroomScreen(false)} 
-                    className="absolute top-4 right-4 z-50 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700"
-                    title="إغلاق الشاشة"
-                >
-                    <X size={24}/>
-                </button>
-                <ClassroomScreen 
-                    students={students} 
-                    attendance={attendance} 
-                    onSaveAttendance={handleSaveAttendance} 
-                    currentUser={currentUser}
-                />
-            </div>
+            <>
+                <ReloadPrompt />
+                <div className="relative w-screen h-screen">
+                    <button 
+                        onClick={() => setShowClassroomScreen(false)} 
+                        className="absolute top-4 right-4 z-50 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700"
+                        title="إغلاق الشاشة"
+                    >
+                        <X size={24}/>
+                    </button>
+                    <ClassroomScreen 
+                        students={students} 
+                        attendance={attendance} 
+                        onSaveAttendance={handleSaveAttendance} 
+                        currentUser={currentUser}
+                    />
+                </div>
+            </>
         );
     }
 
@@ -313,6 +328,7 @@ const App: React.FC = () => {
 
     return (
         <div className={`flex h-screen overflow-hidden text-right font-sans ${theme.mode === 'DARK' ? 'dark' : ''}`} dir="rtl">
+            <ReloadPrompt />
             
             {isLoading && (
                 <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center animate-fade-in">
