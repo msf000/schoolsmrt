@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
-} from '../types';
+} from './types';
 import { 
     getStudents, getAttendance, getPerformance, 
     addStudent, updateStudent, deleteStudent, 
@@ -12,9 +11,9 @@ import {
     getUserTheme, bulkUpsertStudents,
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
     forceRefreshData, initRealtimeSync, stopRealtimeSync
-} from '../services/storageService';
-import { isSupabaseConfigured } from '../services/supabaseClient';
-import { checkAIConnection } from '../services/geminiService';
+} from './services/storageService';
+import { isSupabaseConfigured } from './services/supabaseClient';
+import { checkAIConnection } from './services/geminiService';
 
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
