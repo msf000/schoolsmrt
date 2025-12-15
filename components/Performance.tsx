@@ -256,8 +256,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       filteredStudentsBulk.forEach(s => {
           const sScore = bulkScores[s.id];
           if (sScore !== undefined && sScore !== '') {
-              const attRecord = attendance.find(a => a.studentId === s.id && a.date === today);
-              if (attRecord && attRecord.status === AttendanceStatus.ABSENT) absentWarnings++;
+              const attRecord = attendance.find(a => a.studentId === s.id && a.date === today && a.status === AttendanceStatus.ABSENT);
+              if (attRecord) absentWarnings++;
 
               records.push({
                   id: `${Date.now()}_${s.id}`,
@@ -340,7 +340,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4 print:hidden">
-        <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm w-full md:w-auto overflow-x-auto">
+        <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm w-full md:w-auto overflow-x-auto no-scrollbar">
             {!isManager && (
                 <>
                     <button onClick={() => setActiveTab('BULK')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
@@ -359,9 +359,9 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
             </button>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
             {!isManager && (
-                <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold">
+                <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold whitespace-nowrap">
                     <FileSpreadsheet size={18} />
                     <span className="hidden md:inline">استيراد درجات</span>
                 </button>
@@ -624,7 +624,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
           </div>
       )}
 
-      {/* Analytics and Log tabs remain similar, just ensuring they use updated data contexts if needed */}
       {activeTab === 'ANALYTICS' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-full animate-fade-in p-6">
               <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
