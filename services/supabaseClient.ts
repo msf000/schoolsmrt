@@ -6,8 +6,8 @@ let supabaseInstance: SupabaseClient | null = null;
 
 export const isSupabaseConfigured = (): boolean => {
     const localUrl = localStorage.getItem('custom_supabase_url');
-    const localKey = localStorage.getItem('custom_supabase_key');
-    const envUrl = process.env.SUPABASE_URL;
+    // Safe access to environment variables in Vite
+    const envUrl = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 
     // Check if any valid URL exists (not placeholder and not empty)
     const hasValidLocal = !!localUrl && !localUrl.includes('placeholder');
@@ -24,9 +24,9 @@ export const getSupabaseClient = (): SupabaseClient => {
     const localUrl = localStorage.getItem('custom_supabase_url');
     const localKey = localStorage.getItem('custom_supabase_key');
 
-    // 2. Try env vars
-    const envUrl = process.env.SUPABASE_URL;
-    const envKey = process.env.SUPABASE_KEY;
+    // 2. Try env vars (Safe check for process.env)
+    const envUrl = import.meta.env.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '');
+    const envKey = import.meta.env.VITE_SUPABASE_KEY || (typeof process !== 'undefined' ? process.env.SUPABASE_KEY : '');
 
     // Determine final values (Fallback to placeholder to allow app init, but requests will fail if used)
     let finalUrl = localUrl || envUrl || 'https://placeholder.supabase.co';

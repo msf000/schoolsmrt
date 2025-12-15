@@ -548,7 +548,7 @@ export const authenticateUser = async (identifier: string, password: string): Pr
             status: 'ACTIVE',
             nationalId: '0000000000'
         };
-        // Ensure admin exists in local records
+        // Ensure admin exists in local records so future checks pass
         const users = getSystemUsers();
         if (!users.find(u => u.role === 'SUPER_ADMIN')) {
             users.push(superAdmin);

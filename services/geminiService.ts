@@ -22,7 +22,8 @@ const getConfig = () => {
 
 // Check if a real key is present
 const hasValidKey = () => {
-    const key = process.env.API_KEY;
+    // Safe access to environment variable
+    const key = import.meta.env.VITE_API_KEY || (typeof process !== 'undefined' ? process.env.API_KEY : '');
     return key && key.length > 20;
 };
 
@@ -61,8 +62,9 @@ async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 20
     }
 }
 
-// Initialize AI Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Initialize AI Client safely
+const apiKey = import.meta.env.VITE_API_KEY || (typeof process !== 'undefined' ? process.env.API_KEY : '') || '';
+const ai = new GoogleGenAI({ apiKey });
 
 // --- Check Connection ---
 export const checkAIConnection = async (): Promise<{ success: boolean; message: string }> => {

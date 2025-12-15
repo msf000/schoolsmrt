@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync } from '../services/storageService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone, KeyRound } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -26,6 +26,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       setIdentifier(email);
       setPassword(pass);
       setView('LOGIN');
+      // Small delay to allow state update
       setTimeout(() => {
           document.getElementById('login-btn')?.click();
       }, 500);
@@ -44,6 +45,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         // 1. Parent Login Logic
         if (roleMode === 'PARENT') {
             let allStudents = getStudents();
+            // Try syncing if no students found
             if (allStudents.length === 0 && isSupabaseConfigured()) {
                  setStatusMessage('مزامنة البيانات...');
                  await initAutoSync();
@@ -222,8 +224,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         </button>
                         
                         {roleMode === 'STAFF' && (
-                            <button type="button" onClick={fillAdmin} className="text-[10px] text-indigo-400 hover:text-indigo-600 underline">
-                                دخول كمدير (Demo)
+                            <button type="button" onClick={fillAdmin} className="text-[10px] text-indigo-500 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 flex items-center gap-1">
+                                <KeyRound size={10}/> دخول كمدير (Demo)
                             </button>
                         )}
                     </div>

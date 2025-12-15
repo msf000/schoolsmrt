@@ -16,7 +16,7 @@ import {
 import { isSupabaseConfigured } from './services/supabaseClient';
 import { checkAIConnection } from './services/geminiService';
 
-// Corrected Imports relative to Root
+// Imports
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
@@ -47,7 +47,7 @@ import CertificatesCenter from './components/CertificatesCenter';
 import ReloadPrompt from './components/ReloadPrompt';
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, Award, Mail, Calendar, FileQuestion, Library, ScanLine, PenTool, Printer, BrainCircuit, ClipboardList, CreditCard, FileSpreadsheet, List } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, Award, Mail, Calendar, FileQuestion, Library, ScanLine, PenTool, Printer, BrainCircuit, List } from 'lucide-react';
 
 // --- CONTEXT ---
 interface AppContextType {
@@ -194,10 +194,17 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App: React.FC = () => {
-    // Auth State
+    // Auth State with Safe Initialization
     const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => {
-        const saved = localStorage.getItem('current_user');
-        return saved ? JSON.parse(saved) : null;
+        try {
+            const saved = localStorage.getItem('current_user');
+            if (!saved || saved === "undefined" || saved === "null") return null;
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error("Failed to parse user", e);
+            localStorage.removeItem('current_user');
+            return null;
+        }
     });
 
     // Data State
@@ -232,11 +239,9 @@ const App: React.FC = () => {
         let allPerformance = getPerformance();
         
         if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
-             // Basic filtering based on user role logic
              if (currentUser.role === 'TEACHER') {
                  allStudents = allStudents.filter(s => (currentUser.schoolId && s.schoolId === currentUser.schoolId) || s.createdById === currentUser.id || !s.createdById);
              }
-             // ... more logic if needed
         }
         setStudents(allStudents);
         setAttendance(allAttendance);
