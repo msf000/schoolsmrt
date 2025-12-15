@@ -44,14 +44,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
         // 1. Parent Login Logic
         if (roleMode === 'PARENT') {
-            let allStudents = getStudents();
-            // Try syncing if no students found
-            if (allStudents.length === 0 && isSupabaseConfigured()) {
-                 setStatusMessage('مزامنة البيانات...');
+            // Force sync first to get latest students
+            if (isSupabaseConfigured()) {
+                 setStatusMessage('مزامنة البيانات السحابية...');
                  await initAutoSync();
-                 allStudents = getStudents();
             }
-
+            
+            const allStudents = getStudents();
             const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
             
             if (children.length > 0) {
@@ -75,6 +74,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (roleMode === 'STUDENT') {
             const studentUser = await authenticateStudent(cleanIdentifier, password);
             if (studentUser) {
+                setStatusMessage('تحميل بيانات الطالب...');
+                if (isSupabaseConfigured()) await initAutoSync(); // Pull latest data
                 onLoginSuccess(studentUser, rememberMe);
                 setLoading(false);
                 return;
@@ -93,8 +94,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setError('يرجى الدخول من تبويب الطالب.');
                 setLoading(false);
             } else {
-                setStatusMessage('تحميل البيانات...');
-                const syncSuccess = await initAutoSync();
+                setStatusMessage('مزامنة البيانات من السحابة...');
+                if (isSupabaseConfigured()) {
+                    await initAutoSync(); // Critical: Pulls students/attendance from cloud
+                }
                 onLoginSuccess(user, rememberMe);
                 setLoading(false);
             }

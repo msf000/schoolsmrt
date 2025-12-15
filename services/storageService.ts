@@ -1,3 +1,4 @@
+
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -19,8 +20,8 @@ export const KEYS = {
     SYSTEM_USERS: 'system_users',
     SUBJECTS: 'subjects',
     SCHEDULES: 'schedules',
-    ASSIGNMENTS: 'assignments', // TeacherAssignment (class-subject map)
-    TRACKING_ASSIGNMENTS: 'tracking_assignments', // The columns
+    ASSIGNMENTS: 'assignments', 
+    TRACKING_ASSIGNMENTS: 'tracking_assignments', 
     TERMS: 'academic_terms',
     WEEKLY_PLANS: 'weekly_plans',
     LESSON_LINKS: 'lesson_links',
@@ -41,6 +42,15 @@ export const KEYS = {
     WORKS_MASTER_URL: 'works_master_url'
 };
 
+export const DB_MAP = {
+    students: 'students',
+    attendance: 'attendance',
+    performance: 'performance',
+    teachers: 'teachers',
+    schools: 'schools',
+    users: 'system_users'
+};
+
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
 
 // --- Local Storage Helpers ---
@@ -54,6 +64,17 @@ export function get<T>(key: string): T[] {
 export function save(key: string, data: any) {
     localStorage.setItem(key, JSON.stringify(data));
     notifySubscribers();
+    // Auto-push to cloud if configured (Optimistic UI)
+    if (isSupabaseConfigured()) {
+        const table = Object.keys(DB_MAP).find(k => k === key || (k === 'users' && key === 'system_users')) as keyof typeof DB_MAP | undefined;
+        if (table) {
+            const tableName = DB_MAP[table];
+            // Don't await, let it sync in background
+            supabase.from(tableName).upsert(data).then(({ error }) => {
+                if (error) console.error(`Failed to sync ${key} to cloud:`, error);
+            });
+        }
+    }
 }
 
 // --- Subscriptions ---
@@ -96,8 +117,16 @@ export const updateStudent = (s: Student) => {
 export const deleteStudent = (id: string) => {
     const list = getStudents().filter(x => x.id !== id);
     save(KEYS.STUDENTS, list);
+    if (isSupabaseConfigured()) {
+        supabase.from('students').delete().eq('id', id).then();
+    }
 };
-export const deleteAllStudents = () => save(KEYS.STUDENTS, []);
+export const deleteAllStudents = () => {
+    save(KEYS.STUDENTS, []);
+    if (isSupabaseConfigured()) {
+        supabase.from('students').delete().neq('id', '0').then();
+    }
+};
 export const bulkAddStudents = (students: Student[]) => {
     const current = getStudents();
     save(KEYS.STUDENTS, [...current, ...students]);
@@ -127,25 +156,34 @@ export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance
 
 // --- Performance ---
 export const getPerformance = (): PerformanceRecord[] => get<PerformanceRecord>(KEYS.PERFORMANCE);
-export const addPerformance = (record: PerformanceRecord) => {
-    const list = getPerformance();
+export const addPerformance = (record: PerformanceRecord) => { 
+    const list = get<PerformanceRecord>(KEYS.PERFORMANCE); 
     const idx = list.findIndex(r => r.id === record.id);
-    if (idx !== -1) list[idx] = record;
-    else list.push(record);
-    save(KEYS.PERFORMANCE, list);
+    if (idx !== -1) {
+        list[idx] = record; // Update
+    } else {
+        list.push(record); // Insert
+    }
+    save(KEYS.PERFORMANCE, list); 
 };
 export const deletePerformance = (id: string) => {
     const list = getPerformance().filter(r => r.id !== id);
     save(KEYS.PERFORMANCE, list);
+    if (isSupabaseConfigured()) {
+        supabase.from('performance').delete().eq('id', id).then();
+    }
 };
-export const bulkAddPerformance = (records: PerformanceRecord[]) => {
-    const list = getPerformance();
-    records.forEach(r => {
-        const idx = list.findIndex(x => x.id === r.id);
-        if (idx !== -1) list[idx] = r;
-        else list.push(r);
+export const bulkAddPerformance = (records: PerformanceRecord[]) => { 
+    const list = get<PerformanceRecord>(KEYS.PERFORMANCE); 
+    records.forEach(rec => {
+        const idx = list.findIndex(r => r.id === rec.id);
+        if (idx !== -1) {
+            list[idx] = rec; // Update existing
+        } else {
+            list.push(rec); // Insert new
+        }
     });
-    save(KEYS.PERFORMANCE, list);
+    save(KEYS.PERFORMANCE, list); 
 };
 
 // --- Teachers ---
@@ -195,6 +233,9 @@ export const updateSchool = (s: School) => {
 };
 export const deleteSchool = (id: string) => {
     save(KEYS.SCHOOLS, getSchools().filter(s => s.id !== id));
+    if (isSupabaseConfigured()) {
+        supabase.from('schools').delete().eq('id', id).then();
+    }
 };
 
 // --- System Users ---
@@ -214,23 +255,85 @@ export const updateSystemUser = (u: SystemUser) => {
 };
 export const deleteSystemUser = (id: string) => {
     save(KEYS.SYSTEM_USERS, getSystemUsers().filter(u => u.id !== id));
+    if (isSupabaseConfigured()) {
+        supabase.from('system_users').delete().eq('id', id).then();
+    }
 };
+
+// --- AUTHENTICATION (HYBRID: LOCAL + CLOUD) ---
 export const authenticateUser = async (identifier: string, pass: string): Promise<SystemUser | null> => {
+    // 1. Try Local
     const users = getSystemUsers();
-    return users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === pass) || null;
+    const localUser = users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === pass);
+    if (localUser) return localUser;
+
+    // 2. Try Cloud (If configured)
+    if (isSupabaseConfigured()) {
+        try {
+            // Check system_users table
+            const { data, error } = await supabase
+                .from('system_users')
+                .select('*')
+                .or(`email.eq.${identifier},national_id.eq.${identifier}`)
+                .eq('password', pass)
+                .single();
+            
+            if (data && !error) {
+                // User found in cloud! Cache it locally and return
+                addSystemUser(data as SystemUser);
+                return data as SystemUser;
+            }
+        } catch (e) {
+            console.error("Cloud auth failed", e);
+        }
+    }
+    return null;
 };
+
 export const authenticateStudent = async (identifier: string, pass: string): Promise<any | null> => {
+    // 1. Try Local
     const students = getStudents();
-    const student = students.find(s => (s.nationalId === identifier || s.email === identifier) && (s.password === pass || !s.password)); // Allow no password for now if not set
-    if (student) {
+    const localStudent = students.find(s => (s.nationalId === identifier || s.email === identifier) && (s.password === pass || !s.password));
+    if (localStudent) {
         return {
-            id: student.id,
-            name: student.name,
+            id: localStudent.id,
+            name: localStudent.name,
             role: 'STUDENT',
-            email: student.email,
-            nationalId: student.nationalId,
-            schoolId: student.schoolId
+            email: localStudent.email,
+            nationalId: localStudent.nationalId,
+            schoolId: localStudent.schoolId,
+            className: localStudent.className,
+            gradeLevel: localStudent.gradeLevel
         };
+    }
+
+    // 2. Try Cloud (If configured)
+    if (isSupabaseConfigured()) {
+        try {
+            const { data, error } = await supabase
+                .from('students')
+                .select('*')
+                .or(`national_id.eq.${identifier},email.eq.${identifier}`)
+                .eq('password', pass)
+                .single();
+
+            if (data && !error) {
+                // Student found in cloud! Cache locally
+                addStudent(data as Student);
+                return {
+                    id: data.id,
+                    name: data.name,
+                    role: 'STUDENT',
+                    email: data.email,
+                    nationalId: data.national_id || data.nationalId,
+                    schoolId: data.school_id || data.schoolId,
+                    className: data.class_name || data.className,
+                    gradeLevel: data.grade_level || data.gradeLevel
+                };
+            }
+        } catch (e) {
+            console.error("Cloud student auth failed", e);
+        }
     }
     return null;
 };
@@ -563,7 +666,6 @@ export const clearDatabase = () => {
     notifySubscribers();
 };
 
-// Supabase Stub Functions (To be implemented with actual DB logic if needed, currently acting as placeholder to satisfy imports)
 export const checkConnection = async () => {
     if (!isSupabaseConfigured()) return { success: false, message: 'Not configured' };
     try {
@@ -577,12 +679,53 @@ export const checkConnection = async () => {
 
 export const uploadToSupabase = async () => {
     if (!isSupabaseConfigured()) return;
-    // Implementation would go here - pushing local storage data to matching tables
+    notifySync('SYNCING');
+    
+    // Upload main tables
+    try {
+        await Promise.all([
+            supabase.from('students').upsert(getStudents()).then(({error}) => error && console.error('Students sync error', error)),
+            supabase.from('attendance').upsert(getAttendance()).then(({error}) => error && console.error('Attendance sync error', error)),
+            supabase.from('performance').upsert(getPerformance()).then(({error}) => error && console.error('Performance sync error', error)),
+            supabase.from('teachers').upsert(getTeachers()).then(({error}) => error && console.error('Teachers sync error', error)),
+            supabase.from('schools').upsert(getSchools()).then(({error}) => error && console.error('Schools sync error', error)),
+            supabase.from('system_users').upsert(getSystemUsers()).then(({error}) => error && console.error('Users sync error', error)),
+        ]);
+        notifySync('ONLINE');
+    } catch (e) {
+        console.error(e);
+        notifySync('ERROR');
+    }
 };
 
 export const downloadFromSupabase = async () => {
     if (!isSupabaseConfigured()) return;
-    // Implementation would go here - fetching data and replacing local storage
+    notifySync('SYNCING');
+    
+    try {
+        const { data: students } = await supabase.from('students').select('*');
+        if (students) save(KEYS.STUDENTS, students);
+
+        const { data: attendance } = await supabase.from('attendance').select('*');
+        if (attendance) save(KEYS.ATTENDANCE, attendance);
+
+        const { data: performance } = await supabase.from('performance').select('*');
+        if (performance) save(KEYS.PERFORMANCE, performance);
+
+        const { data: teachers } = await supabase.from('teachers').select('*');
+        if (teachers) save(KEYS.TEACHERS, teachers);
+
+        const { data: schools } = await supabase.from('schools').select('*');
+        if (schools) save(KEYS.SCHOOLS, schools);
+
+        const { data: users } = await supabase.from('system_users').select('*');
+        if (users) save(KEYS.SYSTEM_USERS, users);
+
+        notifySync('ONLINE');
+    } catch (e) {
+        console.error(e);
+        notifySync('ERROR');
+    }
 };
 
 export const fetchCloudTableData = async (table: string) => {
@@ -597,13 +740,11 @@ export const clearCloudTable = async (table: string) => {
 };
 
 export const resetCloudDatabase = async () => {
-    // DANGEROUS: Clears all tables
     const tables = Object.values(DB_MAP);
     for (const t of tables) await clearCloudTable(t);
 };
 
 export const backupCloudDatabase = async () => {
-    // Fetch all data from all tables
     const backup: any = {};
     for (const key of Object.keys(DB_MAP)) {
         const table = DB_MAP[key as keyof typeof DB_MAP];
@@ -633,24 +774,21 @@ export const validateCloudSchema = async () => {
 };
 
 export const forceRefreshData = async () => {
-    notifySubscribers();
+    await downloadFromSupabase();
 };
 
 export const initAutoSync = async () => {
-    return true; 
+    if (isSupabaseConfigured()) {
+        await downloadFromSupabase();
+        return true;
+    }
+    return false;
 };
 
-export const initRealtimeSync = () => {};
+export const initRealtimeSync = () => {
+    // Placeholder for realtime subscriptions if needed in future
+};
 export const stopRealtimeSync = () => {};
-
-export const DB_MAP = {
-    students: 'students',
-    attendance: 'attendance',
-    performance: 'performance',
-    teachers: 'teachers',
-    schools: 'schools',
-    users: 'system_users'
-};
 
 export const getTableDisplayName = (table: string) => {
     switch(table) {
@@ -665,7 +803,6 @@ export const getTableDisplayName = (table: string) => {
 };
 
 export const getDatabaseSchemaSQL = () => `
--- Copy this SQL to Supabase SQL Editor to create tables
 CREATE TABLE IF NOT EXISTS schools (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -717,7 +854,8 @@ CREATE TABLE IF NOT EXISTS students (
     parent_name TEXT,
     parent_phone TEXT,
     parent_email TEXT,
-    password TEXT
+    password TEXT,
+    seat_index INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
@@ -730,6 +868,7 @@ CREATE TABLE IF NOT EXISTS attendance (
     behavior_status TEXT,
     behavior_note TEXT,
     excuse_note TEXT,
+    excuse_file TEXT,
     created_by_id TEXT
 );
 
@@ -748,7 +887,6 @@ CREATE TABLE IF NOT EXISTS performance (
 `;
 
 export const getDatabaseUpdateSQL = () => `
--- Updates for new features
 ALTER TABLE students ADD COLUMN IF NOT EXISTS seat_index INTEGER;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_file TEXT;
 `;
