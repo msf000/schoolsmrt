@@ -10,7 +10,7 @@ import {
     bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
     getUserTheme, bulkUpsertStudents,
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
-    forceRefreshData, initRealtimeSync
+    forceRefreshData, initRealtimeSync, stopRealtimeSync
 } from '../services/storageService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { checkAIConnection } from '../services/geminiService';
@@ -177,6 +177,7 @@ const App: React.FC = () => {
         localStorage.removeItem('current_user');
         localStorage.removeItem('app_last_view'); 
         setSystemMode(false);
+        stopRealtimeSync(); // CLEANUP REALTIME
         setShowClassroomScreen(false);
         setCurrentView('DASHBOARD');
         if (bgSyncTimerRef.current) clearInterval(bgSyncTimerRef.current);

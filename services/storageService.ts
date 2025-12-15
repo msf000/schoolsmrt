@@ -20,7 +20,7 @@ const KEYS = {
     PERFORMANCE: 'performance',
     SUBJECTS: 'subjects',
     SCHEDULES: 'schedules',
-    ASSIGNMENTS: 'assignments', 
+    ASSIGNMENTS: 'teacher_assignments', // Fixed Key Name for clarity
     WORKS_ASSIGNMENTS: 'works_assignments', 
     WEEKLY_PLANS: 'weekly_plans',
     LESSON_LINKS: 'lesson_links',
@@ -141,6 +141,13 @@ const toDbSchedule = (s: ScheduleItem) => ({
 const fromDbSchedule = (s: any): ScheduleItem => ({
     id: s.id, classId: s.class_id, day: s.day, period: s.period,
     subjectName: s.subject_name, teacherId: s.teacher_id
+});
+
+const toDbTeacherAssignment = (a: TeacherAssignment) => ({
+    id: a.id, class_id: a.classId, subject_name: a.subjectName, teacher_id: a.teacherId
+});
+const fromDbTeacherAssignment = (a: any): TeacherAssignment => ({
+    id: a.id, classId: a.class_id, subjectName: a.subject_name, teacherId: a.teacher_id
 });
 
 const toDbWeeklyPlan = (w: WeeklyPlanItem) => ({
@@ -356,6 +363,15 @@ export const initRealtimeSync = () => {
                 setSyncStatus('ONLINE');
             }
         });
+};
+
+export const stopRealtimeSync = () => {
+    if (realtimeChannel) {
+        console.log("Stopping Realtime Sync...");
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+        setSyncStatus('IDLE');
+    }
 };
 
 
@@ -590,7 +606,7 @@ export const forceRefreshData = async (): Promise<boolean> => {
             'weekly_plans', 'lesson_links', 'lesson_plans', 'message_logs', 
             'custom_tables', 'exams', 'questions', 'exam_results', 
             'curriculum_units', 'curriculum_lessons', 'micro_concepts', 
-            'tracking_sheets', 'academic_terms'
+            'tracking_sheets', 'academic_terms', 'teacher_assignments'
         ];
         
         const promises = tables.map(t => supabase.from(t).select('*'));
@@ -622,6 +638,7 @@ export const forceRefreshData = async (): Promise<boolean> => {
         updateCache(KEYS.MICRO_CONCEPTS, (results[19].data || []).map(fromDbMicroConcept));
         updateCache(KEYS.TRACKING_SHEETS, (results[20].data || []).map(fromDbTrackingSheet));
         updateCache(KEYS.ACADEMIC_TERMS, (results[21].data || []).map(fromDbTerm));
+        updateCache(KEYS.ASSIGNMENTS, (results[22].data || []).map(fromDbTeacherAssignment));
 
         notifyDataChange();
         setSyncStatus('ONLINE');
@@ -662,6 +679,10 @@ export const deleteScheduleItem = async (id: string) => {
 };
 
 export const getTeacherAssignments = (): TeacherAssignment[] => get(KEYS.ASSIGNMENTS);
+export const addTeacherAssignment = async (a: TeacherAssignment) => {
+    const list = getTeacherAssignments(); list.push(a); updateCache(KEYS.ASSIGNMENTS, list); notifyDataChange();
+    if(isSupabaseConfigured()) await supabase.from('teacher_assignments').insert(toDbTeacherAssignment(a));
+};
 
 export const getAssignments = (category: string, teacherId?: string, includeAll: boolean = false): Assignment[] => {
     const all = get<Assignment>(KEYS.WORKS_ASSIGNMENTS);
@@ -1072,6 +1093,13 @@ CREATE TABLE IF NOT EXISTS schedules (
     class_id TEXT,
     day TEXT,
     period INTEGER,
+    subject_name TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS teacher_assignments (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
     subject_name TEXT,
     teacher_id TEXT
 );
