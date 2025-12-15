@@ -83,7 +83,7 @@ export const useApp = () => {
 };
 
 // --- LAYOUT ---
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const Layout = ({ children }: { children?: React.ReactNode }) => {
     const { currentUser, logout, syncStatus } = useApp();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();

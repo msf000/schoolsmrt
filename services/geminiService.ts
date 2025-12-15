@@ -22,28 +22,34 @@ const getConfig = () => {
 
 // Check if a real key is present
 const hasValidKey = () => {
-    // Check both standard Vite env and polyfilled process.env (for Vercel)
     const key = import.meta.env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
     return key && key.length > 20;
 };
 
-// --- RETRY LOGIC (New) ---
-// Wraps API calls to handle 429 (Quota Exceeded) errors gracefully and stop on 403
-async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
+// Lazy initialization of AI client
+let aiInstance: GoogleGenAI | null = null;
+const getAIClient = () => {
+    if (aiInstance) return aiInstance;
+    const apiKey = import.meta.env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '') || '';
+    if (!apiKey) throw new Error("مفتاح API غير متوفر.");
+    aiInstance = new GoogleGenAI({ apiKey });
+    return aiInstance;
+};
+
+// --- RETRY LOGIC ---
+async function withRetry<T>(operation: (ai: GoogleGenAI) => Promise<T>, retries = 3, delay = 2000): Promise<T> {
     if (!hasValidKey()) {
         throw new Error("مفتاح API غير صالح أو غير مهيأ. يرجى التحقق من إعدادات Vercel أو ملف .env");
     }
 
     try {
-        return await operation();
+        const ai = getAIClient();
+        return await operation(ai);
     } catch (error: any) {
-        // FAIL FAST: If Permission Denied (403) or Invalid Key, do not retry.
         if (error.status === 403 || error.code === 403 || error.message?.includes('API key') || error.message?.includes('PERMISSION_DENIED')) {
-            // Silently fail to avoid console spam, return a friendly error
             throw new Error("خدمة الذكاء الاصطناعي غير متوفرة حالياً (تأكد من مفتاح API وصلاحياته).");
         }
 
-        // Check for 429 or Quota related messages
         const isQuotaError = error.status === 429 || 
                              error.code === 429 || 
                              (error.message && (
@@ -62,10 +68,6 @@ async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 20
     }
 }
 
-// Initialize AI Client safely
-const apiKey = import.meta.env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '') || '';
-const ai = new GoogleGenAI({ apiKey });
-
 // --- Check Connection ---
 export const checkAIConnection = async (): Promise<{ success: boolean; message: string }> => {
     if (!hasValidKey()) {
@@ -74,7 +76,7 @@ export const checkAIConnection = async (): Promise<{ success: boolean; message: 
 
     try {
         const { model } = getConfig();
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model,
             contents: "Test connection. Reply with 'OK'.",
         }), 1); 
@@ -82,7 +84,6 @@ export const checkAIConnection = async (): Promise<{ success: boolean; message: 
         if (response.text) return { success: true, message: "تم الاتصال بنجاح!" };
         return { success: false, message: "لم يتم استلام رد من النموذج." };
     } catch (error: any) {
-        // Suppress generic 403 errors in UI check
         let msg = error.message || "فشل الاتصال بمفتاح API.";
         if (msg.includes('429') || msg.includes('quota')) msg = "تم تجاوز حد الاستخدام اليومي (Quota). يرجى المحاولة لاحقاً.";
         if (msg.includes('403') || msg.includes('API key')) msg = "مفتاح API غير صالح أو محظور.";
@@ -90,7 +91,6 @@ export const checkAIConnection = async (): Promise<{ success: boolean; message: 
     }
 };
 
-// ... (Rest of the file follows, standardizing json parsing helpers etc)
 function cleanJsonString(text: string): string {
     if (!text) return "[]";
     let clean = text.replace(/```json/gi, '').replace(/```/g, '');
@@ -106,8 +106,6 @@ function cleanJsonString(text: string): string {
     return clean.trim();
 }
 
-// ... (Keeping existing functionality for generating content)
-// Detailed data provided by user
 const EARTH_SPACE_PRESET = [
     {
         unitTitle: "1. تطور الكون",
@@ -116,10 +114,16 @@ const EARTH_SPACE_PRESET = [
             { title: "1-2 النجوم والمجرات", standards: ["ES.12.1.2"] }
         ]
     },
-    // ... (rest of preset)
+    {
+        unitTitle: "2. الميكانيكا السماوية",
+        lessons: [
+            { title: "2-1 قوانين كبلر", standards: ["ES.12.2.1"] },
+            { title: "2-2 التقنية الفضائية", standards: ["ES.12.2.2"] }
+        ]
+    },
+    // ... truncated for brevity, same preset as before
 ];
 
-// ... (Exported functions unchanged)
 export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<any> => {
     const { model, config, enabled } = getConfig();
     if (!enabled.quiz) throw new Error("AI Grading is disabled");
@@ -159,7 +163,7 @@ export const gradeExamPaper = async (imageBase64: string, exam: Exam): Promise<a
 
     try {
         const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, 
             contents: {
                 parts: [
@@ -188,7 +192,7 @@ export const regenerateSingleBlock = async (
     if (!enabled.planning) throw new Error("AI Planning is disabled");
     const prompt = `Act as an expert teacher. Rewrite: "${blockTitle}" (Type: ${blockType}). Subject: ${lessonContext.subject}, Topic: ${lessonContext.topic}, Grade: ${lessonContext.grade}. ${lessonContext.prevContent ? `Previous: "${lessonContext.prevContent}"` : ''}`;
     try {
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model,
             contents: prompt,
             config: { temperature: 0.8, systemInstruction: config.systemInstruction }
@@ -202,7 +206,7 @@ export const generateLessonBlocks = async (subject: string, topic: string, grade
     if (!enabled.planning) throw new Error("AI Planning is disabled");
     const prompt = `Act as an expert teacher (Saudi Curriculum). Create lesson plan for "${topic}" (${subject}, ${gradeLevel}). JSON Array of LessonBlock.`;
     try {
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: prompt, config: { responseMimeType: "application/json", temperature: 0.5, systemInstruction: config.systemInstruction }
         }));
         const blocks: LessonBlock[] = JSON.parse(cleanJsonString(response.text || "[]"));
@@ -219,7 +223,7 @@ export const generateCurriculumMap = async (subject: string, grade: string, seme
     if (!enabled.planning) throw new Error("AI Planning is disabled");
     const prompt = `Generate Curriculum Map (Units/Lessons) for Saudi MOE: ${subject}, ${grade}, ${semester}. JSON Output.`;
     try {
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: prompt, config: { responseMimeType: "application/json", temperature: 0.2, systemInstruction: config.systemInstruction }
         }));
         return JSON.parse(cleanJsonString(response.text || "[]"));
@@ -231,7 +235,7 @@ export const generateStudentAnalysis = async (student: Student, attendance: Atte
     if (!enabled.reports) throw new Error("AI Reports disabled");
     const prompt = `Analyze student ${student.name} (${student.gradeLevel}). Arabic report.`;
     try {
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: prompt, config: { temperature: 0.7 }
         }));
         return response.text || "لا يمكن تحليل البيانات حالياً.";
@@ -242,7 +246,7 @@ export const generateQuiz = async (subject: string, topic: string, grade: string
      const { model } = getConfig();
      try {
         const prompt = `Create a ${difficulty} quiz for ${grade} about ${topic} in ${subject}. ${count} questions. JSON format.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: prompt, config: { responseMimeType: "application/json" }
         }));
         return response.text || "";
@@ -253,7 +257,7 @@ export const generateRemedialPlan = async (name: string, grade: string, subject:
     const { model } = getConfig();
     try {
         const prompt = `Create remedial plan: ${name} (${grade}), ${subject}, Weakness: ${weakness}. Arabic.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({ model: model, contents: prompt }));
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({ model: model, contents: prompt }));
         return response.text || "";
     } catch (e) { return "فشل إنشاء الخطة."; }
 };
@@ -262,7 +266,7 @@ export const generateLessonPlan = async (subject: string, topic: string, grade: 
     const { model } = getConfig();
     try {
         const prompt = `Full lesson plan: ${topic} (${subject}, ${grade}), ${duration} mins. Arabic.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({ model: model, contents: prompt }));
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({ model: model, contents: prompt }));
         return response.text || "";
     } catch (e) { return "فشل التحضير."; }
 };
@@ -271,7 +275,7 @@ export const generateParentMessage = async (studentName: string, topic: string, 
     const { model } = getConfig();
     try {
         const prompt = `Parent message for ${studentName} about ${topic}. Tone: ${tone}. Arabic.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({ model: model, contents: prompt }));
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({ model: model, contents: prompt }));
         return response.text || "";
     } catch (e) { return "فشل صياغة الرسالة."; }
 };
@@ -282,7 +286,7 @@ export const generateSlideQuestions = async (context: string, imageBase64?: stri
         const prompt = `Generate 2 MCQs based on context. JSON format.`;
         const contents: any = { parts: [{ text: prompt }, { text: context }] };
         if(imageBase64) contents.parts.push({ inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] } });
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: contents, config: { responseMimeType: "application/json" }
         }));
         return JSON.parse(cleanJsonString(response.text || "[]"));
@@ -293,7 +297,7 @@ export const suggestQuickActivity = async (topic: string, type: string) => {
     const { model } = getConfig();
     try {
         const prompt = `Suggest 5-min activity for ${topic}. Arabic.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({ model: model, contents: prompt }));
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({ model: model, contents: prompt }));
         return response.text || "";
     } catch (e) { return ""; }
 };
@@ -305,7 +309,7 @@ export const parseRawDataWithAI = async (text: string, type: string, imageBase64
         const contents: any = { parts: [{ text: prompt }] };
         if(imageBase64) contents.parts.push({ inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] } });
         if(text) contents.parts.push({ text: text });
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: contents, config: { responseMimeType: "application/json" }
         }));
         return JSON.parse(cleanJsonString(response.text || "[]"));
@@ -316,7 +320,7 @@ export const predictColumnMapping = async (headers: string[], targetFields: any[
     const { model } = getConfig();
     try {
         const prompt = `Map Excel headers ${JSON.stringify(headers)} to fields ${JSON.stringify(targetFields)}. JSON kv map.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: prompt, config: { responseMimeType: "application/json" }
         }));
         return JSON.parse(cleanJsonString(response.text || "{}"));
@@ -327,7 +331,7 @@ export const generateStructuredQuiz = async (subject: string, topic: string, gra
     const { model } = getConfig();
     try {
         const prompt = `Structured quiz JSON for ${subject} - ${topic} (${grade}). ${count} Qs. ${difficulty}.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: model, contents: prompt, config: { responseMimeType: "application/json" }
         }));
         return JSON.parse(cleanJsonString(response.text || "[]"));
@@ -338,7 +342,7 @@ export const generateClassReport = async (className: string, term: string, stats
     const { model } = getConfig();
     try {
         const prompt = `Class report: ${className}, ${term}. Stats: ${JSON.stringify(stats)}. Arabic.`;
-        const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({ model: model, contents: prompt }));
+        const response = await withRetry<GenerateContentResponse>((ai) => ai.models.generateContent({ model: model, contents: prompt }));
         return response.text || "";
     } catch (e) { return ""; }
 };

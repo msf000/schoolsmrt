@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
+  // Cast process to any to avoid TS errors in config file (Node context)
   const env = loadEnv(mode, (process as any).cwd(), '');
   
   return {
@@ -64,17 +65,15 @@ export default defineConfig(({ mode }) => {
       })
     ],
     define: {
-      // Polyfill the 'process' object completely for the browser environment.
-      // This fixes "process is not defined" errors from 3rd party libs and allows safe access to env vars.
-      'process': JSON.stringify({
-        env: {
-          API_KEY: env.API_KEY || env.VITE_API_KEY || "",
-          SUPABASE_URL: env.SUPABASE_URL || env.VITE_SUPABASE_URL || "",
-          SUPABASE_KEY: env.SUPABASE_KEY || env.VITE_SUPABASE_KEY || "",
-          NODE_ENV: mode
-        }
+      // Safely define process.env to inject Vercel/System env vars
+      // We do NOT define 'process' object entirely to avoid breaking libs that check process.version/cwd
+      'process.env': JSON.stringify({
+        API_KEY: env.API_KEY || env.VITE_API_KEY || "",
+        SUPABASE_URL: env.SUPABASE_URL || env.VITE_SUPABASE_URL || "",
+        SUPABASE_KEY: env.SUPABASE_KEY || env.VITE_SUPABASE_KEY || "",
+        NODE_ENV: mode
       }),
-      // Also polyfill 'global' for some older libraries
+      // Polyfill global for some older libraries
       'global': 'window',
     }
   };
