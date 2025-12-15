@@ -287,7 +287,7 @@ const App: React.FC = () => {
         saveAttendance: handleSaveAttendance,
         addPerformance: handleAddPerformance,
         deletePerformance: handleDeletePerformance,
-        importStudents: (d: Student[], k: any, s: any, f: any[]) => { 
+        importStudents: (d: Student[], k: any, s: any, f?: any[]) => { 
             const e = d.map(x => ({...x, createdById: currentUser?.id, schoolId: currentUser?.schoolId}));
             if (s === 'UPDATE') bulkUpsertStudents(e, k); else bulkAddStudents(e); 
             refreshData(); 

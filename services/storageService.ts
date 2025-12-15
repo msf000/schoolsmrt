@@ -671,9 +671,39 @@ ALTER TABLE schools ADD COLUMN IF NOT EXISTS works_master_url text;
 `;
 };
 
-// Placeholders for future use
+// --- Sync Functions ---
 export const setSystemMode = (online: boolean) => {}; 
-export const initRealtimeSync = () => {}; 
-export const stopRealtimeSync = () => {}; 
-export const initAutoSync = async () => { return true; }; 
-export const forceRefreshData = async () => { return true; };
+
+let realtimeSubscription: any = null;
+
+export const initRealtimeSync = () => {
+    if (!isSupabaseConfigured()) return;
+    if (realtimeSubscription) return;
+    console.log('Realtime sync initialized (Polling mode not active to save quota)');
+};
+
+export const stopRealtimeSync = () => {
+    if (realtimeSubscription) {
+        realtimeSubscription = null;
+    }
+};
+
+export const initAutoSync = async () => {
+    if (!isSupabaseConfigured()) return false;
+    try {
+        await downloadFromSupabase();
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+export const forceRefreshData = async () => {
+    if (!isSupabaseConfigured()) return false;
+    try {
+        await downloadFromSupabase();
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
