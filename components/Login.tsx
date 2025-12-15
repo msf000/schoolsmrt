@@ -97,11 +97,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setLoading(false);
             }
         } else {
-            if (!isSupabaseConfigured()) {
-                setError('خطأ في إعدادات الاتصال.');
-            } else {
-                setError('بيانات الدخول غير صحيحة.');
-            }
+            setError('بيانات الدخول غير صحيحة.');
             setLoading(false);
         }
     } catch (e: any) {
@@ -115,6 +111,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       if (confirm('هل أنت متأكد من مسح جميع البيانات المحلية؟')) {
           clearDatabase();
       }
+  };
+
+  const fillAdmin = () => {
+      setIdentifier('admin');
+      setPassword('admin');
   };
 
   if (view === 'REGISTER') {
@@ -219,6 +220,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                             {rememberMe ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16} className="text-gray-400"/>}
                             تذكرني
                         </button>
+                        
+                        {roleMode === 'STAFF' && (
+                            <button type="button" onClick={fillAdmin} className="text-[10px] text-indigo-400 hover:text-indigo-600 underline">
+                                دخول كمدير (Demo)
+                            </button>
+                        )}
                     </div>
 
                     {error && (
