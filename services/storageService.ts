@@ -374,7 +374,6 @@ export const stopRealtimeSync = () => {
     }
 };
 
-
 // --- Operations ---
 
 export const getSchools = (): School[] => get(KEYS.SCHOOLS);
@@ -510,7 +509,8 @@ export const authenticateUser = async (identifier: string, password: string): Pr
             const { data, error } = await supabase
                 .from('system_users')
                 .select('*')
-                .or(`email.eq.${identifier},national_id.eq.${identifier}`)
+                // Quote identifiers to handle special characters like '@'
+                .or(`email.eq."${identifier}",national_id.eq."${identifier}"`)
                 .eq('password', password)
                 .eq('status', 'ACTIVE')
                 .single();
