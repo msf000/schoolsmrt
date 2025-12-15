@@ -288,19 +288,23 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                     {isExpanded && (
                                         <div className="p-0 bg-white border-t border-gray-100 animate-slide-up">
                                             {unitLessons.length > 0 && (
-                                                <div className="grid grid-cols-12 bg-gray-50 text-xs font-bold text-gray-500 p-2 border-b">
+                                                <div className="hidden md:grid md:grid-cols-12 bg-gray-50 text-xs font-bold text-gray-500 p-2 border-b">
                                                     <div className="col-span-5 pr-8">اسم الدرس</div>
                                                     <div className="col-span-4">المعيار (Standard)</div>
                                                     <div className="col-span-3 text-center">إجراءات</div>
                                                 </div>
                                             )}
                                             {unitLessons.map(lesson => (
-                                                <div key={lesson.id} className="grid grid-cols-12 items-center p-2 hover:bg-purple-50 group border-b border-gray-50 last:border-0">
-                                                    <div className="col-span-5 flex items-center gap-2 font-medium text-gray-700 pr-6">
+                                                <div key={lesson.id} className="flex flex-col md:grid md:grid-cols-12 items-start md:items-center p-3 md:p-2 hover:bg-purple-50 group border-b border-gray-50 last:border-0 gap-2 md:gap-0">
+                                                    <div className="md:col-span-5 flex items-center gap-2 font-medium text-gray-700 w-full">
                                                         <FilePlus size={16} className="text-gray-400 shrink-0"/>
-                                                        <span className="truncate" title={lesson.title}>{lesson.title}</span>
+                                                        <span className="truncate flex-1" title={lesson.title}>{lesson.title}</span>
+                                                        <div className="md:hidden flex gap-2">
+                                                            <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 p-1 rounded bg-blue-50"><Edit2 size={14}/></button>
+                                                            <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 p-1 rounded bg-red-50"><Trash2 size={14}/></button>
+                                                        </div>
                                                     </div>
-                                                    <div className="col-span-4 flex flex-wrap gap-1">
+                                                    <div className="md:col-span-4 flex flex-wrap gap-1 pl-6">
                                                         {lesson.learningStandards && lesson.learningStandards.length > 0 ? (
                                                             lesson.learningStandards.map((std, i) => (
                                                                 <span key={i} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-mono font-bold" title="كود المعيار الوزاري">
@@ -311,7 +315,7 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                                             <span className="text-xs text-gray-300">-</span>
                                                         )}
                                                     </div>
-                                                    <div className="col-span-3 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="hidden md:flex md:col-span-3 justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 hover:bg-blue-100 p-1.5 rounded"><Edit2 size={14}/></button>
                                                         <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/></button>
                                                     </div>

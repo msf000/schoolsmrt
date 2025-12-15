@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Exam, Question, SystemUser, Subject, ExamResult } from '../types';
 import { getExams, saveExam, deleteExam, getSubjects, getQuestionBank, getExamResults, deleteExamResult } from '../services/storageService';
-import { Plus, Trash2, Edit, FileQuestion, Calendar, CheckCircle, XCircle, Save, ArrowLeft, Check, ListChecks, Type, Printer, Library, FileText, Download, Copy, BarChart2, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Edit, FileQuestion, Calendar, CheckCircle, XCircle, Save, ArrowLeft, Check, ListChecks, Type, Printer, Library, FileText, Download, Copy, BarChart2, Search, Filter, Settings, List } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ExamsManagerProps {
@@ -17,6 +17,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     
     // Edit State
     const [editingExam, setEditingExam] = useState<Exam | null>(null);
+    const [mobileEditorTab, setMobileEditorTab] = useState<'SETTINGS' | 'QUESTIONS'>('SETTINGS');
     
     // Bank Import State
     const [isBankModalOpen, setIsBankModalOpen] = useState(false);
@@ -57,6 +58,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             date: new Date().toISOString().split('T')[0]
         });
         resetQuestionForm();
+        setMobileEditorTab('SETTINGS');
         setView('EDITOR'); 
     };
 
@@ -313,19 +315,20 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     if (view === 'PRINT') return <PrintView />;
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
+        <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             {view === 'LIST' && (
                 <>
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
                             <FileQuestion className="text-purple-600"/> إدارة الاختبارات
                         </h2>
-                        <button onClick={startCreation} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2">
-                            <Plus size={18}/> اختبار جديد
+                        <button onClick={startCreation} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base">
+                            <Plus size={18}/> <span className="hidden md:inline">اختبار جديد</span><span className="md:hidden">جديد</span>
                         </button>
                     </div>
                     
-                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm flex-1 overflow-y-auto">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm flex-1 overflow-y-auto">
                         <table className="w-full text-right text-sm">
                             <thead className="bg-gray-50 font-bold text-gray-700 sticky top-0">
                                 <tr>
@@ -353,7 +356,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                             <button onClick={() => duplicateExam(exam)} className="p-2 text-teal-600 hover:bg-teal-50 rounded" title="نسخ"><Copy size={16}/></button>
                                             <button onClick={() => handleViewResults(exam)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded" title="النتائج"><BarChart2 size={16}/></button>
                                             <button onClick={() => { setEditingExam(exam); setView('PRINT'); }} className="p-2 text-gray-600 hover:bg-gray-100 rounded" title="طباعة الورقة"><Printer size={16}/></button>
-                                            <button onClick={() => { setEditingExam(exam); setView('EDITOR'); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded" title="تعديل"><Edit size={16}/></button>
+                                            <button onClick={() => { setEditingExam(exam); setView('EDITOR'); setMobileEditorTab('SETTINGS'); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded" title="تعديل"><Edit size={16}/></button>
                                             <button onClick={() => handleDeleteExam(exam.id)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="حذف"><Trash2 size={16}/></button>
                                         </td>
                                     </tr>
@@ -361,6 +364,36 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                 {exams.length === 0 && <tr><td colSpan={6} className="p-12 text-center text-gray-400">لا توجد اختبارات مسجلة</td></tr>}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* Mobile List View (Cards) */}
+                    <div className="md:hidden flex-1 overflow-y-auto space-y-3 pb-20">
+                        {exams.length > 0 ? exams.map(exam => (
+                            <div key={exam.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">{exam.title}</h3>
+                                        <p className="text-xs text-gray-500">{exam.subject} - {exam.gradeLevel}</p>
+                                    </div>
+                                    <span className={`px-2 py-1 rounded text-[10px] font-bold ${exam.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                        {exam.isActive ? 'نشط' : 'مسودة'}
+                                    </span>
+                                </div>
+                                <div className="text-xs text-gray-400 mb-3 font-mono">{exam.questions.length} أسئلة • {exam.durationMinutes} دقيقة</div>
+                                <div className="grid grid-cols-5 gap-2 border-t pt-3">
+                                    <button onClick={() => duplicateExam(exam)} className="flex flex-col items-center gap-1 text-[10px] text-teal-600"><Copy size={16}/> نسخ</button>
+                                    <button onClick={() => handleViewResults(exam)} className="flex flex-col items-center gap-1 text-[10px] text-indigo-600"><BarChart2 size={16}/> نتائج</button>
+                                    <button onClick={() => { setEditingExam(exam); setView('PRINT'); }} className="flex flex-col items-center gap-1 text-[10px] text-gray-600"><Printer size={16}/> طباعة</button>
+                                    <button onClick={() => { setEditingExam(exam); setView('EDITOR'); setMobileEditorTab('SETTINGS'); }} className="flex flex-col items-center gap-1 text-[10px] text-blue-600"><Edit size={16}/> تعديل</button>
+                                    <button onClick={() => handleDeleteExam(exam.id)} className="flex flex-col items-center gap-1 text-[10px] text-red-600"><Trash2 size={16}/> حذف</button>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="text-center py-20 text-gray-400">
+                                <FileQuestion size={48} className="mx-auto mb-4 opacity-20"/>
+                                <p>لا توجد اختبارات مسجلة</p>
+                            </div>
+                        )}
                     </div>
                 </>
             )}
@@ -375,28 +408,28 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                 <p className="text-xs text-indigo-600">{editingExam.gradeLevel} - {editingExam.subject}</p>
                             </div>
                         </div>
-                        <button onClick={handleExportResults} className="bg-white border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100">
-                            <Download size={18}/> تصدير Excel
+                        <button onClick={handleExportResults} className="bg-white border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100 text-sm">
+                            <Download size={16}/> <span className="hidden md:inline">تصدير Excel</span>
                         </button>
                     </div>
 
                     {/* Stats Cards */}
-                    <div className="grid grid-cols-4 gap-4 p-6 bg-white border-b">
-                        <div className="bg-gray-50 p-4 rounded-xl border text-center">
-                            <span className="text-xs text-gray-500 font-bold block mb-1">عدد الطلاب</span>
-                            <span className="text-2xl font-black text-gray-800">{analytics.count}</span>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 md:p-6 bg-white border-b">
+                        <div className="bg-gray-50 p-3 md:p-4 rounded-xl border text-center">
+                            <span className="text-xs text-gray-500 font-bold block mb-1">الطلاب</span>
+                            <span className="text-xl md:text-2xl font-black text-gray-800">{analytics.count}</span>
                         </div>
-                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
-                            <span className="text-xs text-blue-600 font-bold block mb-1">متوسط الدرجات</span>
-                            <span className="text-2xl font-black text-blue-800">{analytics.avg}</span>
+                        <div className="bg-blue-50 p-3 md:p-4 rounded-xl border border-blue-100 text-center">
+                            <span className="text-xs text-blue-600 font-bold block mb-1">المتوسط</span>
+                            <span className="text-xl md:text-2xl font-black text-blue-800">{analytics.avg}</span>
                         </div>
-                        <div className="bg-green-50 p-4 rounded-xl border border-green-100 text-center">
-                            <span className="text-xs text-green-600 font-bold block mb-1">أعلى درجة</span>
-                            <span className="text-2xl font-black text-green-800">{analytics.max}</span>
+                        <div className="bg-green-50 p-3 md:p-4 rounded-xl border border-green-100 text-center">
+                            <span className="text-xs text-green-600 font-bold block mb-1">أعلى</span>
+                            <span className="text-xl md:text-2xl font-black text-green-800">{analytics.max}</span>
                         </div>
-                        <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-center">
-                            <span className="text-xs text-red-600 font-bold block mb-1">أدنى درجة</span>
-                            <span className="text-2xl font-black text-red-800">{analytics.min}</span>
+                        <div className="bg-red-50 p-3 md:p-4 rounded-xl border border-red-100 text-center">
+                            <span className="text-xs text-red-600 font-bold block mb-1">أدنى</span>
+                            <span className="text-xl md:text-2xl font-black text-red-800">{analytics.min}</span>
                         </div>
                     </div>
 
@@ -407,8 +440,8 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                     <th className="p-4">#</th>
                                     <th className="p-4">اسم الطالب</th>
                                     <th className="p-4 text-center">الدرجة</th>
-                                    <th className="p-4 text-center">النسبة</th>
-                                    <th className="p-4 text-center">وقت التسليم</th>
+                                    <th className="p-4 text-center hidden md:table-cell">النسبة</th>
+                                    <th className="p-4 text-center hidden md:table-cell">وقت التسليم</th>
                                     <th className="p-4 text-center">إجراءات</th>
                                 </tr>
                             </thead>
@@ -423,12 +456,12 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                             </span>
                                             <span className="text-xs text-gray-400 font-normal"> / {result.totalScore}</span>
                                         </td>
-                                        <td className="p-4 text-center">
+                                        <td className="p-4 text-center hidden md:table-cell">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${(result.score/result.totalScore) >= 0.9 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                                                 {Math.round((result.score/result.totalScore)*100)}%
                                             </span>
                                         </td>
-                                        <td className="p-4 text-center text-xs text-gray-500 font-mono">
+                                        <td className="p-4 text-center text-xs text-gray-500 font-mono hidden md:table-cell">
                                             {new Date(result.date).toLocaleString('ar-SA')}
                                         </td>
                                         <td className="p-4 text-center">
@@ -457,34 +490,40 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                             <h3 className="font-bold text-gray-800">محرر الاختبار</h3>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => setIsBankModalOpen(true)} className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100 border border-indigo-200">
-                                <Library size={18}/> استيراد من البنك
+                            <button onClick={() => setIsBankModalOpen(true)} className="bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100 border border-indigo-200 text-sm">
+                                <Library size={16}/> <span className="hidden md:inline">استيراد من البنك</span>
                             </button>
-                            <button onClick={handleSaveExam} className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-sm">
-                                <Save size={18}/> حفظ
+                            <button onClick={handleSaveExam} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-sm text-sm">
+                                <Save size={16}/> حفظ
                             </button>
                         </div>
+                    </div>
+
+                    {/* Mobile Tabs */}
+                    <div className="md:hidden flex border-b bg-gray-50">
+                        <button onClick={() => setMobileEditorTab('SETTINGS')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${mobileEditorTab === 'SETTINGS' ? 'border-blue-600 text-blue-700 bg-white' : 'border-transparent text-gray-500'}`}>الإعدادات</button>
+                        <button onClick={() => setMobileEditorTab('QUESTIONS')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${mobileEditorTab === 'QUESTIONS' ? 'border-blue-600 text-blue-700 bg-white' : 'border-transparent text-gray-500'}`}>الأسئلة ({editingExam.questions.length})</button>
                     </div>
                     
                     <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                         {/* Settings Column */}
-                        <div className="w-full md:w-80 border-l bg-gray-50 p-4 overflow-y-auto">
-                            <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Edit size={16}/> الإعدادات الأساسية</h4>
+                        <div className={`w-full md:w-80 border-l bg-gray-50 p-4 overflow-y-auto ${mobileEditorTab === 'SETTINGS' ? 'block' : 'hidden md:block'}`}>
+                            <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Settings size={16}/> الإعدادات الأساسية</h4>
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">عنوان الاختبار</label>
-                                    <input className="w-full p-2 border rounded bg-white" value={editingExam.title} onChange={e => setEditingExam({...editingExam, title: e.target.value})} placeholder="مثال: اختبار الفترة الأولى" />
+                                    <input className="w-full p-2 border rounded bg-white text-sm" value={editingExam.title} onChange={e => setEditingExam({...editingExam, title: e.target.value})} placeholder="مثال: اختبار الفترة الأولى" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">المادة</label>
-                                    <select className="w-full p-2 border rounded bg-white" value={editingExam.subject} onChange={e => setEditingExam({...editingExam, subject: e.target.value})}>
+                                    <select className="w-full p-2 border rounded bg-white text-sm" value={editingExam.subject} onChange={e => setEditingExam({...editingExam, subject: e.target.value})}>
                                         {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">الصف</label>
                                     <select 
-                                        className="w-full p-2 border rounded bg-white" 
+                                        className="w-full p-2 border rounded bg-white text-sm" 
                                         value={editingExam.gradeLevel} 
                                         onChange={e => setEditingExam({...editingExam, gradeLevel: e.target.value})} 
                                     >
@@ -498,11 +537,11 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">المدة (دقيقة)</label>
-                                    <input type="number" className="w-full p-2 border rounded bg-white" value={editingExam.durationMinutes} onChange={e => setEditingExam({...editingExam, durationMinutes: Number(e.target.value)})} />
+                                    <input type="number" className="w-full p-2 border rounded bg-white text-sm" value={editingExam.durationMinutes} onChange={e => setEditingExam({...editingExam, durationMinutes: Number(e.target.value)})} />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">التاريخ</label>
-                                    <input type="date" className="w-full p-2 border rounded bg-white" value={editingExam.date} onChange={e => setEditingExam({...editingExam, date: e.target.value})} />
+                                    <input type="date" className="w-full p-2 border rounded bg-white text-sm" value={editingExam.date} onChange={e => setEditingExam({...editingExam, date: e.target.value})} />
                                 </div>
                                 <div className="pt-4 border-t">
                                     <label className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded border hover:border-green-400 transition-colors">
@@ -514,7 +553,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                         </div>
 
                         {/* Questions Column */}
-                        <div className="flex-1 p-6 overflow-y-auto bg-gray-100/50">
+                        <div className={`flex-1 p-4 md:p-6 overflow-y-auto bg-gray-100/50 ${mobileEditorTab === 'QUESTIONS' ? 'block' : 'hidden md:block'}`}>
                             {/* Added Questions List */}
                             <div className="space-y-4 mb-8">
                                 {editingExam.questions.length > 0 ? editingExam.questions.map((q, idx) => (
@@ -522,7 +561,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="font-bold text-gray-800 flex items-center gap-2">
                                                 <span className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded">س{idx + 1}</span>
-                                                {q.text}
+                                                <span className="text-sm">{q.text}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded border">{q.points} درجات</span>
@@ -546,27 +585,27 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                             </div>
 
                             {/* Add New Question Form */}
-                            <div className="bg-white p-6 rounded-xl border border-purple-200 shadow-md">
+                            <div className="bg-white p-4 md:p-6 rounded-xl border border-purple-200 shadow-md">
                                 <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                                     <Plus size={18} className="text-purple-600"/> إضافة سؤال جديد
                                 </h4>
                                 
                                 <div className="space-y-4">
-                                    <div className="flex gap-4">
+                                    <div className="flex flex-col md:flex-row gap-4">
                                         <div className="flex-1">
                                             <label className="block text-xs font-bold text-gray-500 mb-1">نص السؤال</label>
                                             <input 
-                                                className="w-full p-3 border rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none" 
+                                                className="w-full p-3 border rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none text-sm" 
                                                 placeholder="اكتب السؤال هنا..." 
                                                 value={qText}
                                                 onChange={e => setQText(e.target.value)}
                                             />
                                         </div>
-                                        <div className="w-32">
+                                        <div className="w-full md:w-32">
                                             <label className="block text-xs font-bold text-gray-500 mb-1">الدرجة</label>
                                             <input 
                                                 type="number" 
-                                                className="w-full p-3 border rounded-lg text-center font-bold" 
+                                                className="w-full p-3 border rounded-lg text-center font-bold text-sm" 
                                                 value={qPoints}
                                                 onChange={e => setQPoints(Number(e.target.value))}
                                             />
@@ -593,7 +632,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                             <div key={i} className="flex items-center gap-2">
                                                 <input 
                                                     type="radio" 
-                                                    name="correctAnswer" 
+                                                    name="correct" 
                                                     className="w-5 h-5 accent-green-600 cursor-pointer"
                                                     checked={qCorrect === opt && opt !== ''}
                                                     onChange={() => opt && setQCorrect(opt)}
@@ -616,7 +655,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                                     <label key={val} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${qCorrect === val ? 'bg-green-100 border-green-500 text-green-800' : 'bg-white border-gray-300'}`}>
                                                         <input 
                                                             type="radio" 
-                                                            name="correctAnswer" 
+                                                            name="correct" 
                                                             className="w-5 h-5 accent-green-600"
                                                             checked={qCorrect === val}
                                                             onChange={() => setQCorrect(val)}

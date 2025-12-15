@@ -64,8 +64,9 @@ export default defineConfig(({ mode }) => {
     ],
     define: {
       'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || ""),
-      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || ""),
-      'process.env.SUPABASE_KEY': JSON.stringify(env.SUPABASE_KEY || ""),
+            'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || env.SUPABASE_URL || ""),
+      'process.env.SUPABASE_KEY': JSON.stringify(process.env.SUPABASE_KEY || env.SUPABASE_KEY || ""),
+
     }
   };
 });
