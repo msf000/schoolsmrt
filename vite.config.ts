@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -64,7 +65,7 @@ export default defineConfig(({ mode }) => {
     ],
     define: {
       // Polyfill the 'process' object completely for the browser environment.
-      // This fixes "process is not defined" errors from 3rd party libs and allows access to env vars.
+      // This fixes "process is not defined" errors from 3rd party libs and allows safe access to env vars.
       'process': JSON.stringify({
         env: {
           API_KEY: env.API_KEY || env.VITE_API_KEY || "",

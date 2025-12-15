@@ -22,7 +22,7 @@ const getConfig = () => {
 
 // Check if a real key is present
 const hasValidKey = () => {
-    // Check both standard Vite env and polyfilled process.env
+    // Check both standard Vite env and polyfilled process.env (for Vercel)
     const key = import.meta.env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
     return key && key.length > 20;
 };
