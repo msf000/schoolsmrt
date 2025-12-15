@@ -499,10 +499,10 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 <User className="text-indigo-600"/> البيانات الشخصية
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">الاسم</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.name} onChange={e => setTeacherProfile({...teacherProfile, name: e.target.value})} /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">الاسم</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.name} onChange={e => teacherProfile && setTeacherProfile({...teacherProfile, name: e.target.value})} /></div>
                                 <div><label className="block text-sm font-bold text-gray-700 mb-1">رقم الهوية</label><input className="w-full p-2 border rounded bg-gray-100 text-gray-500 cursor-not-allowed" value={teacherProfile.nationalId} readOnly /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">رقم الجوال</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.phone || ''} onChange={e => setTeacherProfile({...teacherProfile, phone: e.target.value})} /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">التخصص</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.subjectSpecialty || ''} onChange={e => setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})} /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">رقم الجوال</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.phone || ''} onChange={e => teacherProfile && setTeacherProfile({...teacherProfile, phone: e.target.value})} /></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">التخصص</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.subjectSpecialty || ''} onChange={e => teacherProfile && setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})} /></div>
                             </div>
                             <button onClick={handleTeacherSaveProfile} disabled={isSavingProfile} className="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">
                                 {isSavingProfile ? 'جاري الحفظ...' : 'حفظ البيانات'}
@@ -522,4 +522,5 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   );
 };
 
+export const SchoolManagementComponent = SchoolManagement; // Alias export for consistency
 export default SchoolManagement;

@@ -223,8 +223,9 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
     }
 };
 
-// --- REWARDS VIEW ---
+// ... (RewardsView, RandomPicker, ClassroomTimer, GroupGenerator logic remains same)
 const RewardsView: React.FC<{ students: Student[], attendance: AttendanceRecord[], onSaveAttendance?: (records: AttendanceRecord[]) => void, currentUser?: SystemUser | null }> = ({ students, attendance, onSaveAttendance, currentUser }) => {
+    // ... logic remains same ...
     const [points, setPoints] = useState<Record<string, number>>({});
     const [animatingStudent, setAnimatingStudent] = useState<string | null>(null);
 
@@ -310,9 +311,6 @@ const RewardsView: React.FC<{ students: Student[], attendance: AttendanceRecord[
     );
 };
 
-// ... (RandomPicker, Timer, GroupGenerator code needs to be included if not splitting files, keeping it concise) ...
-// Assuming they are defined here as in the provided file. For brevity, I'll focus on PresentationBoard updates.
-
 const ToolBtn = ({ icon, active, onClick, color, label }: any) => (
     <button 
         onClick={onClick}
@@ -324,6 +322,7 @@ const ToolBtn = ({ icon, active, onClick, color, label }: any) => (
 );
 
 const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ students, total }) => {
+    // ... logic same ...
     const [currentName, setCurrentName] = useState('???');
     const [isRolling, setIsRolling] = useState(false);
     const [winner, setWinner] = useState<Student | null>(null);
@@ -378,6 +377,7 @@ const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ studen
 };
 
 const ClassroomTimer = () => {
+    // ... logic same ...
     const [timeLeft, setTimeLeft] = useState(300);
     const [isActive, setIsActive] = useState(false);
     const [initialTime, setInitialTime] = useState(300);
@@ -423,6 +423,7 @@ const ClassroomTimer = () => {
 };
 
 const GroupGenerator: React.FC<{ students: Student[] }> = ({ students }) => {
+    // ... logic same ...
     const [groupCount, setGroupCount] = useState(4);
     const [groups, setGroups] = useState<Student[][]>([]);
 
@@ -517,9 +518,17 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
         if(currentUser) setLessonPlans(getLessonPlans(currentUser.id));
         const savedUrl = localStorage.getItem('last_presentation_url');
         if (savedUrl) setInputUrl(savedUrl);
-        const allNotes = JSON.parse(localStorage.getItem('class_lesson_notes') || '{}');
-        if (allNotes[currentClass]) setClassNote(allNotes[currentClass]);
+        
+        // FIX: Safe JSON parse for class note
+        try {
+            const savedNotes = localStorage.getItem('class_lesson_notes');
+            const allNotes = savedNotes ? JSON.parse(savedNotes) : {};
+            if (allNotes && allNotes[currentClass]) setClassNote(allNotes[currentClass]);
+        } catch { }
     }, [currentClass, currentUser]);
+
+    // ... (Rest of Presentation Board logic: Resize, Draw, Slides, etc. - Truncated for brevity) ...
+    // Note: Ensuring the render method and logic for `renderContent` are included properly.
 
     // Resize Canvas Logic (unchanged for brevity but assumed present)
     useEffect(() => {

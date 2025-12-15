@@ -118,10 +118,14 @@ const TodoWidget: React.FC = () => {
     const [todos, setTodos] = useState<{id: string, text: string, done: boolean}[]>(() => {
         try {
             const saved = localStorage.getItem('dashboard_todos');
-            return saved ? JSON.parse(saved) : [
-                { id: '1', text: 'رصد غياب اليوم', done: false },
-                { id: '2', text: 'إدخال درجات الاختبار القصير', done: false }
-            ];
+            if (!saved || saved === "undefined" || saved === "null") {
+                return [
+                    { id: '1', text: 'رصد غياب اليوم', done: false },
+                    { id: '2', text: 'إدخال درجات الاختبار القصير', done: false }
+                ];
+            }
+            const parsed = JSON.parse(saved);
+            return Array.isArray(parsed) ? parsed : [];
         } catch { return []; }
     });
     const [newTodo, setNewTodo] = useState('');
@@ -282,18 +286,18 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   // --- Statistics Calculation ---
   const stats = useMemo(() => {
-    const totalStudents = students.length;
+    const totalStudents = students ? students.length : 0;
     // Today's Attendance
     const today = new Date().toISOString().split('T')[0];
-    const todaysAttendance = attendance.filter(a => a.date === today);
+    const todaysAttendance = attendance ? attendance.filter(a => a.date === today) : [];
     const present = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
     const absent = todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
     const attendanceRate = totalStudents > 0 && todaysAttendance.length > 0 ? Math.round((present / totalStudents) * 100) : 0;
 
     // Performance (Term Based)
-    let filteredPerf = performance;
+    let filteredPerf = performance || [];
     if (activeTerm) {
-        filteredPerf = performance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+        filteredPerf = filteredPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
     }
     const totalScore = filteredPerf.reduce((acc, curr) => acc + (curr.score / (curr.maxScore || 10)), 0);
     const avgScore = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
@@ -314,10 +318,10 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   // --- Top Students ---
   const topStudents = useMemo(() => {
-      if (students.length === 0) return [];
+      if (!students || students.length === 0) return [];
       
       return students.map(s => {
-          let sPerf = performance.filter(p => p.studentId === s.id);
+          let sPerf = performance ? performance.filter(p => p.studentId === s.id) : [];
           if (activeTerm) sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
           
           if (sPerf.length === 0) return { ...s, avg: 0 };
