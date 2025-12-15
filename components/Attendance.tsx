@@ -1,13 +1,12 @@
 
-// ... existing imports ...
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser, AcademicTerm } from '../types';
 import { getSchedules, getAcademicTerms } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle2, FileSpreadsheet, Users, CheckSquare, XSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, Tag, X, Inbox, FileText, Check, Download, AlertCircle, TrendingUp, TrendingDown, Star, Sparkles, History, Filter, Search, Printer, Loader2, ArrowLeft, Cloud, RefreshCw, LayoutGrid, List, Activity, FileBarChart, ChevronLeft, ChevronRight, CalendarDays, Flame } from 'lucide-react';
+import { Calendar, Save, CheckCircle, FileSpreadsheet, Users, CheckSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, X, Inbox, FileText, Check, LayoutGrid, List, RefreshCw, CalendarDays, History, Printer, Loader2, Cloud, Flame } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
-import * as XLSX from 'xlsx';
 
 interface AttendanceProps {
   students: Student[];
@@ -57,50 +56,22 @@ const Attendance: React.FC<AttendanceProps> = ({
       );
   }
 
-  // Persist Tab
+  // --- STATE ---
   const [activeTab, setActiveTab] = useState<'REGISTER' | 'WEEKLY' | 'LOG'>(() => {
       const saved = localStorage.getItem('attendance_active_tab');
       if (saved) return saved as any;
       return isManager ? 'LOG' : 'REGISTER';
   });
 
-  useEffect(() => {
-      localStorage.setItem('attendance_active_tab', activeTab);
-  }, [activeTab]);
-
   const [viewMode, setViewMode] = useState<'LIST' | 'GRID'>('GRID'); 
-
   const [internalDate, setInternalDate] = useState(new Date().toISOString().split('T')[0]);
   const selectedDate = propDate !== undefined ? propDate : internalDate;
-  
-  const handleDateChange = (newDate: string) => {
-      if (onDateChange) onDateChange(newDate);
-      else setInternalDate(newDate);
-      setSelectedPeriod(null);
-      if (!preSelectedClass) setSelectedClass(''); 
-  };
   
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
   const [behaviorRecords, setBehaviorRecords] = useState<Record<string, BehaviorStatus>>({});
   const [noteRecords, setNoteRecords] = useState<Record<string, string>>({});
   const [activeNoteStudent, setActiveNoteStudent] = useState<string | null>(null);
   const [viewingStudentReport, setViewingStudentReport] = useState<Student | null>(null);
-
-  const [positiveList, setPositiveList] = useState<string[]>(() => {
-      const saved = localStorage.getItem('behavior_positive_tags');
-      try {
-          const parsed = saved ? JSON.parse(saved) : null;
-          return Array.isArray(parsed) ? parsed : DEFAULT_POSITIVE_NOTES;
-      } catch { return DEFAULT_POSITIVE_NOTES; }
-  });
-  const [negativeList, setNegativeList] = useState<string[]>(() => {
-      const saved = localStorage.getItem('behavior_negative_tags');
-      try {
-          const parsed = saved ? JSON.parse(saved) : null;
-          return Array.isArray(parsed) ? parsed : DEFAULT_NEGATIVE_NOTES;
-      } catch { return DEFAULT_NEGATIVE_NOTES; }
-  });
-  const [newNoteInput, setNewNoteInput] = useState('');
 
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false); 
@@ -136,113 +107,27 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState('');
 
+  // --- EFFECTS ---
+  useEffect(() => {
+      localStorage.setItem('attendance_active_tab', activeTab);
+  }, [activeTab]);
+
   useEffect(() => {
     setSchedules(getSchedules());
     setTerms(getAcademicTerms(currentUser?.id));
   }, [currentUser]);
 
-  // ... (Rest of component remains same)
-  // ... including useEffects, helpers, and JSX
-  // Truncated for brevity but included necessary fixes
-  
   useEffect(() => {
       if(preSelectedClass) setSelectedClass(preSelectedClass);
       if(preSelectedSubject) setSelectedSubject(preSelectedSubject);
   }, [preSelectedClass, preSelectedSubject]);
 
-  // Handle Term Selection Logic
-  const handleTermFilterChange = (termId: string) => {
-      setSelectedTermId(termId);
-      const term = terms.find(t => t.id === termId);
-      if (term) {
-          setLogFilterDateStart(term.startDate);
-          setLogFilterDateEnd(term.endDate);
-          // Also set Weekly view start date if needed
-          setWeekStartDate(term.startDate);
-      }
+  const handleDateChange = (newDate: string) => {
+      if (onDateChange) onDateChange(newDate);
+      else setInternalDate(newDate);
+      setSelectedPeriod(null);
+      if (!preSelectedClass) setSelectedClass(''); 
   };
-
-  useEffect(() => {
-      localStorage.setItem('behavior_positive_tags', JSON.stringify(positiveList));
-  }, [positiveList]);
-
-  useEffect(() => {
-      localStorage.setItem('behavior_negative_tags', JSON.stringify(negativeList));
-  }, [negativeList]);
-
-  const uniqueClasses = useMemo(() => {
-      if (!students) return [];
-      const classes = new Set(students.map(s => s.className).filter(Boolean));
-      return Array.from(classes).sort();
-  }, [students]);
-
-  // ... (rest of implementation unchanged)
-  
-  // Need to provide full implementation to replace file content correctly or assume truncation logic
-  // Providing the rest of the component body to ensure it works
-  
-  const filteredHistory = useMemo(() => {
-      if (!attendanceHistory) return [];
-      
-      return attendanceHistory.filter(rec => {
-          const student = students.find(s => s.id === rec.studentId);
-          if (!student) return false;
-
-          if (rec.date < logFilterDateStart || rec.date > logFilterDateEnd) return false;
-          if (logFilterClass && student.className !== logFilterClass) return false;
-          if (logSearch && !student.name.includes(logSearch)) return false;
-
-          return true;
-      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [attendanceHistory, students, logFilterClass, logFilterDateStart, logFilterDateEnd, logSearch]);
-
-  const handleExportLogExcel = () => {
-      if (filteredHistory.length === 0) return alert('لا توجد بيانات للتصدير');
-      const dataToExport = filteredHistory.map(rec => {
-          const student = students.find(s => s.id === rec.studentId);
-          return {
-              'التاريخ': rec.date,
-              'اسم الطالب': student?.name || 'غير معروف',
-              'الفصل': student?.className || '-',
-              'الحالة': rec.status === 'PRESENT' ? 'حاضر' : rec.status === 'ABSENT' ? 'غائب' : rec.status === 'LATE' ? 'متأخر' : 'عذر',
-              'المادة': rec.subject || '-',
-              'رقم الحصة': rec.period || '-',
-              'السلوك': rec.behaviorStatus === 'POSITIVE' ? 'إيجابي' : rec.behaviorStatus === 'NEGATIVE' ? 'سلبي' : 'عادي',
-              'ملاحظات': rec.behaviorNote || ''
-          };
-      });
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "سجل الحضور");
-      XLSX.writeFile(wb, `Attendance_Log_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const handlePrintLog = () => window.print();
-
-  const todaysSchedule = useMemo(() => {
-      if (!selectedDate) return [];
-      const dateObj = new Date(selectedDate);
-      const dayIndex = dateObj.getDay(); 
-      const dayMap: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const currentDayName = dayMap[dayIndex];
-
-      let dailySched = schedules.filter(s => s.day === currentDayName);
-      if (currentUser && currentUser.role === 'TEACHER') {
-          dailySched = dailySched.filter(s => s.teacherId === currentUser.id || !s.teacherId); 
-      }
-      return dailySched.sort((a, b) => a.period - b.period);
-  }, [selectedDate, schedules, currentUser]);
-
-  const scheduleByPeriod = useMemo(() => {
-      const grouped: Record<number, ScheduleItem[]> = {};
-      todaysSchedule.forEach(s => {
-          if (!grouped[s.period]) grouped[s.period] = [];
-          grouped[s.period].push(s);
-      });
-      return grouped;
-  }, [todaysSchedule]);
-  
-  const sortedPeriods = Object.keys(scheduleByPeriod).map(Number).sort((a, b) => a - b);
 
   const filteredStudents = useMemo(() => {
     if (!selectedClass || !students) return [];
@@ -250,9 +135,10 @@ const Attendance: React.FC<AttendanceProps> = ({
         const studentKey = student.classId || student.className || student.gradeLevel;
         if (studentKey !== selectedClass && student.className !== selectedClass) return false;
         return true;
-    });
+    }).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
   }, [students, selectedClass]);
 
+  // Sync records from history when selection changes
   useEffect(() => {
     if (filteredStudents.length === 0 || selectedPeriod === null) {
         setRecords({});
@@ -281,82 +167,12 @@ const Attendance: React.FC<AttendanceProps> = ({
     setSaved(false);
   }, [selectedDate, selectedPeriod, selectedClass, filteredStudents, attendanceHistory]);
 
-  // --- Weekly Logic ---
-  const currentWeekDays = useMemo(() => {
-      const days = [];
-      const start = new Date(weekStartDate);
-      for(let i=0; i<5; i++) { // Sun-Thu
-          const d = new Date(start);
-          d.setDate(start.getDate() + i);
-          days.push(d.toISOString().split('T')[0]);
-      }
-      return days;
-  }, [weekStartDate]);
-
-  const changeWeek = (dir: number) => {
-      const d = new Date(weekStartDate);
-      d.setDate(d.getDate() + (dir * 7));
-      setWeekStartDate(d.toISOString().split('T')[0]);
-  };
-
-  const getDayLabel = (dateStr: string) => {
-      return new Date(dateStr).toLocaleDateString('ar-SA', { weekday: 'long' });
-  };
-
-  const toggleWeeklyStatus = (studentId: string, date: string) => {
-      if (isManager) return; // Managers can't toggle
-      const record = attendanceHistory.find(a => a.studentId === studentId && a.date === date);
-      let newStatus = AttendanceStatus.ABSENT; // Default to toggle to Absent
-      
-      if (record) {
-          if (record.status === AttendanceStatus.PRESENT) newStatus = AttendanceStatus.ABSENT;
-          else if (record.status === AttendanceStatus.ABSENT) newStatus = AttendanceStatus.LATE;
-          else if (record.status === AttendanceStatus.LATE) newStatus = AttendanceStatus.PRESENT;
-          else newStatus = AttendanceStatus.PRESENT;
-      }
-
-      const newRecord: AttendanceRecord = {
-          id: record ? record.id : `${studentId}-reward-${Date.now()}`,
-          studentId,
-          date,
-          status: newStatus,
-          subject: selectedSubject || 'عام', // Fallback
-          createdById: currentUser?.id
-      };
-      onSaveAttendance([newRecord]);
-  };
-
-  const stats = useMemo(() => {
-      if (filteredStudents.length === 0) return { present: 0, absent: 0, late: 0 };
-      let present = 0, absent = 0, late = 0;
-      filteredStudents.forEach(s => {
-          const status = records[s.id];
-          if (status === AttendanceStatus.ABSENT) absent++;
-          else if (status === AttendanceStatus.LATE) late++;
-          else present++; 
-      });
-      return { present, absent, late };
-  }, [filteredStudents, records]);
-
-  const pendingExcuses = useMemo(() => {
-      if (!attendanceHistory) return [];
-      return attendanceHistory.filter(r => 
-          (r.status === AttendanceStatus.ABSENT || r.status === AttendanceStatus.LATE) &&
-          (r.excuseNote || r.excuseFile)
-      ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [attendanceHistory]);
-
-  const handleAcceptExcuse = (record: AttendanceRecord) => {
-      const updated = { ...record, status: AttendanceStatus.EXCUSED };
-      onSaveAttendance([updated]);
-  };
-
-  const handleRejectExcuse = (record: AttendanceRecord) => {
-      if(confirm('هل أنت متأكد من رفض العذر؟ سيتم حذف الملاحظة والمرفق.')) {
-          const updated = { ...record, excuseNote: '', excuseFile: '' };
-          onSaveAttendance([updated]);
-      }
-  };
+  // --- HELPERS ---
+  const uniqueClasses = useMemo(() => {
+      if (!students) return [];
+      const classes = new Set(students.map(s => s.className).filter(Boolean));
+      return Array.from(classes).sort();
+  }, [students]);
 
   const saveSingleRecord = (studentId: string, updates: Partial<AttendanceRecord>) => {
       if (selectedPeriod === null) return;
@@ -389,39 +205,11 @@ const Attendance: React.FC<AttendanceProps> = ({
     saveSingleRecord(studentId, { status });
   };
 
-  // Toggle for Grid View: Present -> Absent -> Late -> Present
-  const handleGridStatusToggle = (studentId: string) => {
-      const current = records[studentId] || AttendanceStatus.PRESENT;
-      let next = AttendanceStatus.PRESENT;
-      
-      if (current === AttendanceStatus.PRESENT) next = AttendanceStatus.ABSENT;
-      else if (current === AttendanceStatus.ABSENT) next = AttendanceStatus.LATE;
-      else if (current === AttendanceStatus.LATE) next = AttendanceStatus.PRESENT;
-      else if (current === AttendanceStatus.EXCUSED) next = AttendanceStatus.PRESENT;
-
-      handleStatusChange(studentId, next);
-  };
-
   const handleBehaviorChange = (studentId: string, status: BehaviorStatus) => {
       const current = behaviorRecords[studentId];
       const next = current === status ? BehaviorStatus.NEUTRAL : status;
       setBehaviorRecords(prev => ({ ...prev, [studentId]: next }));
       saveSingleRecord(studentId, { behaviorStatus: next });
-  };
-
-  const handleNoteChange = (studentId: string, note: string) => {
-      setNoteRecords(prev => ({ ...prev, [studentId]: note }));
-  };
-  
-  const handleNoteBlur = (studentId: string) => {
-      saveSingleRecord(studentId, { behaviorNote: noteRecords[studentId] });
-  };
-
-  const appendNote = (studentId: string, text: string) => {
-      const current = noteRecords[studentId] || '';
-      const updated = current ? `${current}، ${text}` : text;
-      setNoteRecords(prev => ({ ...prev, [studentId]: updated }));
-      saveSingleRecord(studentId, { behaviorNote: updated });
   };
 
   const handleMarkAll = (status: AttendanceStatus) => {
@@ -449,85 +237,15 @@ const Attendance: React.FC<AttendanceProps> = ({
       setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleScheduleClick = (schedule: ScheduleItem) => {
-      setSelectedClass(schedule.classId);
-      setSelectedSubject(schedule.subjectName);
-      setSelectedPeriod(schedule.period);
-      setTimeout(() => {
-          document.getElementById('attendance-workspace')?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-  };
-
-  const handleBackToSchedule = () => {
-      setSelectedClass('');
-      setSelectedPeriod(null);
-  };
-
-  const getClassColor = (classId: string) => {
-      const colors = ['border-blue-200 hover:bg-blue-50', 'border-green-200 hover:bg-green-50', 'border-purple-200 hover:bg-purple-50', 'border-orange-200 hover:bg-orange-50'];
-      let hash = 0;
-      for (let i = 0; i < classId.length; i++) hash = classId.charCodeAt(i) + ((hash << 5) - hash);
-      return colors[Math.abs(hash) % colors.length];
-  };
-
-  const getStudentMetrics = (studentId: string) => {
-      const myPerf = performance ? performance.filter(p => p.studentId === studentId) : [];
-      const myAtt = attendanceHistory ? attendanceHistory.filter(a => a.studentId === studentId) : [];
-      
-      const absentCount = myAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-      
-      // Calculate CONSECUTIVE Absences from last few records
-      let consecutiveAbsence = 0;
-      const sortedAtt = myAtt.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      for (let rec of sortedAtt) {
-          if (rec.status === AttendanceStatus.ABSENT) consecutiveAbsence++;
-          else break;
-      }
-
-      let avgGrade = 0;
-      if (myPerf.length > 0) {
-          const total = myPerf.reduce((sum, p) => sum + (p.score / p.maxScore), 0);
-          avgGrade = Math.round((total / myPerf.length) * 100);
-      }
-      return { absentCount, avgGrade, hasPerf: myPerf.length > 0, consecutiveAbsence };
-  };
-
-  // --- Calculate Individual Report Data ---
-  const studentReportData = useMemo(() => {
-      if (!viewingStudentReport) return null;
-      
-      const sAtt = attendanceHistory.filter(a => a.studentId === viewingStudentReport.id);
-      const sPerf = performance.filter(p => p.studentId === viewingStudentReport.id);
-
-      // Attendance
-      const totalDays = sAtt.length;
-      const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
-      const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-      const late = sAtt.filter(a => a.status === AttendanceStatus.LATE).length;
-      const attRate = totalDays > 0 ? Math.round(((present + late) / totalDays) * 100) : 100;
-
-      // Behavior
-      const posBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
-      const negBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
-
-      // Academics
-      const totalScore = sPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
-      const avgScore = sPerf.length > 0 ? Math.round((totalScore / sPerf.length) * 100) : 0;
-
-      return {
-          attRate, absent, late, posBeh, negBeh, avgScore,
-          recentAtt: sAtt.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5),
-          recentPerf: sPerf.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5)
-      };
-  }, [viewingStudentReport, attendanceHistory, performance]);
-
+  // --- RENDER ---
   return (
-    <div className="p-4 md:p-6 space-y-6 h-full flex flex-col relative">
-      {/* ... (UI code mostly same, just ensuring variables are used correctly) */}
+    <div className="p-4 md:p-6 space-y-6 h-full flex flex-col relative bg-gray-50">
+      
+      {/* Header Tabs */}
       <div className="flex justify-between items-center mb-4 print:hidden">
-          <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm overflow-x-auto w-full md:w-auto no-scrollbar">
+          <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm overflow-x-auto w-full md:w-auto">
               {!isManager && (
-                  <button onClick={() => setActiveTab('REGISTER')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'REGISTER' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <button onClick={() => setActiveTab('REGISTER')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'REGISTER' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                       <CheckSquare size={18}/> <span className="hidden md:inline">تسجيل الحضور</span><span className="md:hidden">تسجيل</span>
                   </button>
               )}
@@ -539,28 +257,23 @@ const Attendance: React.FC<AttendanceProps> = ({
               </button>
           </div>
 
-          <div className="flex items-center gap-2">
-             <button onClick={() => setIsExcuseModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold relative">
-                <Inbox size={18} className={pendingExcuses.length > 0 ? "text-red-500" : "text-gray-400"} />
-                <span className="hidden md:inline">أعذار</span>
-                {pendingExcuses.length > 0 && <span className="bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full absolute -top-1 -right-1">{pendingExcuses.length}</span>}
-             </button>
-             {!isManager && (
-                 <>
-                    <button onClick={() => setIsImportModalOpen(true)} className="hidden md:flex bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
-                    <button onClick={() => setIsAIImportModalOpen(true)} className="hidden md:flex bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg items-center gap-2 text-sm font-bold"><Sparkles size={18} /><span className="hidden md:inline">AI</span></button>
-                 </>
-             )}
-          </div>
+          {!isManager && (
+             <div className="flex items-center gap-2">
+                <button onClick={() => setIsImportModalOpen(true)} className="hidden md:flex bg-white hover:bg-gray-50 text-gray-600 px-3 py-2 border rounded-lg items-center gap-2 text-sm font-bold"><FileSpreadsheet size={18} /><span className="hidden md:inline">Excel</span></button>
+                <button onClick={() => setIsAIImportModalOpen(true)} className="hidden md:flex bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg items-center gap-2 text-sm font-bold"><Cloud size={18} /><span className="hidden md:inline">AI Import</span></button>
+             </div>
+          )}
       </div>
 
+      {/* --- REGISTER TAB --- */}
       {activeTab === 'REGISTER' && !isManager && (
           <div className="space-y-6 flex-1 overflow-auto pb-20">
+              {/* Date & Stats Header */}
               <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex items-center gap-3">
                     <h2 className="text-lg font-bold text-gray-800">تحضير اليوم:</h2>
-                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border group hover:border-primary transition-colors">
-                        <Calendar size={20} className="text-gray-500 group-hover:text-primary" />
+                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border group hover:border-indigo-500 transition-colors">
+                        <Calendar size={20} className="text-gray-500 group-hover:text-indigo-500" />
                         <input type="date" value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} className="outline-none text-gray-700 bg-transparent text-sm font-bold cursor-pointer"/>
                     </div>
                     <span className="text-sm text-gray-400 hidden md:inline">{formatDualDate(selectedDate)}</span>
@@ -569,434 +282,254 @@ const Attendance: React.FC<AttendanceProps> = ({
                     <div className="flex items-center gap-4">
                         {isSaving && <span className="text-xs font-bold text-blue-600 flex items-center gap-1"><RefreshCw size={12} className="animate-spin"/> جاري الحفظ...</span>}
                         {saved && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><Check size={12}/> تم الحفظ</span>}
-                        
-                        {/* --- VISUAL SUMMARY HEADER --- */}
-                        <div className="flex bg-gray-50 rounded-lg border text-xs overflow-hidden shadow-inner">
-                            <div className="px-4 py-1 bg-green-100 text-green-800 font-bold border-l border-green-200 flex flex-col items-center">
-                                <span className="text-lg leading-none">{stats.present}</span>
-                                <span className="text-[9px] uppercase opacity-75">حاضر</span>
-                            </div>
-                            <div className="px-4 py-1 bg-red-100 text-red-800 font-bold border-l border-red-200 flex flex-col items-center">
-                                <span className="text-lg leading-none">{stats.absent}</span>
-                                <span className="text-[9px] uppercase opacity-75">غائب</span>
-                            </div>
-                            <div className="px-4 py-1 bg-yellow-100 text-yellow-800 font-bold flex flex-col items-center">
-                                <span className="text-lg leading-none">{stats.late}</span>
-                                <span className="text-[9px] uppercase opacity-75">تأخر</span>
-                            </div>
-                        </div>
                     </div>
                 )}
               </div>
 
-              {!selectedClass && (
+              {/* Class/Period Selection */}
+              {!selectedClass ? (
                   <div className="animate-fade-in space-y-6">
-                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-end">
-                           <div className="flex flex-col">
-                               <label className="block text-xs font-bold text-gray-500 mb-1">فصل (اختيار يدوي)</label>
-                               <select className="p-2 border rounded text-sm w-40 bg-gray-50" value={manualClass} onChange={e => setManualClass(e.target.value)}>
-                                   <option value="">-- اختر --</option>
-                                   {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
-                           </div>
-                           <div className="flex flex-col">
-                               <label className="block text-xs font-bold text-gray-500 mb-1">مادة</label>
-                               <input className="p-2 border rounded text-sm w-40 bg-gray-50" value={manualSubject} onChange={e => setManualSubject(e.target.value)} placeholder="مثال: رياضيات"/>
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-end justify-center h-64 flex-col">
+                           <h3 className="text-xl font-bold text-gray-700 mb-4">بدء جلسة تحضير جديدة</h3>
+                           <div className="flex gap-4">
+                               <div className="flex flex-col">
+                                   <label className="block text-xs font-bold text-gray-500 mb-1">اختر الفصل</label>
+                                   <select className="p-2 border rounded-lg text-sm w-48 bg-gray-50 outline-none focus:ring-2 focus:ring-indigo-500" value={manualClass} onChange={e => setManualClass(e.target.value)}>
+                                       <option value="">-- اختر --</option>
+                                       {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                               </div>
+                               <div className="flex flex-col">
+                                   <label className="block text-xs font-bold text-gray-500 mb-1">المادة (اختياري)</label>
+                                   <input className="p-2 border rounded-lg text-sm w-48 bg-gray-50 outline-none focus:ring-2 focus:ring-indigo-500" value={manualSubject} onChange={e => setManualSubject(e.target.value)} placeholder="مثال: رياضيات"/>
+                               </div>
                            </div>
                            <button 
                               disabled={!manualClass}
                               onClick={() => { setSelectedClass(manualClass); setSelectedSubject(manualSubject); setSelectedPeriod(0); }}
-                              className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-bold hover:bg-black disabled:opacity-50 transition-colors"
+                              className="mt-4 bg-indigo-600 text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-lg"
                            >
-                               بدء التحضير
+                               فتح السجل
                            </button>
                       </div>
-
-                      {sortedPeriods.length > 0 ? (
-                          sortedPeriods.map(period => (
-                             <div key={period} className="relative">
-                                 <div className="flex items-center gap-2 mb-3 px-1">
-                                    <div className="bg-gray-800 text-white p-1.5 rounded-lg shadow-sm"><Clock size={16}/></div>
-                                    <h3 className="font-bold text-gray-800">الحصة {period}</h3>
-                                    <div className="flex-1 h-[1px] bg-gray-200"></div>
-                                 </div>
-                                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                    {scheduleByPeriod[period].map((s, idx) => (
-                                        <button key={s.id} onClick={() => handleScheduleClick(s)} className={`group relative flex flex-col items-start p-4 rounded-xl border-2 transition-all text-right bg-white shadow-sm ${getClassColor(s.classId)} hover:-translate-y-1 hover:shadow-md`}>
-                                            <div className="flex justify-between w-full mb-2">
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 group-hover:bg-white group-hover:text-primary">{s.period}</span>
-                                            </div>
-                                            <h4 className="font-black text-lg truncate w-full mb-1 text-gray-800 group-hover:text-primary">{s.classId}</h4>
-                                            <p className="text-xs truncate w-full flex items-center gap-1 text-gray-500"><School size={12}/> {s.subjectName}</p>
-                                        </button>
-                                    ))}
-                                 </div>
-                             </div>
-                          ))
-                      ) : (
-                          <div className="flex flex-col items-center justify-center p-12 bg-white border-2 border-dashed border-gray-200 rounded-xl text-center shadow-sm h-64">
-                              <CalendarClock size={48} className="text-gray-300 mb-4"/>
-                              <h3 className="text-xl font-bold text-gray-700">لا يوجد جدول مسجل لليوم</h3>
-                              <p className="text-sm text-gray-500">استخدم الاختيار اليدوي أعلاه أو قم بإضافة الحصص في الجدول الدراسي.</p>
-                          </div>
-                      )}
                   </div>
-              )}
-
-              {selectedPeriod !== null && selectedClass && (
+              ) : (
+                // --- ACTIVE REGISTER ---
                 <div id="attendance-workspace" className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-slide-up flex-1 flex flex-col mb-16 md:mb-0">
-                    {/* Header Bar */}
-                    <div className="bg-gray-800 p-4 flex justify-between items-center text-white sticky top-0 z-20">
+                    <div className="bg-indigo-900 p-4 flex justify-between items-center text-white sticky top-0 z-20">
                         <div className="flex items-center gap-4">
-                            <button onClick={handleBackToSchedule} className="p-2 hover:bg-white/10 rounded-full transition-colors"><ArrowRight size={20}/></button>
+                            <button onClick={() => { setSelectedClass(''); setSelectedPeriod(null); }} className="p-2 hover:bg-white/10 rounded-full transition-colors"><ArrowRight size={20}/></button>
                             <div>
                                 <div className="flex items-center gap-2 font-bold text-lg"><span>{selectedClass}</span><span className="opacity-50">|</span><span>{selectedSubject || 'عام'}</span></div>
-                                <span className="text-xs opacity-75">{selectedPeriod > 0 ? `الحصة ${selectedPeriod}` : 'تحضير يدوي'}</span>
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            {/* View Toggle */}
-                            <div className="flex bg-white/10 p-1 rounded-lg border border-white/20">
-                                <button onClick={() => setViewMode('GRID')} className={`p-1.5 rounded ${viewMode === 'GRID' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><LayoutGrid size={16}/></button>
-                                <button onClick={() => setViewMode('LIST')} className={`p-1.5 rounded ${viewMode === 'LIST' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><List size={16}/></button>
-                            </div>
-                            <div className="w-[1px] bg-white/20 mx-1 hidden md:block"></div>
-                            <button onClick={() => handleMarkAll(AttendanceStatus.PRESENT)} className="hidden md:flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-700 border border-green-500">تحضير الكل</button>
-                            <button onClick={() => handleMarkAll(AttendanceStatus.ABSENT)} className="hidden md:flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-700 border border-red-500">غياب للكل</button>
+                            <button onClick={() => setViewMode('GRID')} className={`p-1.5 rounded ${viewMode === 'GRID' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><LayoutGrid size={16}/></button>
+                            <button onClick={() => setViewMode('LIST')} className={`p-1.5 rounded ${viewMode === 'LIST' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><List size={16}/></button>
+                            <div className="w-[1px] bg-white/20 mx-1"></div>
+                            <button onClick={() => handleMarkAll(AttendanceStatus.PRESENT)} className="hidden md:flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-700">تحضير الكل</button>
                         </div>
                     </div>
 
-                    {/* Students List/Grid */}
-                    <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                        {viewMode === 'LIST' ? (
-                            <div className="space-y-3">
-                                {filteredStudents.map(student => {
-                                    const metrics = getStudentMetrics(student.id);
-                                    const status = records[student.id] || AttendanceStatus.PRESENT;
-                                    return (
-                                    <div key={student.id} className="p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <div className="flex items-center gap-3">
-                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'PRESENT' ? 'bg-gray-400' : status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-blue-500'}`}>
-                                                    {student.name.charAt(0)}
-                                                </div>
-                                                <span onClick={() => setViewingStudentReport(student)} className="text-gray-800 font-bold text-sm block cursor-pointer hover:text-primary hover:underline">
-                                                    {student.name}
-                                                </span>
-                                                {metrics.hasPerf && (
-                                                    <span className={`text-[10px] px-1.5 rounded border font-bold ${
-                                                        metrics.avgGrade >= 90 ? 'bg-green-50 text-green-700 border-green-200' : 
-                                                        metrics.avgGrade >= 75 ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                                                        metrics.avgGrade >= 50 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 
-                                                        'bg-red-50 text-red-700 border-red-200'
-                                                    }`}>
-                                                        {metrics.avgGrade >= 90 ? 'A' : metrics.avgGrade >= 75 ? 'B' : metrics.avgGrade >= 50 ? 'C' : 'D'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.POSITIVE ? 'text-green-500 bg-green-50' : 'text-gray-400'}`}><Smile size={20}/></button>
-                                                <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1.5 rounded ${behaviorRecords[student.id] === BehaviorStatus.NEGATIVE ? 'text-red-500 bg-red-50' : 'text-gray-400'}`}><Frown size={20}/></button>
-                                                <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`p-1.5 rounded ${noteRecords[student.id] ? 'text-yellow-500' : 'text-gray-400'}`}><MessageSquare size={18}/></button>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Mobile Friendly Action Buttons Row */}
-                                        <div className="grid grid-cols-4 gap-2">
-                                            {[AttendanceStatus.PRESENT, AttendanceStatus.ABSENT, AttendanceStatus.LATE, AttendanceStatus.EXCUSED].map((st) => (
-                                                <button key={st} onClick={() => handleStatusChange(student.id, st)} className={`py-2 rounded-lg text-xs font-bold border transition-all ${records[student.id] === st ? (st === AttendanceStatus.PRESENT ? 'bg-green-600 text-white border-green-600 shadow-md' : st === AttendanceStatus.ABSENT ? 'bg-red-600 text-white border-red-600 shadow-md' : st === AttendanceStatus.LATE ? 'bg-yellow-500 text-white border-yellow-500 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}>
-                                                    {st === 'PRESENT' ? 'حاضر' : st === 'ABSENT' ? 'غائب' : st === 'LATE' ? 'تأخر' : 'عذر'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )})}
-                            </div>
-                        ) : (
+                    <div className="flex-1 overflow-y-auto p-4 bg-gray-50 custom-scrollbar">
+                        {viewMode === 'GRID' ? (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                 {filteredStudents.map(student => {
                                     const status = records[student.id] || AttendanceStatus.PRESENT;
                                     const behavior = behaviorRecords[student.id];
-                                    const metrics = getStudentMetrics(student.id);
                                     
-                                    const bgClass = status === AttendanceStatus.PRESENT ? 'bg-white border-gray-200' : 
-                                                    status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-300 ring-1 ring-red-200' : 
-                                                    status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-300 ring-1 ring-yellow-200' : 
-                                                    'bg-blue-50 border-blue-300 ring-1 ring-blue-200';
+                                    // Calculate Cycle: Present -> Absent -> Late -> Present
+                                    const toggleStatus = () => {
+                                        const next = status === AttendanceStatus.PRESENT ? AttendanceStatus.ABSENT : 
+                                                     status === AttendanceStatus.ABSENT ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+                                        handleStatusChange(student.id, next);
+                                    };
 
                                     return (
                                         <div 
                                             key={student.id}
-                                            onClick={() => handleGridStatusToggle(student.id)}
-                                            onDoubleClick={() => setActiveNoteStudent(student.id)}
-                                            className={`relative p-3 rounded-xl border shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md select-none flex flex-col justify-between h-32 ${bgClass}`}
+                                            className={`relative p-3 rounded-xl border shadow-sm cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-32 hover:shadow-md ${
+                                                status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-300 ring-1 ring-red-200' : 
+                                                status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200'
+                                            }`}
+                                            onClick={toggleStatus}
                                         >
                                             <div className="flex justify-between items-start">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'PRESENT' ? 'bg-gray-300' : status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-blue-500'}`}>
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-gray-300'}`}>
                                                     {student.name.charAt(0)}
                                                 </div>
-                                                <div className="flex gap-1">
-                                                    {metrics.hasPerf && (
-                                                        <span className={`text-[10px] px-1.5 rounded font-bold border ${
-                                                            metrics.avgGrade >= 90 ? 'bg-green-100 text-green-700 border-green-200' : 
-                                                            metrics.avgGrade >= 50 ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                                                            'bg-red-100 text-red-700 border-red-200'
-                                                        }`}>
-                                                            {metrics.avgGrade}%
-                                                        </span>
-                                                    )}
-                                                    {metrics.consecutiveAbsence >= 3 && (
-                                                        <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded font-bold border border-red-200 animate-pulse" title="غياب متصل لأكثر من 3 أيام">
-                                                            <Flame size={12}/>
-                                                        </span>
-                                                    )}
-                                                    <button onClick={(e) => { e.stopPropagation(); setViewingStudentReport(student); }} className="p-1 rounded-full bg-white/50 hover:bg-blue-100 text-blue-600 border border-transparent hover:border-blue-200 transition-colors">
-                                                        <FileText size={12}/>
-                                                    </button>
+                                                {/* Behavior Quick Toggles */}
+                                                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1 rounded-full ${behavior === 'POSITIVE' ? 'text-green-600 bg-green-100' : 'text-gray-300 hover:text-green-500'}`}><Smile size={16}/></button>
+                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1 rounded-full ${behavior === 'NEGATIVE' ? 'text-red-600 bg-red-100' : 'text-gray-300 hover:text-red-500'}`}><Frown size={16}/></button>
                                                 </div>
                                             </div>
-                                            
-                                            <div className="mt-2 text-right">
+                                            <div className="text-right mt-1">
                                                 <span className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight">{student.name}</span>
                                             </div>
-
-                                            <div className="flex justify-between items-end mt-2 pt-2 border-t border-black/5" onClick={e => e.stopPropagation()}>
-                                                <div className="flex gap-1">
-                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.POSITIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-green-100'}`}><Smile size={14}/></button>
-                                                    <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1 rounded-md transition-colors ${behavior === BehaviorStatus.NEGATIVE ? 'bg-red-500 text-white shadow-sm' : 'bg-black/5 text-gray-400 hover:bg-red-100'}`}><Frown size={14}/></button>
-                                                </div>
-                                                <button onClick={() => setActiveNoteStudent(activeNoteStudent === student.id ? null : student.id)} className={`text-xs ${noteRecords[student.id] ? 'text-yellow-600' : 'text-gray-300'}`}><MessageSquare size={14}/></button>
+                                            <div className="text-xs text-gray-400 font-bold mt-auto pt-2 text-left">
+                                                {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'تأخر' : 'حاضر'}
                                             </div>
                                         </div>
                                     );
                                 })}
                             </div>
-                        )}
-                        
-                        {/* Note Popup Overlay */}
-                        {activeNoteStudent && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={() => setActiveNoteStudent(null)}>
-                                <div className="bg-white p-4 rounded-xl shadow-2xl w-80 animate-bounce-in" onClick={e => e.stopPropagation()}>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h4 className="font-bold text-gray-800">ملاحظة للطالب</h4>
-                                        <button onClick={() => setActiveNoteStudent(null)} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
+                        ) : (
+                            <div className="space-y-2">
+                                {filteredStudents.map(student => (
+                                    <div key={student.id} className="flex items-center justify-between p-3 bg-white rounded-lg border shadow-sm">
+                                        <div className="font-bold text-gray-800">{student.name}</div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleStatusChange(student.id, AttendanceStatus.PRESENT)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'PRESENT' ? 'bg-green-600 text-white' : 'bg-gray-50'}`}>حاضر</button>
+                                            <button onClick={() => handleStatusChange(student.id, AttendanceStatus.ABSENT)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-gray-50'}`}>غائب</button>
+                                            <button onClick={() => handleStatusChange(student.id, AttendanceStatus.LATE)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'LATE' ? 'bg-yellow-500 text-white' : 'bg-gray-50'}`}>تأخر</button>
+                                        </div>
                                     </div>
-                                    <textarea 
-                                        autoFocus 
-                                        className="w-full text-sm p-3 border rounded-lg bg-gray-50 mb-3 focus:ring-2 focus:ring-blue-500 outline-none" 
-                                        rows={3} 
-                                        value={noteRecords[activeNoteStudent] || ''} 
-                                        onChange={(e) => handleNoteChange(activeNoteStudent, e.target.value)}
-                                        onBlur={() => handleNoteBlur(activeNoteStudent)} 
-                                        placeholder="اكتب ملاحظة..."
-                                    />
-                                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar">
-                                        {positiveList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100 hover:bg-green-100">{tag}</button>)}
-                                        {negativeList.map(tag => <button key={tag} onClick={() => appendNote(activeNoteStudent, tag)} className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded border border-red-100 hover:bg-red-100">{tag}</button>)}
-                                    </div>
-                                </div>
+                                ))}
                             </div>
                         )}
-                    </div>
-                    
-                    {/* Fixed Mobile Action Bar */}
-                    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-3 flex gap-2 z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                         <button onClick={() => handleMarkAll(AttendanceStatus.PRESENT)} className="flex-1 bg-green-600 text-white py-3 rounded-lg text-xs font-bold shadow-md active:scale-95 transition-transform">تحضير الكل</button>
-                         <button onClick={handleBackToSchedule} className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg text-xs font-bold active:scale-95 transition-transform">رجوع</button>
-                    </div>
-
-                    <div className="hidden md:flex p-3 bg-gray-50 border-t justify-between items-center text-xs text-gray-500">
-                         <span className="flex items-center gap-1">
-                             <Cloud size={14} className={isSaving ? "text-blue-500 animate-pulse" : "text-green-500"}/> 
-                             {isSaving ? "جاري الحفظ التلقائي..." : "تم الحفظ تلقائياً في السحابة"}
-                         </span>
-                         <span className="font-mono text-[10px]">Auto-Save Enabled</span>
                     </div>
                 </div>
               )}
           </div>
       )}
 
-      {/* ... (Weekly Tab and Log Tab) ... */}
-      {/* Retain other tabs code */}
+      {/* --- WEEKLY TAB --- */}
       {activeTab === 'WEEKLY' && (
-          <div className="space-y-4 animate-fade-in flex-1 flex flex-col">
-              {/* ... (Weekly Tab Header) ... */}
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center justify-between">
-                  <div className="flex items-center gap-4">
-                      <div className="bg-teal-50 text-teal-700 p-2 rounded-lg"><CalendarDays size={20}/></div>
-                      <div>
-                          <h3 className="font-bold text-gray-800">العرض الأسبوعي</h3>
-                          <p className="text-xs text-gray-500">متابعة الحضور للأسبوع بالكامل</p>
-                      </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                      <select 
-                          className="p-1.5 border rounded-lg text-sm bg-gray-50 outline-none"
-                          value={selectedTermId}
-                          onChange={(e) => handleTermFilterChange(e.target.value)}
-                      >
-                          <option value="">فصل دراسي...</option>
-                          {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-
-                      <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
-                          <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
-                          <span className="text-sm font-bold w-32 text-center">{formatDualDate(weekStartDate).split('|')[0]}</span>
-                          <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronLeft size={16}/></button>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                          <select className="p-2 border rounded-lg text-sm font-bold bg-white" value={manualClass} onChange={e => setManualClass(e.target.value)}>
-                              <option value="">-- اختر الفصل --</option>
-                              {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                      </div>
-                  </div>
+          <div className="flex-1 flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
+              <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2"><CalendarDays size={18}/> السجل الأسبوعي</h3>
+                  <select className="p-2 border rounded bg-white text-sm" value={manualClass} onChange={e => setManualClass(e.target.value)}>
+                      <option value="">اختر الفصل...</option>
+                      {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
               </div>
-
+              
               {manualClass ? (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
-                      <div className="flex-1 overflow-auto">
-                          <table className="w-full text-center text-sm border-collapse">
-                              <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
-                                  <tr>
-                                      <th className="p-4 border-l border-gray-200 text-right w-32 md:w-48 sticky right-0 bg-gray-50 z-20">اسم الطالب</th>
-                                      {currentWeekDays.map(day => (
-                                          <th key={day} className="p-2 md:p-3 border-l border-gray-200 min-w-[60px] md:min-w-[100px]">
-                                              <div className="flex flex-col items-center">
-                                                  <span className="text-[10px] md:text-sm">{getDayLabel(day)}</span>
-                                                  <span className="text-[9px] md:text-[10px] text-gray-400 font-mono mt-1">{day.slice(5)}</span>
-                                              </div>
-                                          </th>
-                                      ))}
-                                      <th className="p-3 border-l border-gray-200 w-16 md:w-24">النسبة</th>
-                                  </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                  {students.filter(s => s.className === manualClass).map(student => {
-                                      const studentRecords = attendanceHistory.filter(a => a.studentId === student.id && currentWeekDays.includes(a.date));
-                                      const presentCount = studentRecords.filter(a => a.status === AttendanceStatus.PRESENT).length;
-                                      const weeklyPct = Math.round((presentCount / 5) * 100);
-
-                                      return (
-                                          <tr key={student.id} className="hover:bg-gray-50 transition-colors">
-                                              <td className="p-4 border-l border-gray-200 text-right font-bold text-gray-800 sticky right-0 bg-white z-10 text-xs md:text-sm">{student.name}</td>
-                                              {currentWeekDays.map(day => {
-                                                  const record = attendanceHistory.find(a => a.studentId === student.id && a.date === day);
-                                                  const status = record?.status || AttendanceStatus.PRESENT; 
-                                                  
-                                                  return (
-                                                      <td 
-                                                          key={day} 
-                                                          className={`p-2 md:p-3 border-l border-gray-100 ${!isManager ? 'cursor-pointer' : ''}`}
-                                                          onClick={() => toggleWeeklyStatus(student.id, day)}
-                                                      >
-                                                          <div className={`mx-auto w-6 h-6 md:w-8 md:h-8 rounded flex items-center justify-center font-bold text-[10px] md:text-xs transition-all ${
-                                                              status === 'PRESENT' ? 'bg-green-100 text-green-700' : 
-                                                              status === 'ABSENT' ? 'bg-red-100 text-red-700' : 
-                                                              status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
-                                                          }`}>
-                                                              {status === 'PRESENT' ? '✓' : status === 'ABSENT' ? 'غ' : status === 'LATE' ? 'ت' : 'ع'}
-                                                          </div>
-                                                      </td>
-                                                  );
-                                              })}
-                                              <td className="p-3 border-l border-gray-200 font-mono font-bold text-gray-600 text-xs md:text-sm">{weeklyPct}%</td>
-                                          </tr>
-                                      );
+                  <div className="flex-1 overflow-auto">
+                      <table className="w-full text-center text-sm border-collapse">
+                          <thead className="bg-gray-100 text-gray-700 sticky top-0 shadow-sm">
+                              <tr>
+                                  <th className="p-4 text-right bg-gray-100 sticky right-0 z-10 w-48">الطالب</th>
+                                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].map((d, i) => {
+                                      const date = new Date(weekStartDate);
+                                      date.setDate(date.getDate() + i);
+                                      return <th key={i} className="p-3 border-l min-w-[80px]">{date.toLocaleDateString('ar-SA', {weekday: 'short'})} <br/><span className="text-[10px] text-gray-400">{date.getDate()}/{date.getMonth()+1}</span></th>
                                   })}
-                              </tbody>
-                          </table>
-                      </div>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                              {students.filter(s => s.className === manualClass).map(s => (
+                                  <tr key={s.id} className="hover:bg-gray-50">
+                                      <td className="p-4 text-right font-bold sticky right-0 bg-white border-l">{s.name}</td>
+                                      {Array.from({length: 5}).map((_, i) => {
+                                          const d = new Date(weekStartDate);
+                                          d.setDate(d.getDate() + i);
+                                          const dateStr = d.toISOString().split('T')[0];
+                                          const rec = attendanceHistory.find(r => r.studentId === s.id && r.date === dateStr);
+                                          return (
+                                              <td key={i} className="p-2 border-l">
+                                                  {rec ? (
+                                                      <span className={`font-bold ${rec.status === 'ABSENT' ? 'text-red-600' : rec.status === 'LATE' ? 'text-yellow-600' : 'text-green-600'}`}>
+                                                          {rec.status === 'ABSENT' ? 'غ' : rec.status === 'LATE' ? 'ت' : '✓'}
+                                                      </span>
+                                                  ) : '-'}
+                                              </td>
+                                          );
+                                      })}
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
                   </div>
               ) : (
-                  <div className="flex-1 flex items-center justify-center bg-gray-50 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-                      <p>اختر الفصل لعرض الجدول الأسبوعي</p>
+                  <div className="flex-1 flex items-center justify-center text-gray-400">
+                      <p>الرجاء اختيار الفصل لعرض الجدول</p>
                   </div>
               )}
           </div>
       )}
 
-      {/* Log Tab */}
+      {/* --- LOG TAB --- */}
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
-             {/* ... Header & Filters ... */}
-              <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">
-                  <div className="flex items-center gap-2">
-                      <History className="text-purple-600"/>
-                      <h3 className="font-bold text-gray-800">سجل المتابعة الشامل</h3>
+              <div className="p-4 border-b bg-gray-50 flex gap-4 items-center">
+                  <div className="relative flex-1">
+                      <input className="w-full p-2 pl-8 border rounded-lg text-sm" placeholder="بحث..." value={logSearch} onChange={e => setLogSearch(e.target.value)}/>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-sm items-center">
-                      <button onClick={handlePrintLog} className="bg-gray-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs hover:bg-black transition-colors shadow-sm"><Printer size={14}/> طباعة</button>
-                  </div>
+                  <input type="date" className="p-2 border rounded-lg text-sm" value={logFilterDateStart} onChange={e => setLogFilterDateStart(e.target.value)}/>
+                  <input type="date" className="p-2 border rounded-lg text-sm" value={logFilterDateEnd} onChange={e => setLogFilterDateEnd(e.target.value)}/>
               </div>
-              <div className="flex-1 overflow-auto">
+              <div className="flex-1 overflow-auto p-0">
                   <table className="w-full text-right text-sm">
                       <thead className="bg-gray-100 text-gray-600 font-bold sticky top-0 shadow-sm">
                           <tr>
                               <th className="p-3">التاريخ</th>
                               <th className="p-3">الطالب</th>
                               <th className="p-3">الفصل</th>
-                              <th className="p-3">المادة / الحصة</th>
-                              <th className="p-3 text-center">الحالة</th>
-                              <th className="p-3 text-center">السلوك</th>
+                              <th className="p-3">الحالة</th>
                               <th className="p-3">ملاحظات</th>
                           </tr>
                       </thead>
                       <tbody className="divide-y">
-                          {filteredHistory.length > 0 ? filteredHistory.map((rec) => {
-                              const student = students.find(s => s.id === rec.studentId);
-                              return (
-                                  <tr key={rec.id} className="hover:bg-gray-50">
-                                      <td className="p-3 font-mono text-xs text-gray-500">{rec.date}</td>
-                                      <td className="p-3 font-bold text-gray-800 cursor-pointer hover:text-primary hover:underline" onClick={() => student && setViewingStudentReport(student)}>{student?.name}</td>
-                                      <td className="p-3 text-gray-600">{student?.className}</td>
-                                      <td className="p-3 text-xs text-gray-500">{rec.subject} {rec.period ? `(ح${rec.period})` : ''}</td>
-                                      <td className="p-3 text-center">
-                                          {rec.status === AttendanceStatus.ABSENT && <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">غائب</span>}
-                                          {rec.status === AttendanceStatus.LATE && <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-bold">متأخر</span>}
-                                          {rec.status === AttendanceStatus.EXCUSED && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-bold">بعذر</span>}
-                                          {rec.status === AttendanceStatus.PRESENT && <span className="text-green-600 text-xs">✓</span>}
-                                      </td>
-                                      <td className="p-3 text-center">
-                                          {rec.behaviorStatus === BehaviorStatus.POSITIVE && <span className="text-green-600 flex justify-center"><Smile size={16}/></span>}
-                                          {rec.behaviorStatus === BehaviorStatus.NEGATIVE && <span className="text-red-600 flex justify-center"><Frown size={16}/></span>}
-                                      </td>
-                                      <td className="p-3 text-xs text-gray-600 max-w-xs truncate" title={rec.behaviorNote}>{rec.behaviorNote}</td>
-                                  </tr>
-                              );
-                          }) : (
-                              <tr><td colSpan={7} className="p-10 text-center text-gray-400">لا توجد سجلات مطابقة للفلتر</td></tr>
-                          )}
+                          {attendanceHistory
+                              .filter(r => r.date >= logFilterDateStart && r.date <= logFilterDateEnd)
+                              .filter(r => {
+                                  const s = students.find(std => std.id === r.studentId);
+                                  return s && s.name.includes(logSearch);
+                              })
+                              .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                              .map(r => {
+                                  const s = students.find(std => std.id === r.studentId);
+                                  return (
+                                      <tr key={r.id} className="hover:bg-gray-50">
+                                          <td className="p-3 font-mono text-gray-500">{r.date}</td>
+                                          <td className="p-3 font-bold">{s?.name}</td>
+                                          <td className="p-3 text-gray-600">{s?.className}</td>
+                                          <td className="p-3">
+                                              <span className={`px-2 py-1 rounded text-xs font-bold ${r.status === 'ABSENT' ? 'bg-red-100 text-red-700' : r.status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                                  {r.status}
+                                              </span>
+                                          </td>
+                                          <td className="p-3 text-gray-500 truncate max-w-xs">{r.behaviorNote}</td>
+                                      </tr>
+                                  );
+                              })}
                       </tbody>
                   </table>
               </div>
           </div>
       )}
 
-      {/* STUDENT INDIVIDUAL REPORT MODAL */}
-      {viewingStudentReport && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-slide-up">
-                  <div className="bg-gray-900 text-white p-4 flex justify-between items-start">
-                      <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center font-bold text-xl border-2 border-gray-600">
-                              {viewingStudentReport.name.charAt(0)}
-                          </div>
-                          <div>
-                              <h3 className="font-bold text-lg">{viewingStudentReport.name}</h3>
-                              <p className="text-xs text-gray-400">{viewingStudentReport.gradeLevel} - {viewingStudentReport.className}</p>
-                          </div>
-                      </div>
-                      <button onClick={() => setViewingStudentReport(null)} className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded-full"><X size={20}/></button>
-                  </div>
-                  
-                  {/* ... Report body here (omitted for brevity, assume similar structure to Students.tsx) ... */}
-              </div>
+      {/* Modals */}
+      {isImportModalOpen && !isManager && (
+          <div className="fixed inset-0 z-50 bg-white">
+              <DataImport 
+                  existingStudents={students}
+                  onImportStudents={() => {}}
+                  onImportAttendance={(recs) => { onImportAttendance(recs); setIsImportModalOpen(false); }} 
+                  onImportPerformance={() => {}}
+                  forcedType="ATTENDANCE"
+                  onClose={() => setIsImportModalOpen(false)}
+                  currentUser={currentUser}
+              />
           </div>
       )}
+      
+      {isAIImportModalOpen && !isManager && (
+          <div className="fixed inset-0 z-50 bg-white">
+              <AIDataImport
+                  onImportStudents={() => {}}
+                  onImportAttendance={(recs) => { onImportAttendance(recs); setIsAIImportModalOpen(false); }}
+                  onImportPerformance={() => {}}
+                  forcedType="ATTENDANCE"
+                  onClose={() => setIsAIImportModalOpen(false)}
+                  currentUser={currentUser}
+                  existingStudents={students}
+              />
+          </div>
+      )}
+
     </div>
   );
 };

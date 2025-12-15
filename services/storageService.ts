@@ -95,7 +95,6 @@ const notifyDataChange = () => {
 // --- Security ---
 export const hashPassword = async (password: string): Promise<string> => {
     // Simple mock hash for local demo - in prod use bcrypt/argon2
-    // We keep existing implementation or simplify for browser compatibility
     return btoa(password).split('').reverse().join(''); 
 };
 
@@ -479,13 +478,119 @@ export const checkConnection = async () => {
     }
 };
 
-export const setSystemMode = (online: boolean) => { /* Placeholder for future sync logic toggle */ };
-export const initRealtimeSync = () => { /* Realtime listeners placeholder */ };
-export const stopRealtimeSync = () => { /* Cleanup placeholder */ };
-export const initAutoSync = async () => { /* Initial pull placeholder */ return true; };
-export const forceRefreshData = async () => { /* Force pull placeholder */ return true; };
+// Map Local Storage Keys to Supabase Table Names
+export const DB_MAP: Record<string, string> = {
+    [KEYS.STUDENTS]: 'students',
+    [KEYS.TEACHERS]: 'teachers',
+    [KEYS.SCHOOLS]: 'schools',
+    [KEYS.USERS]: 'system_users',
+    [KEYS.ATTENDANCE]: 'attendance',
+    [KEYS.PERFORMANCE]: 'performance',
+    [KEYS.SUBJECTS]: 'subjects',
+    [KEYS.SCHEDULES]: 'schedules',
+    [KEYS.ASSIGNMENTS]: 'teacher_assignments',
+    [KEYS.WORKS_ASSIGNMENTS]: 'works_assignments',
+    [KEYS.WEEKLY_PLANS]: 'weekly_plans',
+    [KEYS.LESSON_LINKS]: 'lesson_links',
+    [KEYS.LESSON_PLANS]: 'lesson_plans',
+    [KEYS.MESSAGES]: 'message_logs',
+    [KEYS.EXAMS]: 'exams',
+    [KEYS.EXAM_RESULTS]: 'exam_results',
+    [KEYS.QUESTION_BANK]: 'question_bank',
+    [KEYS.CURRICULUM_UNITS]: 'curriculum_units',
+    [KEYS.CURRICULUM_LESSONS]: 'curriculum_lessons',
+    [KEYS.MICRO_CONCEPTS]: 'micro_concepts',
+    [KEYS.TRACKING_SHEETS]: 'tracking_sheets',
+    [KEYS.ACADEMIC_TERMS]: 'academic_terms',
+    [KEYS.CUSTOM_TABLES]: 'custom_tables'
+};
 
-// --- Cloud Data Placeholders (Mocked for now as logic is complex) ---
+export const getTableDisplayName = (t: string) => t.replace(/_/g, ' ').toUpperCase();
+
+export const fetchCloudTableData = async (table: string) => {
+    if (!isSupabaseConfigured()) throw new Error('Not configured');
+    const { data, error } = await supabase.from(table).select('*').limit(50);
+    if (error) throw error;
+    return data;
+};
+
+export const validateCloudSchema = async () => {
+    if (!isSupabaseConfigured()) return { missingTables: [] };
+    const missing: string[] = [];
+    const tables = Object.values(DB_MAP);
+    
+    for (const table of tables) {
+        const { error } = await supabase.from(table).select('count', { count: 'exact', head: true });
+        if (error && error.code === '42P01') { // Undefined Table code in Postgres
+            missing.push(table);
+        }
+    }
+    return { missingTables: missing };
+};
+
+export const clearCloudTable = async (table: string) => {
+    if (!isSupabaseConfigured()) throw new Error('Not configured');
+    const { error } = await supabase.from(table).delete().neq('id', '00000'); // Delete all (safe hack)
+    if (error) throw error;
+};
+
+export const resetCloudDatabase = async () => {
+    const tables = Object.values(DB_MAP);
+    for (const table of tables) {
+        await clearCloudTable(table);
+    }
+};
+
+export const uploadToSupabase = async () => {
+    if (!isSupabaseConfigured()) throw new Error('Not configured');
+    notifySyncStatus('SYNCING');
+    
+    try {
+        for (const [localKey, tableName] of Object.entries(DB_MAP)) {
+            const localData = get<any>(localKey);
+            if (localData.length > 0) {
+                // Upsert in batches of 100 to prevent payload issues
+                for (let i = 0; i < localData.length; i += 100) {
+                    const chunk = localData.slice(i, i + 100);
+                    // Ensure ID is present, if generic ID logic is needed
+                    const { error } = await supabase.from(tableName).upsert(chunk);
+                    if (error) console.error(`Error uploading ${tableName}:`, error);
+                }
+            }
+        }
+        notifySyncStatus('ONLINE');
+    } catch (e) {
+        console.error("Upload failed", e);
+        notifySyncStatus('ERROR');
+        throw e;
+    }
+};
+
+export const downloadFromSupabase = async () => {
+    if (!isSupabaseConfigured()) throw new Error('Not configured');
+    notifySyncStatus('SYNCING');
+
+    try {
+        for (const [localKey, tableName] of Object.entries(DB_MAP)) {
+            const { data, error } = await supabase.from(tableName).select('*');
+            if (error) {
+                console.error(`Error downloading ${tableName}:`, error);
+                continue;
+            }
+            if (data) {
+                localStorage.setItem(localKey, JSON.stringify(data));
+            }
+        }
+        notifySyncStatus('ONLINE');
+        notifyDataChange(); // Refresh UI
+    } catch (e) {
+        console.error("Download failed", e);
+        notifySyncStatus('ERROR');
+        throw e;
+    }
+};
+
+// --- Backup Logic ---
 export const createBackup = () => JSON.stringify(localStorage);
 export const restoreBackup = (json: string) => { 
     try {
@@ -495,19 +600,80 @@ export const restoreBackup = (json: string) => {
     } catch(e) { alert('ملف النسخة الاحتياطية غير صالح'); }
 };
 
-export const DB_MAP: Record<string, string> = {
-    [KEYS.STUDENTS]: 'students',
-    [KEYS.TEACHERS]: 'teachers',
-    [KEYS.SCHOOLS]: 'schools',
+export const backupCloudDatabase = async () => {
+    if (!isSupabaseConfigured()) throw new Error('Not configured');
+    const fullBackup: any = {};
+    for (const table of Object.values(DB_MAP)) {
+        const { data } = await supabase.from(table).select('*');
+        fullBackup[table] = data || [];
+    }
+    return JSON.stringify(fullBackup, null, 2);
 };
-export const getTableDisplayName = (t: string) => t;
-export const fetchCloudTableData = async (t: string) => [];
-export const validateCloudSchema = async () => ({ missingTables: [] });
-export const clearCloudTable = async (t: string) => {};
-export const resetCloudDatabase = async () => {};
-export const backupCloudDatabase = async () => "{}";
-export const restoreCloudDatabase = async (s: string) => {};
-export const uploadToSupabase = async () => {};
-export const downloadFromSupabase = async () => {};
-export const getDatabaseSchemaSQL = () => "-- SQL Schema Generator Placeholder";
-export const getDatabaseUpdateSQL = () => "-- SQL Update Generator Placeholder";
+
+export const restoreCloudDatabase = async (jsonString: string) => {
+    if (!isSupabaseConfigured()) throw new Error('Not configured');
+    try {
+        const data = JSON.parse(jsonString);
+        for (const [table, rows] of Object.entries(data)) {
+            if (Array.isArray(rows) && rows.length > 0) {
+                await clearCloudTable(table);
+                // Batch insert
+                for (let i = 0; i < rows.length; i += 100) {
+                    await supabase.from(table).insert(rows.slice(i, i + 100));
+                }
+            }
+        }
+    } catch (e) {
+        throw new Error('Invalid Backup File');
+    }
+};
+
+// --- SQL Generator ---
+export const getDatabaseSchemaSQL = () => {
+    const schemas: Record<string, string> = {
+        'schools': `id text PRIMARY KEY, name text, ministry_code text, manager_name text, manager_national_id text, education_administration text, type text, phone text, student_count numeric, works_master_url text`,
+        'system_users': `id text PRIMARY KEY, name text, email text, national_id text, password text, role text, school_id text, status text, phone text, is_demo boolean`,
+        'students': `id text PRIMARY KEY, name text, national_id text, class_id text, school_id text, created_by_id text, grade_level text, class_name text, email text, phone text, parent_id text, parent_name text, parent_phone text, parent_email text, password text, seat_index numeric`,
+        'teachers': `id text PRIMARY KEY, name text, national_id text, email text, phone text, password text, subject_specialty text, school_id text, manager_id text, subscription_status text, subscription_end_date text`,
+        'attendance': `id text PRIMARY KEY, student_id text, date text, status text, subject text, period numeric, behavior_status text, behavior_note text, excuse_note text, excuse_file text, created_by_id text`,
+        'performance': `id text PRIMARY KEY, student_id text, subject text, title text, category text, score numeric, max_score numeric, date text, notes text, created_by_id text`,
+        'subjects': `id text PRIMARY KEY, name text, teacher_id text`,
+        'schedules': `id text PRIMARY KEY, class_id text, day text, period numeric, subject_name text, teacher_id text`,
+        'teacher_assignments': `id text PRIMARY KEY, class_id text, subject_name text, teacher_id text`,
+        'works_assignments': `id text PRIMARY KEY, title text, category text, max_score numeric, is_visible boolean, order_index numeric, source_metadata text, teacher_id text, term_id text, period_id text, class_id text`,
+        'weekly_plans': `id text PRIMARY KEY, teacher_id text, class_id text, subject_name text, day text, period numeric, week_start_date text, lesson_topic text, homework text`,
+        'lesson_links': `id text PRIMARY KEY, title text, url text, teacher_id text, created_at text, grade_level text, class_name text`,
+        'lesson_plans': `id text PRIMARY KEY, teacher_id text, lesson_id text, subject text, topic text, content_json text, resources jsonb, created_at text`,
+        'message_logs': `id text PRIMARY KEY, student_id text, student_name text, parent_phone text, type text, content text, status text, date text, sent_by text, teacher_id text`,
+        'exams': `id text PRIMARY KEY, title text, subject text, grade_level text, duration_minutes numeric, questions jsonb, is_active boolean, created_at text, teacher_id text, date text`,
+        'exam_results': `id text PRIMARY KEY, exam_id text, student_id text, student_name text, score numeric, total_score numeric, date text, answers jsonb`,
+        'question_bank': `id text PRIMARY KEY, text text, type text, options jsonb, correct_answer text, points numeric, subject text, grade_level text, topic text, difficulty text, teacher_id text`,
+        'curriculum_units': `id text PRIMARY KEY, teacher_id text, subject text, grade_level text, title text, order_index numeric`,
+        'curriculum_lessons': `id text PRIMARY KEY, unit_id text, title text, order_index numeric, learning_standards jsonb, micro_concept_ids jsonb`,
+        'micro_concepts': `id text PRIMARY KEY, teacher_id text, subject text, name text`,
+        'tracking_sheets': `id text PRIMARY KEY, title text, subject text, class_name text, teacher_id text, created_at text, columns jsonb, scores jsonb`,
+        'custom_tables': `id text PRIMARY KEY, name text, created_at text, columns jsonb, rows jsonb, source_url text, last_updated text, teacher_id text`,
+        'academic_terms': `id text PRIMARY KEY, name text, start_date text, end_date text, is_current boolean, teacher_id text, periods jsonb`
+    };
+
+    return Object.entries(schemas).map(([table, cols]) => 
+        `CREATE TABLE IF NOT EXISTS ${table} (${cols});`
+    ).join('\n');
+};
+
+export const getDatabaseUpdateSQL = () => {
+    return `-- Run this to update existing tables if you added new features recently
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS password text;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS subscription_status text;
+ALTER TABLE performance ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS works_master_url text;
+`;
+};
+
+// Placeholders for future use
+export const setSystemMode = (online: boolean) => {}; 
+export const initRealtimeSync = () => {}; 
+export const stopRealtimeSync = () => {}; 
+export const initAutoSync = async () => { return true; }; 
+export const forceRefreshData = async () => { return true; };
