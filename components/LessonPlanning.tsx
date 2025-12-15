@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan } from '../services/storageService';
 import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
 import { LessonBlock, StoredLessonPlan, Subject, SystemUser } from '../types';
-import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, ChevronDown, ChevronUp, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, ChevronDown, ChevronUp, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X, Printer } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const SAUDI_GRADES = [
@@ -137,10 +137,10 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
     };
 
     return (
-        <div className="p-6 h-full bg-gray-50 overflow-y-auto animate-fade-in flex flex-col md:flex-row gap-6">
+        <div className="p-6 h-full bg-gray-50 overflow-y-auto animate-fade-in flex flex-col md:flex-row gap-6 print:p-0 print:bg-white print:overflow-visible">
             
-            {/* Sidebar Plans List */}
-            <div className="w-full md:w-1/4 space-y-4">
+            {/* Sidebar Plans List - Hide on Print */}
+            <div className="w-full md:w-1/4 space-y-4 print:hidden">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                     <h3 className="font-bold text-gray-700 mb-4 border-b pb-2 flex items-center gap-2"><BookOpen size={18}/> خططي المحفوظة</h3>
                     <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
@@ -206,8 +206,19 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
             </div>
 
             {/* Content Preview & Editor */}
-            <div className="flex-1 bg-white p-8 rounded-xl border border-gray-200 shadow-sm min-h-[600px] relative flex flex-col">
-                <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="flex-1 bg-white p-8 rounded-xl border border-gray-200 shadow-sm min-h-[600px] relative flex flex-col print:border-none print:shadow-none print:p-0 print:h-auto">
+                
+                {/* Print Header */}
+                <div className="hidden print:block mb-8 text-center border-b-2 border-black pb-4">
+                    <h1 className="text-3xl font-black mb-2">{lessonTopic || 'بدون عنوان'}</h1>
+                    <div className="flex justify-between text-sm font-bold mt-4">
+                        <span>المادة: {selectedSubject}</span>
+                        <span>الصف: {selectedGrade}</span>
+                        <span>المعلم: {currentUser?.name}</span>
+                    </div>
+                </div>
+
+                <div className="flex justify-between items-center mb-6 border-b pb-4 print:hidden">
                     <h1 className="text-2xl font-black text-gray-800">{lessonTopic || 'محرر الدرس'}</h1>
                     <div className="flex gap-2">
                         <div className="relative">
@@ -222,18 +233,21 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
                                 </div>
                             )}
                         </div>
+                        <button onClick={() => window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black flex items-center gap-2 shadow-sm">
+                            <Printer size={16}/> طباعة
+                        </button>
                         <button onClick={handleSave} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center gap-2 shadow-sm">
                             <Save size={16}/> حفظ
                         </button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 print:overflow-visible print:pr-0">
                     {lessonContent.length > 0 ? (
                         lessonContent.map((block, idx) => (
-                            <div key={block.id} className="p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-300 transition-all group relative">
-                                {/* Controls */}
-                                <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1 rounded-lg border shadow-sm z-10">
+                            <div key={block.id} className="p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-300 transition-all group relative print:bg-white print:border-none print:p-0 print:mb-6">
+                                {/* Controls - Hidden on Print */}
+                                <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1 rounded-lg border shadow-sm z-10 print:hidden">
                                     <button onClick={() => moveBlock(idx, 'UP')} disabled={idx === 0} className="p-1 hover:bg-gray-100 rounded text-gray-500 disabled:opacity-30"><ArrowUp size={14}/></button>
                                     <button onClick={() => moveBlock(idx, 'DOWN')} disabled={idx === lessonContent.length - 1} className="p-1 hover:bg-gray-100 rounded text-gray-500 disabled:opacity-30"><ArrowDown size={14}/></button>
                                     <div className="w-[1px] bg-gray-300 mx-1"></div>
@@ -241,44 +255,53 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
                                 </div>
 
                                 <div className="flex items-center gap-3 mb-2">
-                                    {block.type === 'MEDIA' ? <Video size={18} className="text-blue-500"/> : block.type === 'ACTIVITY' ? <PenTool size={18} className="text-orange-500"/> : <BookOpen size={18} className="text-purple-500"/>}
+                                    <div className="print:hidden">
+                                        {block.type === 'MEDIA' ? <Video size={18} className="text-blue-500"/> : block.type === 'ACTIVITY' ? <PenTool size={18} className="text-orange-500"/> : <BookOpen size={18} className="text-purple-500"/>}
+                                    </div>
                                     <input 
-                                        className="font-bold text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-purple-500 outline-none w-full"
+                                        className="font-bold text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-purple-500 outline-none w-full print:hidden"
                                         value={block.title}
                                         onChange={(e) => updateBlock(block.id, { title: e.target.value })}
                                         placeholder="عنوان الفقرة"
                                     />
+                                    <h3 className="hidden print:block font-bold text-xl text-black border-b border-gray-300 pb-1 w-full">{block.title}</h3>
                                 </div>
 
                                 {block.type === 'MEDIA' ? (
                                     <div className="space-y-2">
                                         <input 
-                                            className="w-full p-2 border rounded text-sm bg-white dir-ltr"
+                                            className="w-full p-2 border rounded text-sm bg-white dir-ltr print:hidden"
                                             placeholder="رابط الصورة أو فيديو يوتيوب..."
                                             value={block.mediaUrl || ''}
                                             onChange={(e) => updateBlock(block.id, { mediaUrl: e.target.value })}
                                         />
                                         {block.mediaUrl && (
-                                            <div className="mt-2 rounded-lg overflow-hidden border bg-black/5 aspect-video flex items-center justify-center">
+                                            <div className="mt-2 rounded-lg overflow-hidden border bg-black/5 aspect-video flex items-center justify-center print:border-none print:bg-white print:aspect-auto print:block">
                                                 {block.mediaUrl.includes('youtube') || block.mediaUrl.includes('youtu.be') ? (
-                                                    <iframe src={block.mediaUrl.replace('watch?v=', 'embed/')} className="w-full h-full" frameBorder="0" allowFullScreen></iframe>
+                                                    <iframe src={block.mediaUrl.replace('watch?v=', 'embed/')} className="w-full h-full print:hidden" frameBorder="0" allowFullScreen></iframe>
                                                 ) : (
-                                                    <img src={block.mediaUrl} className="max-h-full max-w-full object-contain" alt="Media"/>
+                                                    <img src={block.mediaUrl} className="max-h-full max-w-full object-contain print:max-h-[300px]" alt="Media"/>
                                                 )}
+                                                <p className="hidden print:block text-xs text-gray-500 mt-1">رابط الوسائط: {block.mediaUrl}</p>
                                             </div>
                                         )}
                                     </div>
                                 ) : (
-                                    <textarea 
-                                        className="w-full p-2 bg-transparent border rounded hover:bg-white focus:bg-white focus:border-purple-500 outline-none text-gray-700 leading-relaxed min-h-[100px] resize-y"
-                                        value={block.content}
-                                        onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                                    />
+                                    <>
+                                        <textarea 
+                                            className="w-full p-2 bg-transparent border rounded hover:bg-white focus:bg-white focus:border-purple-500 outline-none text-gray-700 leading-relaxed min-h-[100px] resize-y print:hidden"
+                                            value={block.content}
+                                            onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                                        />
+                                        <div className="hidden print:block text-gray-800 leading-relaxed whitespace-pre-wrap text-justify">
+                                            {block.content}
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         ))
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-300 min-h-[300px]">
+                        <div className="h-full flex flex-col items-center justify-center text-gray-300 min-h-[300px] print:hidden">
                             <PenTool size={64} className="mb-4 opacity-20"/>
                             <p className="text-lg font-bold">المساحة فارغة</p>
                             <p className="text-sm mb-4">استخدم الذكاء الاصطناعي للتوليد أو أضف عناصر يدوياً.</p>
