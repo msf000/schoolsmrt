@@ -1052,7 +1052,10 @@ const DatabaseSettings = () => {
                             value={selectedTable}
                             onChange={e => setSelectedTable(e.target.value)}
                         >
-                            {Object.keys(DB_MAP).map(key => <option key={key} value={DB_MAP[key]}>{getTableDisplayName(DB_MAP[key])}</option>)}
+                            {Object.keys(DB_MAP).map(key => {
+                                const tableKey = key as keyof typeof DB_MAP;
+                                return <option key={key} value={DB_MAP[tableKey]}>{getTableDisplayName(DB_MAP[tableKey])}</option>
+                            })}
                         </select>
                         <div className="flex gap-2">
                             <button onClick={handleFetchCloud} className="bg-gray-800 text-white px-4 py-2 rounded font-bold text-sm flex items-center gap-2">
