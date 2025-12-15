@@ -8,6 +8,7 @@ import {
     TrackingSheet, AcademicTerm, TermPeriod
 } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 // --- Local Storage Keys ---
 const KEYS = {
@@ -320,6 +321,43 @@ export const subscribeToDataChanges = (listener: DataListener) => {
 const notifyDataChange = () => {
     dataListeners.forEach(l => l());
 };
+
+// --- REALTIME SYNC (NEW) ---
+let realtimeChannel: RealtimeChannel | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const initRealtimeSync = () => {
+    if (!isSupabaseConfigured()) {
+        console.warn("Realtime Sync: Supabase not configured.");
+        return;
+    }
+    
+    if (realtimeChannel) return; // Already connected
+
+    console.log("Initializing Realtime Sync...");
+    
+    // Subscribe to ALL changes in the 'public' schema
+    realtimeChannel = supabase.channel('db-changes')
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public' },
+            (payload) => {
+                console.log('Realtime change detected:', payload);
+                // Debounce the refresh to avoid excessive calls on bulk updates
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(async () => {
+                    await forceRefreshData(); // Re-fetch data to stay in sync
+                }, 2000); 
+            }
+        )
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log("Realtime Sync Connected!");
+                setSyncStatus('ONLINE');
+            }
+        });
+};
+
 
 // --- Operations ---
 

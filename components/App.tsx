@@ -10,7 +10,7 @@ import {
     bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
     getUserTheme, bulkUpsertStudents,
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
-    forceRefreshData
+    forceRefreshData, initRealtimeSync
 } from '../services/storageService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { checkAIConnection } from '../services/geminiService';
@@ -95,6 +95,8 @@ const App: React.FC = () => {
                     setIsLoading(true);
                     try {
                         await forceRefreshData();
+                        // Initialize Realtime Listener
+                        initRealtimeSync();
                     } catch (e) {
                         console.error("Cloud Sync Failed:", e);
                     } finally {
@@ -458,7 +460,7 @@ const App: React.FC = () => {
                                 syncStatus === 'ERROR' ? 'text-red-600' : 'text-gray-500'
                             }`}>
                                 {syncStatus === 'SYNCING' ? 'جاري التحديث...' :
-                                 syncStatus === 'ONLINE' ? 'متصل (Online)' :
+                                 syncStatus === 'ONLINE' ? 'متصل (Live)' :
                                  syncStatus === 'OFFLINE' ? 'وضع غير متصل' :
                                  syncStatus === 'ERROR' ? 'خطأ الاتصال' : 'جاهز'}
                             </span>
@@ -496,7 +498,7 @@ const App: React.FC = () => {
                     </button>
 
                     <div className="text-center mt-2 text-[10px] text-gray-300">
-                        نظام المدرس الذكي v1.2.1 (Mobile Ready)
+                        نظام المدرس الذكي v1.2.1 (Live Sync)
                     </div>
                 </div>
             </aside>
