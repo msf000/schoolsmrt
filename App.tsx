@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { 
@@ -83,7 +82,7 @@ export const useApp = () => {
 };
 
 // --- LAYOUT ---
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const AppLayout = ({ children }: { children: React.ReactNode }) => {
     const { currentUser, logout, syncStatus } = useApp();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();
@@ -143,6 +142,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                             <NavItem path="/attendance" label="سجل الحضور" icon={Calendar} />
                             <NavItem path="/performance" label="سجل الدرجات" icon={CheckSquare} />
                             <NavItem path="/works" label="كشف الرصد" icon={Table} />
+                            <NavItem path="/flexible-tracking" label="سجلات مرنة" icon={ClipboardList} />
                             <NavItem path="/reports" label="التقارير" icon={Printer} />
                         </>
                     )}
@@ -153,6 +153,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                             <NavItem path="/attendance" label="الحضور" icon={CheckSquare} />
                             <NavItem path="/classroom" label="الإدارة الصفية" icon={MonitorPlay} />
                             <NavItem path="/works" label="سجل الرصد" icon={Table} />
+                            <NavItem path="/flexible-tracking" label="سجلات مرنة" icon={ClipboardList} />
                             
                             <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط</label></div>
                             <NavItem path="/schedule" label="الجدول" icon={Calendar} />
@@ -301,7 +302,7 @@ const App: React.FC = () => {
 
     return (
         <AppContext.Provider value={contextValue}>
-            <Layout>
+            <AppLayout>
                 <Routes>
                     <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={(v: string) => navigate(v === 'CLASSROOM_MANAGEMENT' ? '/classroom' : v === 'ATTENDANCE' ? '/attendance' : v === 'EXAMS_MANAGER' ? '/exams' : v === 'AUTO_GRADING' ? '/auto-grading' : v === 'STUDENT_FOLLOWUP' ? '/followup' : v === 'AI_REPORTS' ? '/reports' : '/')} />} />
                     <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={contextValue.importStudents} currentUser={currentUser} />} />
@@ -309,6 +310,7 @@ const App: React.FC = () => {
                     <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={handleSaveAttendance} onImportAttendance={contextValue.importAttendance} currentUser={currentUser} />} />
                     <Route path="/screen" element={<ClassroomScreen students={students} attendance={attendance} onSaveAttendance={handleSaveAttendance} currentUser={currentUser} />} />
                     <Route path="/works" element={<WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleAddPerformance} currentUser={currentUser}/>} />
+                    <Route path="/flexible-tracking" element={<FlexibleTrackingSheet currentUser={currentUser}/>} />
                     <Route path="/performance" element={<PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={contextValue.importPerformance} onDeletePerformance={handleDeletePerformance} currentUser={currentUser} attendance={attendance} />} />
                     <Route path="/schedule" element={<ScheduleView currentUser={currentUser} onNavigateToLesson={() => navigate('/planning')} onNavigateToAttendance={() => navigate('/attendance')} />} />
                     <Route path="/planning" element={<LessonPlanning />} />
@@ -328,7 +330,7 @@ const App: React.FC = () => {
                     <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser} onSaveAttendance={handleSaveAttendance}/>} />
                     <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
-            </Layout>
+            </AppLayout>
         </AppContext.Provider>
     );
 };

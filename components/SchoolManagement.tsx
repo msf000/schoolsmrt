@@ -13,7 +13,7 @@ import {
 } from '../types';
 import { 
     Building2, Users, Settings, 
-    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, ListTree, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw
+    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw
 } from 'lucide-react';
 
 // Define locally to avoid import errors
@@ -380,7 +380,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 
                                 {expandedTermId === term.id && (
                                     <div className="p-4 border-t bg-white animate-slide-up">
-                                        <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><ListTree size={14}/> الفترات (Periods)</h5>
+                                        <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><List size={14}/> الفترات (Periods)</h5>
                                         <div className="space-y-2 mb-4">
                                             {term.periods?.sort((a,b) => {
                                                 if (a.startDate && b.startDate && a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
