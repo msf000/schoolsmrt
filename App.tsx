@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { 
@@ -45,7 +46,7 @@ import CertificatesCenter from './components/CertificatesCenter';
 import ReloadPrompt from './components/ReloadPrompt';
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, BookOpen, BrainCircuit, MonitorPlay, FileSpreadsheet, Mail, CreditCard, PenTool, Printer, Cloud, CloudOff, RefreshCw, AlertCircle, Loader2, FileQuestion, Library, ScanLine, ListTree, Calendar, Table, Award, ClipboardList, CalendarCheck } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, Award, Mail, Calendar, FileQuestion, Library, ScanLine, PenTool, ListTree, Printer, BrainCircuit, ClipboardList } from 'lucide-react';
 
 // --- CONTEXT ---
 interface AppContextType {
@@ -82,7 +83,7 @@ export const useApp = () => {
 
 // --- LAYOUT ---
 const Layout = ({ children }: { children: React.ReactNode }) => {
-    const { currentUser, logout, syncStatus, aiStatus } = useApp();
+    const { currentUser, logout, syncStatus } = useApp();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
@@ -216,7 +217,7 @@ const App: React.FC = () => {
                 forceRefreshData().then(refreshData);
                 initRealtimeSync();
             }
-            checkAIConnection().then(res => setAiStatus(res.success ? 'CONNECTED' : 'ERROR'));
+            checkAIConnection().then((res: { success: boolean; message: string }) => setAiStatus(res.success ? 'CONNECTED' : 'ERROR'));
             
             const unsubSync = subscribeToSyncStatus(setSyncStatus);
             const unsubData = subscribeToDataChanges(refreshData);
