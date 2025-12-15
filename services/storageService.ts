@@ -244,7 +244,7 @@ const toDbLesson = (l: CurriculumLesson) => ({
     learning_standards: l.learningStandards, micro_concept_ids: l.microConceptIds
 });
 const fromDbLesson = (l: any): CurriculumLesson => ({
-    id: l.id, unitId: l.unit_id, title: l.title, orderIndex: l.order_index,
+    id: l.id, unitId: l.unitId, title: l.title, orderIndex: l.order_index,
     learningStandards: l.learning_standards, microConceptIds: l.micro_concept_ids
 });
 
