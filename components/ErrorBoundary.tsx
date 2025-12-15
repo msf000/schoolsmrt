@@ -11,9 +11,11 @@ interface State {
 }
 
 class ErrorBoundary extends React.Component<Props, State> {
+  // Explicitly declare state
+  public state: State = { hasError: false };
+
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
   }
 
   public static getDerivedStateFromError(error: Error): State {

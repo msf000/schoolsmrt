@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord, LessonLink, BehaviorStatus } from '../types';
 import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Filter, Link as LinkIcon, ExternalLink, Move, Star, ThumbsUp, ThumbsDown, CheckCircle, Users, Trophy } from 'lucide-react';
@@ -264,7 +263,8 @@ const BehaviorTracker: React.FC<{
                     <div className="mt-auto bg-white p-3 rounded-xl border border-gray-200">
                         <h4 className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1"><Trophy size={12} className="text-yellow-500"/> أبطال اليوم</h4>
                         <ul className="space-y-1">
-                            {Object.entries(studentPoints)
+                            {/* Explicitly cast to [string, { pos: number, neg: number }] to help TS */}
+                            {(Object.entries(studentPoints) as [string, { pos: number, neg: number }][])
                                 .sort((a,b) => b[1].pos - a[1].pos)
                                 .slice(0, 3)
                                 .filter(x => x[1].pos > 0)

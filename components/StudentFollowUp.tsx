@@ -43,7 +43,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         if (current) setSelectedTermId(current.id);
         else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
 
-        setAssignments(getAssignments('ALL', currentUser?.id));
+        setAssignments(getAssignments('ALL', currentUser?.id, true)); // Pass true to force all
         setHeaderConfig(getReportHeaderConfig(currentUser?.id));
         
         const savedConfig = localStorage.getItem('works_year_config');
@@ -174,7 +174,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-auto">
-            {/* ... Rest of UI (Header, Search, Cards) same as original ... */}
             {/* Header / Search */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200 print:hidden">
                 <div className="flex items-center gap-3">
@@ -267,7 +266,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                         </div>
                     </div>
 
-                    {/* NEW: Year Work Breakdown */}
+                    {/* Year Work Breakdown */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm print:hidden">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-gray-700 flex items-center gap-2"><PieChart size={18}/> توزيع أعمال السنة (تجميعي)</h3>
@@ -283,11 +282,137 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                     <div className="bg-blue-600 h-full rounded-full" style={{width: `${stats.yearWorkData.hwStats.percentage}%`}}></div>
                                 </div>
                             </div>
-                            {/* ... other stats ... */}
+                            
+                            {/* Activity */}
+                            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex flex-col items-center">
+                                <span className="text-xs font-bold text-orange-500 mb-1">الأنشطة ({yearWorkConfig.act})</span>
+                                <div className="text-2xl font-black text-orange-700">{stats.yearWorkData.actStats.obtained}</div>
+                                <div className="w-full bg-orange-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div className="bg-orange-600 h-full rounded-full" style={{width: `${stats.yearWorkData.actStats.percentage}%`}}></div>
+                                </div>
+                            </div>
+
+                            {/* Exams */}
+                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 flex flex-col items-center">
+                                <span className="text-xs font-bold text-purple-500 mb-1">الاختبارات ({yearWorkConfig.exam})</span>
+                                <div className="text-2xl font-black text-purple-700">{stats.yearWorkData.examStats.obtained}</div>
+                                <div className="w-full bg-purple-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div className="bg-purple-600 h-full rounded-full" style={{width: `${stats.yearWorkData.examStats.percentage}%`}}></div>
+                                </div>
+                            </div>
+
+                            {/* Attendance */}
+                            <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex flex-col items-center">
+                                <span className="text-xs font-bold text-green-500 mb-1">الحضور ({yearWorkConfig.att})</span>
+                                <div className="text-2xl font-black text-green-700">{stats.yearWorkData.attStats.obtained}</div>
+                                <div className="w-full bg-green-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div className="bg-green-600 h-full rounded-full" style={{width: `${stats.yearWorkData.attStats.percentage}%`}}></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* ... (Detailed Lists & Print View omitted for brevity as they are mainly display logic) ... */}
+                    {/* Chart & Lists (Compact) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى (آخر 5)</h3>
+                            <div className="h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={stats.trendData}>
+                                        <defs>
+                                            <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                                                <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="name" tick={{fontSize: 10}} height={20}/>
+                                        <YAxis domain={[0, 100]} width={30}/>
+                                        <Tooltip />
+                                        <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                            <h3 className="font-bold text-gray-700 mb-4">أداء المواد</h3>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                                {stats.subjectsData.map(sub => (
+                                    <div key={sub.name} className="mb-3 last:mb-0">
+                                        <div className="flex justify-between text-xs mb-1">
+                                            <span className="font-bold">{sub.name}</span>
+                                            <span className="font-mono">{sub.avg}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                            <div className={`h-full rounded-full ${sub.avg >= 90 ? 'bg-green-500' : sub.avg >= 75 ? 'bg-blue-500' : sub.avg >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{width: `${sub.avg}%`}}></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Print Only Report */}
+                    <div className="hidden print:block bg-white p-8 border-2 border-black">
+                        <div className="text-center mb-8 border-b-2 border-black pb-4">
+                            <h1 className="text-2xl font-black">تقرير متابعة طالب</h1>
+                            <p>المدرسة: {headerConfig?.schoolName || '....................'}</p>
+                            <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                        </div>
+                        <div className="flex justify-between mb-8 text-sm font-bold">
+                            <p>اسم الطالب: {student.name}</p>
+                            <p>الصف: {student.gradeLevel}</p>
+                            <p>رقم الهوية: {student.nationalId}</p>
+                        </div>
+                        
+                        <div className="mb-8">
+                            <h3 className="font-bold border-b border-black mb-2">ملخص الأداء</h3>
+                            <table className="w-full text-center border-collapse border border-black text-sm">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="border border-black p-2">نسبة الحضور</th>
+                                        <th className="border border-black p-2">أيام الغياب</th>
+                                        <th className="border border-black p-2">المعدل الأكاديمي</th>
+                                        <th className="border border-black p-2">نقاط السلوك</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td className="border border-black p-2">{stats.attRate}%</td>
+                                        <td className="border border-black p-2">{stats.absent}</td>
+                                        <td className="border border-black p-2">{stats.avgScore}%</td>
+                                        <td className="border border-black p-2">{stats.posBeh}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div>
+                            <h3 className="font-bold border-b border-black mb-2">تفاصيل المواد</h3>
+                            <table className="w-full text-right border-collapse border border-black text-sm">
+                                <thead>
+                                    <tr className="bg-gray-200 text-center">
+                                        <th className="border border-black p-2">المادة</th>
+                                        <th className="border border-black p-2">المستوى</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {stats.subjectsData.map(s => (
+                                        <tr key={s.name}>
+                                            <td className="border border-black p-2">{s.name}</td>
+                                            <td className="border border-black p-2 text-center">{s.avg}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="mt-16 flex justify-between text-sm font-bold">
+                            <p>المرشد الطلابي: ....................</p>
+                            <p>مدير المدرسة: ....................</p>
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl bg-white print:hidden">

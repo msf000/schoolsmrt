@@ -76,11 +76,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       if (current) setSelectedTermId(current.id);
       else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
       
-      // Load Assignments (Columns from WorksTracking)
-      const allAssignments = getAssignments('ALL', currentUser?.id);
+      // Load Assignments (Columns from WorksTracking) - Pass true for 'all' to get everything
+      const allAssignments = getAssignments('ALL', currentUser?.id, true);
       setAssignments(allAssignments);
 
-  }, [currentUser, activeTab]); // Reload when tab changes to refresh columns
+  }, [currentUser, activeTab]); 
 
   const handleAssignmentChange = (id: string) => {
       setSelectedAssignmentId(id);

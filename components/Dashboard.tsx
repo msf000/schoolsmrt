@@ -74,7 +74,10 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
                 weekStart.setDate(d.getDate() - dayOffset);
                 const weekStartStr = weekStart.toISOString().split('T')[0];
 
-                const wPlan = weeklyPlans.find(p => p.day === today && p.period === activeSession!.period && p.weekStartDate === weekStartStr);
+                // Explicitly cast or check activeSession to ensure it's not null before accessing properties
+                const sessionPeriod = (activeSession as ScheduleItem).period;
+                
+                const wPlan = weeklyPlans.find(p => p.day === today && p.period === sessionPeriod && p.weekStartDate === weekStartStr);
                 if (wPlan && wPlan.lessonTopic) {
                     const stored = allPlans.find(p => p.topic.trim() === wPlan.lessonTopic.trim());
                     setLessonPlan(stored || null);

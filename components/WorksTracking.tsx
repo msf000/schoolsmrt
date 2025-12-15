@@ -137,7 +137,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         if (currentUser) {
-            setAssignments(getAssignments('ALL', currentUser.id, isManager));
+            // Pass 'true' as 3rd arg to fetch ALL assignments, then filter locally.
+            // This fixes the bug where teachers saw no columns because isManager was false.
+            setAssignments(getAssignments('ALL', currentUser.id, true));
         }
     }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId]);
 
@@ -193,10 +195,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const recordId = `${studentId}_${assignmentId}`;
                 
                 if (valStr.trim() === '') {
-                    // If empty, we might want to delete the record, but bulkAdd updates.
-                    // To delete, we need a separate logic or just set to 0. 
-                    // For now, let's treat empty as 0 or handle separately.
-                    // Better to delete if empty string.
                     deletePerformance(recordId);
                 } else {
                     const numVal = parseFloat(valStr);
@@ -243,14 +241,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             classId: undefined // General for all classes for now
         };
         saveAssignment(newAssign);
-        setAssignments(getAssignments('ALL', currentUser?.id, isManager));
+        setAssignments(getAssignments('ALL', currentUser?.id, true)); // Refresh list
         setNewColTitle('');
     };
 
     const handleDeleteAssignment = (id: string) => {
         if(confirm('حذف هذا العمود؟')) {
             deleteAssignment(id);
-            setAssignments(getAssignments('ALL', currentUser?.id, isManager));
+            setAssignments(getAssignments('ALL', currentUser?.id, true));
         }
     };
 
