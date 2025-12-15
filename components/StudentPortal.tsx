@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm, LessonLink } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms, getLessonLinks } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown, Send } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm, LessonLink, StoredLessonPlan } from '../types';
+import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms, getLessonLinks, getLessonPlans } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown, Send, Video } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 
@@ -184,6 +184,211 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
 // --- SUB-COMPONENTS ---
 
+const StudentWeeklyPlan = ({ student }: { student: Student }) => {
+    const [weekStart, setWeekStart] = useState(() => {
+        const d = new Date();
+        const day = d.getDay();
+        d.setDate(d.getDate() - day);
+        return d.toISOString().split('T')[0];
+    });
+    const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
+    const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
+    const [selectedLesson, setSelectedLesson] = useState<StoredLessonPlan | null>(null);
+
+    useEffect(() => {
+        const allPlans = getWeeklyPlans();
+        const filtered = allPlans.filter(p => p.classId === student.className && p.weekStartDate === weekStart);
+        setPlans(filtered);
+        
+        // Fetch all lesson plans (inefficient but works for now, optimization needed for large scale)
+        // We filter manually by matching topics
+        const teachers = getTeachers(); // Need to fetch all potential lesson plans
+        // In a real app, we would query based on teacher IDs in the schedule.
+        // For now, let's fetch all (localStorage limit is fine for demo)
+        // NOTE: getLessonPlans requires teacherId. We need to find the teacher for each plan.
+        // But plan item has teacherId!
+        
+        const relevantTeacherIds = Array.from(new Set(filtered.map(p => p.teacherId)));
+        let allLessons: StoredLessonPlan[] = [];
+        relevantTeacherIds.forEach(tid => {
+            allLessons = [...allLessons, ...getLessonPlans(tid)];
+        });
+        setLessonPlans(allLessons);
+
+    }, [weekStart, student]);
+
+    const changeWeek = (dir: number) => {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + (dir * 7));
+        setWeekStart(d.toISOString().split('T')[0]);
+    };
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+
+    const getLessonForTopic = (topic: string) => {
+        return lessonPlans.find(lp => lp.topic.trim() === topic.trim());
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in relative">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><CalendarDays className="text-teal-600"/> الخطة الأسبوعية</h2>
+                <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
+                    <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
+                    <span className="text-xs font-bold w-24 text-center">{formatDualDate(weekStart).split('|')[0]}</span>
+                    <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronLeft size={16}/></button>
+                </div>
+            </div>
+
+            <div className="grid gap-4">
+                {days.map(day => {
+                    const dayPlans = plans.filter(p => p.day === day).sort((a,b) => a.period - b.period);
+                    return (
+                        <div key={day} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 p-3 border-b border-gray-100 font-bold text-gray-700 flex justify-between">
+                                <span>{dayNamesAr[day]}</span>
+                                <span className="text-xs font-normal text-gray-400">{dayPlans.length} حصص</span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {dayPlans.length > 0 ? dayPlans.map(plan => {
+                                    const lessonDetails = getLessonForTopic(plan.lessonTopic);
+                                    return (
+                                        <div key={plan.id} className="p-4 hover:bg-gray-50 transition-colors">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="bg-teal-100 text-teal-800 text-xs font-bold px-2 py-1 rounded">حصة {plan.period}</span>
+                                                    <h4 className="font-bold text-gray-800">{plan.subjectName}</h4>
+                                                </div>
+                                                {lessonDetails && (
+                                                    <button 
+                                                        onClick={() => setSelectedLesson(lessonDetails)}
+                                                        className="flex items-center gap-1 text-[10px] bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 transition-colors shadow-sm font-bold"
+                                                    >
+                                                        <BookOpen size={12}/> عرض الدرس
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-2">
+                                                <div className="bg-blue-50 p-2 rounded border border-blue-100">
+                                                    <span className="text-blue-500 font-bold block text-xs mb-1">الدرس:</span>
+                                                    <p className="text-gray-700">{plan.lessonTopic}</p>
+                                                </div>
+                                                {plan.homework && (
+                                                    <div className="bg-orange-50 p-2 rounded border border-orange-100">
+                                                        <span className="text-orange-500 font-bold block text-xs mb-1">الواجب:</span>
+                                                        <p className="text-gray-700">{plan.homework}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                }) : <div className="p-4 text-center text-gray-400 text-xs">لا توجد خطة مسجلة لهذا اليوم</div>}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Lesson Details Modal */}
+            {selectedLesson && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+                        <div className="p-4 border-b bg-purple-50 flex justify-between items-center">
+                            <div>
+                                <h3 className="font-bold text-purple-900 text-lg">{selectedLesson.topic}</h3>
+                                <p className="text-xs text-purple-600">{selectedLesson.subject}</p>
+                            </div>
+                            <button onClick={() => setSelectedLesson(null)} className="p-2 hover:bg-white/50 rounded-full text-purple-800"><X size={20}/></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                            {(() => {
+                                try {
+                                    const blocks = JSON.parse(selectedLesson.contentJson);
+                                    return blocks.map((block: any, idx: number) => (
+                                        <div key={idx} className="bg-white border rounded-xl p-4 shadow-sm">
+                                            <h4 className="font-bold text-gray-800 mb-2 border-b pb-2 flex items-center gap-2">
+                                                {block.type === 'OBJECTIVES' && <List size={16} className="text-blue-500"/>}
+                                                {block.type === 'MEDIA' && <Video size={16} className="text-red-500"/>}
+                                                {block.type === 'ACTIVITY' && <Star size={16} className="text-yellow-500"/>}
+                                                {block.title}
+                                            </h4>
+                                            {block.type === 'MEDIA' ? (
+                                                block.mediaUrl?.includes('youtube') ? (
+                                                    <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                                                        <iframe src={block.mediaUrl.replace('watch?v=', 'embed/')} className="w-full h-full" frameBorder="0" allowFullScreen></iframe>
+                                                    </div>
+                                                ) : (
+                                                    <img src={block.mediaUrl} alt="Lesson Media" className="max-w-full rounded-lg"/>
+                                                )
+                                            ) : (
+                                                <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{block.content}</p>
+                                            )}
+                                        </div>
+                                    ));
+                                } catch (e) {
+                                    return <p className="text-red-500 text-center">خطأ في عرض محتوى الدرس</p>;
+                                }
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ... (Rest of StudentPortal sub-components like StudentTimetable, StudentDashboard, etc. remain unchanged)
+const StudentTimetable = ({ student }: { student: Student }) => {
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    useEffect(() => {
+        const all = getSchedules();
+        setSchedules(all.filter(s => s.classId === student.className));
+    }, [student]);
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h2 className="font-bold text-gray-800 flex items-center gap-2"><Clock className="text-teal-600"/> الجدول الدراسي</h2>
+                <span className="bg-white border px-3 py-1 rounded text-xs font-bold text-gray-600">{student.className}</span>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-center text-sm border-collapse min-w-[600px]">
+                    <thead>
+                        <tr className="bg-teal-600 text-white">
+                            <th className="p-3 border border-teal-500 w-24">اليوم</th>
+                            {periods.map(p => <th key={p} className="p-3 border border-teal-500">الحصة {p}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {days.map(day => (
+                            <tr key={day} className="hover:bg-gray-50">
+                                <td className="p-3 font-bold border bg-gray-50 text-gray-700">{dayNamesAr[day]}</td>
+                                {periods.map(period => {
+                                    const item = schedules.find(s => s.day === day && s.period === period);
+                                    return (
+                                        <td key={period} className="border p-2 h-14">
+                                            {item ? (
+                                                <div className="font-bold text-teal-700 bg-teal-50 rounded py-1 px-2 text-xs shadow-sm">
+                                                    {item.subjectName}
+                                                </div>
+                                            ) : <span className="text-gray-300">-</span>}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
 const StudentDashboard = ({ student, attendance, performance, onViewChange, terms }: any) => {
     // Term Logic
     const [selectedTermId, setSelectedTermId] = useState<string>('');
@@ -358,437 +563,8 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
     );
 };
 
-const StudentLibrary = ({ student }: { student: Student }) => {
-    const [links, setLinks] = useState<LessonLink[]>([]);
-    const [search, setSearch] = useState('');
-
-    useEffect(() => {
-        const allLinks = getLessonLinks();
-        // Filter based on Student's Grade OR Class
-        const relevant = allLinks.filter(l => {
-            const gradeMatch = !l.gradeLevel || l.gradeLevel === student.gradeLevel;
-            const classMatch = !l.className || l.className === student.className;
-            return gradeMatch && classMatch;
-        });
-        setLinks(relevant);
-    }, [student]);
-
-    const filtered = links.filter(l => l.title.includes(search) || l.url.includes(search));
-
-    const getIcon = (url: string) => {
-        if (url.includes('youtube.com') || url.includes('youtu.be')) return <Youtube className="text-red-600" size={24}/>;
-        if (url.endsWith('.pdf')) return <FileText className="text-red-500" size={24}/>;
-        return <Globe className="text-blue-500" size={24}/>;
-    };
-
-    return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Library className="text-indigo-600"/> مكتبة المصادر</h2>
-                <div className="relative w-48">
-                    <input className="w-full p-2 pr-8 border rounded-lg text-sm bg-gray-50" placeholder="بحث..." value={search} onChange={e => setSearch(e.target.value)} />
-                    <Filter className="absolute top-2.5 right-2 text-gray-400" size={16}/>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filtered.length > 0 ? filtered.map(link => (
-                    <a key={link.id} href={link.url} target="_blank" rel="noreferrer" className="bg-white p-4 rounded-xl border border-gray-200 hover:shadow-md transition-all flex items-start gap-3 group">
-                        <div className="p-3 bg-gray-50 rounded-lg group-hover:bg-indigo-50 transition-colors">
-                            {getIcon(link.url)}
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                            <h4 className="font-bold text-gray-800 truncate mb-1 group-hover:text-indigo-600">{link.title}</h4>
-                            <div className="text-xs text-blue-500 flex items-center gap-1">
-                                <LinkIcon size={12}/> <span>فتح الرابط</span>
-                            </div>
-                            <p className="text-[10px] text-gray-400 mt-2 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
-                        </div>
-                    </a>
-                )) : (
-                    <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
-                        <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
-                        <p>لا توجد مصادر متاحة حالياً.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// ... (Rest of Sub-Components: StudentWeeklyPlan, StudentTimetable, etc. remain mostly unchanged) ...
-// Including them below to ensure full file integrity
-
-const StudentWeeklyPlan = ({ student }: { student: Student }) => {
-    const [weekStart, setWeekStart] = useState(() => {
-        const d = new Date();
-        const day = d.getDay();
-        d.setDate(d.getDate() - day);
-        return d.toISOString().split('T')[0];
-    });
-    const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
-
-    useEffect(() => {
-        const allPlans = getWeeklyPlans();
-        const filtered = allPlans.filter(p => p.classId === student.className && p.weekStartDate === weekStart);
-        setPlans(filtered);
-    }, [weekStart, student]);
-
-    const changeWeek = (dir: number) => {
-        const d = new Date(weekStart);
-        d.setDate(d.getDate() + (dir * 7));
-        setWeekStart(d.toISOString().split('T')[0]);
-    };
-
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
-
-    return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><CalendarDays className="text-teal-600"/> الخطة الأسبوعية</h2>
-                <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
-                    <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
-                    <span className="text-xs font-bold w-24 text-center">{formatDualDate(weekStart).split('|')[0]}</span>
-                    <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronLeft size={16}/></button>
-                </div>
-            </div>
-
-            <div className="grid gap-4">
-                {days.map(day => {
-                    const dayPlans = plans.filter(p => p.day === day).sort((a,b) => a.period - b.period);
-                    return (
-                        <div key={day} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="bg-gray-50 p-3 border-b border-gray-100 font-bold text-gray-700 flex justify-between">
-                                <span>{dayNamesAr[day]}</span>
-                                <span className="text-xs font-normal text-gray-400">{dayPlans.length} حصص</span>
-                            </div>
-                            <div className="divide-y divide-gray-100">
-                                {dayPlans.length > 0 ? dayPlans.map(plan => (
-                                    <div key={plan.id} className="p-4 hover:bg-gray-50 transition-colors">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className="bg-teal-100 text-teal-800 text-xs font-bold px-2 py-1 rounded">حصة {plan.period}</span>
-                                                <h4 className="font-bold text-gray-800">{plan.subjectName}</h4>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-2">
-                                            <div className="bg-blue-50 p-2 rounded border border-blue-100">
-                                                <span className="text-blue-500 font-bold block text-xs mb-1">الدرس:</span>
-                                                <p className="text-gray-700">{plan.lessonTopic}</p>
-                                            </div>
-                                            {plan.homework && (
-                                                <div className="bg-orange-50 p-2 rounded border border-orange-100">
-                                                    <span className="text-orange-500 font-bold block text-xs mb-1">الواجب:</span>
-                                                    <p className="text-gray-700">{plan.homework}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )) : <div className="p-4 text-center text-gray-400 text-xs">لا توجد خطة مسجلة لهذا اليوم</div>}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-};
-
-const StudentTimetable = ({ student }: { student: Student }) => {
-    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
-    useEffect(() => {
-        const all = getSchedules();
-        setSchedules(all.filter(s => s.classId === student.className));
-    }, [student]);
-
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
-    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
-            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                <h2 className="font-bold text-gray-800 flex items-center gap-2"><Clock className="text-teal-600"/> الجدول الدراسي</h2>
-                <span className="bg-white border px-3 py-1 rounded text-xs font-bold text-gray-600">{student.className}</span>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-center text-sm border-collapse min-w-[600px]">
-                    <thead>
-                        <tr className="bg-teal-600 text-white">
-                            <th className="p-3 border border-teal-500 w-24">اليوم</th>
-                            {periods.map(p => <th key={p} className="p-3 border border-teal-500">الحصة {p}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {days.map(day => (
-                            <tr key={day} className="hover:bg-gray-50">
-                                <td className="p-3 font-bold border bg-gray-50 text-gray-700">{dayNamesAr[day]}</td>
-                                {periods.map(period => {
-                                    const item = schedules.find(s => s.day === day && s.period === period);
-                                    return (
-                                        <td key={period} className="border p-2 h-14">
-                                            {item ? (
-                                                <div className="font-bold text-teal-700 bg-teal-50 rounded py-1 px-2 text-xs shadow-sm">
-                                                    {item.subjectName}
-                                                </div>
-                                            ) : <span className="text-gray-300">-</span>}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-
-const StudentAttendanceView = ({ student, attendance, terms }: { student: Student, attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
-    const [selectedTermId, setSelectedTermId] = useState<string>('');
-    const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
-    const [selectedAbsentRecord, setSelectedAbsentRecord] = useState<AttendanceRecord | null>(null);
-    const [excuseText, setExcuseText] = useState('');
-
-    useEffect(() => {
-        const current = terms.find(t => t.isCurrent);
-        if (current) setSelectedTermId(current.id);
-        else if (terms.length > 0) setSelectedTermId(terms[0].id);
-    }, [terms]);
-
-    const activeTerm = terms.find(t => t.id === selectedTermId);
-
-    const myRecords = useMemo(() => {
-        let filtered = attendance.filter(a => a.studentId === student.id);
-        if (activeTerm) {
-            filtered = filtered.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
-        }
-        return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [attendance, student, activeTerm]);
-
-    const handleSubmitExcuse = () => {
-        if (!selectedAbsentRecord || !excuseText) return;
-        
-        const updatedRecord: AttendanceRecord = {
-            ...selectedAbsentRecord,
-            excuseNote: excuseText,
-        };
-        
-        saveAttendance([updatedRecord]);
-        setIsExcuseModalOpen(false);
-        setExcuseText('');
-        setSelectedAbsentRecord(null);
-        alert('تم إرسال العذر للمعلم بنجاح.');
-        window.location.reload(); 
-    };
-    
-    return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Calendar className="text-teal-600"/> سجل الحضور والغياب</h2>
-                    <select 
-                        value={selectedTermId}
-                        onChange={(e) => setSelectedTermId(e.target.value)}
-                        className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700"
-                    >
-                        <option value="">كل الفترات</option>
-                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                </div>
-                
-                {myRecords.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-right text-sm">
-                            <thead className="bg-gray-50 text-gray-600 font-bold border-b">
-                                <tr>
-                                    <th className="p-3">التاريخ</th>
-                                    <th className="p-3">الحالة</th>
-                                    <th className="p-3">المادة / الحصة</th>
-                                    <th className="p-3">ملاحظات / عذر</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {myRecords.map(rec => (
-                                    <tr key={rec.id} className="hover:bg-gray-50">
-                                        <td className="p-3 font-mono text-gray-500">{formatDualDate(rec.date)}</td>
-                                        <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                                rec.status === 'PRESENT' ? 'bg-green-100 text-green-700' :
-                                                rec.status === 'ABSENT' ? 'bg-red-100 text-red-700' :
-                                                rec.status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
-                                            }`}>
-                                                {rec.status === 'PRESENT' ? 'حاضر' : rec.status === 'ABSENT' ? 'غائب' : rec.status === 'LATE' ? 'تأخر' : 'بعذر'}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-gray-600">{rec.subject || '-'} {rec.period ? `(ح${rec.period})` : ''}</td>
-                                        <td className="p-3">
-                                            {(rec.behaviorStatus !== 'NEUTRAL' || rec.behaviorNote) && (
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    {rec.behaviorStatus === 'POSITIVE' && <Smile size={16} className="text-green-500"/>}
-                                                    {rec.behaviorStatus === 'NEGATIVE' && <Frown size={16} className="text-red-500"/>}
-                                                    <span className="text-xs text-gray-600">{rec.behaviorNote}</span>
-                                                </div>
-                                            )}
-                                            {/* Submit Excuse Button if Absent and No Excuse */}
-                                            {(rec.status === AttendanceStatus.ABSENT || rec.status === AttendanceStatus.LATE) && !rec.excuseNote && (
-                                                <button 
-                                                    onClick={() => { setSelectedAbsentRecord(rec); setIsExcuseModalOpen(true); }}
-                                                    className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                                                >
-                                                    تقديم عذر
-                                                </button>
-                                            )}
-                                            {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1"><FileText size={10}/> تم تقديم عذر</span>}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : <div className="text-center py-10 text-gray-400">لا يوجد سجلات حضور في هذه الفترة</div>}
-            </div>
-
-            {/* EXCUSE SUBMISSION MODAL */}
-            {isExcuseModalOpen && selectedAbsentRecord && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                                <FileText className="text-purple-600"/> تقديم عذر غياب
-                            </h3>
-                            <button onClick={() => setIsExcuseModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
-                        </div>
-                        <div className="p-6">
-                            <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
-                                <span className="font-bold block mb-1">تفاصيل الغياب:</span>
-                                التاريخ: {formatDualDate(selectedAbsentRecord.date)} <br/>
-                                الحالة: {selectedAbsentRecord.status === AttendanceStatus.ABSENT ? 'غائب' : 'متأخر'}
-                            </div>
-                            
-                            <label className="block text-sm font-bold text-gray-700 mb-2">سبب الغياب / التأخر:</label>
-                            <textarea 
-                                className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none"
-                                placeholder="اكتب مبرر الغياب هنا..."
-                                value={excuseText}
-                                onChange={e => setExcuseText(e.target.value)}
-                            />
-                            
-                            <div className="mt-6 flex gap-3">
-                                <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>
-                                <button 
-                                    onClick={handleSubmitExcuse} 
-                                    disabled={!excuseText}
-                                    className="flex-2 w-full py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    <Send size={16}/> إرسال العذر
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const StudentEvaluationView = ({ student, performance, attendance, terms }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
-    const [selectedTermId, setSelectedTermId] = useState<string>('');
-    useEffect(() => {
-        const current = terms.find(t => t.isCurrent);
-        if (current) setSelectedTermId(current.id);
-        else if (terms.length > 0) setSelectedTermId(terms[0].id);
-    }, [terms]);
-
-    const activeTerm = terms.find(t => t.id === selectedTermId);
-
-    const myPerf = useMemo(() => {
-        let filtered = performance.filter(p => p.studentId === student.id);
-        if (activeTerm) {
-            filtered = filtered.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
-        }
-        return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [performance, student, activeTerm]);
-    
-    // Chart Data (Last 5 grades)
-    const chartData = myPerf.slice(0, 5).reverse().map(p => ({
-        name: p.title,
-        score: Math.round((p.score / p.maxScore) * 100),
-        full: 100
-    }));
-
-    return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Award className="text-purple-600"/> سجل الدرجات والتقييم</h2>
-                        <select 
-                            value={selectedTermId}
-                            onChange={(e) => setSelectedTermId(e.target.value)}
-                            className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700"
-                        >
-                            <option value="">كل الفترات</option>
-                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                    </div>
-                    {myPerf.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-right text-sm">
-                                <thead className="bg-gray-50 text-gray-600 font-bold border-b">
-                                    <tr>
-                                        <th className="p-3">التاريخ</th>
-                                        <th className="p-3">المادة</th>
-                                        <th className="p-3">عنوان التقييم</th>
-                                        <th className="p-3">الدرجة</th>
-                                        <th className="p-3">النسبة</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {myPerf.map(p => (
-                                        <tr key={p.id} className="hover:bg-gray-50">
-                                            <td className="p-3 font-mono text-gray-500 text-xs">{p.date}</td>
-                                            <td className="p-3 text-gray-700">{p.subject}</td>
-                                            <td className="p-3 font-bold text-gray-800">{p.title}</td>
-                                            <td className="p-3"><span className="font-mono bg-gray-100 px-2 py-1 rounded">{p.score} / {p.maxScore}</span></td>
-                                            <td className="p-3">
-                                                <span className={`text-xs font-bold px-2 py-1 rounded ${(p.score/p.maxScore) >= 0.9 ? 'bg-green-100 text-green-700' : (p.score/p.maxScore) >= 0.7 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
-                                                    {Math.round((p.score / p.maxScore) * 100)}%
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : <div className="text-center py-10 text-gray-400">لا يوجد درجات مرصودة</div>}
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="font-bold text-gray-700 mb-4">تطور المستوى</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="name" hide />
-                                <YAxis domain={[0, 100]} hide />
-                                <Tooltip />
-                                <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <p className="text-center text-xs text-gray-400 mt-2">رسم بياني لآخر 5 تقييمات</p>
-                </div>
-            </div>
-        </div>
-    );
-};
+// ... (Rest of StudentPortal sub-components like StudentProfile, StudentCustomRecords, StudentExamsView, StudentLibrary, StudentAttendanceView, StudentEvaluationView remain mostly unchanged - just ensure imports are correct)
+// Included below for completeness but compacted where logic is identical
 
 const StudentProfile = ({ student }: { student: Student }) => {
     const [newPassword, setNewPassword] = useState('');
@@ -1152,6 +928,309 @@ const ExamRunner = ({ exam, student, onSubmit, onCancel }: { exam: Exam, student
             </div>
         </div>
     );
-}
+};
+
+const StudentLibrary = ({ student }: { student: Student }) => {
+    const [links, setLinks] = useState<LessonLink[]>([]);
+    const [search, setSearch] = useState('');
+
+    useEffect(() => {
+        const allLinks = getLessonLinks();
+        // Filter based on Student's Grade OR Class
+        const relevant = allLinks.filter(l => {
+            const gradeMatch = !l.gradeLevel || l.gradeLevel === student.gradeLevel;
+            const classMatch = !l.className || l.className === student.className;
+            return gradeMatch && classMatch;
+        });
+        setLinks(relevant);
+    }, [student]);
+
+    const filtered = links.filter(l => l.title.includes(search) || l.url.includes(search));
+
+    const getIcon = (url: string) => {
+        if (url.includes('youtube.com') || url.includes('youtu.be')) return <Youtube className="text-red-600" size={24}/>;
+        if (url.endsWith('.pdf')) return <FileText className="text-red-500" size={24}/>;
+        return <Globe className="text-blue-500" size={24}/>;
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Library className="text-indigo-600"/> مكتبة المصادر</h2>
+                <div className="relative w-48">
+                    <input className="w-full p-2 pr-8 border rounded-lg text-sm bg-gray-50" placeholder="بحث..." value={search} onChange={e => setSearch(e.target.value)} />
+                    <Filter className="absolute top-2.5 right-2 text-gray-400" size={16}/>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.length > 0 ? filtered.map(link => (
+                    <a key={link.id} href={link.url} target="_blank" rel="noreferrer" className="bg-white p-4 rounded-xl border border-gray-200 hover:shadow-md transition-all flex items-start gap-3 group">
+                        <div className="p-3 bg-gray-50 rounded-lg group-hover:bg-indigo-50 transition-colors">
+                            {getIcon(link.url)}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <h4 className="font-bold text-gray-800 truncate mb-1 group-hover:text-indigo-600">{link.title}</h4>
+                            <div className="text-xs text-blue-500 flex items-center gap-1">
+                                <LinkIcon size={12}/> <span>فتح الرابط</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-2 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
+                        </div>
+                    </a>
+                )) : (
+                    <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-white">
+                        <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
+                        <p>لا توجد مصادر متاحة حالياً.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const StudentAttendanceView = ({ student, attendance, terms }: { student: Student, attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
+    const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
+    const [selectedAbsentRecord, setSelectedAbsentRecord] = useState<AttendanceRecord | null>(null);
+    const [excuseText, setExcuseText] = useState('');
+
+    useEffect(() => {
+        const current = terms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (terms.length > 0) setSelectedTermId(terms[0].id);
+    }, [terms]);
+
+    const activeTerm = terms.find(t => t.id === selectedTermId);
+
+    const myRecords = useMemo(() => {
+        let filtered = attendance.filter(a => a.studentId === student.id);
+        if (activeTerm) {
+            filtered = filtered.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
+        }
+        return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [attendance, student, activeTerm]);
+
+    const handleSubmitExcuse = () => {
+        if (!selectedAbsentRecord || !excuseText) return;
+        
+        const updatedRecord: AttendanceRecord = {
+            ...selectedAbsentRecord,
+            excuseNote: excuseText,
+        };
+        
+        saveAttendance([updatedRecord]);
+        setIsExcuseModalOpen(false);
+        setExcuseText('');
+        setSelectedAbsentRecord(null);
+        alert('تم إرسال العذر للمعلم بنجاح.');
+        window.location.reload(); 
+    };
+    
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Calendar className="text-teal-600"/> سجل الحضور والغياب</h2>
+                    <select 
+                        value={selectedTermId}
+                        onChange={(e) => setSelectedTermId(e.target.value)}
+                        className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700"
+                    >
+                        <option value="">كل الفترات</option>
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                </div>
+                
+                {myRecords.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                                <tr>
+                                    <th className="p-3">التاريخ</th>
+                                    <th className="p-3">الحالة</th>
+                                    <th className="p-3">المادة / الحصة</th>
+                                    <th className="p-3">ملاحظات / عذر</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {myRecords.map(rec => (
+                                    <tr key={rec.id} className="hover:bg-gray-50">
+                                        <td className="p-3 font-mono text-gray-500">{formatDualDate(rec.date)}</td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                rec.status === 'PRESENT' ? 'bg-green-100 text-green-700' :
+                                                rec.status === 'ABSENT' ? 'bg-red-100 text-red-700' :
+                                                rec.status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                {rec.status === 'PRESENT' ? 'حاضر' : rec.status === 'ABSENT' ? 'غائب' : rec.status === 'LATE' ? 'تأخر' : 'بعذر'}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-gray-600">{rec.subject || '-'} {rec.period ? `(ح${rec.period})` : ''}</td>
+                                        <td className="p-3">
+                                            {(rec.behaviorStatus !== 'NEUTRAL' || rec.behaviorNote) && (
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {rec.behaviorStatus === 'POSITIVE' && <Smile size={16} className="text-green-500"/>}
+                                                    {rec.behaviorStatus === 'NEGATIVE' && <Frown size={16} className="text-red-500"/>}
+                                                    <span className="text-xs text-gray-600">{rec.behaviorNote}</span>
+                                                </div>
+                                            )}
+                                            {/* Submit Excuse Button if Absent and No Excuse */}
+                                            {(rec.status === AttendanceStatus.ABSENT || rec.status === AttendanceStatus.LATE) && !rec.excuseNote && (
+                                                <button 
+                                                    onClick={() => { setSelectedAbsentRecord(rec); setIsExcuseModalOpen(true); }}
+                                                    className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                                >
+                                                    تقديم عذر
+                                                </button>
+                                            )}
+                                            {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1"><FileText size={10}/> تم تقديم عذر</span>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : <div className="text-center py-10 text-gray-400">لا يوجد سجلات حضور في هذه الفترة</div>}
+            </div>
+
+            {/* EXCUSE SUBMISSION MODAL */}
+            {isExcuseModalOpen && selectedAbsentRecord && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                <FileText className="text-purple-600"/> تقديم عذر غياب
+                            </h3>
+                            <button onClick={() => setIsExcuseModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
+                                <span className="font-bold block mb-1">تفاصيل الغياب:</span>
+                                التاريخ: {formatDualDate(selectedAbsentRecord.date)} <br/>
+                                الحالة: {selectedAbsentRecord.status === AttendanceStatus.ABSENT ? 'غائب' : 'متأخر'}
+                            </div>
+                            
+                            <label className="block text-sm font-bold text-gray-700 mb-2">سبب الغياب / التأخر:</label>
+                            <textarea 
+                                className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none"
+                                placeholder="اكتب مبرر الغياب هنا..."
+                                value={excuseText}
+                                onChange={e => setExcuseText(e.target.value)}
+                            />
+                            
+                            <div className="mt-6 flex gap-3">
+                                <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>
+                                <button 
+                                    onClick={handleSubmitExcuse} 
+                                    disabled={!excuseText}
+                                    className="flex-2 w-full py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <Send size={16}/> إرسال العذر
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const StudentEvaluationView = ({ student, performance, attendance, terms }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
+    const [selectedTermId, setSelectedTermId] = useState<string>('');
+    useEffect(() => {
+        const current = terms.find(t => t.isCurrent);
+        if (current) setSelectedTermId(current.id);
+        else if (terms.length > 0) setSelectedTermId(terms[0].id);
+    }, [terms]);
+
+    const activeTerm = terms.find(t => t.id === selectedTermId);
+
+    const myPerf = useMemo(() => {
+        let filtered = performance.filter(p => p.studentId === student.id);
+        if (activeTerm) {
+            filtered = filtered.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+        }
+        return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [performance, student, activeTerm]);
+    
+    // Chart Data (Last 5 grades)
+    const chartData = myPerf.slice(0, 5).reverse().map(p => ({
+        name: p.title,
+        score: Math.round((p.score / p.maxScore) * 100),
+        full: 100
+    }));
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Award className="text-purple-600"/> سجل الدرجات والتقييم</h2>
+                        <select 
+                            value={selectedTermId}
+                            onChange={(e) => setSelectedTermId(e.target.value)}
+                            className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700"
+                        >
+                            <option value="">كل الفترات</option>
+                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+                    {myPerf.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-right text-sm">
+                                <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                                    <tr>
+                                        <th className="p-3">التاريخ</th>
+                                        <th className="p-3">المادة</th>
+                                        <th className="p-3">عنوان التقييم</th>
+                                        <th className="p-3">الدرجة</th>
+                                        <th className="p-3">النسبة</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {myPerf.map(p => (
+                                        <tr key={p.id} className="hover:bg-gray-50">
+                                            <td className="p-3 font-mono text-gray-500 text-xs">{p.date}</td>
+                                            <td className="p-3 text-gray-700">{p.subject}</td>
+                                            <td className="p-3 font-bold text-gray-800">{p.title}</td>
+                                            <td className="p-3"><span className="font-mono bg-gray-100 px-2 py-1 rounded">{p.score} / {p.maxScore}</span></td>
+                                            <td className="p-3">
+                                                <span className={`text-xs font-bold px-2 py-1 rounded ${(p.score/p.maxScore) >= 0.9 ? 'bg-green-100 text-green-700' : (p.score/p.maxScore) >= 0.7 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {Math.round((p.score / p.maxScore) * 100)}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : <div className="text-center py-10 text-gray-400">لا يوجد درجات مرصودة</div>}
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="font-bold text-gray-700 mb-4">تطور المستوى</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData}>
+                                <defs>
+                                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="name" hide />
+                                <YAxis domain={[0, 100]} hide />
+                                <Tooltip />
+                                <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <p className="text-center text-xs text-gray-400 mt-2">رسم بياني لآخر 5 تقييمات</p>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default StudentPortal;

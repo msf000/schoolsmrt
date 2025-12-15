@@ -4,9 +4,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, Question } from '../types';
-import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings } from '../services/storageService';
-import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, Question, StoredLessonPlan } from '../types';
+import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans } from '../services/storageService';
+import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen } from 'lucide-react';
 
 interface DashboardProps {
   students: Student[];
@@ -23,6 +23,7 @@ const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6']; // Green, Red, Ambe
 
 const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
     const [currentSession, setCurrentSession] = useState<ScheduleItem | null>(null);
+    const [lessonPlan, setLessonPlan] = useState<StoredLessonPlan | null>(null);
     const [timeLeft, setTimeLeft] = useState('');
     const [progress, setProgress] = useState(0);
 
@@ -30,6 +31,8 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
         if(!currentUser) return;
         const timings = getTeacherPeriodTimings(currentUser.id);
         const schedules = getSchedules().filter(s => s.teacherId === currentUser.id);
+        const weeklyPlans = getWeeklyPlans(currentUser.id);
+        const allPlans = getLessonPlans(currentUser.id);
         
         const update = () => {
             const now = new Date();
@@ -61,6 +64,24 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
 
             if (activeSession) {
                 setCurrentSession(activeSession);
+                
+                // Find Plan
+                // 1. Find Weekly Item
+                // Calc current week start
+                const d = new Date();
+                const dayOffset = d.getDay(); 
+                const weekStart = new Date(d);
+                weekStart.setDate(d.getDate() - dayOffset);
+                const weekStartStr = weekStart.toISOString().split('T')[0];
+
+                const wPlan = weeklyPlans.find(p => p.day === today && p.period === activeSession.period && p.weekStartDate === weekStartStr);
+                if (wPlan && wPlan.lessonTopic) {
+                    const stored = allPlans.find(p => p.topic.trim() === wPlan.lessonTopic.trim());
+                    setLessonPlan(stored || null);
+                } else {
+                    setLessonPlan(null);
+                }
+
                 const duration = pEnd - pStart;
                 const elapsed = currentTime - pStart;
                 const remaining = pEnd - currentTime;
@@ -68,6 +89,7 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
                 setProgress((elapsed / duration) * 100);
             } else {
                 setCurrentSession(null);
+                setLessonPlan(null);
             }
         };
 
@@ -87,13 +109,23 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-4 rounded-xl shadow-md border border-indigo-700 flex flex-col h-full relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-10 -mt-10"></div>
             
-            <div className="flex justify-between items-start relative z-10">
+            <div className="flex justify-between items-start relative z-10 mb-2">
                 <div>
                     <h3 className="font-bold text-lg mb-1">الحصة {currentSession.period}</h3>
                     <p className="text-indigo-200 text-xs font-bold">{currentSession.subjectName}</p>
                 </div>
                 <span className="bg-white/20 px-2 py-1 rounded text-xs font-bold">{currentSession.classId}</span>
             </div>
+
+            {lessonPlan && (
+                <div className="relative z-10 bg-white/10 rounded-lg p-2 mb-2 flex items-center gap-2">
+                    <BookOpen size={16} className="text-yellow-400"/>
+                    <div className="overflow-hidden">
+                        <p className="text-[10px] text-indigo-200">الدرس الحالي</p>
+                        <p className="text-xs font-bold truncate">{lessonPlan.topic}</p>
+                    </div>
+                </div>
+            )}
 
             <div className="mt-auto relative z-10">
                 <div className="flex justify-between text-xs mb-1 opacity-90">
@@ -107,7 +139,7 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
                     onClick={() => onNavigate('CLASSROOM_MANAGEMENT')}
                     className="w-full py-2 bg-white text-indigo-900 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors shadow-sm"
                 >
-                    <MonitorPlay size={14}/> فتح الفصل
+                    <MonitorPlay size={14}/> {lessonPlan ? 'عرض الدرس وبدء الحصة' : 'فتح الفصل'}
                 </button>
             </div>
         </div>

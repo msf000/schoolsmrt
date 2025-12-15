@@ -316,7 +316,7 @@ const App: React.FC = () => {
                     <Route path="/works" element={<WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={handleAddPerformance} currentUser={currentUser}/>} />
                     <Route path="/performance" element={<PerformanceView students={students} performance={performance} onAddPerformance={handleAddPerformance} onImportPerformance={contextValue.importPerformance} onDeletePerformance={handleDeletePerformance} currentUser={currentUser} attendance={attendance} />} />
                     <Route path="/schedule" element={<ScheduleView currentUser={currentUser} onNavigateToLesson={() => navigate('/planning')} onNavigateToAttendance={() => navigate('/attendance')} />} />
-                    <Route path="/planning" element={<LessonPlanning />} />
+                    <Route path="/planning" element={<LessonPlanning currentUser={currentUser} />} />
                     <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser} />} />
                     <Route path="/exams" element={<ExamsManager currentUser={currentUser} />} />
                     <Route path="/questions" element={<QuestionBank currentUser={currentUser} />} />

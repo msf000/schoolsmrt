@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem } from '../types';
-import { getSchedules, getTeacherAssignments, getSubjects, getCurriculumUnits, getCurriculumLessons, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem } from '../services/storageService';
-import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, CalendarDays, Sparkles } from 'lucide-react';
+import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem, StoredLessonPlan } from '../types';
+import { getSchedules, getTeacherAssignments, getSubjects, getCurriculumUnits, getCurriculumLessons, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, getLessonPlans } from '../services/storageService';
+import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, CalendarDays, Sparkles, FileCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ScheduleViewProps {
@@ -18,6 +18,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlanItem[]>([]);
+    const [myLessonPlans, setMyLessonPlans] = useState<StoredLessonPlan[]>([]);
 
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<{day: string, period: number} | null>(null);
@@ -52,6 +53,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
             setAssignments(getTeacherAssignments());
             setSubjects(getSubjects(currentUser.id));
             setWeeklyPlans(getWeeklyPlans(currentUser.id));
+            setMyLessonPlans(getLessonPlans(currentUser.id));
         }
     }, [currentUser]);
 
@@ -79,6 +81,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
         if(!currentUser) return [];
         return schedules.filter(s => s.teacherId === currentUser.id || !s.teacherId);
     }, [schedules, currentUser]);
+
+    // Helper to check if a plan exists for a topic
+    const hasLessonPlan = (topic: string) => {
+        if (!topic) return false;
+        return myLessonPlans.some(p => p.topic.trim() === topic.trim());
+    };
 
     const handleSlotClick = (day: string, period: number) => {
         if (viewMode === 'PLAN') {
@@ -219,6 +227,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                         const session = mySchedules.find(s => s.day === mobileSelectedDay && s.period === period);
                         const plan = weeklyPlans.find(p => p.day === mobileSelectedDay && p.period === period && p.weekStartDate === currentWeekStart);
                         const isSelected = selectedSlot?.day === mobileSelectedDay && selectedSlot?.period === period;
+                        const isPrepared = plan?.lessonTopic && hasLessonPlan(plan.lessonTopic);
 
                         return (
                             <div 
@@ -228,7 +237,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                             >
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">الحصة {period}</span>
-                                    {session && <span className="text-xs text-gray-400">Class {session.classId}</span>}
+                                    {session && (
+                                        <div className="flex items-center gap-2">
+                                            {isPrepared && <span className="text-green-600 text-[10px] font-bold bg-green-50 px-2 py-0.5 rounded flex items-center gap-1"><FileCheck size={10}/> جاهز</span>}
+                                            <span className="text-xs text-gray-400">Class {session.classId}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 
                                 {session ? (
@@ -305,6 +319,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                                             const session = mySchedules.find(s => s.day === day && s.period === period);
                                             const isSelected = selectedSlot?.day === day && selectedSlot?.period === period;
                                             const plan = weeklyPlans.find(p => p.day === day && p.period === period && p.weekStartDate === currentWeekStart);
+                                            const isPrepared = plan?.lessonTopic && hasLessonPlan(plan.lessonTopic);
 
                                             return (
                                                 <td 
@@ -331,7 +346,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                                                     ) : (
                                                         session ? (
                                                             <div className="flex flex-col items-center gap-1 h-full w-full">
-                                                                <div className="flex items-center gap-2 w-full justify-center bg-gray-100 rounded py-1">
+                                                                <div className="flex items-center gap-2 w-full justify-center bg-gray-100 rounded py-1 relative">
+                                                                    {isPrepared && <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-0.5" title="الدرس محضر"><Check size={8}/></div>}
                                                                     <span className="font-bold text-gray-800 text-sm">{session.subjectName}</span>
                                                                     <span className="bg-white text-gray-600 px-2 rounded text-[10px] border">{session.classId}</span>
                                                                 </div>
