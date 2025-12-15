@@ -6,10 +6,8 @@ let supabaseInstance: SupabaseClient | null = null;
 
 export const isSupabaseConfigured = (): boolean => {
     const localUrl = localStorage.getItem('custom_supabase_url');
-    
-    // Check imported vars (from vite.config.ts polyfill or import.meta)
-    // Note: In Vite, import.meta.env is preferred, but process.env is polyfilled for compatibility
-    const envUrl = (typeof process !== 'undefined' && process.env?.SUPABASE_URL) || import.meta.env?.VITE_SUPABASE_URL || '';
+    // Safe access using import.meta.env first, falling back to process.env safely
+    const envUrl = import.meta.env?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '');
 
     const hasValidLocal = !!localUrl && !localUrl.includes('placeholder');
     const hasValidEnv = !!envUrl && !envUrl.includes('placeholder');
@@ -25,11 +23,11 @@ export const getSupabaseClient = (): SupabaseClient => {
     const localUrl = localStorage.getItem('custom_supabase_url');
     const localKey = localStorage.getItem('custom_supabase_key');
 
-    // 2. Try env vars
-    // Priority: VITE_ prefixed (standard) -> process.env (Vercel/Polyfill)
+    // 2. Try env vars (Standard Vite + Polyfilled Process for Vercel)
     const envUrl = import.meta.env?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '') || '';
     const envKey = import.meta.env?.VITE_SUPABASE_KEY || (typeof process !== 'undefined' ? process.env?.SUPABASE_KEY : '') || '';
 
+    // Determine final values (Fallback to placeholder to allow app init, but requests will fail if used)
     let finalUrl = localUrl || envUrl || 'https://placeholder.supabase.co';
     const finalKey = localKey || envKey || 'placeholder-key';
 

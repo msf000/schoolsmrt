@@ -1,4 +1,3 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -6,8 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
-  // The third parameter '' ensures we load all env vars, not just VITE_*
-  const env = loadEnv(mode, process.cwd(), '');
+  const env = loadEnv(mode, (process as any).cwd(), '');
   
   return {
     plugins: [
@@ -65,15 +63,17 @@ export default defineConfig(({ mode }) => {
       })
     ],
     define: {
-      // Define process.env as an object containing the specific keys we need.
-      // This prevents "process is not defined" crashes in the browser.
-      'process.env': JSON.stringify({
-        API_KEY: env.API_KEY || env.VITE_API_KEY || "",
-        SUPABASE_URL: env.SUPABASE_URL || env.VITE_SUPABASE_URL || "",
-        SUPABASE_KEY: env.SUPABASE_KEY || env.VITE_SUPABASE_KEY || "",
-        NODE_ENV: process.env.NODE_ENV || 'development'
+      // Polyfill the 'process' object completely for the browser environment.
+      // This fixes "process is not defined" errors from 3rd party libs and allows access to env vars.
+      'process': JSON.stringify({
+        env: {
+          API_KEY: env.API_KEY || env.VITE_API_KEY || "",
+          SUPABASE_URL: env.SUPABASE_URL || env.VITE_SUPABASE_URL || "",
+          SUPABASE_KEY: env.SUPABASE_KEY || env.VITE_SUPABASE_KEY || "",
+          NODE_ENV: mode
+        }
       }),
-      // Polyfill global for some older libraries
+      // Also polyfill 'global' for some older libraries
       'global': 'window',
     }
   };
