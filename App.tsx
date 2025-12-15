@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { 
     Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
@@ -16,6 +16,7 @@ import {
 import { isSupabaseConfigured } from './services/supabaseClient';
 import { checkAIConnection } from './services/geminiService';
 
+// Corrected Imports relative to Root
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
@@ -46,7 +47,7 @@ import CertificatesCenter from './components/CertificatesCenter';
 import ReloadPrompt from './components/ReloadPrompt';
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, Award, Mail, Calendar, FileQuestion, Library, ScanLine, PenTool, ListTree, Printer, BrainCircuit, ClipboardList } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, Award, Mail, Calendar, FileQuestion, Library, ScanLine, PenTool, Printer, BrainCircuit, ClipboardList, CreditCard, FileSpreadsheet, List } from 'lucide-react';
 
 // --- CONTEXT ---
 interface AppContextType {
@@ -156,7 +157,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                             <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط</label></div>
                             <NavItem path="/schedule" label="الجدول" icon={Calendar} />
                             <NavItem path="/planning" label="التحضير" icon={PenTool} />
-                            <NavItem path="/curriculum" label="المنهج" icon={ListTree} />
+                            <NavItem path="/curriculum" label="المنهج" icon={List} />
                             
                             <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">التقييم</label></div>
                             <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} />
@@ -302,7 +303,7 @@ const App: React.FC = () => {
         <AppContext.Provider value={contextValue}>
             <Layout>
                 <Routes>
-                    <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={(v) => navigate(v === 'CLASSROOM_MANAGEMENT' ? '/classroom' : v === 'ATTENDANCE' ? '/attendance' : v === 'EXAMS_MANAGER' ? '/exams' : v === 'AUTO_GRADING' ? '/auto-grading' : v === 'STUDENT_FOLLOWUP' ? '/followup' : v === 'AI_REPORTS' ? '/reports' : '/')} />} />
+                    <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser} onNavigate={(v: string) => navigate(v === 'CLASSROOM_MANAGEMENT' ? '/classroom' : v === 'ATTENDANCE' ? '/attendance' : v === 'EXAMS_MANAGER' ? '/exams' : v === 'AUTO_GRADING' ? '/auto-grading' : v === 'STUDENT_FOLLOWUP' ? '/followup' : v === 'AI_REPORTS' ? '/reports' : '/')} />} />
                     <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={handleAddStudent} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onImportStudents={contextValue.importStudents} currentUser={currentUser} />} />
                     <Route path="/attendance" element={<AttendanceComponent students={students} attendanceHistory={attendance} onSaveAttendance={handleSaveAttendance} onImportAttendance={contextValue.importAttendance} currentUser={currentUser} onNavigate={() => {}} />} />
                     <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={handleSaveAttendance} onImportAttendance={contextValue.importAttendance} currentUser={currentUser} />} />
