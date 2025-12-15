@@ -116,6 +116,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const fillAdmin = () => {
+      setRoleMode('STAFF');
       setIdentifier('admin');
       setPassword('admin');
   };
@@ -223,11 +224,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                             تذكرني
                         </button>
                         
-                        {roleMode === 'STAFF' && (
-                            <button type="button" onClick={fillAdmin} className="text-[10px] text-indigo-500 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 flex items-center gap-1">
-                                <KeyRound size={10}/> دخول كمدير (Demo)
-                            </button>
-                        )}
+                        <button type="button" onClick={fillAdmin} className="text-[10px] text-indigo-500 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 flex items-center gap-1 border border-indigo-100">
+                            <KeyRound size={12}/> دخول كمدير (Demo)
+                        </button>
                     </div>
 
                     {error && (
