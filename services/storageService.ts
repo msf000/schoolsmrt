@@ -320,7 +320,12 @@ export const DEFAULT_PERIOD_TIMES = [
 
 export const getTeacherPeriodTimings = (teacherId?: string): string[] => {
     const stored = localStorage.getItem(KEYS.PERIOD_TIMINGS);
-    return stored ? JSON.parse(stored) : DEFAULT_PERIOD_TIMES;
+    if (!stored || stored === "undefined" || stored === "null") return DEFAULT_PERIOD_TIMES;
+    try {
+        return JSON.parse(stored);
+    } catch {
+        return DEFAULT_PERIOD_TIMES;
+    }
 };
 
 export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) => {
@@ -328,11 +333,19 @@ export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) =
     notifyDataChange();
 };
 
+// --- CRITICAL FIX: Safe getter that guarantees an array return type ---
 const get = <T>(key: string): T[] => {
     try {
         const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : [];
-    } catch { return []; }
+        // Check for null string literals which might have corrupted storage
+        if (!data || data === "undefined" || data === "null") return [];
+        
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { 
+        console.warn(`Error parsing key ${key}, resetting to empty array.`);
+        return []; 
+    }
 };
 
 const updateCache = <T>(key: string, data: T[]) => {
