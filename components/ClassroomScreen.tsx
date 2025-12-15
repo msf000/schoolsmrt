@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser, StoredLessonPlan } from '../types';
-import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star, Siren, BarChart2, Check, Zap, List } from 'lucide-react';
+import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star, Siren, BarChart2, Check, Zap, List, Music, Armchair, Bell, ThumbsUp, ThumbsDown, MicOff, XCircle } from 'lucide-react';
 import { getLessonLinks, getLessonPlans } from '../services/storageService';
 import { generateSlideQuestions, suggestQuickActivity } from '../services/geminiService';
 
@@ -14,7 +13,7 @@ interface ClassroomScreenProps {
 
 const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance, onSaveAttendance, currentUser }) => {
     const [selectedClass, setSelectedClass] = useState('');
-    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS'>('PRESENTATION');
+    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS' | 'SEATING'>('PRESENTATION');
     const [isFullscreen, setIsFullscreen] = useState(false);
     
     // --- Unique Classes ---
@@ -115,6 +114,12 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
                         >
                             <Grid size={18}/> المجموعات
                         </button>
+                        <button 
+                            onClick={() => setActiveTool('SEATING')}
+                            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeTool === 'SEATING' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}
+                        >
+                            <Armchair size={18}/> الجلوس
+                        </button>
                     </div>
 
                     <button 
@@ -133,13 +138,13 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
                 {activeTool === 'TIMER' && <ClassroomTimer />}
                 {activeTool === 'GROUPS' && <GroupGenerator students={presentStudents} />}
                 {activeTool === 'REWARDS' && <RewardsView students={presentStudents} attendance={attendance} onSaveAttendance={onSaveAttendance} currentUser={currentUser} />}
+                {activeTool === 'SEATING' && <SeatingView students={presentStudents} />}
                 {activeTool === 'PRESENTATION' && <PresentationBoard students={presentStudents} total={filteredStudents.length} currentClass={selectedClass} currentUser={currentUser} />}
             </div>
         </div>
     );
 };
 
-// ... (Audio Utils, RewardsView, RandomPicker, ClassroomTimer, GroupGenerator, ToolBtn are unchanged) ...
 // --- AUDIO SYNTHESIS UTILS ---
 const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 'QUIET') => {
     try {
@@ -221,6 +226,40 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
     } catch (e) {
         console.error("Audio playback error", e);
     }
+};
+
+const SeatingView = ({ students }: { students: Student[] }) => {
+    // Sort by seatIndex to maintain layout
+    const sorted = [...students].sort((a, b) => (a.seatIndex || 999) - (b.seatIndex || 999));
+    
+    return (
+        <div className="w-full h-full flex flex-col items-center justify-center p-6 md:p-10 animate-fade-in">
+            <h3 className="text-3xl font-black text-white mb-8 drop-shadow-md flex items-center gap-3">
+                <Armchair size={32} className="text-orange-400"/> مخطط الجلوس
+            </h3>
+            
+            <div className="flex-1 w-full flex flex-col items-center overflow-y-auto custom-scrollbar">
+                <div className="mb-10 w-1/3 h-6 bg-white/20 rounded-full flex items-center justify-center border-b-4 border-white/10 shadow-inner">
+                    <span className="text-white/50 text-xs font-bold uppercase tracking-widest">السبورة (المعلم)</span>
+                </div>
+
+                <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6 w-full max-w-6xl px-4" style={{ direction: 'rtl' }}>
+                    {sorted.map((s, i) => (
+                        <div 
+                            key={s.id} 
+                            className="aspect-square bg-white/10 border-2 border-white/20 rounded-2xl flex flex-col items-center justify-center p-2 shadow-lg backdrop-blur-sm animate-bounce-in hover:scale-105 transition-transform" 
+                            style={{animationDelay: `${i*30}ms`}}
+                        >
+                            <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full flex items-center justify-center text-xl md:text-2xl font-bold mb-2 shadow-inner border border-white/20">
+                                {s.name.charAt(0)}
+                            </div>
+                            <span className="text-sm md:text-lg font-bold text-center leading-tight line-clamp-2">{s.name}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // ... (RewardsView, RandomPicker, ClassroomTimer, GroupGenerator logic remains same)
@@ -527,9 +566,6 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
         } catch { }
     }, [currentClass, currentUser]);
 
-    // ... (Rest of Presentation Board logic: Resize, Draw, Slides, etc. - Truncated for brevity) ...
-    // Note: Ensuring the render method and logic for `renderContent` are included properly.
-
     // Resize Canvas Logic (unchanged for brevity but assumed present)
     useEffect(() => {
         const handleResize = () => {
@@ -758,6 +794,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
                         <div className="w-[1px] h-6 bg-white/20 mx-1"></div>
                         <ToolBtn icon={<Shuffle size={20}/>} active={activeFloatingTool === 'PICKER'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'PICKER' ? 'NONE' : 'PICKER')} />
                         <ToolBtn icon={<Clock size={20}/>} active={activeFloatingTool === 'TIMER'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'TIMER' ? 'NONE' : 'TIMER')} />
+                        <ToolBtn icon={<Music size={20}/>} active={activeFloatingTool === 'SOUNDS'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'SOUNDS' ? 'NONE' : 'SOUNDS')} />
                         <ToolBtn icon={<DoorOpen size={20}/>} active={activeFloatingTool === 'HALL_PASS'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'HALL_PASS' ? 'NONE' : 'HALL_PASS')} />
                         <ToolBtn icon={<AlertCircle size={20}/>} active={activeFloatingTool === 'TRAFFIC'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'TRAFFIC' ? 'NONE' : 'TRAFFIC')} />
                         <ToolBtn icon={<Siren size={20}/>} active={activeFloatingTool === 'PANIC'} onClick={() => setActiveFloatingTool(activeFloatingTool === 'PANIC' ? 'NONE' : 'PANIC')} color="red" />
@@ -790,6 +827,33 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
                             </div>
                         )}
 
+                        {/* Soundboard Widget */}
+                        {activeFloatingTool === 'SOUNDS' && (
+                            <div className="p-4">
+                                <h4 className="text-pink-300 font-bold mb-3 flex items-center gap-2"><Music size={16}/> مؤثرات صوتية</h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <button onClick={() => playSoundEffect('CORRECT')} className="p-3 bg-green-600/50 hover:bg-green-600 rounded-lg flex flex-col items-center gap-1 text-xs transition-colors">
+                                        <CheckCircle size={20}/> صح
+                                    </button>
+                                    <button onClick={() => playSoundEffect('WRONG')} className="p-3 bg-red-600/50 hover:bg-red-600 rounded-lg flex flex-col items-center gap-1 text-xs transition-colors">
+                                        <XCircle size={20}/> خطأ
+                                    </button>
+                                    <button onClick={() => playSoundEffect('CLAP')} className="p-3 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg flex flex-col items-center gap-1 text-xs transition-colors">
+                                        <ThumbsUp size={20}/> تصفيق
+                                    </button>
+                                    <button onClick={() => playSoundEffect('BELL')} className="p-3 bg-indigo-600/50 hover:bg-indigo-600 rounded-lg flex flex-col items-center gap-1 text-xs transition-colors">
+                                        <Bell size={20}/> جرس
+                                    </button>
+                                    <button onClick={() => playSoundEffect('DRUM')} className="p-3 bg-orange-600/50 hover:bg-orange-600 rounded-lg flex flex-col items-center gap-1 text-xs transition-colors">
+                                        <DrumIcon /> طبلة
+                                    </button>
+                                    <button onClick={() => playSoundEffect('QUIET')} className="p-3 bg-gray-600/50 hover:bg-gray-600 rounded-lg flex flex-col items-center gap-1 text-xs transition-colors">
+                                        <MicOff size={20}/> هدوء
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Existing Widgets (Simplified for brevity as they were unchanged) */}
                         {activeFloatingTool === 'PICKER' && <div className="p-4"><div className="scale-75 origin-top"><RandomPicker students={students} total={total} /></div></div>}
                         {activeFloatingTool === 'TIMER' && <div className="p-4"><div className="scale-75 origin-top"><ClassroomTimer /></div></div>}
@@ -802,5 +866,10 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
         </div>
     );
 };
+
+// --- Helper Icon for Drum ---
+const DrumIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c.5 0 1 .4 1 1v3h-2V3c0-.6.5-1 1-1Z"/><path d="M5 8h14"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="m5 8 5 5"/><path d="m19 8-5 5"/></svg>
+);
 
 export default ClassroomScreen;

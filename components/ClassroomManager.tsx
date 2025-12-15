@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord, LessonLink } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Filter, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Filter, Link as LinkIcon, ExternalLink, Move } from 'lucide-react';
 import Attendance from './Attendance';
 import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink, updateStudent } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
@@ -34,7 +34,6 @@ const LessonLibraryWidget: React.FC<{ currentUser?: SystemUser | null, className
 
     useEffect(() => {
         const allLinks = getLessonLinks();
-        // Filter links relevant to this teacher and optionally this class
         setLinks(allLinks.filter(l => l.teacherId === currentUser?.id && (!className || !l.className || l.className === className)));
     }, [currentUser, className]);
 
@@ -117,6 +116,133 @@ const DailyScheduleWidget: React.FC<{
     );
 };
 
+// --- SEATING CHART COMPONENT ---
+const SeatingChart: React.FC<{ 
+    students: Student[], 
+    attendance: AttendanceRecord[], 
+    onSaveAttendance: (records: AttendanceRecord[]) => void,
+    onSaveSeating: (updatedStudents: Student[]) => void,
+    currentUser?: SystemUser | null
+}> = ({ students, attendance, onSaveAttendance, onSaveSeating, currentUser }) => {
+    const [editMode, setEditMode] = useState(false);
+    const [localStudents, setLocalStudents] = useState<Student[]>(students);
+    const today = new Date().toISOString().split('T')[0];
+
+    useEffect(() => {
+        setLocalStudents(students.sort((a, b) => (a.seatIndex || 999) - (b.seatIndex || 999)));
+    }, [students]);
+
+    // Handle Drop
+    const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+        e.preventDefault();
+        const studentId = e.dataTransfer.getData("studentId");
+        const draggedStudentIndex = localStudents.findIndex(s => s.id === studentId);
+        
+        if (draggedStudentIndex > -1) {
+            const newStudents = [...localStudents];
+            const [draggedStudent] = newStudents.splice(draggedStudentIndex, 1);
+            newStudents.splice(targetIndex, 0, draggedStudent);
+            
+            // Re-assign seat indices based on new order
+            const updated = newStudents.map((s, idx) => ({ ...s, seatIndex: idx }));
+            setLocalStudents(updated);
+        }
+    };
+
+    const handleSaveOrder = () => {
+        onSaveSeating(localStudents);
+        setEditMode(false);
+    };
+
+    const toggleAttendance = (student: Student) => {
+        if (editMode) return;
+        const currentRecord = attendance.find(a => a.studentId === student.id && a.date === today);
+        const currentStatus = currentRecord ? currentRecord.status : AttendanceStatus.PRESENT;
+        
+        let nextStatus = AttendanceStatus.PRESENT;
+        if (currentStatus === AttendanceStatus.PRESENT) nextStatus = AttendanceStatus.ABSENT;
+        else if (currentStatus === AttendanceStatus.ABSENT) nextStatus = AttendanceStatus.LATE;
+        else nextStatus = AttendanceStatus.PRESENT;
+
+        const newRecord: AttendanceRecord = {
+            id: currentRecord ? currentRecord.id : `${student.id}-${today}`,
+            studentId: student.id,
+            date: today,
+            status: nextStatus,
+            createdById: currentUser?.id
+        };
+        onSaveAttendance([newRecord]);
+    };
+
+    return (
+        <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><LayoutGrid size={18}/> مخطط الفصل</h3>
+                    <div className="flex gap-2 text-xs font-bold">
+                        <span className="flex items-center gap-1"><div className="w-3 h-3 bg-green-500 rounded-full"></div> حاضر</span>
+                        <span className="flex items-center gap-1"><div className="w-3 h-3 bg-red-500 rounded-full"></div> غائب</span>
+                        <span className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div> متأخر</span>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    {editMode ? (
+                        <button onClick={handleSaveOrder} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-green-700 animate-bounce-in">
+                            <Save size={16}/> حفظ الترتيب
+                        </button>
+                    ) : (
+                        <button onClick={() => setEditMode(true)} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-gray-50">
+                            <Move size={16}/> تعديل الأماكن
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 bg-slate-50 relative">
+                {/* Teacher Desk visual */}
+                <div className="w-64 h-12 bg-gray-300 rounded-lg mx-auto mb-10 flex items-center justify-center text-gray-500 font-bold text-sm shadow-inner border-b-4 border-gray-400">
+                    مكتب المعلم (السبورة)
+                </div>
+
+                <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 max-w-5xl mx-auto" style={{ direction: 'rtl' }}>
+                    {localStudents.map((student, index) => {
+                        const record = attendance.find(a => a.studentId === student.id && a.date === today);
+                        const status = record ? record.status : AttendanceStatus.PRESENT;
+                        
+                        return (
+                            <div
+                                key={student.id}
+                                draggable={editMode}
+                                onDragStart={(e) => { e.dataTransfer.setData("studentId", student.id); e.dataTransfer.effectAllowed = "move"; }}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => handleDrop(e, index)}
+                                onClick={() => toggleAttendance(student)}
+                                className={`
+                                    relative p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 aspect-square shadow-sm
+                                    ${editMode ? 'cursor-move border-dashed border-gray-400 bg-white hover:bg-gray-50' : 'cursor-pointer hover:scale-105 hover:shadow-md'}
+                                    ${!editMode && status === 'PRESENT' ? 'bg-white border-green-500' : ''}
+                                    ${!editMode && status === 'ABSENT' ? 'bg-red-50 border-red-500' : ''}
+                                    ${!editMode && status === 'LATE' ? 'bg-yellow-50 border-yellow-500' : ''}
+                                `}
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm ${!editMode && status === 'ABSENT' ? 'bg-red-500' : !editMode && status === 'LATE' ? 'bg-yellow-500' : 'bg-green-500'}`}>
+                                    {student.name.charAt(0)}
+                                </div>
+                                <span className="text-xs font-bold text-center leading-tight line-clamp-2">{student.name}</span>
+                                {editMode && <Move size={12} className="absolute top-2 right-2 text-gray-400"/>}
+                            </div>
+                        );
+                    })}
+                    {/* Empty Slots for layout */}
+                    {Array.from({ length: Math.max(0, 30 - localStudents.length) }).map((_, i) => (
+                        <div key={`empty-${i}`} className="border-2 border-dashed border-gray-200 rounded-xl bg-transparent aspect-square opacity-50"></div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN COMPONENT ---
 
 interface ClassroomManagerProps {
@@ -130,7 +256,6 @@ interface ClassroomManagerProps {
     selectedDate?: string;
     onDateChange?: (date: string) => void;
     currentUser?: SystemUser | null;
-    onSaveSeating?: (students: Student[]) => void;
 }
 
 const ClassroomManager: React.FC<ClassroomManagerProps> = ({ 
@@ -180,6 +305,12 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         if(loadedSubjects.length > 0 && !selectedSubject) setSelectedSubject(loadedSubjects[0].name);
     }, [uniqueClasses, currentUser]);
 
+    // Handle Seating Save
+    const handleSeatingSave = (updatedStudents: Student[]) => {
+        updatedStudents.forEach(s => updateStudent(s));
+        // Force refresh handled by parent via data change listeners if implemented, or we can just rely on local state update for now
+    };
+
     // Render Logic
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
@@ -212,6 +343,9 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         </button>
                         <button onClick={() => setActiveTab('ATTENDANCE')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'ATTENDANCE' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:text-gray-800'}`}>
                             <CheckSquare size={16}/> التحضير
+                        </button>
+                        <button onClick={() => setActiveTab('SEATING')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'SEATING' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:text-gray-800'}`}>
+                            <LayoutGrid size={16}/> المقاعد
                         </button>
                     </div>
 
@@ -300,13 +434,22 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                     </div>
                 )}
 
-                {/* --- SEATING TAB (Placeholder for future) --- */}
+                {/* --- SEATING TAB --- */}
                 {activeTab === 'SEATING' && (
-                    <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center text-gray-400">
-                        <div className="text-center">
-                            <Grid size={48} className="mx-auto mb-4 opacity-20"/>
-                            <p>مخطط الجلوس قريباً...</p>
-                        </div>
+                    <div className="flex-1 overflow-hidden flex flex-col">
+                        {selectedClass ? (
+                            <SeatingChart 
+                                students={students.filter(s => s.className === selectedClass)}
+                                attendance={attendance}
+                                onSaveAttendance={onSaveAttendance}
+                                onSaveSeating={handleSeatingSave}
+                                currentUser={currentUser}
+                            />
+                        ) : (
+                            <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center text-gray-400">
+                                <p>الرجاء اختيار الفصل لعرض المخطط</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
