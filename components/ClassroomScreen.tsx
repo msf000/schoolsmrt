@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser, StoredLessonPlan } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser, StoredLessonPlan, ScheduleItem } from '../types';
 import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star, Siren, BarChart2, Check, Zap, List, Music, Armchair, Bell, ThumbsUp, ThumbsDown, MicOff, XCircle } from 'lucide-react';
-import { getLessonLinks, getLessonPlans } from '../services/storageService';
+import { getLessonLinks, getLessonPlans, getSchedules, getTeacherPeriodTimings, getWeeklyPlans } from '../services/storageService';
 import { generateSlideQuestions, suggestQuickActivity } from '../services/geminiService';
 
 interface ClassroomScreenProps {
@@ -145,7 +146,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
     );
 };
 
-// --- AUDIO SYNTHESIS UTILS ---
+// ... (Audio Synthesis Utils, SeatingView, RewardsView, RandomPicker, ClassroomTimer, GroupGenerator - UNCHANGED) ...
 const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 'QUIET') => {
     try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -168,7 +169,6 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
                 osc.start(t);
                 osc.stop(t + 0.5);
                 break;
-            
             case 'WRONG': // "Buzz"
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(150, t);
@@ -178,7 +178,6 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
                 osc.start(t);
                 osc.stop(t + 0.3);
                 break;
-
             case 'BELL': // School Bell Simulation
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(600, t);
@@ -187,7 +186,6 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
                 osc.start(t);
                 osc.stop(t + 2.0);
                 break;
-
             case 'DRUM': // Deep thud
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(80, t);
@@ -197,7 +195,6 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
                 osc.start(t);
                 osc.stop(t + 0.3);
                 break;
-
             case 'CLAP': // Short bursts of noise
                 const count = 15;
                 for(let i=0; i<count; i++) {
@@ -213,7 +210,6 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
                     cOsc.stop(t + i * 0.06 + 0.05);
                 }
                 break;
-                
             case 'QUIET': // Long soft tone
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(440, t);
@@ -229,27 +225,19 @@ const playSoundEffect = (type: 'CORRECT' | 'WRONG' | 'CLAP' | 'BELL' | 'DRUM' | 
 };
 
 const SeatingView = ({ students }: { students: Student[] }) => {
-    // Sort by seatIndex to maintain layout
     const sorted = [...students].sort((a, b) => (a.seatIndex || 999) - (b.seatIndex || 999));
-    
     return (
         <div className="w-full h-full flex flex-col items-center justify-center p-6 md:p-10 animate-fade-in">
             <h3 className="text-3xl font-black text-white mb-8 drop-shadow-md flex items-center gap-3">
                 <Armchair size={32} className="text-orange-400"/> مخطط الجلوس
             </h3>
-            
             <div className="flex-1 w-full flex flex-col items-center overflow-y-auto custom-scrollbar">
                 <div className="mb-10 w-1/3 h-6 bg-white/20 rounded-full flex items-center justify-center border-b-4 border-white/10 shadow-inner">
                     <span className="text-white/50 text-xs font-bold uppercase tracking-widest">السبورة (المعلم)</span>
                 </div>
-
                 <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6 w-full max-w-6xl px-4" style={{ direction: 'rtl' }}>
                     {sorted.map((s, i) => (
-                        <div 
-                            key={s.id} 
-                            className="aspect-square bg-white/10 border-2 border-white/20 rounded-2xl flex flex-col items-center justify-center p-2 shadow-lg backdrop-blur-sm animate-bounce-in hover:scale-105 transition-transform" 
-                            style={{animationDelay: `${i*30}ms`}}
-                        >
+                        <div key={s.id} className="aspect-square bg-white/10 border-2 border-white/20 rounded-2xl flex flex-col items-center justify-center p-2 shadow-lg backdrop-blur-sm animate-bounce-in hover:scale-105 transition-transform" style={{animationDelay: `${i*30}ms`}}>
                             <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full flex items-center justify-center text-xl md:text-2xl font-bold mb-2 shadow-inner border border-white/20">
                                 {s.name.charAt(0)}
                             </div>
@@ -262,31 +250,23 @@ const SeatingView = ({ students }: { students: Student[] }) => {
     );
 };
 
-// ... (RewardsView, RandomPicker, ClassroomTimer, GroupGenerator logic remains same)
 const RewardsView: React.FC<{ students: Student[], attendance: AttendanceRecord[], onSaveAttendance?: (records: AttendanceRecord[]) => void, currentUser?: SystemUser | null }> = ({ students, attendance, onSaveAttendance, currentUser }) => {
-    // ... logic remains same ...
     const [points, setPoints] = useState<Record<string, number>>({});
     const [animatingStudent, setAnimatingStudent] = useState<string | null>(null);
-
-    // Initial load of points for today
     useEffect(() => {
         const today = new Date().toISOString().split('T')[0];
         const newPoints: Record<string, number> = {};
-        
         students.forEach(s => {
             const studentRecords = attendance.filter(a => a.studentId === s.id && a.date === today && a.behaviorStatus === BehaviorStatus.POSITIVE);
             newPoints[s.id] = studentRecords.length;
         });
         setPoints(newPoints);
     }, [students, attendance]);
-
     const handleGivePoint = (studentId: string) => {
         setAnimatingStudent(studentId);
         playSoundEffect('CORRECT');
         setTimeout(() => setAnimatingStudent(null), 1000);
-
         setPoints(prev => ({ ...prev, [studentId]: (prev[studentId] || 0) + 1 }));
-
         if (onSaveAttendance) {
             const record: AttendanceRecord = {
                 id: `${studentId}-reward-${Date.now()}`,
@@ -300,33 +280,20 @@ const RewardsView: React.FC<{ students: Student[], attendance: AttendanceRecord[
             onSaveAttendance([record]);
         }
     };
-
     return (
         <div className="w-full h-full flex flex-col">
             <div className="text-center mb-6">
                 <h3 className="text-2xl font-black text-yellow-400 drop-shadow-md">لوحة التميز والتحفيز</h3>
                 <p className="text-white/60">اضغط على الطالب لمنحه نجمة</p>
             </div>
-            
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4">
                     {students.map(s => {
                         const count = points[s.id] || 0;
                         const isAnimating = animatingStudent === s.id;
-                        
                         return (
-                            <div 
-                                key={s.id}
-                                onClick={() => handleGivePoint(s.id)}
-                                className={`
-                                    relative bg-white/10 border-2 border-white/10 rounded-2xl p-4 flex flex-col items-center justify-between h-40 cursor-pointer transition-all duration-200 hover:bg-white/20 hover:scale-105 active:scale-95 select-none
-                                    ${isAnimating ? 'border-yellow-400 bg-yellow-500/20' : ''}
-                                `}
-                            >
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mb-2 transition-transform ${isAnimating ? 'scale-125 bg-yellow-400 text-black' : 'bg-white/20 text-white'}`}>
-                                    {s.name.charAt(0)}
-                                </div>
-                                
+                            <div key={s.id} onClick={() => handleGivePoint(s.id)} className={`relative bg-white/10 border-2 border-white/10 rounded-2xl p-4 flex flex-col items-center justify-between h-40 cursor-pointer transition-all duration-200 hover:bg-white/20 hover:scale-105 active:scale-95 select-none ${isAnimating ? 'border-yellow-400 bg-yellow-500/20' : ''}`}>
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mb-2 transition-transform ${isAnimating ? 'scale-125 bg-yellow-400 text-black' : 'bg-white/20 text-white'}`}>{s.name.charAt(0)}</div>
                                 <div className="text-center">
                                     <h4 className="font-bold text-sm md:text-base line-clamp-1">{s.name}</h4>
                                     <div className="flex items-center justify-center gap-1 mt-2">
@@ -334,7 +301,6 @@ const RewardsView: React.FC<{ students: Student[], attendance: AttendanceRecord[
                                         <span className="font-black text-xl text-yellow-400">{count}</span>
                                     </div>
                                 </div>
-
                                 {isAnimating && (
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                         <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-20"></div>
@@ -351,32 +317,22 @@ const RewardsView: React.FC<{ students: Student[], attendance: AttendanceRecord[
 };
 
 const ToolBtn = ({ icon, active, onClick, color, label }: any) => (
-    <button 
-        onClick={onClick}
-        className={`p-2.5 rounded-lg transition-all flex flex-col items-center justify-center ${active ? (color === 'red' ? 'bg-red-600 text-white shadow-lg shadow-red-500/50' : 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50') : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-        title={label}
-    >
-        {icon}
-    </button>
+    <button onClick={onClick} className={`p-2.5 rounded-lg transition-all flex flex-col items-center justify-center ${active ? (color === 'red' ? 'bg-red-600 text-white shadow-lg shadow-red-500/50' : 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50') : 'text-gray-400 hover:text-white hover:bg-white/10'}`} title={label}>{icon}</button>
 );
 
 const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ students, total }) => {
-    // ... logic same ...
     const [currentName, setCurrentName] = useState('???');
     const [isRolling, setIsRolling] = useState(false);
     const [winner, setWinner] = useState<Student | null>(null);
     const intervalRef = useRef<number | null>(null);
-
     const startRoll = () => {
         if (students.length === 0) return;
         setIsRolling(true);
         setWinner(null);
-        
         intervalRef.current = window.setInterval(() => {
             const randomIdx = Math.floor(Math.random() * students.length);
             setCurrentName(students[randomIdx].name);
         }, 100);
-
         setTimeout(() => {
             if (intervalRef.current) clearInterval(intervalRef.current);
             const finalIdx = Math.floor(Math.random() * students.length);
@@ -386,61 +342,35 @@ const RandomPicker: React.FC<{ students: Student[], total: number }> = ({ studen
             playSoundEffect('CORRECT');
         }, 2000);
     };
-
-    useEffect(() => {
-        return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        };
-    }, []);
-
+    useEffect(() => { return () => { if (intervalRef.current) clearInterval(intervalRef.current); }; }, []);
     return (
         <div className="flex flex-col items-center justify-center w-full max-w-3xl">
-            {students.length < total && (
-                <div className="bg-red-500/20 text-red-200 px-4 py-2 rounded-full mb-4 flex items-center gap-2 text-sm backdrop-blur-sm border border-red-500/30">
-                    <AlertCircle size={16}/> تم استبعاد {total - students.length} طلاب غائبين
-                </div>
-            )}
-
+            {students.length < total && (<div className="bg-red-500/20 text-red-200 px-4 py-2 rounded-full mb-4 flex items-center gap-2 text-sm backdrop-blur-sm border border-red-500/30"><AlertCircle size={16}/> تم استبعاد {total - students.length} طلاب غائبين</div>)}
             <div className={`relative w-full aspect-video md:aspect-[21/9] bg-white/10 rounded-3xl border-4 flex items-center justify-center transition-all duration-300 backdrop-blur-sm ${winner ? 'border-yellow-400 shadow-[0_0_50px_rgba(250,204,21,0.3)] scale-105' : 'border-white/20'}`}>
-                <h1 className={`font-black text-center transition-all duration-100 ${winner ? 'text-6xl md:text-8xl text-yellow-400 drop-shadow-lg' : 'text-5xl md:text-7xl text-white/80'}`}>
-                    {students.length > 0 ? currentName : 'لا يوجد طلاب حاضرين'}
-                </h1>
+                <h1 className={`font-black text-center transition-all duration-100 ${winner ? 'text-6xl md:text-8xl text-yellow-400 drop-shadow-lg' : 'text-5xl md:text-7xl text-white/80'}`}>{students.length > 0 ? currentName : 'لا يوجد طلاب حاضرين'}</h1>
                 {winner && !isRolling && <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 animate-bounce"><Trophy size={64} className="text-yellow-400 fill-yellow-400"/></div>}
             </div>
-
-            <button onClick={startRoll} disabled={isRolling || students.length === 0} className="mt-12 px-12 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-2xl rounded-full shadow-xl transform active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
-                <Shuffle size={32}/> {isRolling ? 'جاري الاختيار...' : 'اختر طالب'}
-            </button>
+            <button onClick={startRoll} disabled={isRolling || students.length === 0} className="mt-12 px-12 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-2xl rounded-full shadow-xl transform active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"><Shuffle size={32}/> {isRolling ? 'جاري الاختيار...' : 'اختر طالب'}</button>
         </div>
     );
 };
 
 const ClassroomTimer = () => {
-    // ... logic same ...
     const [timeLeft, setTimeLeft] = useState(300);
     const [isActive, setIsActive] = useState(false);
     const [initialTime, setInitialTime] = useState(300);
-
     useEffect(() => {
         let interval: number;
-        if (isActive && timeLeft > 0) {
-            interval = window.setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-        } else if (timeLeft === 0) {
-            setIsActive(false);
-            if(initialTime > 0) playSoundEffect('BELL');
-        }
+        if (isActive && timeLeft > 0) { interval = window.setInterval(() => setTimeLeft((prev) => prev - 1), 1000); } else if (timeLeft === 0) { setIsActive(false); if(initialTime > 0) playSoundEffect('BELL'); }
         return () => clearInterval(interval);
     }, [isActive, timeLeft, initialTime]);
-
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
-
     const progress = (timeLeft / initialTime) * 100;
     const color = timeLeft < 30 ? 'text-red-500' : timeLeft < 60 ? 'text-orange-400' : 'text-white';
-
     return (
         <div className="flex flex-col items-center">
             <div className="relative w-64 h-64 md:w-96 md:h-96 flex items-center justify-center">
@@ -454,18 +384,14 @@ const ClassroomTimer = () => {
                 <button onClick={() => setIsActive(!isActive)} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${isActive ? 'bg-yellow-500 text-black' : 'bg-green-500 text-white'}`}>{isActive ? <Pause size={32}/> : <Play size={32} className="ml-1"/>}</button>
                 <button onClick={() => { setIsActive(false); setTimeLeft(initialTime); }} className="w-16 h-16 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all"><RefreshCw size={28}/></button>
             </div>
-            <div className="flex gap-2 mt-8">
-                {[1, 5, 10, 15, 30].map(m => <button key={m} onClick={() => {setIsActive(false); setInitialTime(m*60); setTimeLeft(m*60)}} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold transition-colors">{m} د</button>)}
-            </div>
+            <div className="flex gap-2 mt-8">{[1, 5, 10, 15, 30].map(m => <button key={m} onClick={() => {setIsActive(false); setInitialTime(m*60); setTimeLeft(m*60)}} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold transition-colors">{m} د</button>)}</div>
         </div>
     );
 };
 
 const GroupGenerator: React.FC<{ students: Student[] }> = ({ students }) => {
-    // ... logic same ...
     const [groupCount, setGroupCount] = useState(4);
     const [groups, setGroups] = useState<Student[][]>([]);
-
     const generateGroups = () => {
         if (students.length === 0) return;
         const shuffled = [...students].sort(() => 0.5 - Math.random());
@@ -474,7 +400,6 @@ const GroupGenerator: React.FC<{ students: Student[] }> = ({ students }) => {
         setGroups(newGroups);
         playSoundEffect('CORRECT');
     };
-
     return (
         <div className="w-full max-w-6xl flex flex-col h-full">
             <div className="flex justify-center items-center gap-4 mb-8">
@@ -530,6 +455,9 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
     const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
     const [classNote, setClassNote] = useState('');
     
+    // Auto-detect Plan
+    const [detectedPlan, setDetectedPlan] = useState<{topic: string, plan: StoredLessonPlan} | null>(null);
+
     // Tools State
     const [exitQuestion, setExitQuestion] = useState(EXIT_QUESTIONS[0]);
     const [quizContext, setQuizContext] = useState('');
@@ -554,9 +482,50 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
 
     useEffect(() => {
         setLessonLinks(getLessonLinks());
-        if(currentUser) setLessonPlans(getLessonPlans(currentUser.id));
-        const savedUrl = localStorage.getItem('last_presentation_url');
-        if (savedUrl) setInputUrl(savedUrl);
+        if(currentUser) {
+            setLessonPlans(getLessonPlans(currentUser.id));
+            
+            // Auto-detect Lesson Plan Logic
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const today = days[now.getDay()];
+            
+            // Get Current Schedule Period
+            const timings = getTeacherPeriodTimings(currentUser.id);
+            const schedules = getSchedules().filter(s => s.teacherId === currentUser.id && s.classId === currentClass && s.day === today);
+            
+            let activePeriod = 0;
+            timings.forEach((t, idx) => {
+                const [startStr, endStr] = t.split(' - ');
+                const [sh, sm] = startStr.split(':').map(Number);
+                const [eh, em] = endStr.split(':').map(Number);
+                const startVal = sh * 60 + sm;
+                const endVal = eh < sh ? (eh + 12) * 60 + em : eh * 60 + em;
+                if (currentTime >= startVal && currentTime < endVal) activePeriod = idx + 1;
+            });
+
+            // Find matching plan
+            if (activePeriod > 0) {
+                // Get plan for this week/day/period
+                const d = new Date();
+                const dayOffset = d.getDay(); 
+                const weekStart = new Date(d);
+                weekStart.setDate(d.getDate() - dayOffset);
+                const weekStartStr = weekStart.toISOString().split('T')[0];
+
+                const weeklyPlans = getWeeklyPlans(currentUser.id);
+                const plan = weeklyPlans.find(p => p.day === today && p.period === activePeriod && p.weekStartDate === weekStartStr);
+                
+                if (plan && plan.lessonTopic) {
+                    // Try to find a stored lesson plan with this topic
+                    const storedPlan = getLessonPlans(currentUser.id).find(p => p.topic.includes(plan.lessonTopic) || plan.lessonTopic.includes(p.topic));
+                    if (storedPlan) {
+                        setDetectedPlan({ topic: plan.lessonTopic, plan: storedPlan });
+                    }
+                }
+            }
+        }
         
         // FIX: Safe JSON parse for class note
         try {
@@ -683,6 +652,7 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
                     setCurrentPageIndex(pages.length); // Jump to first new slide
                 }
                 setActiveFloatingTool('NONE');
+                setDetectedPlan(null); // Clear detection toast
             }
         } catch (e) {
             alert('فشل استيراد الخطة.');
@@ -761,6 +731,26 @@ const PresentationBoard: React.FC<{ students: Student[], total: number, currentC
     return (
         <div className="w-full h-full flex flex-col relative bg-slate-100 rounded-2xl overflow-hidden shadow-2xl">
             {laserMode && <div className="fixed inset-0 z-[100] cursor-none" onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })} onClick={() => setLaserMode(false)}><div className="fixed w-4 h-4 bg-red-600 rounded-full shadow-[0_0_15px_2px_rgba(255,0,0,0.8)] pointer-events-none" style={{ left: mousePos.x, top: mousePos.y, transform: 'translate(-50%, -50%)' }} /></div>}
+
+            {/* Smart Lesson Detection Toast */}
+            {detectedPlan && (
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 animate-bounce-in">
+                    <div className="bg-indigo-900 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-4 border-2 border-indigo-500">
+                        <Sparkles className="text-yellow-400 animate-pulse"/>
+                        <div>
+                            <p className="text-xs text-indigo-300 font-bold uppercase">الدرس الحالي</p>
+                            <p className="font-bold">{detectedPlan.topic}</p>
+                        </div>
+                        <button 
+                            onClick={() => handleImportPlan(detectedPlan.plan)}
+                            className="bg-white text-indigo-900 px-4 py-2 rounded-full font-bold text-sm hover:bg-indigo-50"
+                        >
+                            بدء العرض
+                        </button>
+                        <button onClick={() => setDetectedPlan(null)} className="text-indigo-400 hover:text-white"><X size={16}/></button>
+                    </div>
+                </div>
+            )}
 
             <div className="flex-1 relative group" ref={containerRef}>
                 <div className="absolute inset-0 z-0 bg-white flex items-center justify-center">{renderContent()}</div>

@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem } from '../types';
 import { getSchedules, getTeacherAssignments, getSubjects, getCurriculumUnits, getCurriculumLessons, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem } from '../services/storageService';
-import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, CalendarDays } from 'lucide-react';
+import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, CalendarDays, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface ScheduleViewProps {
     currentUser?: SystemUser | null;
@@ -11,6 +12,7 @@ interface ScheduleViewProps {
 }
 
 const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLesson, onNavigateToAttendance }) => {
+    const navigate = useNavigate();
     const [viewMode, setViewMode] = useState<'SCHEDULE' | 'PLAN'>('SCHEDULE');
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
     const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
@@ -143,6 +145,17 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
         saveWeeklyPlanItem(updatedPlan);
         setWeeklyPlans(getWeeklyPlans(currentUser!.id));
         setEditingPlan(null);
+    };
+
+    const handlePrepareLesson = () => {
+        if (!editingPlan) return;
+        navigate('/planning', { 
+            state: { 
+                subject: editingPlan.slot.subjectName, 
+                topic: tempTopic,
+                classId: editingPlan.slot.classId 
+            } 
+        });
     };
 
     const uniqueClasses = useMemo(() => Array.from(new Set(assignments.map(a => a.classId))), [assignments]);
@@ -389,7 +402,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                                     placeholder="تفاصيل الواجب..."
                                 />
                             </div>
-                            <button onClick={handleSavePlan} className="w-full py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">حفظ الخطة</button>
+                            <div className="flex gap-2">
+                                <button onClick={handleSavePlan} className="flex-1 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">حفظ الخطة</button>
+                                <button onClick={handlePrepareLesson} className="flex-1 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg font-bold hover:opacity-90 flex items-center justify-center gap-2">
+                                    <Sparkles size={16}/> تحضير ذكي (AI)
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

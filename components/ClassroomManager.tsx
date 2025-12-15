@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord, LessonLink } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Filter, Link as LinkIcon, ExternalLink, Move } from 'lucide-react';
+import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord, LessonLink, BehaviorStatus } from '../types';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Filter, Link as LinkIcon, ExternalLink, Move, Star, ThumbsUp, ThumbsDown, CheckCircle, Users, Trophy } from 'lucide-react';
 import Attendance from './Attendance';
 import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink, updateStudent } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
@@ -112,6 +112,195 @@ const DailyScheduleWidget: React.FC<{
                     </button>
                 )) : <p className="text-xs text-gray-400 w-full text-center py-4">لا توجد حصص اليوم</p>}
             </div>
+        </div>
+    );
+};
+
+// --- BEHAVIOR TRACKER COMPONENT ---
+const BehaviorTracker: React.FC<{
+    students: Student[],
+    attendance: AttendanceRecord[],
+    onSaveAttendance: (records: AttendanceRecord[]) => void,
+    currentUser?: SystemUser | null
+}> = ({ students, attendance, onSaveAttendance, currentUser }) => {
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+    const [actionType, setActionType] = useState<'POSITIVE' | 'NEGATIVE' | null>(null);
+    const today = new Date().toISOString().split('T')[0];
+
+    // Calculate Points
+    const studentPoints = useMemo(() => {
+        const points: Record<string, { pos: number, neg: number }> = {};
+        students.forEach(s => points[s.id] = { pos: 0, neg: 0 });
+        
+        attendance.forEach(a => {
+            if (a.date === today && points[a.studentId]) {
+                if (a.behaviorStatus === BehaviorStatus.POSITIVE) points[a.studentId].pos++;
+                if (a.behaviorStatus === BehaviorStatus.NEGATIVE) points[a.studentId].neg++;
+            }
+        });
+        return points;
+    }, [students, attendance, today]);
+
+    const toggleStudent = (id: string) => {
+        const newSet = new Set(selectedStudentIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedStudentIds(newSet);
+    };
+
+    const handleGivePoints = (type: 'POSITIVE' | 'NEGATIVE', reason: string) => {
+        const records: AttendanceRecord[] = [];
+        selectedStudentIds.forEach(id => {
+            records.push({
+                id: `${id}-${Date.now()}-${Math.random()}`,
+                studentId: id,
+                date: today,
+                status: AttendanceStatus.PRESENT, // Default status for behavior record
+                behaviorStatus: type === 'POSITIVE' ? BehaviorStatus.POSITIVE : BehaviorStatus.NEGATIVE,
+                behaviorNote: reason,
+                createdById: currentUser?.id
+            });
+        });
+        onSaveAttendance(records);
+        setSelectedStudentIds(new Set());
+        setActionType(null);
+    };
+
+    const reasons = {
+        POSITIVE: ['مشاركة فعالة', 'إجابة صحيحة', 'مساعدة زميل', 'انضباط', 'واجب منزلي', 'إبداع'],
+        NEGATIVE: ['تحدث جانبي', 'عدم انتباه', 'نسيان أدوات', 'تأخر', 'عدم حل الواجب', 'شغب']
+    };
+
+    return (
+        <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {/* Toolbar */}
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><Star size={18} className="text-yellow-500"/> السلوك والتحفيز</h3>
+                    {selectedStudentIds.size > 0 && (
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full font-bold">
+                            تم تحديد {selectedStudentIds.size} طالب
+                        </span>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setSelectedStudentIds(new Set(students.map(s => s.id)))}
+                        className="text-gray-500 hover:text-indigo-600 text-xs font-bold px-2"
+                    >
+                        تحديد الكل
+                    </button>
+                    <button 
+                        onClick={() => setSelectedStudentIds(new Set())}
+                        className="text-gray-500 hover:text-red-600 text-xs font-bold px-2"
+                    >
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Area */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* Students Grid */}
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {students.map(s => {
+                            const isSelected = selectedStudentIds.has(s.id);
+                            const pts = studentPoints[s.id];
+                            return (
+                                <div 
+                                    key={s.id}
+                                    onClick={() => toggleStudent(s.id)}
+                                    className={`relative p-3 rounded-xl border cursor-pointer transition-all duration-200 select-none flex flex-col items-center gap-2 ${isSelected ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500 shadow-md' : 'bg-white border-gray-200 hover:border-gray-300'}`}
+                                >
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm ${isSelected ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+                                        {s.name.charAt(0)}
+                                    </div>
+                                    <span className="text-xs font-bold text-center line-clamp-1">{s.name}</span>
+                                    
+                                    <div className="flex gap-2 text-[10px] font-bold w-full justify-center mt-1">
+                                        <div className="bg-green-50 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                            {pts.pos} <ThumbsUp size={10}/>
+                                        </div>
+                                        {pts.neg > 0 && (
+                                            <div className="bg-red-50 text-red-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                {pts.neg} <ThumbsDown size={10}/>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {isSelected && <div className="absolute top-2 right-2 text-indigo-600"><CheckCircle size={16}/></div>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Actions Sidebar (Right Side) */}
+                <div className="w-48 bg-gray-50 border-r p-4 flex flex-col gap-4">
+                    <div className="text-center mb-2">
+                        <span className="text-xs text-gray-500 font-bold block mb-1">الإجراءات الجماعية</span>
+                        <div className="w-full h-1 bg-gray-200 rounded-full"></div>
+                    </div>
+
+                    <button 
+                        disabled={selectedStudentIds.size === 0}
+                        onClick={() => setActionType('POSITIVE')}
+                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold shadow-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center gap-1"
+                    >
+                        <ThumbsUp size={20}/>
+                        <span className="text-xs">منح نقاط</span>
+                    </button>
+
+                    <button 
+                        disabled={selectedStudentIds.size === 0}
+                        onClick={() => setActionType('NEGATIVE')}
+                        className="w-full py-3 bg-red-500 text-white rounded-xl font-bold shadow-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center gap-1"
+                    >
+                        <AlertCircle size={20}/>
+                        <span className="text-xs">تسجيل مخالفة</span>
+                    </button>
+
+                    <div className="mt-auto bg-white p-3 rounded-xl border border-gray-200">
+                        <h4 className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1"><Trophy size={12} className="text-yellow-500"/> أبطال اليوم</h4>
+                        <ul className="space-y-1">
+                            {Object.entries(studentPoints)
+                                .sort((a,b) => b[1].pos - a[1].pos)
+                                .slice(0, 3)
+                                .filter(x => x[1].pos > 0)
+                                .map(([id, pts], i) => {
+                                    const s = students.find(st => st.id === id);
+                                    return <li key={id} className="text-[10px] text-gray-600 flex justify-between"><span>{i+1}. {s?.name}</span> <span className="font-bold text-green-600">{pts.pos}</span></li>
+                                })
+                            }
+                            {Object.values(studentPoints).every(p => p.pos === 0) && <li className="text-[10px] text-gray-400 text-center">لا توجد نقاط بعد</li>}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            {/* Reason Modal */}
+            {actionType && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+                        <div className={`p-4 text-white font-bold flex justify-between items-center ${actionType === 'POSITIVE' ? 'bg-green-600' : 'bg-red-600'}`}>
+                            <span>{actionType === 'POSITIVE' ? 'أسباب التميز' : 'أسباب المخالفة'}</span>
+                            <button onClick={() => setActionType(null)}><XCircle size={20}/></button>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 gap-3">
+                            {reasons[actionType].map(reason => (
+                                <button 
+                                    key={reason}
+                                    onClick={() => handleGivePoints(actionType, reason)}
+                                    className="p-3 border rounded-lg hover:bg-gray-50 text-sm font-bold text-gray-700 text-center transition-colors"
+                                >
+                                    {reason}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -268,7 +457,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     onDateChange,
     currentUser
 }) => {
-    const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING'>(() => {
+    const [activeTab, setActiveTab] = useState<'TOOLS' | 'ATTENDANCE' | 'SEATING' | 'BEHAVIOR'>(() => {
         return localStorage.getItem('classroom_manager_tab') as any || 'TOOLS';
     });
 
@@ -346,6 +535,9 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         </button>
                         <button onClick={() => setActiveTab('SEATING')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'SEATING' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:text-gray-800'}`}>
                             <LayoutGrid size={16}/> المقاعد
+                        </button>
+                        <button onClick={() => setActiveTab('BEHAVIOR')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'BEHAVIOR' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:text-gray-800'}`}>
+                            <Star size={16}/> السلوك
                         </button>
                     </div>
 
@@ -448,6 +640,24 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         ) : (
                             <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center text-gray-400">
                                 <p>الرجاء اختيار الفصل لعرض المخطط</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* --- BEHAVIOR TAB --- */}
+                {activeTab === 'BEHAVIOR' && (
+                    <div className="flex-1 overflow-hidden flex flex-col">
+                        {selectedClass ? (
+                            <BehaviorTracker 
+                                students={students.filter(s => s.className === selectedClass)}
+                                attendance={attendance}
+                                onSaveAttendance={onSaveAttendance}
+                                currentUser={currentUser}
+                            />
+                        ) : (
+                            <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center text-gray-400">
+                                <p>الرجاء اختيار الفصل لعرض لوحة السلوك</p>
                             </div>
                         )}
                     </div>

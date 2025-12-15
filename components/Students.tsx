@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
-import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key } from 'lucide-react';
+import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig, bulkUpsertStudents } from '../services/storageService';
+import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, CheckSquare, ArrowRightLeft, Printer, Square } from 'lucide-react';
 import DataImport from './DataImport';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
@@ -10,7 +10,9 @@ const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
     "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
     "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
-    "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
+    "الصف الأول الثانوي (السنة المشتركة)", 
+    "الصف الثاني الثانوي (مسارات)", 
+    "الصف الثالث الثانوي (مسارات)"
 ];
 
 interface StudentsProps {
@@ -49,6 +51,12 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   const [isPrintCardsOpen, setIsPrintCardsOpen] = useState(false);
   const [schoolConfig, setSchoolConfig] = useState<ReportHeaderConfig | null>(null);
 
+  // --- Bulk Actions State ---
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [targetGrade, setTargetGrade] = useState('');
+  const [targetClass, setTargetClass] = useState('');
+
   // --- Terms State ---
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState<string>('');
@@ -82,6 +90,54 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
           return matchesSearch && matchesGrade && matchesClass;
       }).sort((a, b) => a.name.localeCompare(b.name));
   }, [students, searchTerm, filterGrade, filterClass]);
+
+  // --- Bulk Actions Handlers ---
+  const toggleSelectStudent = (id: string) => {
+      const newSet = new Set(selectedStudentIds);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      setSelectedStudentIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+      if (selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0) {
+          setSelectedStudentIds(new Set());
+      } else {
+          setSelectedStudentIds(new Set(filteredStudents.map(s => s.id)));
+      }
+  };
+
+  const handleBulkDelete = () => {
+      if (!window.confirm(`هل أنت متأكد من حذف ${selectedStudentIds.size} طالب؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+      
+      selectedStudentIds.forEach(id => onDeleteStudent(id));
+      setSelectedStudentIds(new Set());
+  };
+
+  const handleBulkMove = () => {
+      if (!targetGrade || !targetClass) return alert('يرجى تحديد الصف والفصل الجديد');
+      
+      const updatedStudents: Student[] = [];
+      students.forEach(s => {
+          if (selectedStudentIds.has(s.id)) {
+              updatedStudents.push({
+                  ...s,
+                  gradeLevel: targetGrade,
+                  className: targetClass,
+                  classId: targetClass // Legacy support
+              });
+          }
+      });
+
+      // Use bulk update logic via import handler or direct update loop
+      // Assuming onUpdateStudent handles one by one, better to use bulkUpsert if available or loop
+      // Here we will use the onImportStudents as a "Bulk Update" mechanism since it supports 'UPDATE' strategy
+      onImportStudents(updatedStudents, 'id', 'UPDATE', ['gradeLevel', 'className', 'classId']);
+      
+      setIsMoveModalOpen(false);
+      setSelectedStudentIds(new Set());
+      alert('تم نقل الطلاب بنجاح');
+  };
 
   // --- Helper to get Risk Status for Table Row ---
   const getStudentRisk = (studentId: string) => {
@@ -249,53 +305,60 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   };
 
   // --- PRINT CARDS COMPONENT ---
-  const LoginCardsView = () => (
-      <div className="fixed inset-0 bg-white z-[200] overflow-auto p-8">
-          <div className="max-w-5xl mx-auto">
-              <div className="flex justify-between items-center mb-8 print:hidden">
-                  <h2 className="text-2xl font-bold">بطاقات دخول الطلاب</h2>
-                  <div className="flex gap-2">
-                      <button onClick={() => window.print()} className="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Key size={16}/> طباعة</button>
-                      <button onClick={() => setIsPrintCardsOpen(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold">إغلاق</button>
+  const LoginCardsView = () => {
+      // If students selected via bulk action, print those. Else print filtered list.
+      const studentsToPrint = selectedStudentIds.size > 0 
+          ? students.filter(s => selectedStudentIds.has(s.id))
+          : filteredStudents;
+
+      return (
+          <div className="fixed inset-0 bg-white z-[200] overflow-auto p-8">
+              <div className="max-w-5xl mx-auto">
+                  <div className="flex justify-between items-center mb-8 print:hidden">
+                      <h2 className="text-2xl font-bold">بطاقات دخول الطلاب ({studentsToPrint.length})</h2>
+                      <div className="flex gap-2">
+                          <button onClick={() => window.print()} className="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Key size={16}/> طباعة</button>
+                          <button onClick={() => setIsPrintCardsOpen(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold">إغلاق</button>
+                      </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 print:grid-cols-2">
+                      {studentsToPrint.map(student => (
+                          <div key={student.id} className="border-2 border-gray-300 rounded-xl p-6 flex flex-col gap-4 relative break-inside-avoid">
+                              <div className="flex justify-between items-start border-b pb-2">
+                                  <div>
+                                      <h3 className="font-bold text-lg">{schoolConfig?.schoolName || 'المدرسة الذكية'}</h3>
+                                      <p className="text-xs text-gray-500">بوابة الطالب الإلكترونية</p>
+                                  </div>
+                                  <div className="text-left">
+                                      <span className="font-bold text-sm block">{student.className}</span>
+                                      <span className="text-xs text-gray-400">{student.gradeLevel}</span>
+                                  </div>
+                              </div>
+                              <div className="space-y-2">
+                                  <div className="flex justify-between">
+                                      <span className="text-gray-500 text-sm">الاسم:</span>
+                                      <span className="font-bold">{student.name}</span>
+                                  </div>
+                                  <div className="flex justify-between bg-gray-50 p-2 rounded">
+                                      <span className="text-gray-500 text-sm">اسم المستخدم:</span>
+                                      <span className="font-mono font-bold">{student.nationalId}</span>
+                                  </div>
+                                  <div className="flex justify-between bg-gray-50 p-2 rounded">
+                                      <span className="text-gray-500 text-sm">كلمة المرور:</span>
+                                      <span className="font-mono font-bold">{student.password || '123456'}</span>
+                                  </div>
+                              </div>
+                              <div className="mt-2 text-center text-[10px] text-gray-400">
+                                  يرجى الاحتفاظ ببيانات الدخول وعدم مشاركتها.
+                              </div>
+                          </div>
+                      ))}
                   </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4 print:grid-cols-2">
-                  {filteredStudents.map(student => (
-                      <div key={student.id} className="border-2 border-gray-300 rounded-xl p-6 flex flex-col gap-4 relative break-inside-avoid">
-                          <div className="flex justify-between items-start border-b pb-2">
-                              <div>
-                                  <h3 className="font-bold text-lg">{schoolConfig?.schoolName || 'المدرسة الذكية'}</h3>
-                                  <p className="text-xs text-gray-500">بوابة الطالب الإلكترونية</p>
-                              </div>
-                              <div className="text-left">
-                                  <span className="font-bold text-sm block">{student.className}</span>
-                                  <span className="text-xs text-gray-400">{student.gradeLevel}</span>
-                              </div>
-                          </div>
-                          <div className="space-y-2">
-                              <div className="flex justify-between">
-                                  <span className="text-gray-500 text-sm">الاسم:</span>
-                                  <span className="font-bold">{student.name}</span>
-                              </div>
-                              <div className="flex justify-between bg-gray-50 p-2 rounded">
-                                  <span className="text-gray-500 text-sm">اسم المستخدم:</span>
-                                  <span className="font-mono font-bold">{student.nationalId}</span>
-                              </div>
-                              <div className="flex justify-between bg-gray-50 p-2 rounded">
-                                  <span className="text-gray-500 text-sm">كلمة المرور:</span>
-                                  <span className="font-mono font-bold">{student.password || '123456'}</span>
-                              </div>
-                          </div>
-                          <div className="mt-2 text-center text-[10px] text-gray-400">
-                              يرجى الاحتفاظ ببيانات الدخول وعدم مشاركتها.
-                          </div>
-                      </div>
-                  ))}
-              </div>
           </div>
-      </div>
-  );
+      );
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in h-full flex flex-col">
@@ -347,9 +410,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                 {!isManager && (
                     <>
-                        <button onClick={() => setIsPrintCardsOpen(true)} className="flex-1 md:flex-none bg-white text-gray-700 border px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap" title="طباعة بطاقات الدخول">
-                            <CreditCard size={18} /> بطاقات
-                        </button>
                         <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
                             <FileSpreadsheet size={18} /> استيراد
                         </button>
@@ -367,12 +427,41 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedStudentIds.size > 0 && (
+          <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg flex items-center justify-between animate-slide-up">
+              <div className="flex items-center gap-2 font-bold text-purple-700">
+                  <CheckSquare size={18}/>
+                  <span>تم تحديد {selectedStudentIds.size} طالب</span>
+              </div>
+              <div className="flex gap-2">
+                  <button onClick={() => setIsMoveModalOpen(true)} className="flex items-center gap-2 bg-white border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-sm font-bold hover:bg-purple-100">
+                      <ArrowRightLeft size={16}/> نقل لفصل
+                  </button>
+                  <button onClick={() => setIsPrintCardsOpen(true)} className="flex items-center gap-2 bg-white border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-sm font-bold hover:bg-purple-100">
+                      <Printer size={16}/> بطاقات
+                  </button>
+                  <button onClick={handleBulkDelete} className="flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-md text-sm font-bold hover:bg-red-700">
+                      <Trash2 size={16}/> حذف
+                  </button>
+                  <button onClick={() => setSelectedStudentIds(new Set())} className="text-gray-400 hover:text-gray-600 px-2">
+                      <X size={18}/>
+                  </button>
+              </div>
+          </div>
+      )}
+
       {/* Main Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
         <div className="flex-1 overflow-x-auto">
             <table className="w-full text-right min-w-[800px]">
             <thead className="bg-gray-50 text-gray-600 font-bold text-xs uppercase sticky top-0 z-10 shadow-sm">
                 <tr>
+                <th className="p-4 w-12 text-center">
+                    <button onClick={toggleSelectAll} className="text-gray-400 hover:text-purple-600">
+                        {selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare size={18}/> : <Square size={18}/>}
+                    </button>
+                </th>
                 <th className="p-4">#</th>
                 <th className="p-4">اسم الطالب</th>
                 <th className="p-4">الصف / الفصل</th>
@@ -384,8 +473,14 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             <tbody className="divide-y divide-gray-100 text-sm">
                 {filteredStudents.length > 0 ? filteredStudents.map((student, i) => {
                     const risks = getStudentRisk(student.id);
+                    const isSelected = selectedStudentIds.has(student.id);
                     return (
-                    <tr key={student.id} className="hover:bg-gray-50 transition-colors group">
+                    <tr key={student.id} className={`hover:bg-gray-50 transition-colors group ${isSelected ? 'bg-purple-50/50' : ''}`}>
+                        <td className="p-4 text-center">
+                            <button onClick={() => toggleSelectStudent(student.id)} className={`${isSelected ? 'text-purple-600' : 'text-gray-300 hover:text-gray-500'}`}>
+                                {isSelected ? <CheckSquare size={18}/> : <Square size={18}/>}
+                            </button>
+                        </td>
                         <td className="p-4 text-gray-400 font-mono text-xs">{i + 1}</td>
                         <td className="p-4">
                             <button 
@@ -437,7 +532,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                     </tr>
                 )}) : (
                     <tr>
-                        <td colSpan={6} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center">
+                        <td colSpan={7} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center">
                             <Search size={48} className="mb-4 opacity-20"/>
                             <p>لا يوجد طلاب مطابقين للبحث</p>
                         </td>
@@ -788,6 +883,41 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
             </form>
           </div>
         </div>
+      )}
+
+      {/* Move Class Modal */}
+      {isMoveModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                  <h3 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">نقل الطلاب المحددين</h3>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-bold text-gray-600 mb-1">الصف الجديد</label>
+                          <select 
+                              className="w-full p-2 border rounded-lg"
+                              value={targetGrade}
+                              onChange={e => setTargetGrade(e.target.value)}
+                          >
+                              <option value="">-- اختر الصف --</option>
+                              {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-gray-600 mb-1">الفصل الجديد</label>
+                          <input 
+                              className="w-full p-2 border rounded-lg"
+                              placeholder="مثال: 2/ب"
+                              value={targetClass}
+                              onChange={e => setTargetClass(e.target.value)}
+                          />
+                      </div>
+                      <div className="flex gap-3 pt-4">
+                          <button onClick={() => setIsMoveModalOpen(false)} className="flex-1 py-2 border rounded text-gray-600">إلغاء</button>
+                          <button onClick={handleBulkMove} className="flex-1 py-2 bg-purple-600 text-white rounded font-bold hover:bg-purple-700">نقل ({selectedStudentIds.size})</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
       )}
 
       {isImportModalOpen && !isManager && (
