@@ -367,12 +367,12 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
           <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 rounded-2xl shadow-lg flex items-center justify-between text-white cursor-pointer hover:shadow-xl transition-all" onClick={() => onNavigate('AI_REPORTS')}>
               <div>
-                  <p className="text-indigo-100 text-xs font-bold uppercase mb-1">تحليل ذكي</p>
-                  <h3 className="text-lg font-bold">تقرير الأداء</h3>
-                  <p className="text-[10px] text-indigo-200 mt-1">توليد تقرير بالذكاء الاصطناعي</p>
+                  <p className="text-indigo-100 text-xs font-bold uppercase mb-1">مركز التقارير</p>
+                  <h3 className="text-lg font-bold">التقارير الشاملة</h3>
+                  <p className="text-[10px] text-indigo-200 mt-1">حضور، سلوك، ومستوى</p>
               </div>
               <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                  <MonitorPlay size={24}/>
+                  <FileQuestion size={24}/>
               </div>
           </div>
       </div>

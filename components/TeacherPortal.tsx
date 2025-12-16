@@ -16,7 +16,6 @@ import AttendanceComponent from './Attendance';
 import PerformanceView from './Performance';
 import WorksTracking from './WorksTracking';
 import StudentFollowUp from './StudentFollowUp';
-import AIReports from './AIReports';
 import ClassroomScreen from './ClassroomScreen';
 import ClassroomManager from './ClassroomManager';
 import AdminDashboard from './AdminDashboard';
@@ -25,7 +24,7 @@ import MessageCenter from './MessageCenter';
 import AITools from './AITools';
 import TeacherSubscription from './TeacherSubscription';
 import LessonPlanning from './LessonPlanning';
-import MonthlyReport from './MonthlyReport';
+import ReportsCenter from './ReportsCenter'; // UPDATED IMPORT
 import ExamsManager from './ExamsManager';
 import QuestionBank from './QuestionBank';
 import AutoGrading from './AutoGrading';
@@ -145,6 +144,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                             <NavItem path="/custom-tables" label="جداول مخصصة" icon={Table2} />
 
                             <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">أدوات</label></div>
+                            <NavItem path="/reports" label="التقارير والمتابعة" icon={Printer} />
                             <NavItem path="/ai-tools" label="أدوات AI" icon={BrainCircuit} />
                             <NavItem path="/certificates" label="الشهادات" icon={Award} />
                             <NavItem path="/messages" label="الرسائل" icon={Mail} />
@@ -186,8 +186,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                         <Route path="/questions" element={<QuestionBank currentUser={currentUser} />} />
                         <Route path="/auto-grading" element={<AutoGrading currentUser={currentUser} />} />
                         <Route path="/ai-tools" element={<AITools students={props.students} performance={props.performance} />} />
-                        <Route path="/reports" element={<AIReports students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser}/>} />
-                        <Route path="/monthly-report" element={<MonthlyReport students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser}/>} />
+                        <Route path="/reports" element={<ReportsCenter students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser}/>} />
                         <Route path="/messages" element={<MessageCenter students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser} />} />
                         <Route path="/certificates" element={<CertificatesCenter students={props.students} currentUser={currentUser} onSaveAttendance={props.saveAttendance} />} />
                         <Route path="/resources" element={<ResourcesView currentUser={currentUser!} />} />
