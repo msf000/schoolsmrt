@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { LessonLink, SystemUser, Subject } from '../types';
-import { getLessonLinks, saveLessonLink, deleteLessonLink, getSubjects } from '../services/storageService';
+import { getLessonLinks, saveLessonLink, deleteLessonLink, getSubjects, getTeacherAssignments } from '../services/storageService';
 import { suggestQuickActivity } from '../services/geminiService'; // Re-using service or add new one
 import { Plus, Trash2, ExternalLink, Search, Link as LinkIcon, BookOpen, Video, FileText, Globe, Sparkles, Loader2 } from 'lucide-react';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
@@ -34,6 +34,14 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
             setLinks(getLessonLinks().filter(l => l.teacherId === currentUser.id));
             setSubjects(getSubjects(currentUser.id));
         }
+    }, [currentUser]);
+
+    const uniqueClasses = useMemo(() => {
+        const classes = new Set<string>();
+        // Add manual classes
+        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+        manualClasses.forEach(c => classes.add(c));
+        return Array.from(classes).sort();
     }, [currentUser]);
 
     const handleAdd = () => {
@@ -143,6 +151,11 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                                 "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
                                 "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
                             ].map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+
+                        <select className="w-full p-2 border rounded text-xs" value={newClass} onChange={e => setNewClass(e.target.value)}>
+                            <option value="">الفصل (اختياري)</option>
+                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
 
                         <input className="w-full p-2 border rounded" placeholder="عنوان المصدر" value={newTitle} onChange={e => setNewTitle(e.target.value)} />

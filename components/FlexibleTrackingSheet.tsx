@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject, AcademicTerm } from '../types';
-import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects, getAcademicTerms } from '../services/storageService';
+import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search, Filter, Clipboard, Zap, Calculator, FileText } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
@@ -77,8 +77,11 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         students.forEach(s => {
             if (s.className) classes.add(s.className);
         });
+        // Add manual classes
+        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+        manualClasses.forEach(c => classes.add(c));
         return Array.from(classes).sort();
-    }, [students]);
+    }, [students, currentUser]);
 
     // Filter Sheets by Term
     const filteredSheets = useMemo(() => {

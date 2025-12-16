@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Question, SystemUser, Subject } from '../types';
 import { getQuestionBank, saveQuestionToBank, deleteQuestionFromBank, getSubjects } from '../services/storageService';
 import { generateStructuredQuiz } from '../services/geminiService';
-import { Plus, Trash2, Edit, Search, Filter, Save, X, Library, CheckCircle, FileQuestion, GraduationCap, Download, Upload, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Filter, Save, X, Library, CheckCircle, FileQuestion, GraduationCap, Download, Upload, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react';
 
 interface QuestionBankProps {
     currentUser: SystemUser;
@@ -93,6 +93,17 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
             }
         };
         reader.readAsText(file);
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file && editingQuestion) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setEditingQuestion({ ...editingQuestion, imageUrl: reader.result as string });
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleAiGenerate = async () => {
@@ -226,9 +237,14 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                         
                         <div className="flex gap-3 items-start">
                             <div className="bg-purple-50 p-2 rounded-lg text-purple-600 mt-1">
-                                <FileQuestion size={20}/>
+                                {q.imageUrl ? <ImageIcon size={20}/> : <FileQuestion size={20}/>}
                             </div>
                             <div className="flex-1">
+                                {q.imageUrl && (
+                                    <div className="mb-3 max-w-md border rounded p-1 bg-gray-50">
+                                        <img src={q.imageUrl} alt="Question" className="max-h-32 object-contain rounded"/>
+                                    </div>
+                                )}
                                 <p className="font-bold text-gray-800 text-lg mb-3 leading-relaxed">
                                     {q.text} 
                                     <span className="text-xs font-normal text-gray-400 mr-2 bg-gray-50 px-2 py-0.5 rounded-full border">({q.points} درجات)</span>
@@ -341,6 +357,34 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ currentUser }) => {
                                     onChange={e => setEditingQuestion({...editingQuestion, text: e.target.value})}
                                     placeholder="أدخل نص السؤال هنا..."
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">صورة توضيحية (اختياري)</label>
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center cursor-pointer hover:bg-gray-50 relative group">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={handleImageUpload} 
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                    />
+                                    {editingQuestion.imageUrl ? (
+                                        <div className="relative">
+                                            <img src={editingQuestion.imageUrl} alt="Preview" className="max-h-32 mx-auto rounded"/>
+                                            <button 
+                                                onClick={(e) => { e.preventDefault(); setEditingQuestion({...editingQuestion, imageUrl: undefined}); }}
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <X size={12}/>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-1 text-gray-400">
+                                            <ImageIcon size={20}/>
+                                            <span className="text-[10px]">اضغط لرفع صورة</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4">

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm, SystemUser } from '../types';
-import { getMessages, saveMessage, getAcademicTerms } from '../services/storageService';
+import { getMessages, saveMessage, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { generateParentMessage } from '../services/geminiService';
 import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
@@ -82,8 +82,11 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
+        // Add manual classes
+        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+        manualClasses.forEach(c => classes.add(c));
         return Array.from(classes).sort();
-    }, [students]);
+    }, [students, currentUser]);
 
     // Filter Students for Compose
     const filteredStudents = useMemo(() => {

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Exam, Question, SystemUser, Subject, ExamResult } from '../types';
-import { getExams, saveExam, deleteExam, getSubjects, getQuestionBank, getExamResults, deleteExamResult } from '../services/storageService';
-import { Plus, Trash2, Edit, FileQuestion, Calendar, CheckCircle, XCircle, Save, ArrowLeft, Check, ListChecks, Type, Printer, Library, FileText, Download, Copy, BarChart2, Search, Filter, Settings, List } from 'lucide-react';
+import { Exam, Question, SystemUser, Subject, ExamResult, Assignment } from '../types';
+import { getExams, saveExam, deleteExam, getSubjects, getQuestionBank, getExamResults, deleteExamResult, saveAssignment, getAssignments } from '../services/storageService';
+import { Plus, Trash2, Edit, FileQuestion, Calendar, CheckCircle, XCircle, Save, ArrowLeft, Check, ListChecks, Type, Printer, Library, FileText, Download, Copy, BarChart2, Search, Filter, Settings, List, Share, Image as ImageIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ExamsManagerProps {
@@ -35,6 +35,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     const [qPoints, setQPoints] = useState(1);
     const [qOptions, setQOptions] = useState(['', '', '', '']);
     const [qCorrect, setQCorrect] = useState('');
+    const [qImage, setQImage] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         if(currentUser?.id) {
@@ -80,6 +81,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
         setQPoints(1);
         setQOptions(['', '', '', '']);
         setQCorrect('');
+        setQImage(undefined);
     };
 
     const handleSaveExam = () => {
@@ -97,6 +99,26 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             deleteExam(id);
             setExams(getExams(currentUser.id));
         }
+    };
+
+    const handlePublishToGradebook = (exam: Exam) => {
+        if (!confirm('هل تريد إضافة هذا الاختبار كعمود في سجل الدرجات (Assignment)؟')) return;
+        
+        const maxScore = exam.questions.reduce((sum, q) => sum + (q.points || 1), 0);
+        
+        const newAssignment: Assignment = {
+            id: exam.id, // Link ID same as Exam ID for easy reference
+            title: exam.title,
+            category: 'PLATFORM_EXAM',
+            maxScore: maxScore,
+            isVisible: true,
+            orderIndex: 99,
+            teacherId: currentUser.id,
+            classId: undefined // General for all classes usually
+        };
+
+        saveAssignment(newAssignment);
+        alert('تم إضافة الاختبار لسجل الدرجات بنجاح! يمكنك الآن رصد الدرجات أو استخدام التصحيح الآلي.');
     };
 
     // --- Results Logic ---
@@ -140,6 +162,15 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
     };
 
     // --- Question Logic ---
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => setQImage(reader.result as string);
+            reader.readAsDataURL(file);
+        }
+    };
+
     const addQuestion = () => {
         if (!qText) return alert('نص السؤال مطلوب');
         if (!qCorrect) return alert('حدد الإجابة الصحيحة');
@@ -151,7 +182,8 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
             type: qType,
             points: qPoints,
             options: qType === 'MCQ' ? qOptions : ['صح', 'خطأ'],
-            correctAnswer: qCorrect
+            correctAnswer: qCorrect,
+            imageUrl: qImage
         };
 
         if (editingExam) {
@@ -265,8 +297,11 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                 <div key={q.id} className="break-inside-avoid">
                                     <div className="flex gap-3 font-bold text-lg mb-4 bg-gray-50 print:bg-transparent p-2 rounded">
                                         <span className="bg-black text-white print:border print:border-black print:text-black print:bg-white w-8 h-8 flex items-center justify-center rounded-full text-sm shrink-0">{idx + 1}</span>
-                                        <span className="leading-relaxed">{q.text}</span>
-                                        <span className="mr-auto text-sm text-gray-500 print:text-black font-normal self-center whitespace-nowrap">({q.points} درجات)</span>
+                                        <div className="flex-1">
+                                            <span className="leading-relaxed block mb-2">{q.text}</span>
+                                            {q.imageUrl && <img src={q.imageUrl} alt="Question" className="max-h-48 object-contain my-2 border rounded"/>}
+                                        </div>
+                                        <span className="text-sm text-gray-500 print:text-black font-normal self-center whitespace-nowrap">({q.points} درجات)</span>
                                     </div>
                                     
                                     {q.type === 'MCQ' ? (
@@ -353,6 +388,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                             </span>
                                         </td>
                                         <td className="p-4 flex justify-center gap-2">
+                                            <button onClick={() => handlePublishToGradebook(exam)} className="p-2 text-orange-600 hover:bg-orange-50 rounded" title="إضافة لسجل الدرجات"><Share size={16}/></button>
                                             <button onClick={() => duplicateExam(exam)} className="p-2 text-teal-600 hover:bg-teal-50 rounded" title="نسخ"><Copy size={16}/></button>
                                             <button onClick={() => handleViewResults(exam)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded" title="النتائج"><BarChart2 size={16}/></button>
                                             <button onClick={() => { setEditingExam(exam); setView('PRINT'); }} className="p-2 text-gray-600 hover:bg-gray-100 rounded" title="طباعة الورقة"><Printer size={16}/></button>
@@ -380,7 +416,8 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                     </span>
                                 </div>
                                 <div className="text-xs text-gray-400 mb-3 font-mono">{exam.questions.length} أسئلة • {exam.durationMinutes} دقيقة</div>
-                                <div className="grid grid-cols-5 gap-2 border-t pt-3">
+                                <div className="grid grid-cols-6 gap-2 border-t pt-3">
+                                    <button onClick={() => handlePublishToGradebook(exam)} className="flex flex-col items-center gap-1 text-[10px] text-orange-600"><Share size={16}/> رصد</button>
                                     <button onClick={() => duplicateExam(exam)} className="flex flex-col items-center gap-1 text-[10px] text-teal-600"><Copy size={16}/> نسخ</button>
                                     <button onClick={() => handleViewResults(exam)} className="flex flex-col items-center gap-1 text-[10px] text-indigo-600"><BarChart2 size={16}/> نتائج</button>
                                     <button onClick={() => { setEditingExam(exam); setView('PRINT'); }} className="flex flex-col items-center gap-1 text-[10px] text-gray-600"><Printer size={16}/> طباعة</button>
@@ -568,6 +605,7 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                                 <button onClick={() => removeQuestion(q.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
                                             </div>
                                         </div>
+                                        {q.imageUrl && <img src={q.imageUrl} alt="Question" className="max-h-32 mb-2 rounded border"/>}
                                         <div className="grid grid-cols-2 gap-2 text-sm">
                                             {q.options.map((opt, i) => (
                                                 <div key={i} className={`px-3 py-1.5 rounded flex items-center gap-2 ${opt === q.correctAnswer ? 'bg-green-50 text-green-700 font-bold border border-green-200' : 'bg-gray-50 text-gray-500 border border-transparent'}`}>
@@ -609,6 +647,16 @@ const ExamsManager: React.FC<ExamsManagerProps> = ({ currentUser }) => {
                                                 value={qPoints}
                                                 onChange={e => setQPoints(Number(e.target.value))}
                                             />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">صورة (اختياري)</label>
+                                        <div className="flex items-center gap-3 bg-gray-50 p-2 rounded border border-dashed hover:bg-gray-100 transition-colors relative">
+                                            <ImageIcon size={18} className="text-gray-400"/>
+                                            <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer"/>
+                                            <span className="text-xs text-gray-500">{qImage ? 'تم اختيار صورة (اضغط للتغيير)' : 'اضغط لرفع صورة للسؤال'}</span>
+                                            {qImage && <img src={qImage} alt="Preview" className="h-8 w-8 object-cover rounded border ml-auto"/>}
                                         </div>
                                     </div>
 

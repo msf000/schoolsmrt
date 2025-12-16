@@ -51,7 +51,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     useEffect(() => {
         if(currentUser) {
             setSchedules(getSchedules());
-            setAssignments(getTeacherAssignments());
+            setAssignments(getTeacherAssignments(currentUser.id)); // Fix: fetch user-specific assignments
             setSubjects(getSubjects(currentUser.id));
             setWeeklyPlans(getWeeklyPlans(currentUser.id));
             setMyLessonPlans(getLessonPlans(currentUser.id));

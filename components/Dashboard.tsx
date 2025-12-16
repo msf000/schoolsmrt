@@ -5,8 +5,8 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, Question, StoredLessonPlan } from '../types';
-import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans, saveAttendance } from '../services/storageService';
-import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen, FolderOpen, FileText, Table, Library, MessageSquare, Check, X } from 'lucide-react';
+import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans, saveAttendance, getExamResults } from '../services/storageService';
+import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen, FolderOpen, FileText, Table, Library, MessageSquare, Check, X, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -21,6 +21,55 @@ interface DashboardProps {
 const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6']; // Green, Red, Amber, Blue
 
 // --- Widgets ---
+
+const ActiveExamsWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
+    const [activeExams, setActiveExams] = useState<Exam[]>([]);
+    const [examStats, setExamStats] = useState<Record<string, number>>({});
+
+    useEffect(() => {
+        if (!currentUser) return;
+        const allExams = getExams(currentUser.id);
+        const active = allExams.filter(e => e.isActive);
+        setActiveExams(active);
+
+        const stats: Record<string, number> = {};
+        active.forEach(exam => {
+            const results = getExamResults(exam.id);
+            stats[exam.id] = results.length;
+        });
+        setExamStats(stats);
+    }, [currentUser]);
+
+    return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2"><FileQuestion size={18} className="text-purple-600"/> الاختبارات النشطة</span>
+                <button onClick={() => onNavigate('EXAMS_MANAGER')} className="text-xs text-purple-600 hover:underline flex items-center gap-1">إدارة <ArrowRight size={10}/></button>
+            </h3>
+            
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 max-h-40">
+                {activeExams.length > 0 ? activeExams.map(exam => (
+                    <div key={exam.id} className="p-3 bg-purple-50 rounded-lg border border-purple-100 flex justify-between items-center group cursor-pointer hover:bg-purple-100 transition-colors" onClick={() => onNavigate('EXAMS_MANAGER')}>
+                        <div>
+                            <span className="font-bold text-xs text-purple-900 block">{exam.title}</span>
+                            <span className="text-[10px] text-purple-600">{exam.gradeLevel}</span>
+                        </div>
+                        <div className="text-center bg-white px-2 py-1 rounded border border-purple-100">
+                            <span className="block text-lg font-black text-purple-700 leading-none">{examStats[exam.id] || 0}</span>
+                            <span className="text-[8px] text-gray-400 font-bold uppercase">تسليم</span>
+                        </div>
+                    </div>
+                )) : (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400 py-4">
+                        <CheckCircle size={24} className="mb-2 text-green-200"/>
+                        <p className="text-xs">لا توجد اختبارات نشطة حالياً</p>
+                        <button onClick={() => onNavigate('EXAMS_MANAGER')} className="mt-2 text-[10px] bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-gray-600 font-bold transition-colors">إنشاء اختبار</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
     const [currentSession, setCurrentSession] = useState<ScheduleItem | null>(null);
@@ -444,12 +493,17 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               />
           </div>
 
-          {/* 2. Excuses Widget (NEW) */}
+          {/* 2. NEW: Active Exams Widget (Replacing old excuses or adding to it) */}
+          <div className="lg:col-span-1 h-64 lg:h-auto">
+              <ActiveExamsWidget currentUser={currentUser} onNavigate={onNavigate}/>
+          </div>
+
+          {/* 3. Excuses Widget */}
           <div className="lg:col-span-1 h-64 lg:h-auto">
               <ExcusesWidget students={students} attendance={attendance} />
           </div>
 
-          {/* 3. At Risk Widget */}
+          {/* 4. At Risk Widget (replacing quick tools which is less critical here) */}
           <div className="lg:col-span-1 h-64 lg:h-auto">
               <AtRiskWidget 
                   students={students} 
@@ -457,11 +511,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                   performance={performance} 
                   onStudentClick={handleRiskClick} 
               />
-          </div>
-
-          {/* 4. Quick Tools */}
-          <div className="lg:col-span-1 h-64 lg:h-auto">
-              <QuickToolsWidget onNavigate={onNavigate} />
           </div>
       </div>
 

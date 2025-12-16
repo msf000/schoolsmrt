@@ -1,5 +1,4 @@
 
-
 export interface EducationalStage {
   id: string;
   name: string; // e.g., "المرحلة الابتدائية"
@@ -364,6 +363,7 @@ export interface MicroConcept {
 export interface Question {
     id: string;
     text: string;
+    imageUrl?: string; // NEW: Support for image-based questions
     type: 'MCQ' | 'TRUE_FALSE';
     options: string[];
     correctAnswer: string;

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, AttendanceRecord, AttendanceStatus, Assignment } from '../types';
 import { formatDualDate } from '../services/dateService';
-import { getAcademicTerms, getAssignments } from '../services/storageService';
+import { getAcademicTerms, getAssignments, getTeacherAssignments } from '../services/storageService';
 import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle, Link, Eye } from 'lucide-react';
 import DataImport from './DataImport';
 import * as XLSX from 'xlsx';
@@ -103,8 +103,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
   const uniqueClasses = useMemo(() => {
       const classes = new Set<string>();
       students.forEach(s => s.className && classes.add(s.className));
+      // Add manual classes
+      const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+      manualClasses.forEach(c => classes.add(c));
       return Array.from(classes).sort();
-  }, [students]);
+  }, [students, currentUser]);
 
   const uniqueSubjects = useMemo(() => {
       const subs = new Set<string>();

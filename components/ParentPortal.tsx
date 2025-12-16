@@ -54,7 +54,8 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             const allMessages = getMessages();
             setMessages(allMessages.filter(m => m.studentId === activeChild.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             const allExams = getExams();
-            setExams(allExams.filter(e => e.isActive && (e.gradeLevel === activeChild.gradeLevel || e.gradeLevel === 'عام')));
+            // Filter exams relevant to the child's grade
+            setExams(allExams.filter(e => e.isActive && (e.gradeLevel === activeChild.gradeLevel || !e.gradeLevel || e.gradeLevel === 'عام')));
         }
     }, [activeChild]);
 
@@ -175,6 +176,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                 <div className="max-w-6xl mx-auto flex overflow-x-auto">
                     <button onClick={() => navigate('/')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'OVERVIEW' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>نظرة عامة</button>
                     <button onClick={() => navigate('/plan')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'PLAN' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الخطة الأسبوعية</button>
+                    <button onClick={() => navigate('/exams')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'EXAMS' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الاختبارات</button>
                     <button onClick={() => navigate('/messages')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'MESSAGES' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
                         الرسائل {messages.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full ml-1">{messages.length}</span>}
                     </button>
@@ -331,6 +333,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                         </div>
                     )} />
                     <Route path="/plan" element={<ParentWeeklyPlan student={activeChild} />} />
+                    <Route path="/exams" element={<ParentExamsView student={activeChild} exams={exams} results={performance} />} />
                     <Route path="/messages" element={(
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
                             <div className="p-4 border-b bg-gray-50">
@@ -422,7 +425,51 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     );
 };
 
-// ... (Rest of sub-components ParentWeeklyPlan and ParentCalendar remain identical) ...
+// ... (ParentWeeklyPlan, ParentCalendar remain same, add ParentExamsView)
+
+const ParentExamsView = ({ student, exams, results }: { student: Student, exams: Exam[], results: PerformanceRecord[] }) => {
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
+            <div className="p-4 border-b bg-gray-50">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2"><FileQuestion size={18} className="text-indigo-600"/> جدول الاختبارات والمهام</h3>
+            </div>
+            <div className="divide-y divide-gray-100 overflow-x-auto">
+                <div className="min-w-[300px]">
+                    {exams.length > 0 ? exams.map(exam => {
+                        const result = results.find(r => r.studentId === student.id && (r.title.includes(exam.title) || r.notes === exam.id));
+                        return (
+                            <div key={exam.id} className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
+                                <div>
+                                    <h4 className="font-bold text-gray-800">{exam.title}</h4>
+                                    <div className="text-xs text-gray-500 mt-1 flex gap-2">
+                                        <span className="bg-gray-100 px-2 py-0.5 rounded">{exam.subject}</span>
+                                        {exam.date && <span>📅 {formatDualDate(exam.date)}</span>}
+                                    </div>
+                                </div>
+                                <div>
+                                    {result ? (
+                                        <div className="text-center">
+                                            <span className="block text-xs text-green-600 font-bold">تم التصحيح</span>
+                                            <span className="font-black text-lg text-gray-800">{result.score} <span className="text-xs font-normal text-gray-400">/ {result.maxScore}</span></span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full font-bold">لم يرصد</span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    }) : (
+                        <div className="p-10 text-center text-gray-400 flex flex-col items-center">
+                            <FileQuestion size={48} className="mb-4 opacity-20"/>
+                            <p>لا توجد اختبارات مسجلة حالياً</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const ParentWeeklyPlan = ({ student }: { student: Student }) => {
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();

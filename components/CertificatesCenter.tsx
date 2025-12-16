@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig } from '../types';
-import { getSchools, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
+import { getSchools, getAcademicTerms, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
 import { Award, Printer, CheckSquare, Search, LayoutTemplate, TrendingUp, Medal, Star, ThumbsUp } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
@@ -55,7 +55,14 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
         }
     }, [currentUser, location.state, students]);
 
-    const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
+    const uniqueClasses = useMemo(() => {
+        const classes = new Set<string>();
+        students.forEach(s => s.className && classes.add(s.className));
+        // Add manual classes
+        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+        manualClasses.forEach(c => classes.add(c));
+        return Array.from(classes).sort();
+    }, [students, currentUser]);
 
     const filteredStudents = useMemo(() => {
         return students.filter(s => {

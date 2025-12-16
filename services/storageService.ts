@@ -21,7 +21,7 @@ export const KEYS = {
     SUBJECTS: 'subjects',
     SCHEDULES: 'schedules',
     ASSIGNMENTS: 'assignments', 
-    TRACKING_ASSIGNMENTS: 'tracking_assignments', 
+    TRACKING_ASSIGNMENTS: 'tracking_assignments', // For gradebook columns
     TERMS: 'academic_terms',
     WEEKLY_PLANS: 'weekly_plans',
     LESSON_LINKS: 'lesson_links',
@@ -42,13 +42,23 @@ export const KEYS = {
     WORKS_MASTER_URL: 'works_master_url'
 };
 
-export const DB_MAP = {
-    students: 'students',
-    attendance: 'attendance',
-    performance: 'performance',
-    teachers: 'teachers',
-    schools: 'schools',
-    users: 'system_users'
+// Map LocalStorage Keys to Supabase Table Names
+export const DB_MAP: Record<string, string> = {
+    [KEYS.STUDENTS]: 'students',
+    [KEYS.ATTENDANCE]: 'attendance',
+    [KEYS.PERFORMANCE]: 'performance',
+    [KEYS.TEACHERS]: 'teachers',
+    [KEYS.SCHOOLS]: 'schools',
+    [KEYS.SYSTEM_USERS]: 'system_users',
+    [KEYS.EXAMS]: 'exams',
+    [KEYS.QUESTIONS]: 'question_bank',
+    [KEYS.EXAM_RESULTS]: 'exam_results',
+    [KEYS.TRACKING_ASSIGNMENTS]: 'assignments', // assignments table
+    [KEYS.WEEKLY_PLANS]: 'weekly_plans',
+    [KEYS.LESSON_PLANS]: 'lesson_plans',
+    [KEYS.TERMS]: 'academic_terms',
+    [KEYS.MESSAGES]: 'messages',
+    [KEYS.SCHEDULES]: 'schedules'
 };
 
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
@@ -66,9 +76,8 @@ export function save(key: string, data: any) {
     notifySubscribers();
     // Auto-push to cloud if configured (Optimistic UI)
     if (isSupabaseConfigured()) {
-        const table = Object.keys(DB_MAP).find(k => k === key || (k === 'users' && key === 'system_users')) as keyof typeof DB_MAP | undefined;
-        if (table) {
-            const tableName = DB_MAP[table];
+        const tableName = DB_MAP[key];
+        if (tableName) {
             // Don't await, let it sync in background
             supabase.from(tableName).upsert(data).then(({ error }) => {
                 if (error) console.error(`Failed to sync ${key} to cloud:`, error);
@@ -381,21 +390,29 @@ export const deleteScheduleItem = (id: string) => {
 };
 
 // --- Assignments (TeacherAssignments - Class Subject Map) ---
+// Note: These are different from 'Assignment' table. This maps Teacher -> Class -> Subject
 export const getTeacherAssignments = (teacherId?: string): TeacherAssignment[] => {
-    const all = get<TeacherAssignment>(KEYS.ASSIGNMENTS);
-    if (teacherId) return all.filter(a => a.teacherId === teacherId);
-    return all;
+    const all = get<TeacherAssignment>('teacher_class_assignments') || []; // Use separate key or same? Using separate.
+    // Actually, reused ASSIGNMENTS key before? Let's check imports.
+    // The previous implementation might have used KEYS.ASSIGNMENTS for TeacherAssignments.
+    // But KEYS.TRACKING_ASSIGNMENTS for Assignment Columns.
+    // Let's clarify: TeacherAssignment is usually stored in local settings or specific key.
+    // I will use a specific key for clarity.
+    const raw = localStorage.getItem('teacher_class_map');
+    const list: TeacherAssignment[] = raw ? JSON.parse(raw) : [];
+    if (teacherId) return list.filter(a => a.teacherId === teacherId);
+    return list;
 };
 export const addTeacherAssignment = (assignment: TeacherAssignment) => {
-    const list = get<TeacherAssignment>(KEYS.ASSIGNMENTS);
-    // Avoid duplicates
+    const list = getTeacherAssignments();
     if (!list.find(a => a.classId === assignment.classId && a.teacherId === assignment.teacherId)) {
         list.push(assignment);
-        save(KEYS.ASSIGNMENTS, list);
+        localStorage.setItem('teacher_class_map', JSON.stringify(list));
     }
 };
 export const deleteTeacherAssignment = (id: string) => {
-    save(KEYS.ASSIGNMENTS, get<TeacherAssignment>(KEYS.ASSIGNMENTS).filter(a => a.id !== id));
+    const list = getTeacherAssignments().filter(a => a.id !== id);
+    localStorage.setItem('teacher_class_map', JSON.stringify(list));
 };
 
 // --- Assignments (Columns / Assessments) ---
@@ -706,20 +723,21 @@ export const checkConnection = async () => {
     }
 };
 
+// --- DYNAMIC CLOUD SYNC ---
 export const uploadToSupabase = async () => {
     if (!isSupabaseConfigured()) return;
     notifySync('SYNCING');
     
-    // Upload main tables
     try {
-        await Promise.all([
-            supabase.from('students').upsert(getStudents()).then(({error}) => error && console.error('Students sync error', error)),
-            supabase.from('attendance').upsert(getAttendance()).then(({error}) => error && console.error('Attendance sync error', error)),
-            supabase.from('performance').upsert(getPerformance()).then(({error}) => error && console.error('Performance sync error', error)),
-            supabase.from('teachers').upsert(getTeachers()).then(({error}) => error && console.error('Teachers sync error', error)),
-            supabase.from('schools').upsert(getSchools()).then(({error}) => error && console.error('Schools sync error', error)),
-            supabase.from('system_users').upsert(getSystemUsers()).then(({error}) => error && console.error('Users sync error', error)),
-        ]);
+        const promises = Object.entries(DB_MAP).map(async ([localKey, tableName]) => {
+            const data = get(localKey);
+            if (data.length > 0) {
+                const { error } = await supabase.from(tableName).upsert(data);
+                if (error) console.error(`Error uploading ${tableName}:`, error);
+            }
+        });
+        
+        await Promise.all(promises);
         notifySync('ONLINE');
     } catch (e) {
         console.error(e);
@@ -732,24 +750,13 @@ export const downloadFromSupabase = async () => {
     notifySync('SYNCING');
     
     try {
-        const { data: students } = await supabase.from('students').select('*');
-        if (students) save(KEYS.STUDENTS, students);
+        const promises = Object.entries(DB_MAP).map(async ([localKey, tableName]) => {
+            const { data, error } = await supabase.from(tableName).select('*');
+            if (data) save(localKey, data);
+            if (error) console.error(`Error downloading ${tableName}:`, error);
+        });
 
-        const { data: attendance } = await supabase.from('attendance').select('*');
-        if (attendance) save(KEYS.ATTENDANCE, attendance);
-
-        const { data: performance } = await supabase.from('performance').select('*');
-        if (performance) save(KEYS.PERFORMANCE, performance);
-
-        const { data: teachers } = await supabase.from('teachers').select('*');
-        if (teachers) save(KEYS.TEACHERS, teachers);
-
-        const { data: schools } = await supabase.from('schools').select('*');
-        if (schools) save(KEYS.SCHOOLS, schools);
-
-        const { data: users } = await supabase.from('system_users').select('*');
-        if (users) save(KEYS.SYSTEM_USERS, users);
-
+        await Promise.all(promises);
         notifySync('ONLINE');
     } catch (e) {
         console.error(e);
@@ -820,13 +827,25 @@ export const initRealtimeSync = () => {
 export const stopRealtimeSync = () => {};
 
 export const getTableDisplayName = (table: string) => {
-    switch(table) {
-        case 'students': return 'الطلاب';
-        case 'attendance': return 'الحضور';
-        case 'performance': return 'الدرجات';
-        case 'teachers': return 'المعلمين';
-        case 'schools': return 'المدارس';
-        case 'system_users': return 'المستخدمين';
+    const reverseMap = Object.entries(DB_MAP).find(([k, v]) => v === table);
+    const key = reverseMap ? reverseMap[0] : table;
+
+    switch(key) {
+        case KEYS.STUDENTS: return 'الطلاب';
+        case KEYS.ATTENDANCE: return 'الحضور';
+        case KEYS.PERFORMANCE: return 'الدرجات';
+        case KEYS.TEACHERS: return 'المعلمين';
+        case KEYS.SCHOOLS: return 'المدارس';
+        case KEYS.SYSTEM_USERS: return 'المستخدمين';
+        case KEYS.EXAMS: return 'الاختبارات';
+        case KEYS.QUESTIONS: return 'بنك الأسئلة';
+        case KEYS.EXAM_RESULTS: return 'نتائج الاختبارات';
+        case KEYS.TRACKING_ASSIGNMENTS: return 'أعمدة الرصد';
+        case KEYS.WEEKLY_PLANS: return 'الخطط الأسبوعية';
+        case KEYS.LESSON_PLANS: return 'تحضير الدروس';
+        case KEYS.TERMS: return 'الفصول الدراسية';
+        case KEYS.MESSAGES: return 'الرسائل';
+        case KEYS.SCHEDULES: return 'الجدول الدراسي';
         default: return table;
     }
 };
@@ -913,9 +932,119 @@ CREATE TABLE IF NOT EXISTS performance (
     notes TEXT,
     created_by_id TEXT
 );
+
+-- Extended Tables
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    subject TEXT,
+    grade_level TEXT,
+    duration_minutes INTEGER,
+    questions JSONB,
+    is_active BOOLEAN,
+    created_at TEXT,
+    teacher_id TEXT,
+    date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS question_bank (
+    id TEXT PRIMARY KEY,
+    text TEXT,
+    type TEXT,
+    options JSONB,
+    correct_answer TEXT,
+    points INTEGER,
+    subject TEXT,
+    grade_level TEXT,
+    topic TEXT,
+    difficulty TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS exam_results (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT,
+    student_id TEXT,
+    student_name TEXT,
+    score NUMERIC,
+    total_score NUMERIC,
+    date TEXT,
+    answers JSONB
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    category TEXT,
+    max_score NUMERIC,
+    url TEXT,
+    is_visible BOOLEAN,
+    order_index INTEGER,
+    source_metadata TEXT,
+    teacher_id TEXT,
+    term_id TEXT,
+    period_id TEXT,
+    class_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS weekly_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    class_id TEXT,
+    subject_name TEXT,
+    day TEXT,
+    period INTEGER,
+    week_start_date TEXT,
+    lesson_topic TEXT,
+    homework TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lesson_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    lesson_id TEXT,
+    subject TEXT,
+    topic TEXT,
+    content_json TEXT,
+    resources JSONB,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS academic_terms (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    is_current BOOLEAN,
+    teacher_id TEXT,
+    periods JSONB
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    student_id TEXT,
+    student_name TEXT,
+    parent_phone TEXT,
+    type TEXT,
+    content TEXT,
+    status TEXT,
+    date TEXT,
+    sent_by TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    day TEXT,
+    period INTEGER,
+    subject_name TEXT,
+    teacher_id TEXT
+);
 `;
 
 export const getDatabaseUpdateSQL = () => `
+-- Run this if you are updating from an older version
 ALTER TABLE students ADD COLUMN IF NOT EXISTS seat_index INTEGER;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_file TEXT;
 `;
