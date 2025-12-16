@@ -4,6 +4,7 @@ import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Behavio
 import { getMessages, getExams, getWeeklyPlans, getAcademicTerms, saveAttendance } from '../services/storageService';
 import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 interface ParentPortalProps {
     parentPhone: string;
@@ -14,6 +15,9 @@ interface ParentPortalProps {
 }
 
 const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, attendance, performance, onLogout }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    
     // Find all children linked to this parent phone
     const myChildren = useMemo(() => {
         return allStudents.filter(s => s.parentPhone === parentPhone || s.parentPhone?.replace(/\s/g, '') === parentPhone);
@@ -21,9 +25,9 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
 
     const [activeChildId, setActiveChildId] = useState<string>(myChildren.length > 0 ? myChildren[0].id : '');
     const activeChild = myChildren.find(c => c.id === activeChildId) || myChildren[0];
+    
     const [messages, setMessages] = useState<MessageLog[]>([]);
     const [exams, setExams] = useState<Exam[]>([]);
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'WEEKLY_PLAN' | 'MESSAGES' | 'CALENDAR'>('OVERVIEW');
     
     // Terms Logic
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
@@ -46,11 +50,8 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
 
     useEffect(() => {
         if (activeChild) {
-            // Load messages for this student
             const allMessages = getMessages();
             setMessages(allMessages.filter(m => m.studentId === activeChild.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-            
-            // Load exams
             const allExams = getExams();
             setExams(allExams.filter(e => e.isActive && (e.gradeLevel === activeChild.gradeLevel || e.gradeLevel === 'عام')));
         }
@@ -62,31 +63,25 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         let childAtt = attendance.filter(a => a.studentId === activeChild.id);
         let childPerf = performance.filter(p => p.studentId === activeChild.id);
 
-        // Filter by Term
         if (activeTerm) {
             childAtt = childAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
             childPerf = childPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
         }
 
-        // Attendance Stats
         const absent = childAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
         const late = childAtt.filter(a => a.status === AttendanceStatus.LATE).length;
         const totalDays = childAtt.length;
         const attendanceRate = totalDays > 0 ? Math.round(((totalDays - absent) / totalDays) * 100) : 100;
 
-        // Behavior Stats
         const positive = childAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
         const negative = childAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
 
-        // Academic Stats
         const totalScore = childPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0);
         const avgScore = childPerf.length > 0 ? Math.round((totalScore / childPerf.length) * 100) : 0;
 
-        // Recent Activity (Visual display can show up to 5, regardless of term, or strictly term based. Let's stick to term based)
         const recentAtt = [...childAtt].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
         const recentPerf = [...childPerf].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
-        // Absent Days without excuse
         const unexcusedAbsences = childAtt.filter(a => (a.status === AttendanceStatus.ABSENT || a.status === AttendanceStatus.LATE) && !a.excuseNote);
 
         return { absent, late, attendanceRate, positive, negative, avgScore, recentAtt, recentPerf, unexcusedAbsences };
@@ -94,21 +89,15 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
 
     const handleSubmitExcuse = () => {
         if (!selectedAbsentRecord || !excuseText) return;
-        
         const updatedRecord: AttendanceRecord = {
             ...selectedAbsentRecord,
             excuseNote: excuseText,
-            // status: AttendanceStatus.EXCUSED // Don't change status immediately, wait for teacher approval? Or set it? Usually teacher approval.
-            // Let's keep status as is, just attach note. Teacher sees it in "Pending Excuses".
         };
-        
         saveAttendance([updatedRecord]);
         setIsExcuseModalOpen(false);
         setExcuseText('');
         setSelectedAbsentRecord(null);
         alert('تم إرسال العذر للمعلم بنجاح.');
-        // Trigger reload? The parent component passes data, it might need refresh. 
-        // Ideally App.tsx handles re-render on storage change. 
         window.location.reload(); 
     };
 
@@ -124,6 +113,8 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             </div>
         );
     }
+
+    const currentTab = location.pathname === '/' ? 'OVERVIEW' : location.pathname.replace('/', '').toUpperCase();
 
     return (
         <div className="min-h-screen bg-gray-100 font-sans text-right" dir="rtl">
@@ -168,12 +159,12 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             {/* Navigation Tabs (Mobile optimized) */}
             <div className="bg-white border-b sticky top-[110px] z-40 shadow-sm">
                 <div className="max-w-6xl mx-auto flex overflow-x-auto">
-                    <button onClick={() => setActiveTab('OVERVIEW')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'OVERVIEW' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>نظرة عامة</button>
-                    <button onClick={() => setActiveTab('WEEKLY_PLAN')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'WEEKLY_PLAN' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الخطة الأسبوعية</button>
-                    <button onClick={() => setActiveTab('MESSAGES')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'MESSAGES' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
+                    <button onClick={() => navigate('/')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'OVERVIEW' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>نظرة عامة</button>
+                    <button onClick={() => navigate('/plan')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'PLAN' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الخطة الأسبوعية</button>
+                    <button onClick={() => navigate('/messages')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'MESSAGES' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
                         الرسائل {messages.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full ml-1">{messages.length}</span>}
                     </button>
-                    <button onClick={() => setActiveTab('CALENDAR')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${activeTab === 'CALENDAR' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>التقويم</button>
+                    <button onClick={() => navigate('/calendar')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'CALENDAR' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>التقويم</button>
                 </div>
             </div>
 
@@ -222,153 +213,145 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     )}
                 </div>
 
-                {/* --- TAB CONTENT --- */}
-
-                {activeTab === 'OVERVIEW' && stats && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
-                        
-                        {/* Attendance Section */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="p-4 bg-teal-50 border-b border-teal-100 flex justify-between items-center">
-                                <h3 className="font-bold text-teal-800 flex items-center gap-2"><Calendar size={18}/> سجل الحضور ({activeTerm ? activeTerm.name : 'عام'})</h3>
-                                <div className="flex gap-2">
-                                    <span className="text-xs bg-white px-2 py-1 rounded text-teal-600 font-bold">{stats.absent} غياب</span>
-                                </div>
-                            </div>
-                            
-                            {/* Unexcused Absences Alert */}
-                            {stats.unexcusedAbsences.length > 0 && (
-                                <div className="bg-red-50 p-3 border-b border-red-100">
-                                    <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1"><AlertTriangle size={14}/> يوجد غياب غير مبرر، يرجى تقديم عذر:</p>
-                                    <div className="flex gap-2 overflow-x-auto pb-1">
-                                        {stats.unexcusedAbsences.map(rec => (
-                                            <button 
-                                                key={rec.id} 
-                                                onClick={() => { setSelectedAbsentRecord(rec); setIsExcuseModalOpen(true); }}
-                                                className="flex-shrink-0 bg-white border border-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-100 transition-colors"
-                                            >
-                                                {formatDualDate(rec.date)} (قدم عذر)
-                                            </button>
-                                        ))}
+                <Routes>
+                    <Route path="/" element={stats && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+                            {/* Attendance Section */}
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="p-4 bg-teal-50 border-b border-teal-100 flex justify-between items-center">
+                                    <h3 className="font-bold text-teal-800 flex items-center gap-2"><Calendar size={18}/> سجل الحضور ({activeTerm ? activeTerm.name : 'عام'})</h3>
+                                    <div className="flex gap-2">
+                                        <span className="text-xs bg-white px-2 py-1 rounded text-teal-600 font-bold">{stats.absent} غياب</span>
                                     </div>
                                 </div>
-                            )}
+                                
+                                {stats.unexcusedAbsences.length > 0 && (
+                                    <div className="bg-red-50 p-3 border-b border-red-100">
+                                        <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1"><AlertTriangle size={14}/> يوجد غياب غير مبرر، يرجى تقديم عذر:</p>
+                                        <div className="flex gap-2 overflow-x-auto pb-1">
+                                            {stats.unexcusedAbsences.map(rec => (
+                                                <button 
+                                                    key={rec.id} 
+                                                    onClick={() => { setSelectedAbsentRecord(rec); setIsExcuseModalOpen(true); }}
+                                                    className="flex-shrink-0 bg-white border border-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-100 transition-colors"
+                                                >
+                                                    {formatDualDate(rec.date)} (قدم عذر)
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
-                            <div className="p-4 overflow-x-auto">
-                                {stats.recentAtt.length > 0 ? (
-                                    <div className="space-y-3 min-w-[300px]">
-                                        {stats.recentAtt.map(rec => (
-                                            <div key={rec.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-2 h-10 rounded-full ${
-                                                        rec.status === AttendanceStatus.PRESENT ? 'bg-green-500' :
-                                                        rec.status === AttendanceStatus.ABSENT ? 'bg-red-500' : 
-                                                        rec.status === AttendanceStatus.LATE ? 'bg-yellow-500' : 'bg-blue-500'
-                                                    }`}></div>
-                                                    <div>
-                                                        <div className="font-bold text-gray-800 text-sm">{formatDualDate(rec.date)}</div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {rec.status === AttendanceStatus.PRESENT ? 'حاضر' :
-                                                             rec.status === AttendanceStatus.ABSENT ? 'غائب' :
-                                                             rec.status === AttendanceStatus.LATE ? 'متأخر' : 'بعذر'}
+                                <div className="p-4 overflow-x-auto">
+                                    {stats.recentAtt.length > 0 ? (
+                                        <div className="space-y-3 min-w-[300px]">
+                                            {stats.recentAtt.map(rec => (
+                                                <div key={rec.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-2 h-10 rounded-full ${
+                                                            rec.status === AttendanceStatus.PRESENT ? 'bg-green-500' :
+                                                            rec.status === AttendanceStatus.ABSENT ? 'bg-red-500' : 
+                                                            rec.status === AttendanceStatus.LATE ? 'bg-yellow-500' : 'bg-blue-500'
+                                                        }`}></div>
+                                                        <div>
+                                                            <div className="font-bold text-gray-800 text-sm">{formatDualDate(rec.date)}</div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {rec.status === AttendanceStatus.PRESENT ? 'حاضر' :
+                                                                 rec.status === AttendanceStatus.ABSENT ? 'غائب' :
+                                                                 rec.status === AttendanceStatus.LATE ? 'متأخر' : 'بعذر'}
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        {(rec.behaviorStatus !== BehaviorStatus.NEUTRAL) && (
+                                                            <span className={`text-xs px-2 py-1 rounded font-bold ${rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                                {rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'سلوك إيجابي' : 'ملاحظة سلبية'}
+                                                            </span>
+                                                        )}
+                                                        {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1"><FileText size={10}/> تم تقديم عذر</span>}
+                                                    </div>
                                                 </div>
-                                                <div className="flex flex-col items-end gap-1">
-                                                    {(rec.behaviorStatus !== BehaviorStatus.NEUTRAL) && (
-                                                        <span className={`text-xs px-2 py-1 rounded font-bold ${rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                            {rec.behaviorStatus === BehaviorStatus.POSITIVE ? 'سلوك إيجابي' : 'ملاحظة سلبية'}
-                                                        </span>
-                                                    )}
-                                                    {rec.excuseNote && <span className="text-[10px] text-blue-600 flex items-center gap-1"><FileText size={10}/> تم تقديم عذر</span>}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-center text-gray-400 text-sm py-4">لا توجد سجلات حديثة في هذه الفترة</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Performance Section */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="p-4 bg-purple-50 border-b border-purple-100 flex justify-between items-center">
-                                <h3 className="font-bold text-purple-800 flex items-center gap-2"><Award size={18}/> آخر الدرجات ({activeTerm ? activeTerm.name : 'عام'})</h3>
-                                <span className="text-xs bg-white px-2 py-1 rounded text-purple-600 font-bold">المتوسط: {stats.avgScore}%</span>
-                            </div>
-                            <div className="p-4 overflow-x-auto">
-                                {stats.recentPerf.length > 0 ? (
-                                    <div className="space-y-3 min-w-[300px]">
-                                        {stats.recentPerf.map(perf => (
-                                            <div key={perf.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                <div>
-                                                    <div className="font-bold text-gray-800 text-sm">{perf.title}</div>
-                                                    <div className="text-xs text-gray-500">{perf.subject} • {formatDualDate(perf.date)}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-lg text-purple-700">{perf.score}</span>
-                                                    <span className="text-xs text-gray-400">/ {perf.maxScore}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-center text-gray-400 text-sm py-4">لا توجد درجات حديثة في هذه الفترة</p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center col-span-1 lg:col-span-2">
-                            <h3 className="font-bold text-yellow-800 mb-2 flex items-center justify-center gap-2"><MessageSquare size={20}/> تواصل مع المدرسة</h3>
-                            <p className="text-sm text-yellow-700 mb-4">هل لديك استفسار حول أداء ابنك؟ يمكنك التواصل مباشرة مع المرشد الطلابي.</p>
-                            <button className="bg-yellow-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-yellow-700 shadow-sm transition-colors">
-                                إرسال رسالة
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'WEEKLY_PLAN' && (
-                    <ParentWeeklyPlan student={activeChild} />
-                )}
-
-                {activeTab === 'MESSAGES' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
-                        <div className="p-4 border-b bg-gray-50">
-                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Bell size={18} className="text-indigo-600"/> التنبيهات والرسائل الواردة</h3>
-                        </div>
-                        <div className="divide-y divide-gray-100 overflow-x-auto">
-                            <div className="min-w-[300px]">
-                                {messages.length > 0 ? messages.map(msg => (
-                                    <div key={msg.id} className="p-4 hover:bg-gray-50 transition-colors">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`p-1.5 rounded-full ${msg.type === 'WHATSAPP' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                    {msg.type === 'WHATSAPP' ? <Phone size={14}/> : <Mail size={14}/>}
-                                                </span>
-                                                <span className="font-bold text-gray-800 text-sm">{msg.sentBy || 'الإدارة المدرسية'}</span>
-                                            </div>
-                                            <span className="text-xs text-gray-400">{formatDualDate(msg.date)}</span>
+                                            ))}
                                         </div>
-                                        <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                            {msg.content}
-                                        </p>
-                                    </div>
-                                )) : (
-                                    <div className="p-10 text-center text-gray-400 flex flex-col items-center">
-                                        <Mail size={48} className="mb-4 opacity-20"/>
-                                        <p>لا توجد رسائل جديدة</p>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <p className="text-center text-gray-400 text-sm py-4">لا توجد سجلات حديثة في هذه الفترة</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Performance Section */}
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="p-4 bg-purple-50 border-b border-purple-100 flex justify-between items-center">
+                                    <h3 className="font-bold text-purple-800 flex items-center gap-2"><Award size={18}/> آخر الدرجات ({activeTerm ? activeTerm.name : 'عام'})</h3>
+                                    <span className="text-xs bg-white px-2 py-1 rounded text-purple-600 font-bold">المتوسط: {stats.avgScore}%</span>
+                                </div>
+                                <div className="p-4 overflow-x-auto">
+                                    {stats.recentPerf.length > 0 ? (
+                                        <div className="space-y-3 min-w-[300px]">
+                                            {stats.recentPerf.map(perf => (
+                                                <div key={perf.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                    <div>
+                                                        <div className="font-bold text-gray-800 text-sm">{perf.title}</div>
+                                                        <div className="text-xs text-gray-500">{perf.subject} • {formatDualDate(perf.date)}</div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-lg text-purple-700">{perf.score}</span>
+                                                        <span className="text-xs text-gray-400">/ {perf.maxScore}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-gray-400 text-sm py-4">لا توجد درجات حديثة في هذه الفترة</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center col-span-1 lg:col-span-2">
+                                <h3 className="font-bold text-yellow-800 mb-2 flex items-center justify-center gap-2"><MessageSquare size={20}/> تواصل مع المدرسة</h3>
+                                <p className="text-sm text-yellow-700 mb-4">هل لديك استفسار حول أداء ابنك؟ يمكنك التواصل مباشرة مع المرشد الطلابي.</p>
+                                <button className="bg-yellow-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-yellow-700 shadow-sm transition-colors">
+                                    إرسال رسالة
+                                </button>
                             </div>
                         </div>
-                    </div>
-                )}
-
-                {activeTab === 'CALENDAR' && (
-                    <ParentCalendar attendance={attendance} exams={exams} studentId={activeChild.id} />
-                )}
+                    )} />
+                    <Route path="/plan" element={<ParentWeeklyPlan student={activeChild} />} />
+                    <Route path="/messages" element={(
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
+                            <div className="p-4 border-b bg-gray-50">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><Bell size={18} className="text-indigo-600"/> التنبيهات والرسائل الواردة</h3>
+                            </div>
+                            <div className="divide-y divide-gray-100 overflow-x-auto">
+                                <div className="min-w-[300px]">
+                                    {messages.length > 0 ? messages.map(msg => (
+                                        <div key={msg.id} className="p-4 hover:bg-gray-50 transition-colors">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`p-1.5 rounded-full ${msg.type === 'WHATSAPP' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                        {msg.type === 'WHATSAPP' ? <Phone size={14}/> : <Mail size={14}/>}
+                                                    </span>
+                                                    <span className="font-bold text-gray-800 text-sm">{msg.sentBy || 'الإدارة المدرسية'}</span>
+                                                </div>
+                                                <span className="text-xs text-gray-400">{formatDualDate(msg.date)}</span>
+                                            </div>
+                                            <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                {msg.content}
+                                            </p>
+                                        </div>
+                                    )) : (
+                                        <div className="p-10 text-center text-gray-400 flex flex-col items-center">
+                                            <Mail size={48} className="mb-4 opacity-20"/>
+                                            <p>لا توجد رسائل جديدة</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )} />
+                    <Route path="/calendar" element={<ParentCalendar attendance={attendance} exams={exams} studentId={activeChild.id} />} />
+                    <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
 
             </main>
 
@@ -415,7 +398,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     );
 };
 
-// ... (Rest of sub-components ParentWeeklyPlan and ParentCalendar remain identical as they don't depend on term filter heavily or handle it internally if needed) ...
+// ... (Rest of sub-components ParentWeeklyPlan and ParentCalendar remain identical) ...
 const ParentWeeklyPlan = ({ student }: { student: Student }) => {
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();

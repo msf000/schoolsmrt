@@ -5,6 +5,7 @@ import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedule
 import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown, Send, Video } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -14,19 +15,11 @@ interface StudentPortalProps {
 }
 
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
-    // Restore last view from session storage or default
-    const [view, setView] = useState<'DASHBOARD' | 'PROFILE' | 'ATTENDANCE' | 'EVALUATION' | 'TIMETABLE' | 'CUSTOM_RECORDS' | 'EXAMS' | 'WEEKLY_PLAN' | 'LIBRARY'>(() => {
-        const saved = sessionStorage.getItem('student_last_view');
-        return (saved && ['DASHBOARD', 'PROFILE', 'ATTENDANCE', 'EVALUATION', 'TIMETABLE', 'CUSTOM_RECORDS', 'EXAMS', 'WEEKLY_PLAN', 'LIBRARY'].includes(saved)) ? saved as any : 'DASHBOARD';
-    });
-    
+    const navigate = useNavigate();
+    const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
-
-    useEffect(() => {
-        sessionStorage.setItem('student_last_view', view);
-    }, [view]);
 
     useEffect(() => {
         setTerms(getAcademicTerms());
@@ -40,16 +33,18 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     };
 
     const navItems = [
-        { id: 'DASHBOARD', label: 'الرئيسية', icon: LayoutGrid },
-        { id: 'WEEKLY_PLAN', label: 'الخطة الأسبوعية', icon: CalendarDays },
-        { id: 'EVALUATION', label: 'تقييمي (درجاتي)', icon: Award },
-        { id: 'TIMETABLE', label: 'الجدول الدراسي', icon: Clock },
-        { id: 'EXAMS', label: 'الاختبارات والواجبات', icon: FileQuestion },
-        { id: 'ATTENDANCE', label: 'سجل الحضور', icon: Calendar },
-        { id: 'LIBRARY', label: 'المكتبة والمصادر', icon: Library },
-        { id: 'CUSTOM_RECORDS', label: 'سجلات خاصة', icon: Table },
-        { id: 'PROFILE', label: 'الملف الشخصي', icon: User },
+        { path: '/', label: 'الرئيسية', icon: LayoutGrid },
+        { path: '/plan', label: 'الخطة الأسبوعية', icon: CalendarDays },
+        { path: '/evaluation', label: 'تقييمي (درجاتي)', icon: Award },
+        { path: '/timetable', label: 'الجدول الدراسي', icon: Clock },
+        { path: '/exams', label: 'الاختبارات والواجبات', icon: FileQuestion },
+        { path: '/attendance', label: 'سجل الحضور', icon: Calendar },
+        { path: '/library', label: 'المكتبة والمصادر', icon: Library },
+        { path: '/custom-records', label: 'سجلات خاصة', icon: Table },
+        { path: '/profile', label: 'الملف الشخصي', icon: User },
     ];
+
+    const currentPath = location.pathname;
 
     return (
         <div className="flex h-screen bg-gray-50 overflow-hidden text-right font-sans" dir="rtl">
@@ -65,10 +60,10 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
                     {navItems.map(item => (
                         <button
-                            key={item.id}
-                            onClick={() => setView(item.id as any)}
+                            key={item.path}
+                            onClick={() => navigate(item.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
-                                view === item.id 
+                                currentPath === item.path 
                                     ? 'bg-teal-50 text-teal-700 font-bold border border-teal-100 shadow-sm' 
                                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                             }`}
@@ -113,10 +108,10 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
                             {navItems.map(item => (
                                 <button
-                                    key={item.id}
-                                    onClick={() => { setView(item.id as any); setIsMobileMenuOpen(false); }}
+                                    key={item.path}
+                                    onClick={() => { navigate(item.path); setIsMobileMenuOpen(false); }}
                                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                                        view === item.id ? 'bg-teal-100 text-teal-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'
+                                        currentPath === item.path ? 'bg-teal-100 text-teal-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'
                                     }`}
                                 >
                                     <item.icon size={20} />
@@ -147,29 +142,32 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 </header>
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-50 custom-scrollbar w-full">
-                    {view === 'DASHBOARD' && <StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={setView} terms={terms} />}
-                    {view === 'WEEKLY_PLAN' && <StudentWeeklyPlan student={currentUser} />}
-                    {view === 'PROFILE' && <StudentProfile student={currentUser} />}
-                    {view === 'ATTENDANCE' && <StudentAttendanceView student={currentUser} attendance={attendance} terms={terms} />}
-                    {view === 'EVALUATION' && <StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} terms={terms} />}
-                    {view === 'TIMETABLE' && <StudentTimetable student={currentUser} />}
-                    {view === 'CUSTOM_RECORDS' && <StudentCustomRecords student={currentUser} />}
-                    {view === 'EXAMS' && <StudentExamsView student={currentUser} />}
-                    {view === 'LIBRARY' && <StudentLibrary student={currentUser} />}
+                    <Routes>
+                        <Route path="/" element={<StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={(v) => navigate(v === 'TIMETABLE' ? '/timetable' : v === 'EVALUATION' ? '/evaluation' : '/')} terms={terms} />} />
+                        <Route path="/plan" element={<StudentWeeklyPlan student={currentUser} />} />
+                        <Route path="/profile" element={<StudentProfile student={currentUser} />} />
+                        <Route path="/attendance" element={<StudentAttendanceView student={currentUser} attendance={attendance} terms={terms} />} />
+                        <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} attendance={attendance} terms={terms} />} />
+                        <Route path="/timetable" element={<StudentTimetable student={currentUser} />} />
+                        <Route path="/custom-records" element={<StudentCustomRecords student={currentUser} />} />
+                        <Route path="/exams" element={<StudentExamsView student={currentUser} />} />
+                        <Route path="/library" element={<StudentLibrary student={currentUser} />} />
+                        <Route path="*" element={<Navigate to="/" />} />
+                    </Routes>
                 </main>
             </div>
 
             {/* Mobile Bottom Nav */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                <button onClick={() => setView('DASHBOARD')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${view === 'DASHBOARD' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                <button onClick={() => navigate('/')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
                     <LayoutGrid size={20} />
                     <span className="text-[10px] font-bold">الرئيسية</span>
                 </button>
-                <button onClick={() => setView('TIMETABLE')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${view === 'TIMETABLE' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                <button onClick={() => navigate('/timetable')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/timetable' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
                     <Clock size={20} />
                     <span className="text-[10px] font-bold">الجدول</span>
                 </button>
-                <button onClick={() => setView('EXAMS')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${view === 'EXAMS' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                <button onClick={() => navigate('/exams')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/exams' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
                     <FileQuestion size={20} />
                     <span className="text-[10px] font-bold">واجبات</span>
                 </button>
@@ -199,14 +197,6 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
         const allPlans = getWeeklyPlans();
         const filtered = allPlans.filter(p => p.classId === student.className && p.weekStartDate === weekStart);
         setPlans(filtered);
-        
-        // Fetch all lesson plans (inefficient but works for now, optimization needed for large scale)
-        // We filter manually by matching topics
-        const teachers = getTeachers(); // Need to fetch all potential lesson plans
-        // In a real app, we would query based on teacher IDs in the schedule.
-        // For now, let's fetch all (localStorage limit is fine for demo)
-        // NOTE: getLessonPlans requires teacherId. We need to find the teacher for each plan.
-        // But plan item has teacherId!
         
         const relevantTeacherIds = Array.from(new Set(filtered.map(p => p.teacherId)));
         let allLessons: StoredLessonPlan[] = [];
@@ -338,7 +328,6 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
     );
 };
 
-// ... (Rest of StudentPortal sub-components like StudentTimetable, StudentDashboard, etc. remain unchanged)
 const StudentTimetable = ({ student }: { student: Student }) => {
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
     useEffect(() => {
@@ -562,9 +551,6 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
         </div>
     );
 };
-
-// ... (Rest of StudentPortal sub-components like StudentProfile, StudentCustomRecords, StudentExamsView, StudentLibrary, StudentAttendanceView, StudentEvaluationView remain mostly unchanged - just ensure imports are correct)
-// Included below for completeness but compacted where logic is identical
 
 const StudentProfile = ({ student }: { student: Student }) => {
     const [newPassword, setNewPassword] = useState('');
