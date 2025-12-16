@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment } from '../types';
 import { getAssignments, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
 import { generateStudentAnalysis } from '../services/geminiService';
-import { FileText, Printer, Search, PieChart, Users, MapPin, Phone, TrendingUp, BookOpen, Loader2, Copy, Award, Activity, Sparkles, Plus, AlertCircle, Calendar, Bot, ArrowRight } from 'lucide-react';
+import { FileText, Printer, Search, PieChart, Users, MapPin, Phone, TrendingUp, Loader2, Award, Activity, Sparkles, Plus, Calendar, Bot, ArrowRight, CheckCircle, XCircle, Paperclip, Eye } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { formatDualDate } from '../services/dateService';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -21,7 +21,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const navigate = useNavigate();
     const location = useLocation();
     
-    // Safety check
     if (!students) {
         return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
     }
@@ -30,7 +29,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [activeTab, setActiveTab] = useState<'SUMMARY' | 'BEHAVIOR' | 'CERTIFICATES' | 'AI'>('SUMMARY');
+    const [activeTab, setActiveTab] = useState<'SUMMARY' | 'BEHAVIOR' | 'ATTENDANCE' | 'CERTIFICATES' | 'AI'>('SUMMARY');
 
     // Filter State
     const [selectedTermId, setSelectedTermId] = useState<string>('');
@@ -50,6 +49,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const [quickNote, setQuickNote] = useState('');
     const [quickBehaviorType, setQuickBehaviorType] = useState<BehaviorStatus>(BehaviorStatus.POSITIVE);
 
+    // Attachment Modal
+    const [viewingFile, setViewingFile] = useState<string | null>(null);
+
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
@@ -57,7 +59,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         if (current) setSelectedTermId(current.id);
         else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
 
-        setAssignments(getAssignments('ALL', currentUser?.id, true)); // Pass true to force all
+        setAssignments(getAssignments('ALL', currentUser?.id, true)); 
         setHeaderConfig(getReportHeaderConfig(currentUser?.id));
         
         const savedConfig = localStorage.getItem('works_year_config');
@@ -68,7 +70,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             } catch {}
         }
 
-        // Handle Navigation State or Local Storage Fallback
         if (location.state && (location.state as any).studentId) {
             const incomingId = (location.state as any).studentId;
             const exists = students.find(s => s.id === incomingId);
@@ -76,27 +77,15 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                 setSelectedStudentId(incomingId);
                 setSearchTerm(exists.name);
             }
-        } else {
-            const navStudentId = localStorage.getItem('nav_context_student_id');
-            if (navStudentId) {
-                const exists = students.find(s => s.id === navStudentId);
-                if (exists) {
-                    setSelectedStudentId(navStudentId);
-                    setSearchTerm(exists.name);
-                }
-                localStorage.removeItem('nav_context_student_id');
-            }
         }
     }, [currentUser, students, location.state]);
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
     const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
 
-    // --- CALCULATE STATS ---
     const stats = useMemo(() => {
         if (!student) return null;
 
-        // Ensure arrays are valid
         let sAtt = (attendance || []).filter(a => a.studentId === student.id);
         let sPerf = (performance || []).filter(p => p.studentId === student.id);
 
@@ -105,33 +94,28 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
         }
 
-        // Attendance
         const totalDays = sAtt.length;
         const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
         const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
         const late = sAtt.filter(a => a.status === AttendanceStatus.LATE).length;
-        const attRate = totalDays > 0 ? Math.round(((present + late) / totalDays) * 100) : 100;
+        const excused = sAtt.filter(a => a.status === AttendanceStatus.EXCUSED).length;
+        const attRate = totalDays > 0 ? Math.round(((present + late + excused) / totalDays) * 100) : 100;
 
-        // Behavior
         const posBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
         const negBeh = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
         const behaviorLogs = sAtt.filter(a => a.behaviorStatus !== BehaviorStatus.NEUTRAL || a.behaviorNote).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        // Certificates (Inferred from notes starting with "منح شهادة")
         const certificates = sAtt.filter(a => a.behaviorNote && a.behaviorNote.startsWith('منح شهادة'));
 
-        // Performance
         const totalScore = sPerf.reduce((acc, curr) => acc + (curr.score / (curr.maxScore || 10)), 0);
         const avgScore = sPerf.length > 0 ? Math.round((totalScore / sPerf.length) * 100) : 0;
 
-        // Trends (Last 5 grades)
         const recentPerf = [...sPerf].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(-5);
         const trendData = recentPerf.map(p => ({
             name: p.title || p.subject,
             score: Math.round((p.score / (p.maxScore || 10)) * 100)
         }));
 
-        // Subject Breakdown
         const subjectStats: Record<string, {total: number, count: number}> = {};
         sPerf.forEach(p => {
             if (!subjectStats[p.subject]) subjectStats[p.subject] = { total: 0, count: 0 };
@@ -144,7 +128,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             avg: Math.round((subjectStats[sub].total / subjectStats[sub].count) * 100)
         })).sort((a,b) => b.avg - a.avg);
 
-        // --- Year Work Breakdown Calculation ---
         const termAssignments = assignments.filter(a => !activeTerm || a.termId === activeTerm.id);
         
         const calcCategory = (cat: string, weight: number) => {
@@ -178,7 +161,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
         const yearWorkData = { hwStats, actStats, examStats, attStats, totalYearWork, maxYearWork };
 
-        return { attRate, absent, late, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf, yearWorkData, behaviorLogs, certificates };
+        return { attRate, absent, late, excused, posBeh, negBeh, avgScore, trendData, subjectsData, sAtt, sPerf, yearWorkData, behaviorLogs, certificates };
     }, [student, attendance, performance, activeTerm, assignments, yearWorkConfig]);
 
     const handleShareWhatsApp = () => {
@@ -196,14 +179,12 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         setSelectedStudentId(s.id);
         setSearchTerm(s.name);
         setIsDropdownOpen(false);
-        setAiReport(''); // Reset AI report on student change
+        setAiReport('');
     };
 
     const handleAddBehaviorNote = () => {
         if (!student || !quickNote || !onSaveAttendance) return;
-        
         const today = new Date().toISOString().split('T')[0];
-        // Check if there is an existing record for today to append to, or create new
         const existingRecord = attendance.find(a => a.studentId === student.id && a.date === today);
         
         const newRecord: AttendanceRecord = {
@@ -221,6 +202,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         alert('تم إضافة الملاحظة بنجاح');
     };
 
+    const handleUpdateAttendanceStatus = (record: AttendanceRecord, newStatus: AttendanceStatus) => {
+        if (onSaveAttendance) {
+            const updated = { ...record, status: newStatus };
+            onSaveAttendance([updated]);
+        }
+    };
+
     const handleGenerateAIReport = async () => {
         if (!student || !stats) return;
         setIsAiLoading(true);
@@ -228,7 +216,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             const result = await generateStudentAnalysis(student, stats.sAtt, stats.sPerf);
             setAiReport(result);
         } catch (e) {
-            console.error(e);
             alert('حدث خطأ أثناء تحليل البيانات');
         } finally {
             setIsAiLoading(false);
@@ -294,7 +281,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
             {student && stats ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Student Info Card (Always Visible) */}
+                    {/* Student Info Card */}
                     <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm relative overflow-hidden print:hidden mb-6 shrink-0">
                         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-purple-500 to-indigo-600"></div>
                         <div className="flex flex-col md:flex-row justify-between gap-6">
@@ -336,16 +323,19 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                     {/* Tabs Navigation */}
                     <div className="flex border-b bg-white rounded-t-xl mx-1 print:hidden shrink-0">
                         <button onClick={() => setActiveTab('SUMMARY')} className={`flex-1 py-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition-colors ${activeTab === 'SUMMARY' ? 'border-purple-600 text-purple-700 bg-purple-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
-                            <PieChart size={16}/> الملخص الأكاديمي
+                            <PieChart size={16}/> الملخص
+                        </button>
+                        <button onClick={() => setActiveTab('ATTENDANCE')} className={`flex-1 py-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition-colors ${activeTab === 'ATTENDANCE' ? 'border-red-600 text-red-700 bg-red-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
+                            <Calendar size={16}/> سجل الغياب
                         </button>
                         <button onClick={() => setActiveTab('BEHAVIOR')} className={`flex-1 py-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition-colors ${activeTab === 'BEHAVIOR' ? 'border-orange-600 text-orange-700 bg-orange-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
-                            <Activity size={16}/> السلوك والمواظبة
+                            <Activity size={16}/> السلوك
                         </button>
                         <button onClick={() => setActiveTab('CERTIFICATES')} className={`flex-1 py-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition-colors ${activeTab === 'CERTIFICATES' ? 'border-green-600 text-green-700 bg-green-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
                             <Award size={16}/> الشهادات
                         </button>
                         <button onClick={() => setActiveTab('AI')} className={`flex-1 py-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition-colors ${activeTab === 'AI' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
-                            <Sparkles size={16}/> التحليل الذكي
+                            <Sparkles size={16}/> الذكاء
                         </button>
                     </div>
 
@@ -355,7 +345,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                         {/* 1. SUMMARY TAB */}
                         {activeTab === 'SUMMARY' && (
                             <div className="space-y-6 pt-4 animate-fade-in print:hidden">
-                                {/* Year Work Breakdown */}
                                 <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                                     <div className="flex justify-between items-center mb-6">
                                         <h3 className="font-bold text-gray-700 flex items-center gap-2"><PieChart size={18}/> توزيع أعمال السنة (تجميعي)</h3>
@@ -367,15 +356,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                             <div className="text-2xl font-black text-blue-700">{stats.yearWorkData.hwStats.obtained}</div>
                                             <div className="w-full bg-blue-200 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-blue-600 h-full rounded-full" style={{width: `${stats.yearWorkData.hwStats.percentage}%`}}></div></div>
                                         </div>
+                                        {/* ... other stats ... */}
                                         <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex flex-col items-center">
                                             <span className="text-xs font-bold text-orange-500 mb-1">الأنشطة ({yearWorkConfig.act})</span>
                                             <div className="text-2xl font-black text-orange-700">{stats.yearWorkData.actStats.obtained}</div>
                                             <div className="w-full bg-orange-200 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-orange-600 h-full rounded-full" style={{width: `${stats.yearWorkData.actStats.percentage}%`}}></div></div>
-                                        </div>
-                                        <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 flex flex-col items-center">
-                                            <span className="text-xs font-bold text-purple-500 mb-1">الاختبارات ({yearWorkConfig.exam})</span>
-                                            <div className="text-2xl font-black text-purple-700">{stats.yearWorkData.examStats.obtained}</div>
-                                            <div className="w-full bg-purple-200 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-purple-600 h-full rounded-full" style={{width: `${stats.yearWorkData.examStats.percentage}%`}}></div></div>
                                         </div>
                                         <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex flex-col items-center">
                                             <span className="text-xs font-bold text-green-500 mb-1">الحضور ({yearWorkConfig.att})</span>
@@ -385,10 +370,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                     </div>
                                 </div>
 
-                                {/* Charts */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى (آخر 5)</h3>
+                                        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> تطور المستوى</h3>
                                         <div className="h-64">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <AreaChart data={stats.trendData}>
@@ -422,7 +406,77 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         )}
 
-                        {/* 2. BEHAVIOR TAB */}
+                        {/* 2. ATTENDANCE TAB (NEW) */}
+                        {activeTab === 'ATTENDANCE' && (
+                            <div className="space-y-6 pt-4 animate-fade-in print:hidden">
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                                    <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Calendar size={18}/> سجل الغياب والأعذار</h3>
+                                    
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-right text-sm">
+                                            <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                                                <tr>
+                                                    <th className="p-3">التاريخ</th>
+                                                    <th className="p-3">الحالة</th>
+                                                    <th className="p-3">سبب الغياب / العذر</th>
+                                                    <th className="p-3">مرفقات</th>
+                                                    <th className="p-3 text-center">الإجراء</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {stats.sAtt.filter(a => a.status !== AttendanceStatus.PRESENT).map(record => (
+                                                    <tr key={record.id} className="hover:bg-gray-50">
+                                                        <td className="p-3 font-mono text-gray-500">{formatDualDate(record.date)}</td>
+                                                        <td className="p-3">
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                                                record.status === AttendanceStatus.ABSENT ? 'bg-red-100 text-red-700' : 
+                                                                record.status === AttendanceStatus.LATE ? 'bg-yellow-100 text-yellow-700' : 
+                                                                'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                                {record.status === AttendanceStatus.ABSENT ? 'غائب' : record.status === AttendanceStatus.LATE ? 'تأخر' : 'بعذر'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-3 max-w-xs truncate text-gray-600">
+                                                            {record.excuseNote || record.behaviorNote || '-'}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            {record.excuseFile ? (
+                                                                <button onClick={() => setViewingFile(record.excuseFile!)} className="flex items-center gap-1 text-blue-600 hover:underline text-xs font-bold">
+                                                                    <Paperclip size={12}/> عرض المرفق
+                                                                </button>
+                                                            ) : <span className="text-gray-300">-</span>}
+                                                        </td>
+                                                        <td className="p-3 flex justify-center gap-2">
+                                                            {record.status !== AttendanceStatus.EXCUSED && (
+                                                                <button 
+                                                                    onClick={() => handleUpdateAttendanceStatus(record, AttendanceStatus.EXCUSED)}
+                                                                    className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700 flex items-center gap-1"
+                                                                >
+                                                                    <CheckCircle size={12}/> قبول العذر
+                                                                </button>
+                                                            )}
+                                                            {record.status === AttendanceStatus.EXCUSED && (
+                                                                <button 
+                                                                    onClick={() => handleUpdateAttendanceStatus(record, AttendanceStatus.ABSENT)}
+                                                                    className="bg-gray-100 text-gray-600 border px-3 py-1 rounded text-xs font-bold hover:bg-gray-200"
+                                                                >
+                                                                    إلغاء
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {stats.sAtt.filter(a => a.status !== AttendanceStatus.PRESENT).length === 0 && (
+                                                    <tr><td colSpan={5} className="p-8 text-center text-gray-400">سجل الحضور ممتاز! لا يوجد غياب.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. BEHAVIOR TAB */}
                         {activeTab === 'BEHAVIOR' && (
                             <div className="space-y-6 pt-4 animate-fade-in print:hidden">
                                 <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
@@ -474,7 +528,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         )}
 
-                        {/* 3. CERTIFICATES TAB */}
+                        {/* 4. CERTIFICATES TAB */}
                         {activeTab === 'CERTIFICATES' && (
                             <div className="space-y-6 pt-4 animate-fade-in print:hidden">
                                 <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-xl border border-yellow-200 shadow-sm flex justify-between items-center">
@@ -509,7 +563,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         )}
 
-                        {/* 4. AI TAB */}
+                        {/* 5. AI TAB */}
                         {activeTab === 'AI' && (
                             <div className="space-y-6 pt-4 animate-fade-in print:hidden">
                                 <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center">
@@ -540,7 +594,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
                     </div>
 
-                    {/* --- PRINTABLE REPORT CARD (Hidden until print) --- */}
+                    {/* --- PRINTABLE REPORT CARD --- */}
                     <div className="hidden print:block bg-white p-10 min-h-screen absolute top-0 left-0 w-full z-[9999]">
                         {/* Header */}
                         <div className="flex justify-between items-start border-b-2 border-black pb-6 mb-8">
@@ -563,20 +617,12 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         </div>
 
-                        {/* Student Info */}
                         <div className="border border-black p-4 mb-8 rounded-lg flex justify-between bg-gray-50 print:bg-white text-sm">
-                            <div>
-                                <span className="font-bold ml-2">اسم الطالب:</span> {student.name}
-                            </div>
-                            <div>
-                                <span className="font-bold ml-2">الصف / الفصل:</span> {student.gradeLevel} - {student.className}
-                            </div>
-                            <div>
-                                <span className="font-bold ml-2">رقم الهوية:</span> {student.nationalId}
-                            </div>
+                            <div><span className="font-bold ml-2">اسم الطالب:</span> {student.name}</div>
+                            <div><span className="font-bold ml-2">الصف / الفصل:</span> {student.gradeLevel} - {student.className}</div>
+                            <div><span className="font-bold ml-2">رقم الهوية:</span> {student.nationalId}</div>
                         </div>
 
-                        {/* Summary Table */}
                         <div className="mb-8">
                             <h3 className="font-bold border-b border-black mb-2 text-sm w-fit">ملخص الأداء العام</h3>
                             <table className="w-full text-center border-collapse border border-black text-sm">
@@ -585,8 +631,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                         <th className="border border-black p-2">نسبة الحضور</th>
                                         <th className="border border-black p-2">أيام الغياب</th>
                                         <th className="border border-black p-2">أيام التأخر</th>
-                                        <th className="border border-black p-2">نقاط السلوك (إيجابي)</th>
-                                        <th className="border border-black p-2">مخالفات (سلبي)</th>
+                                        <th className="border border-black p-2">نقاط السلوك</th>
                                         <th className="border border-black p-2">المعدل الأكاديمي</th>
                                     </tr>
                                 </thead>
@@ -596,66 +641,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                         <td className="border border-black p-2">{stats.absent}</td>
                                         <td className="border border-black p-2">{stats.late}</td>
                                         <td className="border border-black p-2">{stats.posBeh}</td>
-                                        <td className="border border-black p-2">{stats.negBeh}</td>
                                         <td className="border border-black p-2 font-bold">{stats.avgScore}%</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
 
-                        {/* Detailed Grades Table */}
-                        <div className="mb-8">
-                            <h3 className="font-bold border-b border-black mb-2 text-sm w-fit">كشف الدرجات (تجميعي)</h3>
-                            <table className="w-full text-right border-collapse border border-black text-sm">
-                                <thead>
-                                    <tr className="bg-gray-100 print:bg-gray-200 text-center">
-                                        <th className="border border-black p-2">المادة</th>
-                                        <th className="border border-black p-2">عدد التقييمات</th>
-                                        <th className="border border-black p-2">المجموع</th>
-                                        <th className="border border-black p-2">المستوى</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {stats.subjectsData.map(s => {
-                                        let level = 'ضعيف';
-                                        if(s.avg >= 90) level = 'ممتاز';
-                                        else if(s.avg >= 80) level = 'جيد جداً';
-                                        else if(s.avg >= 70) level = 'جيد';
-                                        else if(s.avg >= 60) level = 'مقبول';
-
-                                        return (
-                                            <tr key={s.name}>
-                                                <td className="border border-black p-2 font-bold">{s.name}</td>
-                                                <td className="border border-black p-2 text-center">-</td>
-                                                <td className="border border-black p-2 text-center font-bold">{s.avg}%</td>
-                                                <td className="border border-black p-2 text-center">{level}</td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Signatures */}
                         <div className="flex justify-between items-end mt-16 px-12 text-sm font-bold">
-                            <div className="text-center">
-                                <p className="mb-8">المرشد الطلابي</p>
-                                <p>.........................</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="mb-8">وكيل الشؤون التعليمية</p>
-                                <p>.........................</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="mb-4">مدير المدرسة</p>
-                                {headerConfig?.schoolManager && <p className="mb-4">{headerConfig.schoolManager}</p>}
-                                <p>.........................</p>
-                            </div>
-                        </div>
-                        
-                        {/* Footer Note */}
-                        <div className="mt-8 text-center text-[10px] text-gray-500 border-t pt-2">
-                            تم إصدار هذا التقرير آلياً من نظام المتابع الذكي بتاريخ {new Date().toLocaleDateString('ar-SA')}
+                            <div className="text-center"><p className="mb-8">المرشد الطلابي</p><p>.........................</p></div>
+                            <div className="text-center"><p className="mb-8">وكيل الشؤون التعليمية</p><p>.........................</p></div>
+                            <div className="text-center"><p className="mb-4">مدير المدرسة</p><p>.........................</p></div>
                         </div>
                     </div>
                 </div>
@@ -663,7 +658,20 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                 <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl bg-white print:hidden">
                     <Search size={64} className="mb-6 opacity-20"/>
                     <p className="text-xl font-bold">ابحث عن طالب لعرض ملفه</p>
-                    <p className="text-sm">استخدم مربع البحث أعلاه</p>
+                </div>
+            )}
+
+            {/* File Viewer Modal */}
+            {viewingFile && (
+                <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={() => setViewingFile(null)}>
+                    <div className="relative max-w-4xl max-h-full">
+                        <button onClick={() => setViewingFile(null)} className="absolute -top-10 right-0 text-white hover:text-red-400"><XCircle size={32}/></button>
+                        {viewingFile.startsWith('data:image') ? (
+                            <img src={viewingFile} alt="Attachment" className="max-w-full max-h-[85vh] rounded shadow-2xl"/>
+                        ) : (
+                            <iframe src={viewingFile} className="w-full h-[80vh] bg-white rounded shadow-2xl" />
+                        )}
+                    </div>
                 </div>
             )}
         </div>

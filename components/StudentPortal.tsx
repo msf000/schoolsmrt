@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm, LessonLink, StoredLessonPlan } from '../types';
 import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms, getLessonLinks, getLessonPlans } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown, Send, Video } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown, Send, Video, Paperclip, BarChart2, PieChart } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
@@ -159,19 +159,19 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
             {/* Mobile Bottom Nav */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                <button onClick={() => navigate('/')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                <button onClick={() => navigate('/')} className={`flex-col flex items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
                     <LayoutGrid size={20} />
                     <span className="text-[10px] font-bold">الرئيسية</span>
                 </button>
-                <button onClick={() => navigate('/timetable')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/timetable' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                <button onClick={() => navigate('/timetable')} className={`flex-col flex items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/timetable' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
                     <Clock size={20} />
                     <span className="text-[10px] font-bold">الجدول</span>
                 </button>
-                <button onClick={() => navigate('/exams')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/exams' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
+                <button onClick={() => navigate('/exams')} className={`flex-col flex items-center gap-1 p-2 rounded-lg transition-colors ${currentPath === '/exams' ? 'text-teal-600 bg-teal-50' : 'text-gray-400'}`}>
                     <FileQuestion size={20} />
                     <span className="text-[10px] font-bold">واجبات</span>
                 </button>
-                <button onClick={() => setIsMobileMenuOpen(true)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors text-gray-400 hover:text-teal-600`}>
+                <button onClick={() => setIsMobileMenuOpen(true)} className={`flex-col flex items-center gap-1 p-2 rounded-lg transition-colors text-gray-400 hover:text-teal-600`}>
                     <Menu size={20} />
                     <span className="text-[10px] font-bold">القائمة</span>
                 </button>
@@ -179,8 +179,6 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         </div>
     );
 };
-
-// --- SUB-COMPONENTS ---
 
 const StudentWeeklyPlan = ({ student }: { student: Student }) => {
     const [weekStart, setWeekStart] = useState(() => {
@@ -627,7 +625,6 @@ const StudentProfile = ({ student }: { student: Student }) => {
 
 const StudentCustomRecords = ({ student }: { student: Student }) => {
     const [sheets, setSheets] = useState<TrackingSheet[]>([]);
-    
     useEffect(() => {
         const allSheets = getTrackingSheets(); 
         const relevant = allSheets.filter(s => s.className === student.className);
@@ -762,7 +759,7 @@ const StudentExamsView = ({ student }: { student: Student }) => {
                                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
                                     <p className="text-xs text-green-800 font-bold mb-1">تم تقديم الاختبار</p>
                                     <p className="text-xl font-black text-green-600">{result.score} <span className="text-sm text-gray-400">/ {result.totalScore}</span></p>
-                                    <p className="text-[10px] text-gray-500 mt-1">{formatDualDate(result.date)}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{formatDualDate(result.date)}</p>
                                 </div>
                             ) : (
                                 <button 
@@ -922,7 +919,6 @@ const StudentLibrary = ({ student }: { student: Student }) => {
 
     useEffect(() => {
         const allLinks = getLessonLinks();
-        // Filter based on Student's Grade OR Class
         const relevant = allLinks.filter(l => {
             const gradeMatch = !l.gradeLevel || l.gradeLevel === student.gradeLevel;
             const classMatch = !l.className || l.className === student.className;
@@ -960,7 +956,7 @@ const StudentLibrary = ({ student }: { student: Student }) => {
                             <div className="text-xs text-blue-500 flex items-center gap-1">
                                 <LinkIcon size={12}/> <span>فتح الرابط</span>
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-2 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
+                            <p className="text-xs text-gray-400 mt-2 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
                         </div>
                     </a>
                 )) : (
@@ -979,6 +975,7 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
     const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
     const [selectedAbsentRecord, setSelectedAbsentRecord] = useState<AttendanceRecord | null>(null);
     const [excuseText, setExcuseText] = useState('');
+    const [excuseFile, setExcuseFile] = useState<string | null>(null);
 
     useEffect(() => {
         const current = terms.find(t => t.isCurrent);
@@ -996,17 +993,30 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
         return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [attendance, student, activeTerm]);
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setExcuseFile(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const handleSubmitExcuse = () => {
         if (!selectedAbsentRecord || !excuseText) return;
         
         const updatedRecord: AttendanceRecord = {
             ...selectedAbsentRecord,
             excuseNote: excuseText,
+            excuseFile: excuseFile || undefined
         };
         
         saveAttendance([updatedRecord]);
         setIsExcuseModalOpen(false);
         setExcuseText('');
+        setExcuseFile(null);
         setSelectedAbsentRecord(null);
         alert('تم إرسال العذر للمعلم بنجاح.');
         window.location.reload(); 
@@ -1098,11 +1108,21 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
                             
                             <label className="block text-sm font-bold text-gray-700 mb-2">سبب الغياب / التأخر:</label>
                             <textarea 
-                                className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none"
+                                className="w-full p-3 border rounded-lg h-24 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none mb-3"
                                 placeholder="اكتب مبرر الغياب هنا..."
                                 value={excuseText}
                                 onChange={e => setExcuseText(e.target.value)}
                             />
+
+                            <label className="block text-sm font-bold text-gray-700 mb-2">إرفاق مستند (اختياري):</label>
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50 relative group">
+                                <input type="file" accept="image/*,application/pdf" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer"/>
+                                <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-purple-600">
+                                    <Upload size={20}/>
+                                    <span className="text-xs">{excuseFile ? 'تم اختيار الملف' : 'اضغط لرفع صورة أو تقرير طبي'}</span>
+                                </div>
+                            </div>
+                            {excuseFile && <p className="text-xs text-green-600 mt-2 font-bold flex items-center gap-1"><Paperclip size={12}/> الملف جاهز للإرسال</p>}
                             
                             <div className="mt-6 flex gap-3">
                                 <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>
@@ -1122,99 +1142,107 @@ const StudentAttendanceView = ({ student, attendance, terms }: { student: Studen
     );
 };
 
+// --- NEW COMPONENT: Detailed Student Evaluation ---
 const StudentEvaluationView = ({ student, performance, attendance, terms }: { student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[], terms: AcademicTerm[] }) => {
     const [selectedTermId, setSelectedTermId] = useState<string>('');
+    const [assignments, setAssignments] = useState<any[]>([]);
+
     useEffect(() => {
         const current = terms.find(t => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (terms.length > 0) setSelectedTermId(terms[0].id);
+        
+        // Fetch ALL assignments (columns) to check visibility
+        const allAssigns = getAssignments('ALL', undefined, true);
+        setAssignments(allAssigns);
     }, [terms]);
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
 
-    const myPerf = useMemo(() => {
-        let filtered = performance.filter(p => p.studentId === student.id);
+    // Filter and Group Data
+    const subjectGrades = useMemo(() => {
+        // 1. Filter performance records for this student and term
+        let myPerf = performance.filter(p => p.studentId === student.id);
         if (activeTerm) {
-            filtered = filtered.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
+            myPerf = myPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
         }
-        return filtered.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [performance, student, activeTerm]);
-    
-    // Chart Data (Last 5 grades)
-    const chartData = myPerf.slice(0, 5).reverse().map(p => ({
-        name: p.title,
-        score: Math.round((p.score / p.maxScore) * 100),
-        full: 100
-    }));
+
+        // 2. Filter out HIDDEN assignments
+        // A record is hidden if it is linked to an assignment that is NOT visible
+        const visiblePerf = myPerf.filter(p => {
+            if (p.notes) { // notes field stores assignment ID usually
+                const linkedAssign = assignments.find(a => a.id === p.notes);
+                if (linkedAssign && !linkedAssign.isVisible) return false;
+            }
+            return true;
+        });
+
+        // 3. Group by Subject
+        const grouped: Record<string, PerformanceRecord[]> = {};
+        visiblePerf.forEach(p => {
+            if (!grouped[p.subject]) grouped[p.subject] = [];
+            grouped[p.subject].push(p);
+        });
+
+        return grouped;
+    }, [performance, student, activeTerm, assignments]);
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Award className="text-purple-600"/> سجل الدرجات والتقييم</h2>
-                        <select 
-                            value={selectedTermId}
-                            onChange={(e) => setSelectedTermId(e.target.value)}
-                            className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700"
-                        >
-                            <option value="">كل الفترات</option>
-                            {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                    </div>
-                    {myPerf.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-right text-sm">
-                                <thead className="bg-gray-50 text-gray-600 font-bold border-b">
-                                    <tr>
-                                        <th className="p-3">التاريخ</th>
-                                        <th className="p-3">المادة</th>
-                                        <th className="p-3">عنوان التقييم</th>
-                                        <th className="p-3">الدرجة</th>
-                                        <th className="p-3">النسبة</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {myPerf.map(p => (
-                                        <tr key={p.id} className="hover:bg-gray-50">
-                                            <td className="p-3 font-mono text-gray-500 text-xs">{p.date}</td>
-                                            <td className="p-3 text-gray-700">{p.subject}</td>
-                                            <td className="p-3 font-bold text-gray-800">{p.title}</td>
-                                            <td className="p-3"><span className="font-mono bg-gray-100 px-2 py-1 rounded">{p.score} / {p.maxScore}</span></td>
-                                            <td className="p-3">
-                                                <span className={`text-xs font-bold px-2 py-1 rounded ${(p.score/p.maxScore) >= 0.9 ? 'bg-green-100 text-green-700' : (p.score/p.maxScore) >= 0.7 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
-                                                    {Math.round((p.score / p.maxScore) * 100)}%
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : <div className="text-center py-10 text-gray-400">لا يوجد درجات مرصودة</div>}
-                </div>
+        <div className="space-y-6 animate-fade-in pb-20">
+             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                 <div className="flex justify-between items-center mb-6">
+                     <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Award className="text-purple-600"/> كشف الدرجات التفصيلي</h2>
+                     <select 
+                        value={selectedTermId}
+                        onChange={(e) => setSelectedTermId(e.target.value)}
+                        className="bg-gray-50 border rounded px-3 py-1 text-sm font-bold text-gray-700 outline-none"
+                    >
+                        <option value="">كل الفترات</option>
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                 </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="font-bold text-gray-700 mb-4">تطور المستوى</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="name" hide />
-                                <YAxis domain={[0, 100]} hide />
-                                <Tooltip />
-                                <Area type="monotone" dataKey="score" stroke="#8884d8" fillOpacity={1} fill="url(#colorScore)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <p className="text-center text-xs text-gray-400 mt-2">رسم بياني لآخر 5 تقييمات</p>
-                </div>
-            </div>
+                 {Object.keys(subjectGrades).length > 0 ? (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         {Object.entries(subjectGrades).map(([subject, records]: [string, PerformanceRecord[]]) => {
+                             const totalScore = records.reduce((sum, r) => sum + r.score, 0);
+                             const maxPossible = records.reduce((sum, r) => sum + r.maxScore, 0);
+                             const percentage = maxPossible > 0 ? Math.round((totalScore / maxPossible) * 100) : 0;
+
+                             return (
+                                 <div key={subject} className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                                     <div className="bg-white p-4 border-b flex justify-between items-center">
+                                         <h3 className="font-bold text-gray-800">{subject}</h3>
+                                         <span className={`text-xs font-bold px-2 py-1 rounded ${percentage >= 90 ? 'bg-green-100 text-green-700' : percentage >= 75 ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                             {percentage}%
+                                         </span>
+                                     </div>
+                                     <div className="p-4 space-y-3">
+                                         {records.map(rec => (
+                                             <div key={rec.id} className="flex justify-between items-center text-sm border-b border-gray-200 pb-2 last:border-0 last:pb-0">
+                                                 <span className="text-gray-600">{rec.title}</span>
+                                                 <div className="flex items-center gap-1 font-bold">
+                                                     <span className="text-gray-800">{rec.score}</span>
+                                                     <span className="text-gray-400 text-xs">/ {rec.maxScore}</span>
+                                                 </div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                     <div className="bg-gray-100 p-3 flex justify-between items-center text-sm font-bold border-t">
+                                         <span>المجموع</span>
+                                         <span className="text-indigo-700">{totalScore} / {maxPossible}</span>
+                                     </div>
+                                 </div>
+                             );
+                         })}
+                     </div>
+                 ) : (
+                     <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+                         <FileText size={48} className="mx-auto mb-4 opacity-20"/>
+                         <p>لا توجد درجات مسجلة أو منشورة لهذه الفترة.</p>
+                     </div>
+                 )}
+             </div>
         </div>
     );
 };

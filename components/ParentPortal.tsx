@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, MessageLog, SystemUser, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
 import { getMessages, getExams, getWeeklyPlans, getAcademicTerms, saveAttendance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send } from 'lucide-react';
+import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send, Upload, Paperclip } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
@@ -37,6 +37,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
     const [selectedAbsentRecord, setSelectedAbsentRecord] = useState<AttendanceRecord | null>(null);
     const [excuseText, setExcuseText] = useState('');
+    const [excuseFile, setExcuseFile] = useState<string | null>(null); // Base64
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms();
@@ -87,15 +88,28 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         return { absent, late, attendanceRate, positive, negative, avgScore, recentAtt, recentPerf, unexcusedAbsences };
     }, [activeChild, attendance, performance, activeTerm]);
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setExcuseFile(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const handleSubmitExcuse = () => {
         if (!selectedAbsentRecord || !excuseText) return;
         const updatedRecord: AttendanceRecord = {
             ...selectedAbsentRecord,
             excuseNote: excuseText,
+            excuseFile: excuseFile || undefined
         };
         saveAttendance([updatedRecord]);
         setIsExcuseModalOpen(false);
         setExcuseText('');
+        setExcuseFile(null);
         setSelectedAbsentRecord(null);
         alert('تم إرسال العذر للمعلم بنجاح.');
         window.location.reload(); 
@@ -374,11 +388,21 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                             
                             <label className="block text-sm font-bold text-gray-700 mb-2">سبب الغياب / التأخر:</label>
                             <textarea 
-                                className="w-full p-3 border rounded-lg h-32 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none"
+                                className="w-full p-3 border rounded-lg h-24 focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-none mb-3"
                                 placeholder="اكتب مبرر الغياب هنا..."
                                 value={excuseText}
                                 onChange={e => setExcuseText(e.target.value)}
                             />
+
+                            <label className="block text-sm font-bold text-gray-700 mb-2">إرفاق مستند (اختياري):</label>
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50 relative group">
+                                <input type="file" accept="image/*,application/pdf" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer"/>
+                                <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-purple-600">
+                                    <Upload size={20}/>
+                                    <span className="text-xs">{excuseFile ? 'تم اختيار الملف' : 'اضغط لرفع صورة أو تقرير طبي'}</span>
+                                </div>
+                            </div>
+                            {excuseFile && <p className="text-xs text-green-600 mt-2 font-bold flex items-center gap-1"><Paperclip size={12}/> الملف جاهز للإرسال</p>}
                             
                             <div className="mt-6 flex gap-3">
                                 <button onClick={() => setIsExcuseModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 font-bold hover:bg-gray-50">إلغاء</button>

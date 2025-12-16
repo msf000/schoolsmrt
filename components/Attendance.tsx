@@ -230,6 +230,28 @@ const Attendance: React.FC<AttendanceProps> = ({
     saveSingleRecord(studentId, { status });
   };
 
+  // For weekly view quick toggle
+  const handleWeeklyStatusToggle = (studentId: string, dateStr: string) => {
+      const currentRec = attendanceHistory.find(r => r.studentId === studentId && r.date === dateStr);
+      const currentStatus = currentRec ? currentRec.status : AttendanceStatus.PRESENT; // Default if not found
+      
+      let nextStatus = AttendanceStatus.PRESENT;
+      if (currentStatus === AttendanceStatus.PRESENT) nextStatus = AttendanceStatus.ABSENT;
+      else if (currentStatus === AttendanceStatus.ABSENT) nextStatus = AttendanceStatus.LATE;
+      else if (currentStatus === AttendanceStatus.LATE) nextStatus = AttendanceStatus.EXCUSED;
+      else nextStatus = AttendanceStatus.PRESENT;
+
+      const newRecord: AttendanceRecord = {
+          id: currentRec ? currentRec.id : `${studentId}-${dateStr}-auto`,
+          studentId,
+          date: dateStr,
+          status: nextStatus,
+          subject: manualSubject, // Use context if needed or leave blank
+          createdById: currentUser?.id
+      };
+      onSaveAttendance([newRecord]);
+  };
+
   const handleBehaviorChange = (studentId: string, status: BehaviorStatus) => {
       const current = behaviorRecords[studentId];
       const next = current === status ? BehaviorStatus.NEUTRAL : status;
@@ -474,7 +496,7 @@ const Attendance: React.FC<AttendanceProps> = ({
       {activeTab === 'WEEKLY' && (
           <div className="flex-1 flex flex-col bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
               <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2"><CalendarDays size={18}/> السجل الأسبوعي</h3>
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2"><CalendarDays size={18}/> السجل الأسبوعي (تفاعلي)</h3>
                   <select className="p-2 border rounded bg-white text-sm" value={manualClass} onChange={e => setManualClass(e.target.value)}>
                       <option value="">اختر الفصل...</option>
                       {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
@@ -504,12 +526,17 @@ const Attendance: React.FC<AttendanceProps> = ({
                                           const dateStr = d.toISOString().split('T')[0];
                                           const rec = attendanceHistory.find(r => r.studentId === s.id && r.date === dateStr);
                                           return (
-                                              <td key={i} className="p-2 border-l">
+                                              <td 
+                                                key={i} 
+                                                className="p-2 border-l cursor-pointer hover:bg-gray-100 transition-colors"
+                                                onClick={() => handleWeeklyStatusToggle(s.id, dateStr)}
+                                                title="اضغط للتغيير"
+                                              >
                                                   {rec ? (
                                                       <span className={`font-bold ${rec.status === 'ABSENT' ? 'text-red-600' : rec.status === 'LATE' ? 'text-yellow-600' : rec.status === 'EXCUSED' ? 'text-blue-600' : 'text-green-600'}`}>
                                                           {rec.status === 'ABSENT' ? 'غ' : rec.status === 'LATE' ? 'ت' : rec.status === 'EXCUSED' ? 'ع' : '✓'}
                                                       </span>
-                                                  ) : '-'}
+                                                  ) : <span className="text-gray-300">-</span>}
                                               </td>
                                           );
                                       })}

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, PieChart, Pie, Legend } from 'recharts';
@@ -254,6 +254,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
+    const toggleAssignmentVisibility = (id: string) => {
+        const assign = assignments.find(a => a.id === id);
+        if (assign) {
+            const updated = { ...assign, isVisible: !assign.isVisible };
+            saveAssignment(updated);
+            setAssignments(getAssignments('ALL', currentUser?.id, true)); // Refresh
+        }
+    };
+
     const saveYearWorkSettings = () => { 
         localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig)); 
         alert('تم حفظ توزيع الدرجات بنجاح'); 
@@ -341,9 +350,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <th className="p-3 w-10 text-center border-b">#</th>
                                         <th className="p-3 border-b min-w-[200px] sticky right-0 bg-gray-50 z-20 shadow-sm">اسم الطالب</th>
                                         {filteredAssignments.map(col => (
-                                            <th key={col.id} className="p-3 border-b text-center min-w-[100px] border-l border-gray-200 group relative">
+                                            <th key={col.id} className={`p-3 border-b text-center min-w-[100px] border-l border-gray-200 group relative ${!col.isVisible ? 'bg-red-50/50' : ''}`}>
                                                 <div className="flex flex-col items-center">
-                                                    <span>{col.title}</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <span>{col.title}</span>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); toggleAssignmentVisibility(col.id); }}
+                                                            className={`p-1 rounded-full transition-colors ${col.isVisible ? 'text-gray-300 hover:text-blue-500' : 'text-red-500 bg-red-100 hover:text-red-700'}`}
+                                                            title={col.isVisible ? 'إخفاء عن الطلاب' : 'إظهار للطلاب'}
+                                                        >
+                                                            {col.isVisible ? <Eye size={12}/> : <EyeOff size={12}/>}
+                                                        </button>
+                                                    </div>
                                                     <span className="text-[10px] text-gray-400 font-normal">({col.maxScore})</span>
                                                 </div>
                                             </th>
@@ -361,7 +379,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             {filteredAssignments.map(col => {
                                                 const val = getStudentScore(student.id, col.id);
                                                 return (
-                                                    <td key={col.id} className="p-0 border-l border-gray-100 relative">
+                                                    <td key={col.id} className={`p-0 border-l border-gray-100 relative ${!col.isVisible ? 'bg-gray-50/30' : ''}`}>
                                                         <input 
                                                             className={`w-full h-full p-3 text-center outline-none bg-transparent font-mono font-bold transition-colors focus:bg-indigo-50 focus:ring-2 focus:ring-inset focus:ring-indigo-500 ${val ? 'text-indigo-700' : 'text-gray-400'}`}
                                                             value={val}
@@ -493,10 +511,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <div className="divide-y divide-gray-100">
                                             {assignments.map(a => (
                                                 <div key={a.id} className="p-3 flex justify-between items-center hover:bg-gray-50">
-                                                    <div>
+                                                    <div className="flex items-center gap-3">
                                                         <span className="font-bold text-gray-800 text-sm">{a.title}</span>
-                                                        <span className="text-xs text-gray-400 mx-2">({a.maxScore})</span>
+                                                        <span className="text-xs text-gray-400">({a.maxScore})</span>
                                                         <span className="text-xs bg-gray-100 px-2 py-0.5 rounded border">{CATEGORY_LABELS[a.category] || a.category}</span>
+                                                        <button 
+                                                            onClick={() => toggleAssignmentVisibility(a.id)}
+                                                            className={`p-1 rounded-full ${a.isVisible ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'}`}
+                                                            title={a.isVisible ? 'ظاهر للطلاب' : 'مخفي عن الطلاب'}
+                                                        >
+                                                            {a.isVisible ? <Eye size={14}/> : <EyeOff size={14}/>}
+                                                        </button>
                                                     </div>
                                                     <button onClick={() => handleDeleteAssignment(a.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
                                                 </div>
