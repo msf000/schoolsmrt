@@ -5,8 +5,8 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, Question, StoredLessonPlan } from '../types';
-import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans } from '../services/storageService';
-import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen, FolderOpen, FileText, Table, Library } from 'lucide-react';
+import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans, saveAttendance } from '../services/storageService';
+import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen, FolderOpen, FileText, Table, Library, MessageSquare, Check, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -147,68 +147,68 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
     );
 };
 
-const TodoWidget: React.FC = () => {
-    const [todos, setTodos] = useState<{id: string, text: string, done: boolean}[]>(() => {
-        try {
-            const saved = localStorage.getItem('dashboard_todos');
-            if (!saved || saved === "undefined" || saved === "null") {
-                return [
-                    { id: '1', text: 'رصد غياب اليوم', done: false },
-                    { id: '2', text: 'إدخال درجات الاختبار القصير', done: false }
-                ];
-            }
-            const parsed = JSON.parse(saved);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch { return []; }
-    });
-    const [newTodo, setNewTodo] = useState('');
+const ExcusesWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[] }> = ({ students, attendance }) => {
+    const [pendingExcuses, setPendingExcuses] = useState<AttendanceRecord[]>([]);
 
     useEffect(() => {
-        localStorage.setItem('dashboard_todos', JSON.stringify(todos));
-    }, [todos]);
+        // Find records with excuseNote but status is still ABSENT or LATE (not yet EXCUSED)
+        const pending = attendance.filter(a => 
+            a.excuseNote && 
+            (a.status === AttendanceStatus.ABSENT || a.status === AttendanceStatus.LATE)
+        );
+        setPendingExcuses(pending);
+    }, [attendance]);
 
-    const addTodo = () => {
-        if (!newTodo.trim()) return;
-        setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]);
-        setNewTodo('');
+    const handleAcceptExcuse = (record: AttendanceRecord) => {
+        const updated: AttendanceRecord = { ...record, status: AttendanceStatus.EXCUSED };
+        saveAttendance([updated]);
+        setPendingExcuses(prev => prev.filter(p => p.id !== record.id));
     };
 
-    const toggleTodo = (id: string) => {
-        setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
-    };
-
-    const deleteTodo = (id: string) => {
-        setTodos(todos.filter(t => t.id !== id));
+    const handleRejectExcuse = (record: AttendanceRecord) => {
+        // Just remove the note? Or keep note but leave status absent? 
+        // For now, let's keep it absent but maybe clear note or we could have a 'REJECTED' flag. 
+        // Simple approach: Clear note to dismiss from list
+        if(confirm('هل أنت متأكد من رفض العذر؟ سيتم إبقاء حالة الغياب.')) {
+            const updated: AttendanceRecord = { ...record, excuseNote: undefined }; // Remove note
+            saveAttendance([updated]);
+            setPendingExcuses(prev => prev.filter(p => p.id !== record.id));
+        }
     };
 
     return (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
             <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm">
-                <CheckSquare size={18} className="text-indigo-600"/> مهامي السريعة
+                <MessageSquare size={18} className="text-indigo-600"/> أعذار معلقة ({pendingExcuses.length})
             </h3>
-            <div className="flex gap-2 mb-3">
-                <input 
-                    className="flex-1 border rounded-lg px-3 py-1.5 text-xs outline-none focus:border-indigo-500 bg-gray-50"
-                    placeholder="مهمة جديدة..."
-                    value={newTodo}
-                    onChange={(e) => setNewTodo(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addTodo()}
-                />
-                <button onClick={addTodo} className="bg-indigo-600 text-white p-1.5 rounded-lg hover:bg-indigo-700 transition-colors"><Plus size={16}/></button>
-            </div>
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar max-h-40">
-                {todos.map(todo => (
-                    <div key={todo.id} className="flex items-center justify-between group p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => toggleTodo(todo.id)}>
-                            <div className={`w-4 h-4 border-2 rounded flex items-center justify-center transition-colors ${todo.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-transparent'}`}>
-                                <CheckCircle size={10} fill="currentColor"/>
+                {pendingExcuses.length > 0 ? pendingExcuses.map(excuse => {
+                    const student = students.find(s => s.id === excuse.studentId);
+                    return (
+                        <div key={excuse.id} className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                            <div className="flex justify-between items-start mb-1">
+                                <span className="font-bold text-xs text-blue-900">{student?.name}</span>
+                                <span className="text-[10px] text-gray-500">{excuse.date}</span>
                             </div>
-                            <span className={`text-xs ${todo.done ? 'line-through text-gray-400' : 'text-gray-700 font-medium'}`}>{todo.text}</span>
+                            <p className="text-xs text-gray-600 mb-2 bg-white p-1 rounded border border-blue-50 line-clamp-2">
+                                "{excuse.excuseNote}"
+                            </p>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleAcceptExcuse(excuse)} className="flex-1 bg-green-600 text-white py-1 rounded text-[10px] font-bold hover:bg-green-700 flex items-center justify-center gap-1">
+                                    <Check size={10}/> قبول
+                                </button>
+                                <button onClick={() => handleRejectExcuse(excuse)} className="px-2 bg-white border border-red-200 text-red-500 py-1 rounded text-[10px] font-bold hover:bg-red-50">
+                                    <X size={10}/>
+                                </button>
+                            </div>
                         </div>
-                        <button onClick={() => deleteTodo(todo.id)} className="text-red-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"><Trash2 size={14}/></button>
+                    );
+                }) : (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                        <CheckCircle size={24} className="mb-2 text-green-200"/>
+                        <p className="text-xs">لا توجد أعذار جديدة</p>
                     </div>
-                ))}
-                {todos.length === 0 && <p className="text-center text-xs text-gray-400 mt-4">لا توجد مهام.. استمتع يومك! 🎉</p>}
+                )}
             </div>
         </div>
     );
@@ -444,9 +444,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               />
           </div>
 
-          {/* 2. Quick Tools (New) */}
+          {/* 2. Excuses Widget (NEW) */}
           <div className="lg:col-span-1 h-64 lg:h-auto">
-              <QuickToolsWidget onNavigate={onNavigate} />
+              <ExcusesWidget students={students} attendance={attendance} />
           </div>
 
           {/* 3. At Risk Widget */}
@@ -459,9 +459,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               />
           </div>
 
-          {/* 4. Todo List */}
+          {/* 4. Quick Tools */}
           <div className="lg:col-span-1 h-64 lg:h-auto">
-              <TodoWidget />
+              <QuickToolsWidget onNavigate={onNavigate} />
           </div>
       </div>
 

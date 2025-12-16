@@ -72,6 +72,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
   const [behaviorRecords, setBehaviorRecords] = useState<Record<string, BehaviorStatus>>({});
   const [noteRecords, setNoteRecords] = useState<Record<string, string>>({});
+  const [excuseRecords, setExcuseRecords] = useState<Record<string, string>>({}); // New: Store excuses
   const [activeNoteStudent, setActiveNoteStudent] = useState<string | null>(null);
   const [viewingStudentReport, setViewingStudentReport] = useState<Student | null>(null);
 
@@ -162,6 +163,7 @@ const Attendance: React.FC<AttendanceProps> = ({
         setRecords({});
         setBehaviorRecords({});
         setNoteRecords({});
+        setExcuseRecords({});
         return;
     }
     const existing = attendanceHistory.filter(a => {
@@ -172,16 +174,19 @@ const Attendance: React.FC<AttendanceProps> = ({
     const initialRecs: Record<string, AttendanceStatus> = {};
     const initialBeh: Record<string, BehaviorStatus> = {};
     const initialNotes: Record<string, string> = {};
+    const initialExcuses: Record<string, string> = {};
 
     filteredStudents.forEach(s => {
       const found = existing.find(r => r.studentId === s.id);
       initialRecs[s.id] = found ? found.status : AttendanceStatus.PRESENT;
       initialBeh[s.id] = found && found.behaviorStatus ? found.behaviorStatus : BehaviorStatus.NEUTRAL;
       initialNotes[s.id] = found && found.behaviorNote ? found.behaviorNote : '';
+      initialExcuses[s.id] = found && found.excuseNote ? found.excuseNote : '';
     });
     setRecords(initialRecs);
     setBehaviorRecords(initialBeh);
     setNoteRecords(initialNotes);
+    setExcuseRecords(initialExcuses);
     setSaved(false);
   }, [selectedDate, selectedPeriod, selectedClass, filteredStudents, attendanceHistory]);
 
@@ -201,6 +206,7 @@ const Attendance: React.FC<AttendanceProps> = ({
       const currentStatus = records[studentId] || AttendanceStatus.PRESENT;
       const currentBehavior = behaviorRecords[studentId] || BehaviorStatus.NEUTRAL;
       const currentNote = noteRecords[studentId] || '';
+      const currentExcuse = excuseRecords[studentId] || '';
 
       const record: AttendanceRecord = {
           id: recordId,
@@ -211,6 +217,7 @@ const Attendance: React.FC<AttendanceProps> = ({
           period: selectedPeriod || undefined,
           behaviorStatus: updates.behaviorStatus !== undefined ? updates.behaviorStatus : currentBehavior,
           behaviorNote: updates.behaviorNote !== undefined ? updates.behaviorNote : currentNote,
+          excuseNote: currentExcuse,
           createdById: currentUser?.id
       };
 
@@ -246,6 +253,7 @@ const Attendance: React.FC<AttendanceProps> = ({
               period: selectedPeriod || undefined,
               behaviorStatus: behaviorRecords[student.id] || BehaviorStatus.NEUTRAL,
               behaviorNote: noteRecords[student.id] || '',
+              excuseNote: excuseRecords[student.id] || '',
               createdById: currentUser?.id
           });
       });
@@ -379,6 +387,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                 {filteredStudents.map(student => {
                                     const status = records[student.id] || AttendanceStatus.PRESENT;
                                     const behavior = behaviorRecords[student.id];
+                                    const excuse = excuseRecords[student.id];
                                     
                                     // Calculate Cycle: Present -> Absent -> Late -> Present
                                     const toggleStatus = () => {
@@ -392,12 +401,30 @@ const Attendance: React.FC<AttendanceProps> = ({
                                             key={student.id}
                                             className={`relative p-3 rounded-xl border shadow-sm cursor-pointer transition-all duration-200 select-none flex flex-col justify-between h-32 hover:shadow-md ${
                                                 status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-300 ring-1 ring-red-200' : 
-                                                status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200'
+                                                status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-300' : 
+                                                status === AttendanceStatus.EXCUSED ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200'
                                             }`}
                                             onClick={toggleStatus}
                                         >
+                                            {/* Excuse Indicator */}
+                                            {excuse && status !== AttendanceStatus.EXCUSED && (
+                                                <div 
+                                                    className="absolute top-2 left-2 z-20 text-blue-600 animate-bounce" 
+                                                    title={excuse}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        alert(`عذر الطالب: ${excuse}`);
+                                                        if(confirm('هل تريد قبول العذر؟')) {
+                                                            handleStatusChange(student.id, AttendanceStatus.EXCUSED);
+                                                        }
+                                                    }}
+                                                >
+                                                    <MessageSquare size={18} fill="currentColor" className="text-blue-200"/>
+                                                </div>
+                                            )}
+
                                             <div className="flex justify-between items-start">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : 'bg-gray-300'}`}>
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${status === 'ABSENT' ? 'bg-red-500' : status === 'LATE' ? 'bg-yellow-500' : status === 'EXCUSED' ? 'bg-blue-500' : 'bg-gray-300'}`}>
                                                     {student.name.charAt(0)}
                                                 </div>
                                                 {/* Behavior Quick Toggles */}
@@ -410,7 +437,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                                 <span className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight hover:text-indigo-600 hover:underline">{student.name}</span>
                                             </div>
                                             <div className="text-xs text-gray-400 font-bold mt-auto pt-2 text-left">
-                                                {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'تأخر' : 'حاضر'}
+                                                {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'تأخر' : status === AttendanceStatus.EXCUSED ? 'بعذر' : 'حاضر'}
                                             </div>
                                         </div>
                                     );
@@ -425,11 +452,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                                             onClick={() => navigateToStudent(student.id)}
                                         >
                                             {student.name}
+                                            {excuseRecords[student.id] && <span className="mr-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">يوجد عذر</span>}
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => handleStatusChange(student.id, AttendanceStatus.PRESENT)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'PRESENT' ? 'bg-green-600 text-white' : 'bg-gray-50'}`}>حاضر</button>
                                             <button onClick={() => handleStatusChange(student.id, AttendanceStatus.ABSENT)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-gray-50'}`}>غائب</button>
                                             <button onClick={() => handleStatusChange(student.id, AttendanceStatus.LATE)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'LATE' ? 'bg-yellow-500 text-white' : 'bg-gray-50'}`}>تأخر</button>
+                                            <button onClick={() => handleStatusChange(student.id, AttendanceStatus.EXCUSED)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'EXCUSED' ? 'bg-blue-600 text-white' : 'bg-gray-50'}`}>عذر</button>
                                         </div>
                                     </div>
                                 ))}
@@ -477,8 +506,8 @@ const Attendance: React.FC<AttendanceProps> = ({
                                           return (
                                               <td key={i} className="p-2 border-l">
                                                   {rec ? (
-                                                      <span className={`font-bold ${rec.status === 'ABSENT' ? 'text-red-600' : rec.status === 'LATE' ? 'text-yellow-600' : 'text-green-600'}`}>
-                                                          {rec.status === 'ABSENT' ? 'غ' : rec.status === 'LATE' ? 'ت' : '✓'}
+                                                      <span className={`font-bold ${rec.status === 'ABSENT' ? 'text-red-600' : rec.status === 'LATE' ? 'text-yellow-600' : rec.status === 'EXCUSED' ? 'text-blue-600' : 'text-green-600'}`}>
+                                                          {rec.status === 'ABSENT' ? 'غ' : rec.status === 'LATE' ? 'ت' : rec.status === 'EXCUSED' ? 'ع' : '✓'}
                                                       </span>
                                                   ) : '-'}
                                               </td>
@@ -534,11 +563,11 @@ const Attendance: React.FC<AttendanceProps> = ({
                                           <td className="p-3 font-bold cursor-pointer hover:text-indigo-600" onClick={() => navigateToStudent(r.studentId)}>{s?.name}</td>
                                           <td className="p-3 text-gray-600">{s?.className}</td>
                                           <td className="p-3">
-                                              <span className={`px-2 py-1 rounded text-xs font-bold ${r.status === 'ABSENT' ? 'bg-red-100 text-red-700' : r.status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                              <span className={`px-2 py-1 rounded text-xs font-bold ${recStatusColor(r.status)}`}>
                                                   {r.status}
                                               </span>
                                           </td>
-                                          <td className="p-3 text-gray-500 truncate max-w-xs">{r.behaviorNote}</td>
+                                          <td className="p-3 text-gray-500 truncate max-w-xs">{r.behaviorNote || r.excuseNote}</td>
                                       </tr>
                                   );
                               })}
@@ -580,5 +609,14 @@ const Attendance: React.FC<AttendanceProps> = ({
     </div>
   );
 };
+
+const recStatusColor = (status: string) => {
+    switch(status) {
+        case 'ABSENT': return 'bg-red-100 text-red-700';
+        case 'LATE': return 'bg-yellow-100 text-yellow-700';
+        case 'EXCUSED': return 'bg-blue-100 text-blue-700';
+        default: return 'bg-green-100 text-green-700';
+    }
+}
 
 export default Attendance;

@@ -80,6 +80,26 @@ const App: React.FC = () => {
     
     const navigate = useNavigate();
 
+    // Theme Application Effect
+    useEffect(() => {
+        const root = document.documentElement;
+        if (theme.mode === 'DARK') {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+        
+        if (theme.backgroundStyle === 'GRADIENT') {
+             document.body.style.background = theme.mode === 'DARK' 
+                ? 'linear-gradient(135deg, #1f2937 0%, #111827 100%)' 
+                : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)';
+             document.body.style.backgroundAttachment = 'fixed';
+        } else {
+             document.body.style.background = '';
+             document.body.style.backgroundColor = theme.mode === 'DARK' ? '#111827' : '#f9fafb';
+        }
+    }, [theme]);
+
     // Init Logic
     useEffect(() => {
         // ALWAYS try to sync on app load, even if not logged in (for parent portal data etc)

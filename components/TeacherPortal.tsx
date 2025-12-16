@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord } from '../types';
@@ -5,7 +6,7 @@ import {
     LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, 
     Award, Mail, Calendar, FileQuestion, Library, ScanLine, 
     PenTool, Printer, BrainCircuit, List, FolderOpen, Table2, 
-    LogOut, Menu, X, FileText 
+    LogOut, Menu, X, FileText, CreditCard 
 } from 'lucide-react';
 
 // Imports from existing components
@@ -149,6 +150,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                             <NavItem path="/messages" label="الرسائل" icon={Mail} />
 
                             <div className="pt-4 mt-4 border-t border-gray-100"></div>
+                            <NavItem path="/subscription" label="اشتراكي" icon={CreditCard} />
                             <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} />
                         </>
                     )}
@@ -192,6 +194,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                         <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser}/>} />
                         <Route path="/flexible-sheets" element={<FlexibleTrackingSheet currentUser={currentUser!} />} />
                         <Route path="/school-mgmt" element={<SchoolManagementComponent students={props.students} onImportStudents={props.importStudents} onImportPerformance={props.importPerformance} onImportAttendance={props.importAttendance} currentUser={currentUser} onUpdateTheme={props.setTheme}/>} />
+                        <Route path="/subscription" element={<TeacherSubscription currentUser={currentUser} />} />
                         <Route path="/admin" element={<AdminDashboard />} />
                         <Route path="/followup" element={<StudentFollowUp students={props.students} performance={props.performance} attendance={props.attendance} currentUser={currentUser} onSaveAttendance={props.saveAttendance}/>} />
                         <Route path="*" element={<Navigate to="/" />} />

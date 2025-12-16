@@ -8,27 +8,29 @@
     <meta name="description" content="نظام متابعة الطلاب الذكي - تسجيل حضور، درجات، وتقارير" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <title>نظام متابعة الطلاب</title>
+    <title>نظام المدرس الذكي</title>
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
               sans: ['Tajawal', 'sans-serif'],
             },
             colors: {
-              primary: '#0f766e', // teal-700
-              secondary: '#f59e0b', // amber-500
-              accent: '#3b82f6', // blue-500
+              primary: '#4f46e5', // indigo-600
+              secondary: '#0f766e', // teal-700
+              accent: '#f59e0b', // amber-500
             },
             animation: {
-                'fade-in': 'fadeIn 0.3s ease-out',
+                'fade-in': 'fadeIn 0.4s ease-out',
                 'slide-in-right': 'slideInRight 0.3s ease-out',
-                'slide-up': 'slideUp 0.3s ease-out',
-                'bounce-in': 'bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                'slide-up': 'slideUp 0.4s ease-out',
+                'bounce-in': 'bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             },
             keyframes: {
                 fadeIn: {
@@ -36,8 +38,8 @@
                     '100%': { opacity: '1' },
                 },
                 slideInRight: {
-                    '0%': { transform: 'translateX(100%)' },
-                    '100%': { transform: 'translateX(0)' },
+                    '0%': { transform: 'translateX(100%)', opacity: '0' },
+                    '100%': { transform: 'translateX(0)', opacity: '1' },
                 },
                 slideUp: {
                     '0%': { transform: 'translateY(20px)', opacity: '0' },
@@ -57,6 +59,7 @@
             height: 100%;
             overflow: hidden; /* Prevent body scroll, handle inside App */
             background-color: #f9fafb;
+            -webkit-tap-highlight-color: transparent;
         }
         
         /* Custom scrollbar for better aesthetics */
@@ -65,14 +68,35 @@
             height: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1; 
+            background: rgba(0,0,0,0.05); 
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #cbd5e1; 
-            border-radius: 4px;
+            border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #94a3b8; 
+        }
+
+        /* Initial Loading Spinner */
+        #root:empty {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f9fafb;
+        }
+        #root:empty::after {
+            content: '';
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
         /* --- PRINT STYLES --- */
@@ -81,6 +105,7 @@
                 overflow: visible !important; 
                 height: auto !important; 
                 background: white !important;
+                color: black !important;
             }
             #root { 
                 height: auto !important; 
@@ -88,7 +113,7 @@
             }
             
             /* Hide Navigation and Buttons */
-            aside, header, nav, button, .no-print, input[type="file"] {
+            aside, header, nav, button, .no-print, input[type="file"], .fixed-overlay {
                 display: none !important;
             }
             
@@ -111,6 +136,7 @@
             table {
                 width: 100% !important;
                 border-collapse: collapse !important;
+                font-size: 12px;
             }
             th, td {
                 border: 1px solid #000 !important;
@@ -120,6 +146,7 @@
             /* Break Page logic */
             .break-before { page-break-before: always; }
             .break-inside-avoid { page-break-inside: avoid; }
+            .break-after-page { page-break-after: always; }
         }
     </style>
 <script type="importmap">
