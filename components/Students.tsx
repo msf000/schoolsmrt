@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
 import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig, bulkUpsertStudents } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, CheckSquare, ArrowRightLeft, Printer, Square } from 'lucide-react';
+import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare } from 'lucide-react';
 import DataImport from './DataImport';
+import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
 const SAUDI_GRADES = [
@@ -27,7 +28,7 @@ interface StudentsProps {
 }
 
 const Students: React.FC<StudentsProps> = ({ students, attendance = [], performance = [], onAddStudent, onUpdateStudent, onDeleteStudent, onImportStudents, currentUser }) => {
-  
+  const navigate = useNavigate();
   if (!students) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
   }
@@ -129,14 +130,15 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
           }
       });
 
-      // Use bulk update logic via import handler or direct update loop
-      // Assuming onUpdateStudent handles one by one, better to use bulkUpsert if available or loop
-      // Here we will use the onImportStudents as a "Bulk Update" mechanism since it supports 'UPDATE' strategy
       onImportStudents(updatedStudents, 'id', 'UPDATE', ['gradeLevel', 'className', 'classId']);
       
       setIsMoveModalOpen(false);
       setSelectedStudentIds(new Set());
       alert('تم نقل الطلاب بنجاح');
+  };
+
+  const handleBulkMessage = () => {
+      navigate('/messages', { state: { studentIds: Array.from(selectedStudentIds) } });
   };
 
   // --- Helper to get Risk Status for Table Row ---
@@ -435,8 +437,11 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   <span>تم تحديد {selectedStudentIds.size} طالب</span>
               </div>
               <div className="flex gap-2">
+                  <button onClick={handleBulkMessage} className="flex items-center gap-2 bg-white border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-sm font-bold hover:bg-purple-100">
+                      <MessageSquare size={16}/> مراسلة
+                  </button>
                   <button onClick={() => setIsMoveModalOpen(true)} className="flex items-center gap-2 bg-white border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-sm font-bold hover:bg-purple-100">
-                      <ArrowRightLeft size={16}/> نقل لفصل
+                      <ArrowRightLeft size={16}/> نقل
                   </button>
                   <button onClick={() => setIsPrintCardsOpen(true)} className="flex items-center gap-2 bg-white border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-sm font-bold hover:bg-purple-100">
                       <Printer size={16}/> بطاقات
@@ -546,6 +551,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
         </div>
       </div>
 
+      {/* ... (Existing modals for view, form, import, etc.) ... */}
       {/* STUDENT CARD MODAL */}
       {isViewModalOpen && viewStudent && studentStats && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
@@ -771,6 +777,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 <button onClick={() => setIsFormModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
             </h3>
             <form onSubmit={handleFormSubmit} className="space-y-4">
+              {/* ... (Form Content remains same as before) ... */}
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <h4 className="text-sm font-bold text-purple-700 mb-3">البيانات الأساسية</h4>
                   <div className="grid grid-cols-2 gap-4">

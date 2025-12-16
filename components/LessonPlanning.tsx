@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan } from '../services/storageService';
 import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
 import { LessonBlock, StoredLessonPlan, Subject, SystemUser } from '../types';
-import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, ChevronDown, ChevronUp, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X, Printer } from 'lucide-react';
+import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, ChevronDown, ChevronUp, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X, Printer, Copy, Check } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const SAUDI_GRADES = [
@@ -30,6 +30,7 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
     const [lessonContent, setLessonContent] = useState<LessonBlock[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [savedPlans, setSavedPlans] = useState<StoredLessonPlan[]>([]);
+    const [isCopied, setIsCopied] = useState(false);
     
     // Manual Add State
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -136,6 +137,17 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
         setLessonContent(newContent);
     };
 
+    const handleCopyForPlatform = () => {
+        const text = lessonContent.map(b => {
+            if (b.type === 'MEDIA') return `[رابط وسائط]: ${b.mediaUrl}`;
+            return `${b.title}:\n${b.content}`;
+        }).join('\n\n');
+        
+        navigator.clipboard.writeText(text);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    };
+
     return (
         <div className="p-6 h-full bg-gray-50 overflow-y-auto animate-fade-in flex flex-col md:flex-row gap-6 print:p-0 print:bg-white print:overflow-visible">
             
@@ -233,6 +245,9 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
                                 </div>
                             )}
                         </div>
+                        <button onClick={handleCopyForPlatform} className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg font-bold text-sm hover:bg-indigo-100 flex items-center gap-2">
+                            {isCopied ? <Check size={16}/> : <Copy size={16}/>} نسخ للمنصة
+                        </button>
                         <button onClick={() => window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black flex items-center gap-2 shadow-sm">
                             <Printer size={16}/> طباعة
                         </button>

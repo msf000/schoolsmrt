@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ScheduleItem, TeacherAssignment, SystemUser, Subject, CurriculumUnit, CurriculumLesson, WeeklyPlanItem, StoredLessonPlan } from '../types';
-import { getSchedules, getTeacherAssignments, getSubjects, getCurriculumUnits, getCurriculumLessons, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, getLessonPlans } from '../services/storageService';
-import { Calendar, Clock, MapPin, BookOpen, Plus, Trash2, Edit2, Check, X, Printer, Layout, ArrowLeft, Loader2, ChevronRight, ChevronLeft, PenTool, CalendarDays, Sparkles, FileCheck } from 'lucide-react';
+import { ScheduleItem, TeacherAssignment, SystemUser, Subject, WeeklyPlanItem, StoredLessonPlan } from '../types';
+import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, getLessonPlans, getTeacherPeriodTimings } from '../services/storageService';
+import { Calendar, PenTool, Plus, Trash2, Edit2, Check, Printer, ChevronRight, ChevronLeft, BookOpen, FileCheck, X, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ScheduleViewProps {
@@ -19,6 +19,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlanItem[]>([]);
     const [myLessonPlans, setMyLessonPlans] = useState<StoredLessonPlan[]>([]);
+    const [periodTimings, setPeriodTimings] = useState<string[]>([]);
 
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<{day: string, period: number} | null>(null);
@@ -54,6 +55,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
             setSubjects(getSubjects(currentUser.id));
             setWeeklyPlans(getWeeklyPlans(currentUser.id));
             setMyLessonPlans(getLessonPlans(currentUser.id));
+            setPeriodTimings(getTeacherPeriodTimings(currentUser.id));
         }
     }, [currentUser]);
 
@@ -223,11 +225,12 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
 
                 {/* Periods List */}
                 <div className="flex-1 overflow-y-auto space-y-3 pb-4">
-                    {periods.map(period => {
+                    {periods.map((period, idx) => {
                         const session = mySchedules.find(s => s.day === mobileSelectedDay && s.period === period);
                         const plan = weeklyPlans.find(p => p.day === mobileSelectedDay && p.period === period && p.weekStartDate === currentWeekStart);
                         const isSelected = selectedSlot?.day === mobileSelectedDay && selectedSlot?.period === period;
                         const isPrepared = plan?.lessonTopic && hasLessonPlan(plan.lessonTopic);
+                        const time = periodTimings[idx] || '';
 
                         return (
                             <div 
@@ -236,7 +239,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                                 className={`bg-white rounded-xl border p-4 shadow-sm transition-all relative ${session ? 'border-l-4 border-l-teal-500' : 'border-dashed border-gray-300 opacity-70'} ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
                             >
                                 <div className="flex justify-between items-start mb-2">
-                                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">الحصة {period}</span>
+                                    <div className="flex flex-col">
+                                        <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold w-fit">الحصة {period}</span>
+                                        {time && <span className="text-[10px] text-gray-400 mt-1 font-mono">{time}</span>}
+                                    </div>
                                     {session && (
                                         <div className="flex items-center gap-2">
                                             {isPrepared && <span className="text-green-600 text-[10px] font-bold bg-green-50 px-2 py-0.5 rounded flex items-center gap-1"><FileCheck size={10}/> جاهز</span>}
@@ -298,10 +304,11 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                         <thead>
                             <tr className="bg-gray-800 text-white">
                                 <th className="p-4 border-l border-gray-700 w-32 font-bold">اليوم</th>
-                                {periods.map(p => (
+                                {periods.map((p, idx) => (
                                     <th key={p} className="p-3 border-l border-gray-700 min-w-[140px]">
                                         <div className="flex flex-col items-center">
                                             <span className="font-bold text-lg">الحصة {p}</span>
+                                            {periodTimings[idx] && <span className="text-[10px] text-gray-400 font-mono mt-1 font-normal">{periodTimings[idx]}</span>}
                                         </div>
                                     </th>
                                 ))}

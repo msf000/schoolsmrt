@@ -5,6 +5,7 @@ import { getMessages, saveMessage, getAcademicTerms } from '../services/storageS
 import { generateParentMessage } from '../services/geminiService';
 import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
+import { useLocation } from 'react-router-dom';
 
 interface MessageCenterProps {
     students: Student[];
@@ -22,6 +23,7 @@ const TEMPLATES = [
 ];
 
 const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, performance, currentUser }) => {
+    const location = useLocation();
     // Safety check
     if (!students || !attendance || !performance) {
         return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
@@ -61,7 +63,19 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         setTerms(loadedTerms);
         const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
         setCurrentTerm(active);
-    }, [currentUser]);
+        
+        // Handle incoming pre-selection from Students List
+        if (location.state && (location.state as any).studentIds) {
+            const ids = (location.state as any).studentIds as string[];
+            if (ids.length > 0) {
+                setActiveTab('COMPOSE');
+                setSelectedStudents(new Set(ids));
+                // Optional: set class if all are same class
+                const firstStudent = students.find(s => s.id === ids[0]);
+                if (firstStudent) setSelectedClass(firstStudent.className || '');
+            }
+        }
+    }, [currentUser, location.state]);
 
     // Unique Classes
     const uniqueClasses = useMemo(() => {

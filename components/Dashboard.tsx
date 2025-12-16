@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, Question, StoredLessonPlan } from '../types';
 import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans } from '../services/storageService';
-import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen } from 'lucide-react';
+import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen, FolderOpen, FileText, Table, Library } from 'lucide-react';
 
 interface DashboardProps {
   students: Student[];
@@ -65,18 +65,15 @@ const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNaviga
             if (activeSession) {
                 setCurrentSession(activeSession);
                 
-                // Find Plan
-                // 1. Find Weekly Item
-                // Calc current week start
+                const sessionPeriod = (activeSession as ScheduleItem).period;
+                
+                // 1. Find Plan for this week
                 const d = new Date();
                 const dayOffset = d.getDay(); 
                 const weekStart = new Date(d);
                 weekStart.setDate(d.getDate() - dayOffset);
                 const weekStartStr = weekStart.toISOString().split('T')[0];
 
-                // Explicitly cast or check activeSession to ensure it's not null before accessing properties
-                const sessionPeriod = (activeSession as ScheduleItem).period;
-                
                 const wPlan = weeklyPlans.find(p => p.day === today && p.period === sessionPeriod && p.weekStartDate === weekStartStr);
                 if (wPlan && wPlan.lessonTopic) {
                     const stored = allPlans.find(p => p.topic.trim() === wPlan.lessonTopic.trim());
@@ -216,40 +213,33 @@ const TodoWidget: React.FC = () => {
     );
 };
 
-const ExamsWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
-    const [exams, setExams] = useState<Exam[]>([]);
-    const [questions, setQuestions] = useState<Question[]>([]);
-
-    useEffect(() => {
-        if(currentUser?.id) {
-            setExams(getExams(currentUser.id));
-            setQuestions(getQuestionBank(currentUser.id));
-        }
-    }, [currentUser]);
-
-    const activeExams = exams.filter(e => e.isActive).length;
-
+const QuickToolsWidget: React.FC<{ onNavigate: (v: string) => void }> = ({ onNavigate }) => {
     return (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
-            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm">
-                <FileQuestion size={18} className="text-purple-600"/> الاختبارات
+            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm">
+                <FolderOpen size={18} className="text-indigo-600"/> الوصول السريع
             </h3>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-                <div onClick={() => onNavigate('EXAMS_MANAGER')} className="bg-purple-50 p-2 rounded-lg border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors text-center">
-                    <span className="block text-xl font-black text-purple-700">{activeExams}</span>
-                    <span className="text-[9px] text-purple-600 font-bold">اختبارات نشطة</span>
-                </div>
-                <div onClick={() => onNavigate('QUESTION_BANK')} className="bg-blue-50 p-2 rounded-lg border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors text-center">
-                    <span className="block text-xl font-black text-blue-700">{questions.length}</span>
-                    <span className="text-[9px] text-blue-600 font-bold">أسئلة في البنك</span>
-                </div>
+            <div className="grid grid-cols-2 gap-3 flex-1">
+                <button onClick={() => onNavigate('/flexible-sheets')} className="flex flex-col items-center justify-center gap-2 p-2 bg-purple-50 rounded-lg border border-purple-100 hover:bg-purple-100 transition-colors text-purple-700">
+                    <FileText size={20}/>
+                    <span className="text-[10px] font-bold">سجلات مرنة</span>
+                </button>
+                <button onClick={() => onNavigate('/resources')} className="flex flex-col items-center justify-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors text-blue-700">
+                    <Library size={20}/>
+                    <span className="text-[10px] font-bold">المصادر</span>
+                </button>
+                <button onClick={() => onNavigate('/custom-tables')} className="flex flex-col items-center justify-center gap-2 p-2 bg-green-50 rounded-lg border border-green-100 hover:bg-green-100 transition-colors text-green-700">
+                    <Table size={20}/>
+                    <span className="text-[10px] font-bold">جداول خاصة</span>
+                </button>
+                <button onClick={() => onNavigate('/questions')} className="flex flex-col items-center justify-center gap-2 p-2 bg-orange-50 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors text-orange-700">
+                    <FileQuestion size={20}/>
+                    <span className="text-[10px] font-bold">بنك الأسئلة</span>
+                </button>
             </div>
-            <button onClick={() => onNavigate('AUTO_GRADING')} className="w-full mt-auto py-2 bg-gray-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-black transition-colors">
-                <ScanLine size={14}/> المصحح الآلي (AI)
-            </button>
         </div>
     );
-};
+}
 
 const AtRiskWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], onStudentClick: (id: string) => void }> = ({ students, attendance, performance, onStudentClick }) => {
     const riskyStudents = useMemo(() => {
@@ -337,13 +327,11 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     const totalScore = filteredPerf.reduce((acc, curr) => acc + (curr.score / (curr.maxScore || 10)), 0);
     const avgScore = filteredPerf.length > 0 ? Math.round((totalScore / filteredPerf.length) * 100) : 0;
 
-    // Data for Charts
     const attendanceData = [
-        { name: 'حاضر', value: present > 0 ? present : 1 }, // Fallback to 1 for visual if 0 to show grey
+        { name: 'حاضر', value: present > 0 ? present : 1 },
         { name: 'غائب', value: absent },
     ];
 
-    // If no attendance taken yet
     if (todaysAttendance.length === 0) {
         return { totalStudents, present: 0, absent: 0, attendanceRate: 0, avgScore, attendanceData: [] };
     }
@@ -375,6 +363,36 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       onNavigate('STUDENT_FOLLOWUP');
   };
 
+  // Internal navigate wrapper to handle paths correctly if `onNavigate` expects internal keys or paths
+  const handleInternalNavigate = (path: string) => {
+      // Check if path starts with / which implies a route change, or if it's a key for internal dashboard switching
+      if (path.startsWith('/')) {
+          // If onNavigate supports paths directly (from App.tsx)
+          // We cast to any to bypass strict type check if onNavigate signature is strict string
+          // In App.tsx: onNavigate usually handles keys, but we can pass route paths if we update App.tsx handler
+          // However, here we can just use window.location or rely on the parent to handle it.
+          // Since onNavigate in App.tsx maps keys to routes, we should probably pass a key if possible, 
+          // or we can use `useNavigate` directly here.
+          // But to be safe with props:
+          // The App.tsx implementation maps keys. We should stick to keys if we can, BUT 
+          // we added new routes (/resources, etc) which don't have keys in the App.tsx switch.
+          // So we should use window.location.href or useNavigate hook.
+          // Let's use window.location.hash logic or just assume onNavigate handles it or modify App.tsx.
+          // Actually, the simplest way is to use `useNavigate` directly in this component.
+          // But I can't add `useNavigate` easily without changing the function signature significantly if it's not routed.
+          // Wait, Dashboard IS rendered by a Route in App.tsx. So `useNavigate` is available!
+          // I'll leave `onNavigate` for the legacy keys and use `useNavigate` for the new links.
+      } else {
+          onNavigate(path);
+      }
+  };
+  
+  // Need to import useNavigate? No, onNavigate prop is passed from App.tsx which uses useNavigate.
+  // The onNavigate in App.tsx handles specific strings.
+  // I'll update the `QuickToolsWidget` to take a direct navigate function or just pass paths.
+  // In `App.tsx`, `onNavigate` is: (v: string) => navigate(...)
+  // So if I pass '/resources', navigate('/resources') will work! Perfect.
+
   return (
     <div className="space-y-6 animate-fade-in p-6 bg-gray-50/50 min-h-full">
       
@@ -399,7 +417,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
       {/* Main KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Students */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
               <div>
                   <p className="text-gray-400 text-xs font-bold uppercase mb-1">إجمالي الطلاب</p>
@@ -410,7 +427,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               </div>
           </div>
 
-          {/* Card 2: Attendance */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
               <div>
                   <p className="text-gray-400 text-xs font-bold uppercase mb-1">حضور اليوم</p>
@@ -424,7 +440,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               </div>
           </div>
 
-          {/* Card 3: Avg Score */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
               <div>
                   <p className="text-gray-400 text-xs font-bold uppercase mb-1">متوسط التحصيل</p>
@@ -435,7 +450,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               </div>
           </div>
 
-          {/* Card 4: Action */}
           <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 rounded-2xl shadow-lg flex items-center justify-between text-white cursor-pointer hover:shadow-xl transition-all" onClick={() => onNavigate('AI_REPORTS')}>
               <div>
                   <p className="text-indigo-100 text-xs font-bold uppercase mb-1">تحليل ذكي</p>
@@ -449,18 +463,23 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       </div>
 
       {/* Middle Section: Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:h-80">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           
-          {/* 1. Current Session Widget */}
-          <div className="lg:col-span-1">
+          {/* 1. Current Session */}
+          <div className="lg:col-span-1 h-64 lg:h-auto">
               <CurrentSessionWidget 
                   currentUser={currentUser}
                   onNavigate={onNavigate}
               />
           </div>
 
-          {/* 2. At Risk Widget */}
-          <div className="lg:col-span-1 h-full">
+          {/* 2. Quick Tools (New) */}
+          <div className="lg:col-span-1 h-64 lg:h-auto">
+              <QuickToolsWidget onNavigate={onNavigate} />
+          </div>
+
+          {/* 3. At Risk Widget */}
+          <div className="lg:col-span-1 h-64 lg:h-auto">
               <AtRiskWidget 
                   students={students} 
                   attendance={attendance} 
@@ -469,21 +488,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               />
           </div>
 
-          {/* 3. Exams Widget */}
-          <div className="lg:col-span-1">
-              <ExamsWidget 
-                  currentUser={currentUser}
-                  onNavigate={onNavigate}
-              />
-          </div>
-
           {/* 4. Todo List */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 h-64 lg:h-auto">
               <TodoWidget />
           </div>
       </div>
 
-      {/* Bottom Section: Charts & Lists */}
+      {/* Bottom Section: Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chart */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -550,7 +561,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                           <button onClick={() => onNavigate('ATTENDANCE')} className="mt-2 text-blue-600 text-xs font-bold underline">اذهب للتحضير</button>
                       </div>
                   )}
-                  {/* Center Text */}
                   {stats.attendanceData.length > 0 && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                           <span className="text-3xl font-black text-gray-800">{stats.attendanceRate}%</span>

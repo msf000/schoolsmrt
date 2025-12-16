@@ -1,9 +1,8 @@
 
-// ... existing imports
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment } from '../types';
 import { getAssignments, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
-import { FileText, Printer, Search, PieChart, Users, MapPin, Phone, TrendingUp, BookOpen, Loader2 } from 'lucide-react';
+import { FileText, Printer, Search, PieChart, Users, MapPin, Phone, TrendingUp, BookOpen, Loader2, Copy } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { formatDualDate } from '../services/dateService';
 
@@ -353,64 +352,122 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                         </div>
                     </div>
 
-                    {/* Print Only Report */}
-                    <div className="hidden print:block bg-white p-8 border-2 border-black">
-                        <div className="text-center mb-8 border-b-2 border-black pb-4">
-                            <h1 className="text-2xl font-black">تقرير متابعة طالب</h1>
-                            <p>المدرسة: {headerConfig?.schoolName || '....................'}</p>
-                            <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                    {/* --- PRINTABLE REPORT CARD (Full A4) --- */}
+                    <div className="hidden print:block bg-white p-10 min-h-screen">
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b-2 border-black pb-6 mb-8">
+                            <div className="text-right text-sm font-bold leading-loose">
+                                <p>المملكة العربية السعودية</p>
+                                <p>وزارة التعليم</p>
+                                <p>{headerConfig?.schoolName || 'اسم المدرسة'}</p>
+                                <p>إدارة: {headerConfig?.educationAdmin || '................'}</p>
+                            </div>
+                            <div className="text-center pt-2">
+                                {headerConfig?.logoBase64 ? (
+                                    <img src={headerConfig.logoBase64} alt="Logo" className="h-24 w-24 object-contain mx-auto mb-2"/>
+                                ) : <div className="h-24 w-24 border-2 border-dashed border-gray-300 mx-auto mb-2 flex items-center justify-center text-xs">الشعار</div>}
+                                <h1 className="text-xl font-black underline decoration-double">بطاقة متابعة طالب</h1>
+                                <p className="text-sm font-bold mt-1">{activeTerm ? activeTerm.name : 'تقرير عام'}</p>
+                            </div>
+                            <div className="text-left text-sm font-bold leading-loose">
+                                <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                                <p>الرقم: ....................</p>
+                            </div>
                         </div>
-                        <div className="flex justify-between mb-8 text-sm font-bold">
-                            <p>اسم الطالب: {student.name}</p>
-                            <p>الصف: {student.gradeLevel}</p>
-                            <p>رقم الهوية: {student.nationalId}</p>
+
+                        {/* Student Info */}
+                        <div className="border border-black p-4 mb-8 rounded-lg flex justify-between bg-gray-50 print:bg-white text-sm">
+                            <div>
+                                <span className="font-bold ml-2">اسم الطالب:</span> {student.name}
+                            </div>
+                            <div>
+                                <span className="font-bold ml-2">الصف / الفصل:</span> {student.gradeLevel} - {student.className}
+                            </div>
+                            <div>
+                                <span className="font-bold ml-2">رقم الهوية:</span> {student.nationalId}
+                            </div>
                         </div>
-                        
+
+                        {/* Summary Table */}
                         <div className="mb-8">
-                            <h3 className="font-bold border-b border-black mb-2">ملخص الأداء</h3>
+                            <h3 className="font-bold border-b border-black mb-2 text-sm w-fit">ملخص الأداء العام</h3>
                             <table className="w-full text-center border-collapse border border-black text-sm">
                                 <thead>
-                                    <tr className="bg-gray-200">
+                                    <tr className="bg-gray-100 print:bg-gray-200">
                                         <th className="border border-black p-2">نسبة الحضور</th>
                                         <th className="border border-black p-2">أيام الغياب</th>
+                                        <th className="border border-black p-2">أيام التأخر</th>
+                                        <th className="border border-black p-2">نقاط السلوك (إيجابي)</th>
+                                        <th className="border border-black p-2">مخالفات (سلبي)</th>
                                         <th className="border border-black p-2">المعدل الأكاديمي</th>
-                                        <th className="border border-black p-2">نقاط السلوك</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td className="border border-black p-2">{stats.attRate}%</td>
+                                        <td className="border border-black p-2 font-bold">{stats.attRate}%</td>
                                         <td className="border border-black p-2">{stats.absent}</td>
-                                        <td className="border border-black p-2">{stats.avgScore}%</td>
+                                        <td className="border border-black p-2">{stats.late}</td>
                                         <td className="border border-black p-2">{stats.posBeh}</td>
+                                        <td className="border border-black p-2">{stats.negBeh}</td>
+                                        <td className="border border-black p-2 font-bold">{stats.avgScore}%</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
 
-                        <div>
-                            <h3 className="font-bold border-b border-black mb-2">تفاصيل المواد</h3>
+                        {/* Detailed Grades Table */}
+                        <div className="mb-8">
+                            <h3 className="font-bold border-b border-black mb-2 text-sm w-fit">كشف الدرجات (تجميعي)</h3>
                             <table className="w-full text-right border-collapse border border-black text-sm">
                                 <thead>
-                                    <tr className="bg-gray-200 text-center">
+                                    <tr className="bg-gray-100 print:bg-gray-200 text-center">
                                         <th className="border border-black p-2">المادة</th>
+                                        <th className="border border-black p-2">عدد التقييمات</th>
+                                        <th className="border border-black p-2">المجموع</th>
                                         <th className="border border-black p-2">المستوى</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {stats.subjectsData.map(s => (
-                                        <tr key={s.name}>
-                                            <td className="border border-black p-2">{s.name}</td>
-                                            <td className="border border-black p-2 text-center">{s.avg}%</td>
-                                        </tr>
-                                    ))}
+                                    {stats.subjectsData.map(s => {
+                                        let level = 'ضعيف';
+                                        if(s.avg >= 90) level = 'ممتاز';
+                                        else if(s.avg >= 80) level = 'جيد جداً';
+                                        else if(s.avg >= 70) level = 'جيد';
+                                        else if(s.avg >= 60) level = 'مقبول';
+
+                                        return (
+                                            <tr key={s.name}>
+                                                <td className="border border-black p-2 font-bold">{s.name}</td>
+                                                <td className="border border-black p-2 text-center">-</td>
+                                                <td className="border border-black p-2 text-center font-bold">{s.avg}%</td>
+                                                <td className="border border-black p-2 text-center">{level}</td>
+                                            </tr>
+                                        )
+                                    })}
                                 </tbody>
                             </table>
                         </div>
 
-                        <div className="mt-16 flex justify-between text-sm font-bold">
-                            <p>المرشد الطلابي: ....................</p>
-                            <p>مدير المدرسة: ....................</p>
+                        {/* Signatures */}
+                        <div className="flex justify-between items-end mt-16 px-12 text-sm font-bold">
+                            <div className="text-center">
+                                <p className="mb-8">المرشد الطلابي</p>
+                                <p>.........................</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="mb-8">وكيل الشؤون التعليمية</p>
+                                <p>.........................</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="mb-4">مدير المدرسة</p>
+                                {headerConfig?.schoolManager && <p className="mb-4">{headerConfig.schoolManager}</p>}
+                                <p>.........................</p>
+                            </div>
+                        </div>
+                        
+                        {/* Footer Note */}
+                        <div className="mt-8 text-center text-[10px] text-gray-500 border-t pt-2">
+                            تم إصدار هذا التقرير آلياً من نظام المتابع الذكي بتاريخ {new Date().toLocaleDateString('ar-SA')}
                         </div>
                     </div>
                 </div>

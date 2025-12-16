@@ -8,7 +8,8 @@ import {
     getSubjects, getAcademicTerms
 } from '../services/storageService';
 import { generateCurriculumMap } from '../services/geminiService';
-import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, BrainCircuit, Plus, List, Sparkles, Loader2 } from 'lucide-react';
+import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, BrainCircuit, Plus, List, Sparkles, Loader2, PenTool } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
@@ -33,6 +34,7 @@ interface CurriculumManagerProps {
 }
 
 const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) => {
+    const navigate = useNavigate();
     const [view, setView] = useState<'MAP' | 'CONCEPTS'>('MAP');
     const [userSubjects, setUserSubjects] = useState<Subject[]>([]);
     
@@ -148,6 +150,16 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
             deleteCurriculumLesson(id);
             refreshData();
         }
+    };
+
+    const handlePrepareLesson = (lessonTitle: string, subject: string, grade: string) => {
+        navigate('/planning', { 
+            state: { 
+                topic: lessonTitle, 
+                subject: subject, 
+                grade: grade 
+            } 
+        });
     };
 
     const handleAutoGenerate = async () => {
@@ -316,6 +328,13 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
                                                         )}
                                                     </div>
                                                     <div className="hidden md:flex md:col-span-3 justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button 
+                                                            onClick={() => handlePrepareLesson(lesson.title, unit.subject, unit.gradeLevel)}
+                                                            className="flex items-center gap-1 text-[10px] bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded hover:bg-green-100 transition-colors font-bold"
+                                                            title="إنشاء تحضير لهذا الدرس"
+                                                        >
+                                                            <PenTool size={12}/> تحضير
+                                                        </button>
                                                         <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 hover:bg-blue-100 p-1.5 rounded"><Edit2 size={14}/></button>
                                                         <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/></button>
                                                     </div>
