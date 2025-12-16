@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, PieChart, Pie, Legend } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 
 interface WorksTrackingProps {
     students: Student[];
@@ -37,6 +38,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, onAddPerformance, currentUser }) => {
+    const navigate = useNavigate();
     const isManager = currentUser?.role === 'SCHOOL_MANAGER';
     
     // Updated to string to support custom tabs
@@ -257,6 +259,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         alert('تم حفظ توزيع الدرجات بنجاح'); 
     };
 
+    const navigateToStudent = (studentId: string) => {
+        navigate('/followup', { state: { studentId } });
+    };
+
     const categories = [...DEFAULT_CATEGORIES];
 
     return (
@@ -348,7 +354,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     {filteredStudents.map((student, idx) => (
                                         <tr key={student.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="p-3 text-center text-gray-400 text-xs font-mono">{idx + 1}</td>
-                                            <td className="p-3 font-bold text-gray-800 sticky right-0 bg-white group-hover:bg-gray-50 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                            <td className="p-3 font-bold text-gray-800 sticky right-0 bg-white group-hover:bg-gray-50 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer hover:text-indigo-600" onClick={() => navigateToStudent(student.id)}>
                                                 {student.name}
                                                 <div className="text-[10px] text-gray-400 font-normal">{student.className}</div>
                                             </td>
@@ -430,7 +436,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
                                     return (
                                         <tr key={student.id} className="hover:bg-orange-50/20">
-                                            <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white border-l">{student.name}</td>
+                                            <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white border-l cursor-pointer hover:text-indigo-600" onClick={() => navigateToStudent(student.id)}>{student.name}</td>
                                             <td className="p-3 border-l">{hw}</td>
                                             <td className="p-3 border-l">{act}</td>
                                             <td className="p-3 border-l">{exam}</td>

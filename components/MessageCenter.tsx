@@ -5,7 +5,7 @@ import { getMessages, saveMessage, getAcademicTerms } from '../services/storageS
 import { generateParentMessage } from '../services/geminiService';
 import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 interface MessageCenterProps {
     students: Student[];
@@ -23,6 +23,7 @@ const TEMPLATES = [
 ];
 
 const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, performance, currentUser }) => {
+    const navigate = useNavigate();
     const location = useLocation();
     // Safety check
     if (!students || !attendance || !performance) {
@@ -227,6 +228,10 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         }
     };
 
+    const navigateToStudent = (studentId: string) => {
+        navigate('/followup', { state: { studentId } });
+    };
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -286,7 +291,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                 <div className="space-y-3">
                                     {smartList.map(s => (
                                         <div key={s.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-3 cursor-pointer hover:opacity-75" onClick={() => navigateToStudent(s.id)}>
                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${triggerType === 'HIGH_PERFORMANCE' ? 'bg-green-500' : 'bg-red-500'}`}>
                                                     {s.name.charAt(0)}
                                                 </div>
@@ -448,7 +453,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                 {history.map(msg => (
                                     <tr key={msg.id} className="hover:bg-gray-50">
                                         <td className="p-3 text-xs font-mono text-gray-500">{formatDualDate(msg.date)}</td>
-                                        <td className="p-3 font-bold text-gray-800">{msg.studentName}</td>
+                                        <td className="p-3 font-bold text-gray-800 cursor-pointer hover:text-indigo-600" onClick={() => navigateToStudent(msg.studentId)}>{msg.studentName}</td>
                                         <td className="p-3">
                                             {msg.type === 'WHATSAPP' ? 
                                                 <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded-full text-xs font-bold"><Smartphone size={12}/> WhatsApp</span> : 

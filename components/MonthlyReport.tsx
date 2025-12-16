@@ -5,6 +5,7 @@ import { Calendar, Printer, Filter, Loader2, FileSpreadsheet, Search } from 'luc
 import { getReportHeaderConfig, getSubjects, getAcademicTerms } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
+import { useNavigate } from 'react-router-dom';
 
 interface MonthlyReportProps {
   students: Student[];
@@ -14,6 +15,7 @@ interface MonthlyReportProps {
 }
 
 const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance = [], performance = [], currentUser }) => {
+  const navigate = useNavigate();
   if (!students) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
   }
@@ -172,6 +174,10 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance
       XLSX.writeFile(wb, `Monthly_Report_${selectedClass}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const navigateToStudent = (studentId: string) => {
+      navigate('/followup', { state: { studentId } });
+  };
+
   return (
       <div className="p-6 animate-fade-in h-full flex flex-col bg-gray-50">
           {/* Header Controls */}
@@ -265,7 +271,12 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance
                                   return (
                                       <tr key={student.id} className="hover:bg-gray-50 border-b print:break-inside-avoid">
                                           <td className="p-2 border bg-gray-50 sticky right-0 z-10">{i + 1}</td>
-                                          <td className="p-2 border font-bold text-right sticky right-10 bg-white z-10 whitespace-nowrap">{student.name}</td>
+                                          <td 
+                                              className="p-2 border font-bold text-right sticky right-10 bg-white z-10 whitespace-nowrap cursor-pointer hover:text-purple-600 hover:underline"
+                                              onClick={() => navigateToStudent(student.id)}
+                                          >
+                                              {student.name}
+                                          </td>
                                           {sessions.map((session, idx) => {
                                               const record = attendance.find(r => 
                                                   r.studentId === student.id && 

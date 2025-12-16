@@ -5,6 +5,7 @@ import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents,
 import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search, Filter, Clipboard, Zap, Calculator, FileText } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
+import { useNavigate } from 'react-router-dom';
 
 interface FlexibleTrackingSheetProps {
     currentUser: SystemUser;
@@ -40,6 +41,7 @@ const PRESET_TEMPLATES = [
 ];
 
 const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUser }) => {
+    const navigate = useNavigate();
     const [view, setView] = useState<'LIST' | 'EDITOR'>('LIST');
     const [sheets, setSheets] = useState<TrackingSheet[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
@@ -239,6 +241,10 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setActiveSheet({ ...activeSheet, scores: newScores });
     };
 
+    const navigateToStudent = (studentId: string) => {
+        navigate('/followup', { state: { studentId } });
+    };
+
     const filteredStudents = useMemo(() => {
         let filtered = students.filter(s => s.className === tempClass);
         if (searchTerm) {
@@ -400,7 +406,12 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
                                     return (
                                         <tr key={student.id} className="hover:bg-blue-50/30 transition-colors border-b group">
                                             <td className="p-3 border text-center text-gray-500 bg-gray-50">{i + 1}</td>
-                                            <td className="p-3 border font-bold text-gray-800 bg-white sticky right-0 z-10 shadow-sm">{student.name}</td>
+                                            <td 
+                                                className="p-3 border font-bold text-gray-800 bg-white sticky right-0 z-10 shadow-sm cursor-pointer hover:text-purple-600 hover:underline"
+                                                onClick={() => navigateToStudent(student.id)}
+                                            >
+                                                {student.name}
+                                            </td>
                                             {activeSheet.columns.map(col => {
                                                 const val = activeSheet.scores[student.id]?.[col.id];
                                                 if (col.type === 'NUMBER') rowTotal += Number(val || 0);

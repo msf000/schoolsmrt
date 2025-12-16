@@ -7,6 +7,7 @@ import { Calendar, Save, CheckCircle, FileSpreadsheet, Users, CheckSquare, Clock
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
+import { useNavigate } from 'react-router-dom';
 
 interface AttendanceProps {
   students: Student[];
@@ -45,6 +46,7 @@ const Attendance: React.FC<AttendanceProps> = ({
     currentUser,
     onNavigate
 }) => {
+  const navigate = useNavigate();
   const isManager = currentUser?.role === 'SCHOOL_MANAGER';
 
   if (!students) {
@@ -253,6 +255,10 @@ const Attendance: React.FC<AttendanceProps> = ({
       setTimeout(() => setSaved(false), 2000);
   };
 
+  const navigateToStudent = (studentId: string) => {
+      navigate('/followup', { state: { studentId } });
+  };
+
   // --- RENDER ---
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col relative bg-gray-50">
@@ -400,8 +406,8 @@ const Attendance: React.FC<AttendanceProps> = ({
                                                     <button onClick={() => handleBehaviorChange(student.id, BehaviorStatus.NEGATIVE)} className={`p-1 rounded-full ${behavior === 'NEGATIVE' ? 'text-red-600 bg-red-100' : 'text-gray-300 hover:text-red-500'}`}><Frown size={16}/></button>
                                                 </div>
                                             </div>
-                                            <div className="text-right mt-1">
-                                                <span className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight">{student.name}</span>
+                                            <div className="text-right mt-1" onClick={(e) => { e.stopPropagation(); navigateToStudent(student.id); }}>
+                                                <span className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight hover:text-indigo-600 hover:underline">{student.name}</span>
                                             </div>
                                             <div className="text-xs text-gray-400 font-bold mt-auto pt-2 text-left">
                                                 {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'تأخر' : 'حاضر'}
@@ -414,7 +420,12 @@ const Attendance: React.FC<AttendanceProps> = ({
                             <div className="space-y-2">
                                 {filteredStudents.map(student => (
                                     <div key={student.id} className="flex items-center justify-between p-3 bg-white rounded-lg border shadow-sm">
-                                        <div className="font-bold text-gray-800">{student.name}</div>
+                                        <div 
+                                            className="font-bold text-gray-800 cursor-pointer hover:text-indigo-600 hover:underline"
+                                            onClick={() => navigateToStudent(student.id)}
+                                        >
+                                            {student.name}
+                                        </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => handleStatusChange(student.id, AttendanceStatus.PRESENT)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'PRESENT' ? 'bg-green-600 text-white' : 'bg-gray-50'}`}>حاضر</button>
                                             <button onClick={() => handleStatusChange(student.id, AttendanceStatus.ABSENT)} className={`px-3 py-1 rounded text-xs font-bold border ${records[student.id] === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-gray-50'}`}>غائب</button>
@@ -520,7 +531,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                                   return (
                                       <tr key={r.id} className="hover:bg-gray-50">
                                           <td className="p-3 font-mono text-gray-500">{r.date}</td>
-                                          <td className="p-3 font-bold">{s?.name}</td>
+                                          <td className="p-3 font-bold cursor-pointer hover:text-indigo-600" onClick={() => navigateToStudent(r.studentId)}>{s?.name}</td>
                                           <td className="p-3 text-gray-600">{s?.className}</td>
                                           <td className="p-3">
                                               <span className={`px-2 py-1 rounded text-xs font-bold ${r.status === 'ABSENT' ? 'bg-red-100 text-red-700' : r.status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>

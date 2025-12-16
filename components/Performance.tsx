@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, AttendanceRecord, AttendanceStatus, Assignment } from '../types';
 import { formatDualDate } from '../services/dateService';
 import { getAcademicTerms, getAssignments } from '../services/storageService';
-import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle, Link } from 'lucide-react';
+import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle, Link, Eye } from 'lucide-react';
 import DataImport from './DataImport';
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 
 interface PerformanceProps {
   students: Student[];
@@ -21,6 +22,7 @@ interface PerformanceProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 const Performance: React.FC<PerformanceProps> = ({ students, performance, attendance = [], onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
+  const navigate = useNavigate();
   if (!students || !performance) {
       return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32} /></div>;
   }
@@ -333,6 +335,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       }
   }
 
+  const navigateToStudent = (studentId: string) => {
+      navigate('/followup', { state: { studentId } });
+  };
+
   const recentPerformance = performance
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
@@ -453,7 +459,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                                   return (
                                       <tr key={student.id} className={`hover:bg-gray-50 transition-colors ${isAbsent ? 'bg-red-50/30' : ''}`}>
                                           <td className="p-3 text-center text-gray-400 font-mono">{idx + 1}</td>
-                                          <td className="p-3 font-bold text-gray-800">
+                                          <td className="p-3 font-bold text-gray-800 cursor-pointer hover:text-indigo-600" onClick={() => navigateToStudent(student.id)}>
                                               {student.name}
                                               {isAbsent && <span className="text-[10px] bg-red-100 text-red-600 px-1 rounded mr-2 font-bold">غائب</span>}
                                           </td>
@@ -603,10 +609,13 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                     <div key={p.id} className="p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
                         <div className="flex justify-between items-start">
                         <div>
-                            <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                            <button 
+                                onClick={() => navigateToStudent(p.studentId)}
+                                className="font-bold text-gray-800 flex items-center gap-2 hover:text-indigo-600 hover:underline"
+                            >
                                 {student?.name || 'طالب محذوف'}
                                 {p.notes && assignments.some(a => a.id === p.notes) && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 rounded border border-indigo-200 font-bold flex items-center gap-1"><Link size={8}/> مرتبط</span>}
-                            </h4>
+                            </button>
                             <p className="text-sm text-gray-500 mt-1">{p.subject} - {p.title}</p>
                         </div>
                         <div className="text-left">
@@ -766,7 +775,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                               return (
                                   <tr key={rec.id} className="hover:bg-gray-50">
                                       <td className="p-3 font-mono text-xs text-gray-500">{rec.date}</td>
-                                      <td className="p-3 font-bold text-gray-800">{student?.name}</td>
+                                      <td className="p-3 font-bold text-gray-800 cursor-pointer hover:text-indigo-600" onClick={() => navigateToStudent(rec.studentId)}>{student?.name}</td>
                                       <td className="p-3 text-gray-600">{student?.className}</td>
                                       <td className="p-3 text-xs text-gray-500">{rec.subject}</td>
                                       <td className="p-3 font-bold flex items-center gap-2">

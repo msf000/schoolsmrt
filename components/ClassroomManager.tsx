@@ -1,9 +1,11 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, Subject, ScheduleItem, TeacherAssignment, SystemUser, PerformanceRecord, LessonLink, BehaviorStatus } from '../types';
-import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Filter, Link as LinkIcon, ExternalLink, Move, Star, ThumbsUp, ThumbsDown, CheckCircle, Users, Trophy } from 'lucide-react';
+import { MonitorPlay, Grid, LayoutGrid, CheckSquare, Maximize, RotateCcw, Save, Shuffle, ArrowDownUp, Clock, StickyNote, DoorOpen, AlertCircle, BarChart2, Trash2, Play, Pause, Volume2, CalendarCheck, BookOpen, Calendar, Monitor, Plus, XCircle, User, Filter, Link as LinkIcon, ExternalLink, Move, Star, ThumbsUp, ThumbsDown, CheckCircle, Users, Trophy, Eye } from 'lucide-react';
 import Attendance from './Attendance';
 import { getSubjects, getSchedules, getTeacherAssignments, getLessonLinks, saveLessonLink, deleteLessonLink, updateStudent } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
+import { useNavigate } from 'react-router-dom';
 
 // --- WIDGETS ---
 
@@ -313,6 +315,7 @@ const SeatingChart: React.FC<{
     onSaveSeating: (updatedStudents: Student[]) => void,
     currentUser?: SystemUser | null
 }> = ({ students, attendance, onSaveAttendance, onSaveSeating, currentUser }) => {
+    const navigate = useNavigate();
     const [editMode, setEditMode] = useState(false);
     const [localStudents, setLocalStudents] = useState<Student[]>(students);
     const today = new Date().toISOString().split('T')[0];
@@ -407,7 +410,7 @@ const SeatingChart: React.FC<{
                                 onDrop={(e) => handleDrop(e, index)}
                                 onClick={() => toggleAttendance(student)}
                                 className={`
-                                    relative p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 aspect-square shadow-sm
+                                    relative p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 aspect-square shadow-sm group
                                     ${editMode ? 'cursor-move border-dashed border-gray-400 bg-white hover:bg-gray-50' : 'cursor-pointer hover:scale-105 hover:shadow-md'}
                                     ${!editMode && status === 'PRESENT' ? 'bg-white border-green-500' : ''}
                                     ${!editMode && status === 'ABSENT' ? 'bg-red-50 border-red-500' : ''}
@@ -419,6 +422,15 @@ const SeatingChart: React.FC<{
                                 </div>
                                 <span className="text-xs font-bold text-center leading-tight line-clamp-2">{student.name}</span>
                                 {editMode && <Move size={12} className="absolute top-2 right-2 text-gray-400"/>}
+                                {!editMode && (
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); navigate('/followup', { state: { studentId: student.id } }); }}
+                                        className="absolute top-1 left-1 p-1 bg-white/80 rounded-full text-gray-500 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm"
+                                        title="عرض الملف"
+                                    >
+                                        <Eye size={14}/>
+                                    </button>
+                                )}
                             </div>
                         );
                     })}
