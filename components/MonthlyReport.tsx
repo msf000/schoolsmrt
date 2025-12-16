@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm, Subject, SystemUser } from '../types';
 import { Calendar, Printer, Filter, Loader2, FileSpreadsheet, Search } from 'lucide-react';
-import { getReportHeaderConfig, getSubjects, getAcademicTerms } from '../services/storageService';
+import { getReportHeaderConfig, getSubjects, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
@@ -50,11 +50,15 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance
       }
   }, [currentUser]);
 
+  // --- UPDATED: Merge Student Classes with Manually Defined Classes ---
   const uniqueClasses = useMemo(() => {
       const classes = new Set<string>();
       students.forEach(s => { if (s.className) classes.add(s.className); });
+      // Add manual classes
+      const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+      manualClasses.forEach(c => classes.add(c));
       return Array.from(classes).sort();
-  }, [students]);
+  }, [students, currentUser]);
 
   const filteredStudents = useMemo(() => {
       if (!selectedClass) return [];

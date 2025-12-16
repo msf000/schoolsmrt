@@ -492,8 +492,12 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         if (!students) return [];
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
+        // Add manual classes
+        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+        manualClasses.forEach(c => classes.add(c));
+        
         return Array.from(classes).sort();
-    }, [students]);
+    }, [students, currentUser]);
 
     useEffect(() => {
         const loadedSubjects = getSubjects(currentUser?.id);

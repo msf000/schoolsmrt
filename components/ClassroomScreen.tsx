@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser, StoredLessonPlan, ScheduleItem } from '../types';
 import { Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Volume2, User, Maximize, AlertCircle, Monitor, X, Upload, Globe, ChevronLeft, ChevronRight, Minus, Plus, MousePointer2, StickyNote, BookOpen, PenTool, Eraser, Trash2, Image as ImageIcon, FileText, CheckCircle, Minimize, DoorOpen, HelpCircle, BrainCircuit, Loader2, Sparkles, Star, Siren, BarChart2, Check, Zap, List, Music, Armchair, Bell, ThumbsUp, ThumbsDown, MicOff, XCircle } from 'lucide-react';
-import { getLessonLinks, getLessonPlans, getSchedules, getTeacherPeriodTimings, getWeeklyPlans } from '../services/storageService';
+import { getLessonLinks, getLessonPlans, getSchedules, getTeacherPeriodTimings, getWeeklyPlans, getTeacherAssignments } from '../services/storageService';
 import { generateSlideQuestions, suggestQuickActivity } from '../services/geminiService';
 
 interface ClassroomScreenProps {
@@ -21,8 +21,11 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => { if (s.className) classes.add(s.className); });
+        // Add manual classes
+        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+        manualClasses.forEach(c => classes.add(c));
         return Array.from(classes).sort();
-    }, [students]);
+    }, [students, currentUser]);
 
     useEffect(() => {
         if (uniqueClasses.length > 0 && !selectedClass) {

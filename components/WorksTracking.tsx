@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
-import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData } from '../services/storageService';
+import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData, getTeacherAssignments } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -149,7 +149,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const activePeriods = useMemo(() => { if (!activeTerm?.periods) return []; return [...activeTerm.periods].sort((a, b) => { const dateA = a.startDate || ''; const dateB = b.startDate || ''; if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB); return a.name.localeCompare(b.name, 'ar'); }); }, [activeTerm]);
     const settingsTermObj = terms.find(t => t.id === settingTermId);
     const settingsPeriods = useMemo(() => { if (!settingsTermObj?.periods) return []; return [...settingsTermObj.periods].sort((a, b) => { const dateA = a.startDate || ''; const dateB = b.startDate || ''; if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB); return a.name.localeCompare(b.name, 'ar'); }); }, [settingsTermObj]);
-    const uniqueClasses = useMemo(() => { const classes = new Set(students.map(s => s.className).filter(Boolean)); return Array.from(classes).sort(); }, [students]);
+    
+    // --- UPDATED: Merge Student Classes with Manually Defined Classes ---
+    const uniqueClasses = useMemo(() => { 
+        const classes = new Set(students.map(s => s.className).filter(Boolean));
+        // Add manual classes
+        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+        manualClasses.forEach(c => classes.add(c));
+        
+        return Array.from(classes).sort(); 
+    }, [students, currentUser]);
+
     const filteredStudents = useMemo(() => { let filtered = students; if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass); if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm)); return filtered.sort((a,b) => { if (a.className === b.className) return a.name.localeCompare(b.name); return (a.className || '').localeCompare(b.className || ''); }); }, [students, selectedClass, searchTerm]);
     const filteredAssignments = useMemo(() => { if (activeTab === 'YEAR_WORK') return []; return assignments.filter(a => { const termMatch = !selectedTermId || (a.termId === selectedTermId); const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId; const categoryMatch = a.category === activeTab; return termMatch && periodMatch && categoryMatch; }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)); }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
     
