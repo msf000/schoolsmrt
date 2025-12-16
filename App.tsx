@@ -47,7 +47,7 @@ import CertificatesCenter from './components/CertificatesCenter';
 import ReloadPrompt from './components/ReloadPrompt';
 import { SchoolManagement as SchoolManagementComponent } from './components/SchoolManagement';
 
-import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, Award, Mail, Calendar, FileQuestion, Library, ScanLine, PenTool, Printer, BrainCircuit, List } from 'lucide-react';
+import { Menu, X, LogOut, LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, Award, Mail, Calendar, FileQuestion, Library, ScanLine, PenTool, Printer, BrainCircuit, List, FolderOpen, FileText, Table2 } from 'lucide-react';
 
 // --- CONTEXT ---
 interface AppContextType {
@@ -158,16 +158,24 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                             <NavItem path="/schedule" label="الجدول" icon={Calendar} />
                             <NavItem path="/planning" label="التحضير" icon={PenTool} />
                             <NavItem path="/curriculum" label="المنهج" icon={List} />
+                            <NavItem path="/resources" label="المصادر" icon={FolderOpen} />
                             
                             <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">التقييم</label></div>
                             <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} />
                             <NavItem path="/questions" label="بنك الأسئلة" icon={Library} />
                             <NavItem path="/auto-grading" label="المصحح الآلي" icon={ScanLine} />
                             
+                            <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">سجلات خاصة</label></div>
+                            <NavItem path="/flexible-sheets" label="سجلات مرنة" icon={FileText} />
+                            <NavItem path="/custom-tables" label="جداول مخصصة" icon={Table2} />
+
                             <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">أدوات</label></div>
                             <NavItem path="/ai-tools" label="أدوات AI" icon={BrainCircuit} />
                             <NavItem path="/certificates" label="الشهادات" icon={Award} />
                             <NavItem path="/messages" label="الرسائل" icon={Mail} />
+
+                            <div className="pt-4 mt-4 border-t border-gray-100"></div>
+                            <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} />
                         </>
                     )}
                 </nav>
@@ -328,8 +336,9 @@ const App: React.FC = () => {
                     <Route path="/monthly-report" element={<MonthlyReport students={students} attendance={attendance} performance={performance} currentUser={currentUser}/>} />
                     <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser} />} />
                     <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser} onSaveAttendance={handleSaveAttendance} />} />
-                    <Route path="/resources" element={<ResourcesView currentUser={currentUser} />} />
+                    <Route path="/resources" element={<ResourcesView currentUser={currentUser!} />} />
                     <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser}/>} />
+                    <Route path="/flexible-sheets" element={<FlexibleTrackingSheet currentUser={currentUser!} />} />
                     <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={contextValue.importStudents} onImportPerformance={contextValue.importPerformance} onImportAttendance={contextValue.importAttendance} currentUser={currentUser} onUpdateTheme={setTheme}/>} />
                     <Route path="/admin" element={<AdminDashboard />} />
                     <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser} onSaveAttendance={handleSaveAttendance}/>} />

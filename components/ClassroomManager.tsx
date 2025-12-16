@@ -127,7 +127,7 @@ const BehaviorTracker: React.FC<{
     const today = new Date().toISOString().split('T')[0];
 
     // Calculate Points
-    const studentPoints = useMemo(() => {
+    const studentPoints = useMemo<Record<string, { pos: number, neg: number }>>(() => {
         const points: Record<string, { pos: number, neg: number }> = {};
         students.forEach(s => points[s.id] = { pos: 0, neg: 0 });
         
@@ -219,9 +219,9 @@ const BehaviorTracker: React.FC<{
                                     
                                     <div className="flex gap-2 text-[10px] font-bold w-full justify-center mt-1">
                                         <div className="bg-green-50 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                            {pts.pos} <ThumbsUp size={10}/>
+                                            {pts?.pos || 0} <ThumbsUp size={10}/>
                                         </div>
-                                        {pts.neg > 0 && (
+                                        {pts && pts.neg > 0 && (
                                             <div className="bg-red-50 text-red-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                                                 {pts.neg} <ThumbsDown size={10}/>
                                             </div>
@@ -273,7 +273,7 @@ const BehaviorTracker: React.FC<{
                                     return <li key={id} className="text-[10px] text-gray-600 flex justify-between"><span>{i+1}. {s?.name}</span> <span className="font-bold text-green-600">{pts.pos}</span></li>
                                 })
                             }
-                            {Object.values(studentPoints).every(p => p.pos === 0) && <li className="text-[10px] text-gray-400 text-center">لا توجد نقاط بعد</li>}
+                            {Object.values(studentPoints).every((p: { pos: number, neg: number }) => p.pos === 0) && <li className="text-[10px] text-gray-400 text-center">لا توجد نقاط بعد</li>}
                         </ul>
                     </div>
                 </div>
