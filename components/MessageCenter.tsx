@@ -171,7 +171,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
             studentId: student.id,
             studentName: student.name,
             parentPhone: student.parentPhone,
-            type: method === 'WHATSAPP' ? 'WHATSAPP' : 'EMAIL', // Portal uses EMAIL type as placeholder
+            type: method === 'WHATSAPP' ? 'WHATSAPP' : 'EMAIL', // Portal uses EMAIL type as placeholder for internal message
             content: finalMsg,
             status: 'SENT',
             date: new Date().toISOString(),

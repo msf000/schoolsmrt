@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, ReportHeaderConfig, Exam, ExamResult, Question, LessonLink, MessageLog } from '../types';
-import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance, getLessonLinks, getMessages } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, ReportHeaderConfig, Exam, ExamResult, Question, LessonLink, MessageLog, WeeklyPlanItem, ScheduleItem } from '../types';
+import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance, getLessonLinks, getMessages, getWeeklyPlans, getSchedules } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, BookOpen, Home } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
 import { formatDualDate } from '../services/dateService';
@@ -274,11 +274,138 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
 };
 
 const StudentWeeklyPlan = ({ student }: { student: Student }) => {
-    return <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-dashed"><CalendarDays size={48} className="mx-auto mb-2 opacity-20"/><p>لا توجد خطة أسبوعية منشورة حالياً</p></div>; 
+    const [weekStart, setWeekStart] = useState(() => {
+        const d = new Date();
+        const day = d.getDay();
+        d.setDate(d.getDate() - day);
+        return d.toISOString().split('T')[0];
+    });
+    const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
+
+    useEffect(() => {
+        // Fetch ALL plans then filter by class & week
+        // Note: Ideally API filters this, but for local storage we filter client side
+        const allPlans = getWeeklyPlans();
+        const filtered = allPlans.filter(p => p.classId === student.className && p.weekStartDate === weekStart);
+        setPlans(filtered);
+    }, [weekStart, student]);
+
+    const changeWeek = (dir: number) => {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + (dir * 7));
+        setWeekStart(d.toISOString().split('T')[0]);
+    };
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><CalendarDays className="text-teal-600"/> الخطة الأسبوعية</h2>
+                <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
+                    <button onClick={() => changeWeek(-1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronRight size={16}/></button>
+                    <span className="text-xs font-bold w-24 text-center">{formatDualDate(weekStart).split('|')[0]}</span>
+                    <button onClick={() => changeWeek(1)} className="p-1.5 hover:bg-white rounded shadow-sm"><ChevronLeft size={16}/></button>
+                </div>
+            </div>
+
+            <div className="grid gap-4">
+                {days.map(day => {
+                    const dayPlans = plans.filter(p => p.day === day).sort((a,b) => a.period - b.period);
+                    return (
+                        <div key={day} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="bg-teal-50/50 p-3 border-b border-teal-100 font-bold text-teal-800 flex justify-between items-center">
+                                <span className="flex items-center gap-2"><Calendar size={16}/> {dayNamesAr[day]}</span>
+                                <span className="text-xs font-normal bg-white px-2 py-0.5 rounded text-teal-600 border border-teal-100">{dayPlans.length} حصص</span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {dayPlans.length > 0 ? dayPlans.map(plan => (
+                                    <div key={plan.id} className="p-4 hover:bg-gray-50 transition-colors">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded">حصة {plan.period}</span>
+                                                <h4 className="font-bold text-gray-800 text-lg">{plan.subjectName}</h4>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-3">
+                                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                                <span className="text-blue-600 font-bold block text-xs mb-1 flex items-center gap-1"><BookOpen size={12}/> موضوع الدرس:</span>
+                                                <p className="text-gray-800 font-medium">{plan.lessonTopic}</p>
+                                            </div>
+                                            {plan.homework && (
+                                                <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
+                                                    <span className="text-orange-600 font-bold block text-xs mb-1 flex items-center gap-1"><Home size={12}/> الواجب المنزلي:</span>
+                                                    <p className="text-gray-800 font-medium">{plan.homework}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )) : <div className="p-6 text-center text-gray-400 text-xs italic">لا توجد خطة مسجلة لهذا اليوم</div>}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 };
+
 const StudentTimetable = ({ student }: { student: Student }) => { 
-    return <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-dashed"><Clock size={48} className="mx-auto mb-2 opacity-20"/><p>الجدول الدراسي غير متوفر</p></div>; 
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    
+    useEffect(() => {
+        // Fetch ALL schedules then filter by class
+        const allSchedules = getSchedules();
+        const filtered = allSchedules.filter(s => s.classId === student.className);
+        setSchedules(filtered);
+    }, [student]);
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+    const dayNamesAr: Record<string, string> = { 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس' };
+    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Clock className="text-teal-600"/> الجدول الدراسي: {student.className}</h2>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+                <table className="w-full text-center border-collapse min-w-[600px]">
+                    <thead>
+                        <tr className="bg-gray-800 text-white text-sm">
+                            <th className="p-4 border-l border-gray-700 w-24">اليوم</th>
+                            {periods.map(p => (
+                                <th key={p} className="p-3 border-l border-gray-700">حصة {p}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {days.map(day => (
+                            <tr key={day} className="border-b hover:bg-gray-50">
+                                <td className="p-3 border-l font-bold text-gray-700 bg-gray-50">{dayNamesAr[day]}</td>
+                                {periods.map(period => {
+                                    const session = schedules.find(s => s.day === day && s.period === period);
+                                    return (
+                                        <td key={period} className="p-2 border-l border-gray-100 text-sm h-16">
+                                            {session ? (
+                                                <div className="bg-teal-50 text-teal-800 rounded p-1 font-bold shadow-sm border border-teal-100">
+                                                    {session.subjectName}
+                                                </div>
+                                            ) : <span className="text-gray-300">-</span>}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
 };
+
 const StudentProfile = ({ student }: { student: Student }) => { 
     return (
         <div className="bg-white p-6 rounded-xl border shadow-sm">
