@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, ReportHeaderConfig, Exam, ExamResult, Question } from '../types';
-import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, ReportHeaderConfig, Exam, ExamResult, Question, LessonLink, MessageLog } from '../types';
+import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance, getLessonLinks, getMessages } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
+import { formatDualDate } from '../services/dateService';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -19,10 +20,15 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [messages, setMessages] = useState<MessageLog[]>([]);
 
     useEffect(() => {
         setTerms(getAcademicTerms());
-    }, []);
+        // Load messages for this student
+        const allMsgs = getMessages();
+        const myMsgs = allMsgs.filter(m => m.studentId === currentUser.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setMessages(myMsgs);
+    }, [currentUser]);
 
     const handleRefresh = async () => {
         setIsSyncing(true);
@@ -34,13 +40,13 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     const navItems = [
         { path: '/', label: 'الرئيسية', icon: LayoutGrid },
         { path: '/plan', label: 'الخطة الأسبوعية', icon: CalendarDays },
-        { path: '/evaluation', label: 'تقييمي (درجاتي)', icon: Award },
-        { path: '/timetable', label: 'الجدول الدراسي', icon: Clock },
+        { path: '/evaluation', label: 'الدرجات والتقارير', icon: Activity },
         { path: '/exams', label: 'الاختبارات والواجبات', icon: FileQuestion },
         { path: '/attendance', label: 'سجل الحضور', icon: Calendar },
         { path: '/library', label: 'المكتبة والمصادر', icon: Library },
-        { path: '/custom-records', label: 'سجلات خاصة', icon: Table },
-        { path: '/profile', label: 'الملف الشخصي', icon: User },
+        { path: '/messages', label: 'الرسائل والتنبيهات', icon: Bell, badge: messages.length > 0 ? messages.length : undefined },
+        { path: '/certificates', label: 'الشهادات والتقدير', icon: Award },
+        { path: '/timetable', label: 'الجدول الدراسي', icon: Clock },
     ];
 
     const currentPath = location.pathname;
@@ -61,14 +67,17 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         <button
                             key={item.path}
                             onClick={() => navigate(item.path)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
+                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium ${
                                 currentPath === item.path 
                                     ? 'bg-teal-50 text-teal-700 font-bold border border-teal-100 shadow-sm' 
                                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                             }`}
                         >
-                            <item.icon size={20} />
-                            <span>{item.label}</span>
+                            <div className="flex items-center gap-3">
+                                <item.icon size={20} />
+                                <span>{item.label}</span>
+                            </div>
+                            {item.badge && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
                         </button>
                     ))}
                 </nav>
@@ -109,12 +118,15 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                                 <button
                                     key={item.path}
                                     onClick={() => { navigate(item.path); setIsMobileMenuOpen(false); }}
-                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                                         currentPath === item.path ? 'bg-teal-100 text-teal-800 font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50'
                                     }`}
                                 >
-                                    <item.icon size={20} />
-                                    <span>{item.label}</span>
+                                    <div className="flex items-center gap-3">
+                                        <item.icon size={20} />
+                                        <span>{item.label}</span>
+                                    </div>
+                                    {item.badge && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
                                 </button>
                             ))}
                             <button onClick={handleRefresh} className="w-full flex items-center gap-3 px-4 py-3 text-blue-600 bg-blue-50 mt-4 rounded-xl font-bold">
@@ -135,9 +147,12 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     <div className="font-bold text-gray-800 flex items-center gap-2">
                         <Award className="text-teal-600"/> بوابة الطالب
                     </div>
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                        <Menu size={24}/>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {messages.length > 0 && <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1"><Bell size={12}/> {messages.length}</span>}
+                        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                            <Menu size={24}/>
+                        </button>
+                    </div>
                 </header>
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-50 custom-scrollbar w-full print:p-0 print:bg-white print:overflow-visible">
@@ -151,6 +166,8 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         <Route path="/custom-records" element={<StudentCustomRecords student={currentUser} />} />
                         <Route path="/exams" element={<StudentExamsView student={currentUser} />} />
                         <Route path="/library" element={<StudentLibrary student={currentUser} />} />
+                        <Route path="/messages" element={<StudentMessages messages={messages} />} />
+                        <Route path="/certificates" element={<StudentCertificates student={currentUser} attendance={attendance} />} />
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
                 </main>
@@ -275,6 +292,116 @@ const StudentProfile = ({ student }: { student: Student }) => {
     ); 
 };
 const StudentCustomRecords = ({ student }: { student: Student }) => { return <div className="text-center p-8 text-gray-400">لا توجد سجلات خاصة</div>; };
+
+// --- Library Component ---
+const StudentLibrary = ({ student }: { student: Student }) => {
+    const [links, setLinks] = useState<LessonLink[]>([]);
+    
+    useEffect(() => {
+        const allLinks = getLessonLinks();
+        // Filter links relevant to the student (by Grade or Class, or General)
+        const relevant = allLinks.filter(l => 
+            (!l.gradeLevel || l.gradeLevel === student.gradeLevel) &&
+            (!l.className || l.className === student.className)
+        ).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setLinks(relevant);
+    }, [student]);
+
+    const getIcon = (url: string) => {
+        if (url.includes('youtube') || url.includes('youtu.be')) return <Video className="text-red-500"/>;
+        if (url.endsWith('.pdf')) return <FileText className="text-orange-500"/>;
+        return <LinkIcon className="text-blue-500"/>;
+    }
+
+    return (
+        <div className="space-y-4 animate-fade-in">
+            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Library className="text-teal-600"/> المكتبة الرقمية</h3>
+            <div className="grid gap-4">
+                {links.map(link => (
+                    <a href={link.url} target="_blank" rel="noreferrer" key={link.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-all group">
+                        <div className="p-3 bg-gray-50 rounded-lg group-hover:bg-gray-100 transition-colors">
+                            {getIcon(link.url)}
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{link.title}</h4>
+                            <p className="text-xs text-gray-400 mt-1 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
+                        </div>
+                        <ExternalLink size={16} className="text-gray-300 group-hover:text-blue-500"/>
+                    </a>
+                ))}
+                {links.length === 0 && (
+                    <div className="text-center py-20 text-gray-400 bg-white rounded-xl border border-dashed">
+                        <Library size={48} className="mx-auto mb-4 opacity-20"/>
+                        <p>لا توجد مصادر تعليمية مضافة حالياً</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- Messages Component ---
+const StudentMessages = ({ messages }: { messages: MessageLog[] }) => {
+    return (
+        <div className="space-y-4 animate-fade-in">
+            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Bell className="text-teal-600"/> الرسائل والتنبيهات</h3>
+            <div className="space-y-3">
+                {messages.length > 0 ? messages.map(msg => (
+                    <div key={msg.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="font-bold text-gray-800 text-sm">{msg.sentBy || 'الإدارة'}</span>
+                            <span className="text-xs text-gray-400">{formatDualDate(msg.date)}</span>
+                        </div>
+                        <p className="text-gray-600 text-sm leading-relaxed">{msg.content}</p>
+                    </div>
+                )) : (
+                    <div className="text-center py-20 text-gray-400 bg-white rounded-xl border border-dashed">
+                        <Bell size={48} className="mx-auto mb-4 opacity-20"/>
+                        <p>لا توجد رسائل جديدة</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- Certificates Component ---
+const StudentCertificates = ({ student, attendance }: { student: Student, attendance: AttendanceRecord[] }) => {
+    const certificates = useMemo(() => {
+        // Find attendance records that are actually certificates (behaviorNote starts with 'منح شهادة:')
+        return attendance.filter(a => a.studentId === student.id && a.behaviorNote && a.behaviorNote.startsWith('منح شهادة:'));
+    }, [attendance, student]);
+
+    return (
+        <div className="space-y-4 animate-fade-in">
+            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Award className="text-teal-600"/> شهادات التقدير</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {certificates.map(cert => (
+                    <div key={cert.id} className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 p-6 rounded-xl relative overflow-hidden shadow-sm hover:shadow-md transition-all group">
+                        <div className="absolute top-0 right-0 w-2 h-full bg-yellow-400"></div>
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-white/50 rounded-full text-yellow-600"><Medal size={32}/></div>
+                            <div>
+                                <h4 className="font-black text-lg text-gray-800">{cert.behaviorNote?.replace('منح شهادة: ', '')}</h4>
+                                <p className="text-sm text-gray-600 mt-1">تمنح للطالب: <b>{student.name}</b></p>
+                                <p className="text-xs text-gray-400 mt-2">{formatDualDate(cert.date)}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => window.print()} className="absolute bottom-4 left-4 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Printer size={18}/>
+                        </button>
+                    </div>
+                ))}
+                {certificates.length === 0 && (
+                    <div className="col-span-full text-center py-20 text-gray-400 bg-white rounded-xl border border-dashed">
+                        <Award size={48} className="mx-auto mb-4 opacity-20"/>
+                        <p>شد حيلك! بانتظار شهادتك الأولى.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 // --- Exam Taking Component ---
 const ExamTaker = ({ exam, student, onComplete }: { exam: Exam, student: Student, onComplete: () => void }) => {
@@ -460,6 +587,7 @@ const StudentExamsView = ({ student }: { student: Student }) => {
     const [exams, setExams] = useState<Exam[]>([]);
     const [results, setResults] = useState<ExamResult[]>([]);
     const [activeExam, setActiveExam] = useState<Exam | null>(null);
+    const [reviewExam, setReviewExam] = useState<{ exam: Exam, result: ExamResult } | null>(null);
 
     const loadData = () => {
         // Fetch all exams (that are active)
@@ -478,6 +606,10 @@ const StudentExamsView = ({ student }: { student: Student }) => {
 
     if (activeExam) {
         return <ExamTaker exam={activeExam} student={student} onComplete={() => { setActiveExam(null); loadData(); }} />;
+    }
+
+    if (reviewExam) {
+        return <ExamReview exam={reviewExam.exam} result={reviewExam.result} onBack={() => setReviewExam(null)} />;
     }
 
     return (
@@ -501,8 +633,8 @@ const StudentExamsView = ({ student }: { student: Student }) => {
                             </div>
 
                             {result ? (
-                                <div className="text-center bg-green-50 px-6 py-2 rounded-xl border border-green-100">
-                                    <span className="block text-xs text-green-600 font-bold mb-1">الدرجة المستحقة</span>
+                                <div className="text-center bg-green-50 px-6 py-2 rounded-xl border border-green-100 cursor-pointer hover:bg-green-100 transition-colors" onClick={() => setReviewExam({ exam, result })}>
+                                    <span className="block text-xs text-green-600 font-bold mb-1">الدرجة المستحقة (اضغط للمراجعة)</span>
                                     <span className="text-2xl font-black text-green-700">{result.score} <span className="text-sm text-gray-400">/ {result.totalScore}</span></span>
                                 </div>
                             ) : (
@@ -531,7 +663,6 @@ const StudentExamsView = ({ student }: { student: Student }) => {
     );
 };
 
-const StudentLibrary = ({ student }: { student: Student }) => { return <div className="text-center p-8 text-gray-400">المكتبة فارغة</div>; };
 const StudentAttendanceView = ({ student, attendance, terms }: { student: Student, attendance: AttendanceRecord[], terms: AcademicTerm[] }) => { 
     const myAtt = attendance.filter(a => a.studentId === student.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return (
@@ -624,6 +755,9 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: { st
                          const maxPossible = records.reduce((sum, r) => sum + r.maxScore, 0);
                          const percentage = maxPossible > 0 ? Math.round((totalScore / maxPossible) * 100) : 0;
 
+                         // Chart Data
+                         const chartData = records.map(r => ({ name: r.title, score: r.score, max: r.maxScore }));
+
                          return (
                              <div key={subject} className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
                                  <div className="bg-white p-4 border-b flex justify-between items-center">
@@ -632,6 +766,18 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: { st
                                          {percentage}%
                                      </span>
                                  </div>
+                                 
+                                 {/* Micro Chart */}
+                                 {records.length > 1 && (
+                                     <div className="h-32 w-full bg-white p-2">
+                                         <ResponsiveContainer width="100%" height="100%">
+                                             <LineChart data={chartData}>
+                                                 <Line type="monotone" dataKey="score" stroke="#8884d8" strokeWidth={2} dot={false} />
+                                             </LineChart>
+                                         </ResponsiveContainer>
+                                     </div>
+                                 )}
+
                                  <div className="p-4 space-y-3">
                                      {records.map(rec => (
                                          <div key={rec.id} className="flex justify-between items-center text-sm border-b border-gray-200 pb-2 last:border-0 last:pb-0">
@@ -658,7 +804,7 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: { st
                      )}
                  </div>
 
-                 {/* PRINT VIEW */}
+                 {/* PRINT VIEW (UNCHANGED) */}
                  <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-8 text-black text-right h-full overflow-hidden" style={{direction: 'rtl'}}>
                      {/* Header */}
                      <div className="flex justify-between items-start border-b-2 border-black pb-6 mb-8">
@@ -736,6 +882,69 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: { st
                      </div>
                  </div>
              </div>
+        </div>
+    );
+};
+
+// Exam Review Component (Updated with Back button)
+const ExamReview = ({ exam, result, onBack }: { exam: Exam, result: ExamResult, onBack: () => void }) => {
+    return (
+        <div className="space-y-6 animate-slide-up pb-20">
+            <div className="bg-white p-4 border-b flex items-center justify-between sticky top-0 z-10 shadow-sm rounded-xl">
+                <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full"><ArrowRight size={20}/></button>
+                <div className="text-center">
+                    <h3 className="font-bold text-gray-800">{exam.title}</h3>
+                    <p className="text-xs text-gray-500">مراجعة الإجابات</p>
+                </div>
+                <div className="bg-indigo-50 px-3 py-1 rounded text-indigo-700 font-bold text-sm">
+                    {result.score} / {result.totalScore}
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                {exam.questions.map((q, idx) => {
+                    const studentAns = result.answers?.[q.id];
+                    const isCorrect = studentAns === q.correctAnswer;
+                    
+                    return (
+                        <div key={q.id} className={`bg-white p-6 rounded-xl border-2 ${isCorrect ? 'border-green-200' : 'border-red-200'} shadow-sm`}>
+                            <div className="flex justify-between items-start mb-4">
+                                <span className="font-bold text-gray-800 text-sm bg-gray-100 px-2 py-1 rounded">س{idx+1}</span>
+                                {isCorrect ? <CheckCircle className="text-green-500"/> : <XCircle className="text-red-500"/>}
+                            </div>
+                            
+                            <h4 className="font-bold text-gray-800 text-lg mb-4">{q.text}</h4>
+                            {q.imageUrl && <img src={q.imageUrl} alt="Question" className="max-h-40 mb-4 rounded border object-contain"/>}
+
+                            <div className="space-y-2">
+                                {q.type === 'MCQ' ? q.options.map((opt, i) => (
+                                    <div key={i} className={`p-3 rounded-lg border flex justify-between items-center ${
+                                        opt === q.correctAnswer ? 'bg-green-50 border-green-300' :
+                                        opt === studentAns && !isCorrect ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-transparent'
+                                    }`}>
+                                        <span className={`font-medium ${opt === q.correctAnswer ? 'text-green-800' : opt === studentAns ? 'text-red-800' : 'text-gray-600'}`}>{opt}</span>
+                                        {opt === q.correctAnswer && <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded font-bold">إجابة صحيحة</span>}
+                                        {opt === studentAns && !isCorrect && <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded font-bold">إجابتك</span>}
+                                    </div>
+                                )) : (
+                                    <div className="flex gap-4">
+                                        {['صح', 'خطأ'].map(val => (
+                                            <div key={val} className={`flex-1 p-3 rounded-lg border text-center font-bold ${
+                                                val === q.correctAnswer ? 'bg-green-50 border-green-300 text-green-800' :
+                                                val === studentAns && !isCorrect ? 'bg-red-50 border-red-300 text-red-800' : 'bg-gray-50 text-gray-600'
+                                            }`}>
+                                                {val}
+                                                {val === q.correctAnswer && <div className="text-[10px] font-normal mt-1">الإجابة الصحيحة</div>}
+                                                {val === studentAns && !isCorrect && <div className="text-[10px] font-normal mt-1">إجابتك</div>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 };

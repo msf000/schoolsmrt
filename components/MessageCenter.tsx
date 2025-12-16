@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm, SystemUser } from '../types';
 import { getMessages, saveMessage, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { generateParentMessage } from '../services/geminiService';
-import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar } from 'lucide-react';
+import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar, Bell } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -45,6 +45,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
     const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
     const [messageText, setMessageText] = useState('');
     const [previewMessage, setPreviewMessage] = useState('');
+    const [sendMethod, setSendMethod] = useState<'WHATSAPP' | 'PORTAL'>('WHATSAPP');
 
     // AI Generation State
     const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -154,7 +155,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         setPreviewMessage(processed);
     };
 
-    const handleSendMessage = (student: Student, text: string, method: 'WHATSAPP' | 'COPY') => {
+    const handleSendMessage = (student: Student, text: string, method: 'WHATSAPP' | 'PORTAL' | 'SMS') => {
         if (!student.parentPhone && method === 'WHATSAPP') {
             alert(`لا يوجد رقم هاتف لولي أمر الطالب ${student.name}`);
             return;
@@ -170,7 +171,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
             studentId: student.id,
             studentName: student.name,
             parentPhone: student.parentPhone,
-            type: method === 'WHATSAPP' ? 'WHATSAPP' : 'SMS',
+            type: method === 'WHATSAPP' ? 'WHATSAPP' : 'EMAIL', // Portal uses EMAIL type as placeholder
             content: finalMsg,
             status: 'SENT',
             date: new Date().toISOString(),
@@ -187,11 +188,8 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
             const formattedPhone = phone.startsWith('966') ? phone : `966${phone.startsWith('0') ? phone.slice(1) : phone}`;
             const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(finalMsg)}`;
             window.open(url, '_blank');
-        } else {
-            // Copy to clipboard
-            navigator.clipboard.writeText(finalMsg);
-            alert('تم نسخ نص الرسالة: ' + finalMsg);
         }
+        // If PORTAL, it's already saved to log, which the student portal reads.
     };
 
     const toggleStudentSelection = (id: string) => {
@@ -313,6 +311,15 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                                 >
                                                     <Smartphone size={14}/> واتساب
                                                 </button>
+                                                <button 
+                                                    onClick={() => handleSendMessage(s, 
+                                                        triggerType === 'HIGH_PERFORMANCE' ? TEMPLATES.find(t=>t.id==='praise_grade')!.text : TEMPLATES.find(t=>t.id==='absent_warning')!.text,
+                                                        'PORTAL'
+                                                    )} 
+                                                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700"
+                                                >
+                                                    <Bell size={14}/> تنبيه داخلي
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
@@ -423,16 +430,34 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                 </div>
                             </div>
 
-                            <div className="mt-auto">
+                            <div className="mt-auto space-y-2">
+                                <div className="flex gap-2 bg-gray-200 p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setSendMethod('WHATSAPP')} 
+                                        className={`flex-1 py-1 text-xs font-bold rounded ${sendMethod === 'WHATSAPP' ? 'bg-white shadow text-green-700' : 'text-gray-500'}`}
+                                    >
+                                        WhatsApp
+                                    </button>
+                                    <button 
+                                        onClick={() => setSendMethod('PORTAL')} 
+                                        className={`flex-1 py-1 text-xs font-bold rounded ${sendMethod === 'PORTAL' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}
+                                    >
+                                        بوابة الطالب (تنبيه داخلي)
+                                    </button>
+                                </div>
                                 <button 
                                     disabled={selectedStudents.size === 0 || !messageText}
                                     onClick={() => {
                                         const targets = filteredStudents.filter(s => selectedStudents.has(s.id));
-                                        targets.forEach(s => handleSendMessage(s, messageText, 'WHATSAPP'));
+                                        targets.forEach(s => handleSendMessage(s, messageText, sendMethod));
+                                        if (sendMethod === 'PORTAL') alert(`تم نشر الرسالة في بوابة ${targets.length} طالب بنجاح.`);
+                                        setSelectedStudents(new Set());
+                                        setMessageText('');
                                     }}
-                                    className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 flex justify-center items-center gap-2 disabled:opacity-50 shadow-md"
+                                    className={`w-full py-3 text-white rounded-lg font-bold hover:opacity-90 flex justify-center items-center gap-2 disabled:opacity-50 shadow-md ${sendMethod === 'WHATSAPP' ? 'bg-green-600' : 'bg-blue-600'}`}
                                 >
-                                    <Smartphone size={18}/> إرسال عبر واتساب ({selectedStudents.size})
+                                    {sendMethod === 'WHATSAPP' ? <Smartphone size={18}/> : <Bell size={18}/>} 
+                                    {sendMethod === 'WHATSAPP' ? `إرسال واتساب (${selectedStudents.size})` : `نشر في البوابة (${selectedStudents.size})`}
                                 </button>
                             </div>
                         </div>
@@ -460,7 +485,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                         <td className="p-3">
                                             {msg.type === 'WHATSAPP' ? 
                                                 <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded-full text-xs font-bold"><Smartphone size={12}/> WhatsApp</span> : 
-                                                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-xs font-bold"><Mail size={12}/> SMS/Copy</span>
+                                                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-xs font-bold"><Bell size={12}/> Portal</span>
                                             }
                                         </td>
                                         <td className="p-3 text-gray-600 truncate max-w-xs" title={msg.content}>{msg.content}</td>
