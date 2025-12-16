@@ -584,8 +584,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
         </div>
-    </div>
-  );
+    );
 };
 
 export const SchoolManagementComponent = SchoolManagement; // Alias export for consistency

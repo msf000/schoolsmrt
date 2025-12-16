@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, ReportHeaderConfig, Exam, ExamResult, Question, LessonLink, MessageLog, WeeklyPlanItem, ScheduleItem } from '../types';
-import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance, getLessonLinks, getMessages, getWeeklyPlans, getSchedules } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, BookOpen, Home } from 'lucide-react';
+import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance, getLessonLinks, getMessages, getWeeklyPlans, getSchedules, getCustomTables } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, BookOpen, Home, Phone, Mail } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
 import { formatDualDate } from '../services/dateService';
@@ -43,6 +43,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         { path: '/evaluation', label: 'الدرجات والتقارير', icon: Activity },
         { path: '/exams', label: 'الاختبارات والواجبات', icon: FileQuestion },
         { path: '/attendance', label: 'سجل الحضور', icon: Calendar },
+        { path: '/custom-records', label: 'السجلات الخاصة', icon: Table },
         { path: '/library', label: 'المكتبة والمصادر', icon: Library },
         { path: '/messages', label: 'الرسائل والتنبيهات', icon: Bell, badge: messages.length > 0 ? messages.length : undefined },
         { path: '/certificates', label: 'الشهادات والتقدير', icon: Award },
@@ -355,7 +356,6 @@ const StudentTimetable = ({ student }: { student: Student }) => {
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
     
     useEffect(() => {
-        // Fetch ALL schedules then filter by class
         const allSchedules = getSchedules();
         const filtered = allSchedules.filter(s => s.classId === student.className);
         setSchedules(filtered);
@@ -411,14 +411,152 @@ const StudentProfile = ({ student }: { student: Student }) => {
         <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><User className="text-teal-600"/> الملف الشخصي</h3>
             <div className="space-y-4">
-                <div><label className="text-xs text-gray-500">الاسم</label><div className="font-bold">{student.name}</div></div>
-                <div><label className="text-xs text-gray-500">الهوية</label><div className="font-bold font-mono">{student.nationalId}</div></div>
-                <div><label className="text-xs text-gray-500">الصف</label><div className="font-bold">{student.gradeLevel} - {student.className}</div></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label className="text-xs text-gray-500">الاسم</label><div className="font-bold">{student.name}</div></div>
+                    <div><label className="text-xs text-gray-500">الهوية</label><div className="font-bold font-mono">{student.nationalId}</div></div>
+                    <div><label className="text-xs text-gray-500">الصف</label><div className="font-bold">{student.gradeLevel} - {student.className}</div></div>
+                    <div><label className="text-xs text-gray-500">ولي الأمر</label><div className="font-bold">{student.parentName || 'غير مسجل'}</div></div>
+                    <div><label className="text-xs text-gray-500">جوال ولي الأمر</label><div className="font-bold font-mono flex items-center gap-2"><Phone size={14}/> {student.parentPhone || 'غير مسجل'}</div></div>
+                    <div><label className="text-xs text-gray-500">بريد الطالب</label><div className="font-bold font-mono flex items-center gap-2"><Mail size={14}/> {student.email || 'غير مسجل'}</div></div>
+                </div>
             </div>
         </div>
     ); 
 };
-const StudentCustomRecords = ({ student }: { student: Student }) => { return <div className="text-center p-8 text-gray-400">لا توجد سجلات خاصة</div>; };
+
+const StudentCustomRecords = ({ student }: { student: Student }) => {
+    const [records, setRecords] = useState<{tableName: string, data: any}[]>([]);
+
+    useEffect(() => {
+        const allTables = getCustomTables(); 
+        const myRecords: {tableName: string, data: any}[] = [];
+
+        allTables.forEach(table => {
+            // Find row for student (Match ID or Name)
+            const row = table.rows.find(r => {
+                const values = Object.values(r).map(v => String(v).trim());
+                if (student.nationalId && values.includes(student.nationalId)) return true;
+                if (values.includes(student.name.trim())) return true;
+                return false;
+            });
+
+            if (row) {
+                myRecords.push({ tableName: table.name, data: row });
+            }
+        });
+
+        setRecords(myRecords);
+    }, [student]);
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                <Table className="text-teal-600"/> السجلات الخاصة
+            </h3>
+            {records.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {records.map((rec, i) => (
+                        <div key={i} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                            <h4 className="font-bold text-indigo-700 mb-4 border-b pb-2">{rec.tableName}</h4>
+                            <div className="space-y-2 text-sm">
+                                {Object.entries(rec.data).map(([key, val]) => {
+                                    if (key === 'id' || key.includes('HYPERLINK')) return null;
+                                    return (
+                                        <div key={key} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                            <span className="text-gray-500 font-medium">{key}</span>
+                                            <span className="font-bold text-gray-800">{String(val)}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-20 text-gray-400 bg-white rounded-xl border border-dashed">
+                    <Table size={48} className="mx-auto mb-4 opacity-20"/>
+                    <p>لا توجد سجلات خاصة مرتبطة بك حالياً</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const StudentAttendanceView = ({ student, attendance, terms }: { student: Student, attendance: AttendanceRecord[], terms: AcademicTerm[] }) => { 
+    const [view, setView] = useState<'LIST' | 'CALENDAR'>('CALENDAR');
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
+    const myAtt = useMemo(() => attendance.filter(a => a.studentId === student.id), [attendance, student]);
+
+    const getDayStatus = (day: number) => {
+        const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const record = myAtt.find(a => a.date === dateStr);
+        return record ? record.status : null;
+    };
+
+    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+    const startDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay(); // 0 Sunday
+
+    const changeMonth = (dir: number) => {
+        const d = new Date(currentMonth);
+        d.setMonth(d.getMonth() + dir);
+        setCurrentMonth(d);
+    };
+
+    return (
+        <div className="bg-white rounded-xl border shadow-sm overflow-hidden space-y-4 p-4">
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2"><Calendar className="text-teal-600"/> سجل الحضور</h3>
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button onClick={() => setView('CALENDAR')} className={`px-3 py-1 text-xs font-bold rounded ${view === 'CALENDAR' ? 'bg-white shadow' : 'text-gray-500'}`}>تقويم</button>
+                    <button onClick={() => setView('LIST')} className={`px-3 py-1 text-xs font-bold rounded ${view === 'LIST' ? 'bg-white shadow' : 'text-gray-500'}`}>قائمة</button>
+                </div>
+            </div>
+
+            {view === 'CALENDAR' ? (
+                <div className="border rounded-xl overflow-hidden">
+                    <div className="flex justify-between items-center p-3 bg-gray-50 border-b">
+                        <button onClick={() => changeMonth(-1)}><ChevronRight size={20} className="text-gray-500"/></button>
+                        <span className="font-bold text-gray-700">{currentMonth.toLocaleDateString('ar-SA', { month: 'long', year: 'numeric' })}</span>
+                        <button onClick={() => changeMonth(1)}><ChevronLeft size={20} className="text-gray-500"/></button>
+                    </div>
+                    <div className="grid grid-cols-7 text-center text-xs font-bold text-gray-500 bg-gray-50 border-b">
+                        <div className="p-2">الأحد</div><div className="p-2">الاثنين</div><div className="p-2">الثلاثاء</div><div className="p-2">الأربعاء</div><div className="p-2">الخميس</div><div className="p-2">الجمعة</div><div className="p-2">السبت</div>
+                    </div>
+                    <div className="grid grid-cols-7 text-center">
+                        {Array.from({length: startDay}).map((_, i) => <div key={`empty-${i}`} className="h-16 bg-gray-50/30 border-b border-l"></div>)}
+                        {Array.from({length: daysInMonth}).map((_, i) => {
+                            const day = i + 1;
+                            const status = getDayStatus(day);
+                            return (
+                                <div key={day} className="h-16 border-b border-l relative p-1 flex flex-col items-center justify-start">
+                                    <span className="text-xs text-gray-400 mb-1">{day}</span>
+                                    {status && (
+                                        <span className={`text-[10px] font-bold px-2 py-1 rounded w-full ${status === 'PRESENT' ? 'bg-green-100 text-green-700' : status === 'ABSENT' ? 'bg-red-100 text-red-700' : status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {status === 'PRESENT' ? 'حاضر' : status === 'ABSENT' ? 'غائب' : status === 'LATE' ? 'تأخر' : 'عذر'}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : (
+                <div className="divide-y max-h-96 overflow-y-auto custom-scrollbar">
+                    {myAtt.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(a => (
+                        <div key={a.id} className="p-3 flex justify-between items-center hover:bg-gray-50">
+                            <span className="font-mono text-gray-600 text-sm">{a.date}</span>
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${a.status === 'PRESENT' ? 'bg-green-100 text-green-700' : a.status === 'ABSENT' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {a.status === 'PRESENT' ? 'حاضر' : a.status === 'ABSENT' ? 'غائب' : 'تأخر'}
+                            </span>
+                        </div>
+                    ))}
+                    {myAtt.length === 0 && <div className="p-8 text-center text-gray-400">لا يوجد سجلات حضور</div>}
+                </div>
+            )}
+        </div>
+    ); 
+};
 
 // --- Library Component ---
 const StudentLibrary = ({ student }: { student: Student }) => {
@@ -788,26 +926,6 @@ const StudentExamsView = ({ student }: { student: Student }) => {
             </div>
         </div>
     );
-};
-
-const StudentAttendanceView = ({ student, attendance, terms }: { student: Student, attendance: AttendanceRecord[], terms: AcademicTerm[] }) => { 
-    const myAtt = attendance.filter(a => a.studentId === student.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-            <div className="p-4 border-b bg-gray-50 font-bold">سجل الحضور والغياب</div>
-            <div className="divide-y">
-                {myAtt.map(a => (
-                    <div key={a.id} className="p-4 flex justify-between items-center">
-                        <span className="font-mono text-gray-600">{a.date}</span>
-                        <span className={`px-3 py-1 rounded text-xs font-bold ${a.status === 'PRESENT' ? 'bg-green-100 text-green-700' : a.status === 'ABSENT' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {a.status === 'PRESENT' ? 'حاضر' : a.status === 'ABSENT' ? 'غائب' : 'تأخر'}
-                        </span>
-                    </div>
-                ))}
-                {myAtt.length === 0 && <div className="p-8 text-center text-gray-400">لا يوجد سجلات حضور</div>}
-            </div>
-        </div>
-    ); 
 };
 
 // --- Evaluation View with Print ---

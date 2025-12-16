@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, MessageLog, SystemUser, Exam, WeeklyPlanItem, AcademicTerm } from '../types';
-import { getMessages, getExams, getWeeklyPlans, getAcademicTerms, saveAttendance } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send, Upload, Paperclip } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, MessageLog, SystemUser, Exam, WeeklyPlanItem, AcademicTerm, LessonLink, ExamResult } from '../types';
+import { getMessages, getExams, getWeeklyPlans, getAcademicTerms, saveAttendance, getLessonLinks, getCustomTables, getExamResults } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Phone, Mail, ChevronDown, CheckCircle, AlertTriangle, Clock, X, MessageSquare, TrendingUp, ShieldCheck, ChevronLeft, ChevronRight, Bell, FileQuestion, CalendarDays, BookOpen, Home, Filter, FileText, Send, Upload, Paperclip, Library, Table, Video, Link as LinkIcon, ExternalLink, XCircle, ArrowRight } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
@@ -173,14 +173,15 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
 
             {/* Navigation Tabs (Mobile optimized) */}
             <div className="bg-white border-b sticky top-[110px] z-40 shadow-sm">
-                <div className="max-w-6xl mx-auto flex overflow-x-auto">
-                    <button onClick={() => navigate('/')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'OVERVIEW' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>نظرة عامة</button>
-                    <button onClick={() => navigate('/plan')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'PLAN' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الخطة الأسبوعية</button>
-                    <button onClick={() => navigate('/exams')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'EXAMS' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الاختبارات</button>
-                    <button onClick={() => navigate('/messages')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'MESSAGES' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
+                <div className="max-w-6xl mx-auto flex overflow-x-auto custom-scrollbar">
+                    <button onClick={() => navigate('/')} className={`flex-1 py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'OVERVIEW' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>نظرة عامة</button>
+                    <button onClick={() => navigate('/plan')} className={`flex-1 py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'PLAN' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الخطة</button>
+                    <button onClick={() => navigate('/exams')} className={`flex-1 py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'EXAMS' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>الاختبارات</button>
+                    <button onClick={() => navigate('/resources')} className={`flex-1 py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'RESOURCES' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>المصادر</button>
+                    <button onClick={() => navigate('/records')} className={`flex-1 py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'RECORDS' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>سجلات خاصة</button>
+                    <button onClick={() => navigate('/messages')} className={`flex-1 py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'MESSAGES' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
                         الرسائل {messages.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full ml-1">{messages.length}</span>}
                     </button>
-                    <button onClick={() => navigate('/calendar')} className={`flex-1 py-3 px-2 text-sm font-bold border-b-2 whitespace-nowrap ${currentTab === 'CALENDAR' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>التقويم</button>
                 </div>
             </div>
 
@@ -334,6 +335,8 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     )} />
                     <Route path="/plan" element={<ParentWeeklyPlan student={activeChild} />} />
                     <Route path="/exams" element={<ParentExamsView student={activeChild} exams={exams} results={performance} />} />
+                    <Route path="/resources" element={<ParentLibrary student={activeChild} />} />
+                    <Route path="/records" element={<ParentCustomRecords student={activeChild} />} />
                     <Route path="/messages" element={(
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
                             <div className="p-4 border-b bg-gray-50">
@@ -425,9 +428,185 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     );
 };
 
-// ... (ParentWeeklyPlan, ParentCalendar remain same, add ParentExamsView)
+// --- Sub Components ---
+
+const ParentLibrary = ({ student }: { student: Student }) => {
+    const [links, setLinks] = useState<LessonLink[]>([]);
+    
+    useEffect(() => {
+        const allLinks = getLessonLinks();
+        const relevant = allLinks.filter(l => 
+            (!l.gradeLevel || l.gradeLevel === student.gradeLevel) &&
+            (!l.className || l.className === student.className)
+        ).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setLinks(relevant);
+    }, [student]);
+
+    const getIcon = (url: string) => {
+        if (url.includes('youtube') || url.includes('youtu.be')) return <Video className="text-red-500"/>;
+        if (url.endsWith('.pdf')) return <FileText className="text-orange-500"/>;
+        return <LinkIcon className="text-blue-500"/>;
+    }
+
+    return (
+        <div className="space-y-4 animate-fade-in">
+            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Library className="text-teal-600"/> المكتبة الرقمية والمصادر</h3>
+            <div className="grid gap-4">
+                {links.map(link => (
+                    <a href={link.url} target="_blank" rel="noreferrer" key={link.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-all group">
+                        <div className="p-3 bg-gray-50 rounded-lg group-hover:bg-gray-100 transition-colors">
+                            {getIcon(link.url)}
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{link.title}</h4>
+                            <p className="text-xs text-gray-400 mt-1 font-mono">{new Date(link.createdAt).toLocaleDateString('ar-SA')}</p>
+                        </div>
+                        <ExternalLink size={16} className="text-gray-300 group-hover:text-blue-500"/>
+                    </a>
+                ))}
+                {links.length === 0 && (
+                    <div className="text-center py-20 text-gray-400 bg-white rounded-xl border border-dashed">
+                        <Library size={48} className="mx-auto mb-4 opacity-20"/>
+                        <p>لا توجد مصادر تعليمية مضافة حالياً</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ParentCustomRecords = ({ student }: { student: Student }) => {
+    const [records, setRecords] = useState<{tableName: string, data: any}[]>([]);
+
+    useEffect(() => {
+        const allTables = getCustomTables(); 
+        const myRecords: {tableName: string, data: any}[] = [];
+
+        allTables.forEach(table => {
+            const row = table.rows.find(r => {
+                const values = Object.values(r).map(v => String(v).trim());
+                if (student.nationalId && values.includes(student.nationalId)) return true;
+                if (values.includes(student.name.trim())) return true;
+                return false;
+            });
+
+            if (row) {
+                myRecords.push({ tableName: table.name, data: row });
+            }
+        });
+
+        setRecords(myRecords);
+    }, [student]);
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                <Table className="text-teal-600"/> السجلات الخاصة (متابعة إضافية)
+            </h3>
+            {records.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {records.map((rec, i) => (
+                        <div key={i} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                            <h4 className="font-bold text-indigo-700 mb-4 border-b pb-2">{rec.tableName}</h4>
+                            <div className="space-y-2 text-sm">
+                                {Object.entries(rec.data).map(([key, val]) => {
+                                    if (key === 'id' || key.includes('HYPERLINK')) return null;
+                                    return (
+                                        <div key={key} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                            <span className="text-gray-500 font-medium">{key}</span>
+                                            <span className="font-bold text-gray-800">{String(val)}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-20 text-gray-400 bg-white rounded-xl border border-dashed">
+                    <Table size={48} className="mx-auto mb-4 opacity-20"/>
+                    <p>لا توجد سجلات خاصة مرتبطة حالياً</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ExamReview = ({ exam, result, onBack }: { exam: Exam, result: ExamResult, onBack: () => void }) => {
+    return (
+        <div className="space-y-6 animate-slide-up pb-20">
+            <div className="bg-white p-4 border-b flex items-center justify-between sticky top-0 z-10 shadow-sm rounded-xl">
+                <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full"><ArrowRight size={20}/></button>
+                <div className="text-center">
+                    <h3 className="font-bold text-gray-800">{exam.title}</h3>
+                    <p className="text-xs text-gray-500">تفاصيل الإجابات</p>
+                </div>
+                <div className="bg-indigo-50 px-3 py-1 rounded text-indigo-700 font-bold text-sm">
+                    {result.score} / {result.totalScore}
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                {exam.questions.map((q, idx) => {
+                    const studentAns = result.answers?.[q.id];
+                    const isCorrect = studentAns === q.correctAnswer;
+                    
+                    return (
+                        <div key={q.id} className={`bg-white p-6 rounded-xl border-2 ${isCorrect ? 'border-green-200' : 'border-red-200'} shadow-sm`}>
+                            <div className="flex justify-between items-start mb-4">
+                                <span className="font-bold text-gray-800 text-sm bg-gray-100 px-2 py-1 rounded">س{idx+1}</span>
+                                {isCorrect ? <CheckCircle className="text-green-500"/> : <XCircle className="text-red-500"/>}
+                            </div>
+                            
+                            <h4 className="font-bold text-gray-800 text-lg mb-4">{q.text}</h4>
+                            {q.imageUrl && <img src={q.imageUrl} alt="Question" className="max-h-40 mb-4 rounded border object-contain"/>}
+
+                            <div className="space-y-2">
+                                {q.type === 'MCQ' ? q.options.map((opt, i) => (
+                                    <div key={i} className={`p-3 rounded-lg border flex justify-between items-center ${
+                                        opt === q.correctAnswer ? 'bg-green-50 border-green-300' :
+                                        opt === studentAns && !isCorrect ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-transparent'
+                                    }`}>
+                                        <span className={`font-medium ${opt === q.correctAnswer ? 'text-green-800' : opt === studentAns ? 'text-red-800' : 'text-gray-600'}`}>{opt}</span>
+                                        {opt === q.correctAnswer && <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded font-bold">الإجابة الصحيحة</span>}
+                                        {opt === studentAns && !isCorrect && <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded font-bold">إجابة الطالب</span>}
+                                    </div>
+                                )) : (
+                                    <div className="flex gap-4">
+                                        {['صح', 'خطأ'].map(val => (
+                                            <div key={val} className={`flex-1 p-3 rounded-lg border text-center font-bold ${
+                                                val === q.correctAnswer ? 'bg-green-50 border-green-300 text-green-800' :
+                                                val === studentAns && !isCorrect ? 'bg-red-50 border-red-300 text-red-800' : 'bg-gray-50 text-gray-600'
+                                            }`}>
+                                                {val}
+                                                {val === q.correctAnswer && <div className="text-[10px] font-normal mt-1">الإجابة الصحيحة</div>}
+                                                {val === studentAns && !isCorrect && <div className="text-[10px] font-normal mt-1">إجابة الطالب</div>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
 
 const ParentExamsView = ({ student, exams, results }: { student: Student, exams: Exam[], results: PerformanceRecord[] }) => {
+    const [selectedExam, setSelectedExam] = useState<{ exam: Exam, result: ExamResult } | null>(null);
+    const [examResults, setExamResults] = useState<ExamResult[]>([]);
+
+    useEffect(() => {
+        // Load detailed results
+        setExamResults(getExamResults());
+    }, []);
+
+    if (selectedExam) {
+        return <ExamReview exam={selectedExam.exam} result={selectedExam.result} onBack={() => setSelectedExam(null)} />;
+    }
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-slide-up">
             <div className="p-4 border-b bg-gray-50">
@@ -436,21 +615,29 @@ const ParentExamsView = ({ student, exams, results }: { student: Student, exams:
             <div className="divide-y divide-gray-100 overflow-x-auto">
                 <div className="min-w-[300px]">
                     {exams.length > 0 ? exams.map(exam => {
-                        const result = results.find(r => r.studentId === student.id && (r.title.includes(exam.title) || r.notes === exam.id));
+                        const resultRecord = results.find(r => r.studentId === student.id && (r.title.includes(exam.title) || r.notes === exam.id));
+                        // Try to find full detailed result
+                        const detailedResult = examResults.find(r => r.examId === exam.id && r.studentId === student.id);
+
                         return (
-                            <div key={exam.id} className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
+                            <div key={exam.id} className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center group cursor-pointer" onClick={() => detailedResult && setSelectedExam({ exam, result: detailedResult })}>
                                 <div>
-                                    <h4 className="font-bold text-gray-800">{exam.title}</h4>
+                                    <h4 className="font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">{exam.title}</h4>
                                     <div className="text-xs text-gray-500 mt-1 flex gap-2">
                                         <span className="bg-gray-100 px-2 py-0.5 rounded">{exam.subject}</span>
                                         {exam.date && <span>📅 {formatDualDate(exam.date)}</span>}
                                     </div>
                                 </div>
                                 <div>
-                                    {result ? (
+                                    {detailedResult ? (
                                         <div className="text-center">
-                                            <span className="block text-xs text-green-600 font-bold">تم التصحيح</span>
-                                            <span className="font-black text-lg text-gray-800">{result.score} <span className="text-xs font-normal text-gray-400">/ {result.maxScore}</span></span>
+                                            <span className="block text-xs text-green-600 font-bold mb-1">تم التصحيح (اضغط للتفاصيل)</span>
+                                            <span className="font-black text-lg text-gray-800">{detailedResult.score} <span className="text-xs font-normal text-gray-400">/ {detailedResult.totalScore}</span></span>
+                                        </div>
+                                    ) : resultRecord ? (
+                                        <div className="text-center">
+                                            <span className="block text-xs text-blue-600 font-bold">تم الرصد</span>
+                                            <span className="font-black text-lg text-gray-800">{resultRecord.score} <span className="text-xs font-normal text-gray-400">/ {resultRecord.maxScore}</span></span>
                                         </div>
                                     ) : (
                                         <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full font-bold">لم يرصد</span>

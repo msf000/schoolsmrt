@@ -200,6 +200,21 @@ const Attendance: React.FC<AttendanceProps> = ({
       return Array.from(studentClasses).sort();
   }, [students, currentUser]);
 
+  // --- Class Completion Status Logic ---
+  const classesStatus = useMemo(() => {
+      return uniqueClasses.map(className => {
+          const classStudents = students.filter(s => s.className === className);
+          const total = classStudents.length;
+          // Check if ANY student in this class has attendance for selectedDate
+          const hasAttendance = attendanceHistory.some(a => 
+              a.date === selectedDate && 
+              classStudents.some(s => s.id === a.studentId)
+          );
+          
+          return { className, total, hasAttendance };
+      });
+  }, [uniqueClasses, students, attendanceHistory, selectedDate]);
+
   const saveSingleRecord = (studentId: string, updates: Partial<AttendanceRecord>) => {
       if (selectedPeriod === null) return;
       setIsSaving(true);
@@ -344,29 +359,29 @@ const Attendance: React.FC<AttendanceProps> = ({
               {/* Class/Period Selection */}
               {!selectedClass ? (
                   <div className="animate-fade-in space-y-6">
-                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-end justify-center h-64 flex-col">
-                           <h3 className="text-xl font-bold text-gray-700 mb-4">بدء جلسة تحضير جديدة</h3>
-                           <div className="flex gap-4">
-                               <div className="flex flex-col">
-                                   <label className="block text-xs font-bold text-gray-500 mb-1">اختر الفصل</label>
-                                   <select className="p-2 border rounded-lg text-sm w-48 bg-gray-50 outline-none focus:ring-2 focus:ring-indigo-500" value={manualClass} onChange={e => setManualClass(e.target.value)}>
-                                       <option value="">-- اختر --</option>
-                                       {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                               </div>
-                               <div className="flex flex-col">
-                                   <label className="block text-xs font-bold text-gray-500 mb-1">المادة (اختياري)</label>
-                                   <input className="p-2 border rounded-lg text-sm w-48 bg-gray-50 outline-none focus:ring-2 focus:ring-indigo-500" value={manualSubject} onChange={e => setManualSubject(e.target.value)} placeholder="مثال: رياضيات"/>
-                               </div>
-                           </div>
-                           <button 
-                              disabled={!manualClass}
-                              onClick={() => { setSelectedClass(manualClass); setSelectedSubject(manualSubject); setSelectedPeriod(0); }}
-                              className="mt-4 bg-indigo-600 text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-lg"
-                           >
-                               فتح السجل
-                           </button>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {classesStatus.map(stat => (
+                              <div 
+                                  key={stat.className}
+                                  onClick={() => { setSelectedClass(stat.className); setSelectedSubject(''); setSelectedPeriod(0); }}
+                                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-105 flex flex-col items-center justify-center gap-2 shadow-sm ${stat.hasAttendance ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+                              >
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stat.hasAttendance ? 'bg-green-200 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                      {stat.hasAttendance ? <Check size={20}/> : <Users size={20}/>}
+                                  </div>
+                                  <span className="font-bold text-lg text-gray-800">{stat.className}</span>
+                                  <span className="text-xs text-gray-500">{stat.total} طالب</span>
+                                  {stat.hasAttendance && <span className="text-[10px] bg-green-200 text-green-800 px-2 py-0.5 rounded font-bold mt-1">تم التحضير</span>}
+                              </div>
+                          ))}
                       </div>
+
+                      {classesStatus.length === 0 && (
+                          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-end justify-center h-64 flex-col text-center">
+                               <p className="text-gray-400">لا توجد فصول مضافة.</p>
+                               <p className="text-sm text-gray-500">انتقل إلى الإعدادات لإضافة فصولك الدراسية.</p>
+                          </div>
+                      )}
                   </div>
               ) : (
                 // --- ACTIVE REGISTER ---

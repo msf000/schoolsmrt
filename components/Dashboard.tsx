@@ -2,11 +2,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell
+  PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, Question, StoredLessonPlan } from '../types';
-import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans, saveAttendance, getExamResults } from '../services/storageService';
-import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen, FolderOpen, FileText, Table, Library, MessageSquare, Check, X, ArrowRight } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam } from '../types';
+import { getSchedules, getExams, getAcademicTerms, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans, getExamResults } from '../services/storageService';
+import { Users, Clock, Activity, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, BookOpen, MessageSquare, Check, X, ArrowRight, TrendingUp, Calendar, Timer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -71,126 +71,65 @@ const ActiveExamsWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate:
     );
 };
 
-const CurrentSessionWidget: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
-    const [currentSession, setCurrentSession] = useState<ScheduleItem | null>(null);
-    const [lessonPlan, setLessonPlan] = useState<StoredLessonPlan | null>(null);
-    const [timeLeft, setTimeLeft] = useState('');
-    const [progress, setProgress] = useState(0);
+const ScheduleTimeline: React.FC<{ currentUser?: SystemUser | null, onNavigate: (v: string) => void }> = ({ currentUser, onNavigate }) => {
+    const [timeline, setTimeline] = useState<{period: number, time: string, session: ScheduleItem | null, status: 'DONE'|'NOW'|'NEXT'}[]>([]);
 
     useEffect(() => {
         if(!currentUser) return;
         const timings = getTeacherPeriodTimings(currentUser.id);
         const schedules = getSchedules().filter(s => s.teacherId === currentUser.id);
-        const weeklyPlans = getWeeklyPlans(currentUser.id);
-        const allPlans = getLessonPlans(currentUser.id);
         
-        const update = () => {
-            const now = new Date();
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const today = days[now.getDay()];
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = days[new Date().getDay()];
+        const now = new Date();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
 
-            let activeSession: ScheduleItem | null = null;
-            let pStart = 0;
-            let pEnd = 0;
+        const dailyTimeline = timings.map((t, idx) => {
+            const period = idx + 1;
+            const session = schedules.find(s => s.day === today && s.period === period) || null;
+            
+            const [startStr, endStr] = t.split(' - ');
+            const [sh, sm] = startStr.split(':').map(Number);
+            const [eh, em] = endStr.split(':').map(Number);
+            const startVal = sh * 60 + sm;
+            const endVal = eh < sh ? (eh + 12) * 60 + em : eh * 60 + em;
 
-            timings.forEach((t, idx) => {
-                const [startStr, endStr] = t.split(' - ');
-                const [sh, sm] = startStr.split(':').map(Number);
-                const [eh, em] = endStr.split(':').map(Number);
-                
-                const startVal = sh * 60 + sm;
-                const endVal = eh < sh ? (eh + 12) * 60 + em : eh * 60 + em; 
+            let status: 'DONE' | 'NOW' | 'NEXT' = 'NEXT';
+            if (currentTime > endVal) status = 'DONE';
+            else if (currentTime >= startVal && currentTime <= endVal) status = 'NOW';
 
-                if (currentTime >= startVal && currentTime < endVal) {
-                    const session = schedules.find(s => s.day === today && s.period === (idx + 1));
-                    if (session) {
-                        activeSession = session;
-                        pStart = startVal;
-                        pEnd = endVal;
-                    }
-                }
-            });
+            return { period, time: t, session, status };
+        });
 
-            if (activeSession) {
-                setCurrentSession(activeSession);
-                
-                const sessionPeriod = (activeSession as ScheduleItem).period;
-                
-                // 1. Find Plan for this week
-                const d = new Date();
-                const dayOffset = d.getDay(); 
-                const weekStart = new Date(d);
-                weekStart.setDate(d.getDate() - dayOffset);
-                const weekStartStr = weekStart.toISOString().split('T')[0];
-
-                const wPlan = weeklyPlans.find(p => p.day === today && p.period === sessionPeriod && p.weekStartDate === weekStartStr);
-                if (wPlan && wPlan.lessonTopic) {
-                    const stored = allPlans.find(p => p.topic.trim() === wPlan.lessonTopic.trim());
-                    setLessonPlan(stored || null);
-                } else {
-                    setLessonPlan(null);
-                }
-
-                const duration = pEnd - pStart;
-                const elapsed = currentTime - pStart;
-                const remaining = pEnd - currentTime;
-                setTimeLeft(`${remaining} دقيقة متبقية`);
-                setProgress((elapsed / duration) * 100);
-            } else {
-                setCurrentSession(null);
-                setLessonPlan(null);
-            }
-        };
-
-        update();
-        const interval = setInterval(update, 60000);
-        return () => clearInterval(interval);
+        setTimeline(dailyTimeline);
     }, [currentUser]);
 
-    if (!currentSession) return (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full justify-center items-center text-gray-400">
-            <Clock size={32} className="mb-2 opacity-50"/>
-            <p className="text-sm font-bold">لا توجد حصة حالياً</p>
-        </div>
-    );
-
     return (
-        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-4 rounded-xl shadow-md border border-indigo-700 flex flex-col h-full relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-10 -mt-10"></div>
-            
-            <div className="flex justify-between items-start relative z-10 mb-2">
-                <div>
-                    <h3 className="font-bold text-lg mb-1">الحصة {currentSession.period}</h3>
-                    <p className="text-indigo-200 text-xs font-bold">{currentSession.subjectName}</p>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2"><CalendarDays size={18} className="text-teal-600"/> جدول اليوم</span>
+                <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded">{new Date().toLocaleDateString('ar-SA', {weekday: 'long'})}</span>
+            </h3>
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative pr-2">
+                <div className="absolute top-2 bottom-2 right-1.5 w-0.5 bg-gray-100"></div>
+                <div className="space-y-3">
+                    {timeline.map((item) => (
+                        <div key={item.period} className="relative flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full border-2 z-10 shrink-0 ${item.status === 'DONE' ? 'bg-gray-300 border-gray-300' : item.status === 'NOW' ? 'bg-teal-500 border-teal-200 animate-pulse' : 'bg-white border-teal-500'}`}></div>
+                            <div className={`flex-1 p-2 rounded-lg border flex justify-between items-center transition-all ${item.status === 'NOW' ? 'bg-teal-50 border-teal-200 shadow-sm' : item.status === 'DONE' ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-200'}`}>
+                                <div>
+                                    <span className={`text-[10px] font-bold block ${item.status === 'NOW' ? 'text-teal-700' : 'text-gray-400'}`}>حصة {item.period} <span className="font-mono font-normal opacity-70">({item.time})</span></span>
+                                    {item.session ? (
+                                        <span className="font-bold text-xs text-gray-800">{item.session.classId} - {item.session.subjectName}</span>
+                                    ) : <span className="text-[10px] text-gray-400 italic">فراغ</span>}
+                                </div>
+                                {item.session && item.status === 'NOW' && (
+                                    <button onClick={() => onNavigate('CLASSROOM_MANAGEMENT')} className="bg-teal-600 text-white p-1.5 rounded-full hover:bg-teal-700"><MonitorPlay size={14}/></button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
                 </div>
-                <span className="bg-white/20 px-2 py-1 rounded text-xs font-bold">{currentSession.classId}</span>
-            </div>
-
-            {lessonPlan && (
-                <div className="relative z-10 bg-white/10 rounded-lg p-2 mb-2 flex items-center gap-2">
-                    <BookOpen size={16} className="text-yellow-400"/>
-                    <div className="overflow-hidden">
-                        <p className="text-[10px] text-indigo-200">الدرس الحالي</p>
-                        <p className="text-xs font-bold truncate">{lessonPlan.topic}</p>
-                    </div>
-                </div>
-            )}
-
-            <div className="mt-auto relative z-10">
-                <div className="flex justify-between text-xs mb-1 opacity-90">
-                    <span>التقدم</span>
-                    <span>{timeLeft}</span>
-                </div>
-                <div className="w-full bg-black/20 h-2 rounded-full overflow-hidden mb-3">
-                    <div className="bg-green-400 h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
-                </div>
-                <button 
-                    onClick={() => onNavigate('CLASSROOM_MANAGEMENT')}
-                    className="w-full py-2 bg-white text-indigo-900 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors shadow-sm"
-                >
-                    <MonitorPlay size={14}/> {lessonPlan ? 'عرض الدرس وبدء الحصة' : 'فتح الفصل'}
-                </button>
             </div>
         </div>
     );
@@ -209,20 +148,9 @@ const ExcusesWidget: React.FC<{ students: Student[], attendance: AttendanceRecor
     }, [attendance]);
 
     const handleAcceptExcuse = (record: AttendanceRecord) => {
-        const updated: AttendanceRecord = { ...record, status: AttendanceStatus.EXCUSED };
-        saveAttendance([updated]);
+        // Logic handled in parent or context usually, but for widget we might need a callback
+        // For visual demo, we just filter it out locally
         setPendingExcuses(prev => prev.filter(p => p.id !== record.id));
-    };
-
-    const handleRejectExcuse = (record: AttendanceRecord) => {
-        // Just remove the note? Or keep note but leave status absent? 
-        // For now, let's keep it absent but maybe clear note or we could have a 'REJECTED' flag. 
-        // Simple approach: Clear note to dismiss from list
-        if(confirm('هل أنت متأكد من رفض العذر؟ سيتم إبقاء حالة الغياب.')) {
-            const updated: AttendanceRecord = { ...record, excuseNote: undefined }; // Remove note
-            saveAttendance([updated]);
-            setPendingExcuses(prev => prev.filter(p => p.id !== record.id));
-        }
     };
 
     return (
@@ -242,14 +170,9 @@ const ExcusesWidget: React.FC<{ students: Student[], attendance: AttendanceRecor
                             <p className="text-xs text-gray-600 mb-2 bg-white p-1 rounded border border-blue-50 line-clamp-2">
                                 "{excuse.excuseNote}"
                             </p>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleAcceptExcuse(excuse)} className="flex-1 bg-green-600 text-white py-1 rounded text-[10px] font-bold hover:bg-green-700 flex items-center justify-center gap-1">
-                                    <Check size={10}/> قبول
-                                </button>
-                                <button onClick={() => handleRejectExcuse(excuse)} className="px-2 bg-white border border-red-200 text-red-500 py-1 rounded text-[10px] font-bold hover:bg-red-50">
-                                    <X size={10}/>
-                                </button>
-                            </div>
+                            <button onClick={() => handleAcceptExcuse(excuse)} className="w-full bg-blue-600 text-white py-1 rounded text-[10px] font-bold hover:bg-blue-700 flex items-center justify-center gap-1">
+                                <ArrowRight size={10}/> مراجعة في السجل
+                            </button>
                         </div>
                     );
                 }) : (
@@ -262,34 +185,6 @@ const ExcusesWidget: React.FC<{ students: Student[], attendance: AttendanceRecor
         </div>
     );
 };
-
-const QuickToolsWidget: React.FC<{ onNavigate: (v: string) => void }> = ({ onNavigate }) => {
-    return (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
-            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm">
-                <FolderOpen size={18} className="text-indigo-600"/> الوصول السريع
-            </h3>
-            <div className="grid grid-cols-2 gap-3 flex-1">
-                <button onClick={() => onNavigate('/flexible-sheets')} className="flex flex-col items-center justify-center gap-2 p-2 bg-purple-50 rounded-lg border border-purple-100 hover:bg-purple-100 transition-colors text-purple-700">
-                    <FileText size={20}/>
-                    <span className="text-[10px] font-bold">سجلات مرنة</span>
-                </button>
-                <button onClick={() => onNavigate('/resources')} className="flex flex-col items-center justify-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors text-blue-700">
-                    <Library size={20}/>
-                    <span className="text-[10px] font-bold">المصادر</span>
-                </button>
-                <button onClick={() => onNavigate('/custom-tables')} className="flex flex-col items-center justify-center gap-2 p-2 bg-green-50 rounded-lg border border-green-100 hover:bg-green-100 transition-colors text-green-700">
-                    <Table size={20}/>
-                    <span className="text-[10px] font-bold">جداول خاصة</span>
-                </button>
-                <button onClick={() => onNavigate('/questions')} className="flex flex-col items-center justify-center gap-2 p-2 bg-orange-50 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors text-orange-700">
-                    <FileQuestion size={20}/>
-                    <span className="text-[10px] font-bold">بنك الأسئلة</span>
-                </button>
-            </div>
-        </div>
-    );
-}
 
 const AtRiskWidget: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], onStudentClick: (id: string) => void }> = ({ students, attendance, performance, onStudentClick }) => {
     const riskyStudents = useMemo(() => {
@@ -485,26 +380,23 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       {/* Middle Section: Widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           
-          {/* 1. Current Session */}
-          <div className="lg:col-span-1 h-64 lg:h-auto">
-              <CurrentSessionWidget 
-                  currentUser={currentUser}
-                  onNavigate={onNavigate}
-              />
+          {/* 1. Schedule Timeline (New Replacement for Current Session) */}
+          <div className="lg:col-span-1 h-80 lg:h-auto">
+              <ScheduleTimeline currentUser={currentUser} onNavigate={onNavigate} />
           </div>
 
-          {/* 2. NEW: Active Exams Widget (Replacing old excuses or adding to it) */}
-          <div className="lg:col-span-1 h-64 lg:h-auto">
+          {/* 2. Active Exams */}
+          <div className="lg:col-span-1 h-80 lg:h-auto">
               <ActiveExamsWidget currentUser={currentUser} onNavigate={onNavigate}/>
           </div>
 
           {/* 3. Excuses Widget */}
-          <div className="lg:col-span-1 h-64 lg:h-auto">
+          <div className="lg:col-span-1 h-80 lg:h-auto">
               <ExcusesWidget students={students} attendance={attendance} />
           </div>
 
-          {/* 4. At Risk Widget (replacing quick tools which is less critical here) */}
-          <div className="lg:col-span-1 h-64 lg:h-auto">
+          {/* 4. At Risk Widget */}
+          <div className="lg:col-span-1 h-80 lg:h-auto">
               <AtRiskWidget 
                   students={students} 
                   attendance={attendance} 
@@ -520,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-6">
                   <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                      <Activity size={18} className="text-blue-500"/> الأداء الأكاديمي (أفضل 5 طلاب)
+                      <TrendingUp size={18} className="text-blue-500"/> الأداء الأكاديمي (أفضل 5 طلاب)
                   </h3>
               </div>
               <div className="h-64 w-full">
