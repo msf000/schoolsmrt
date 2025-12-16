@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync, downloadFromSupabase } from '../services/storageService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone, KeyRound, RefreshCw } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone, RefreshCw } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -155,12 +155,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }
   };
 
-  const fillAdmin = () => {
-      setRoleMode('STAFF');
-      setIdentifier('admin');
-      setPassword('admin');
-  };
-
   if (view === 'REGISTER') {
       return <TeacherRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={handleRegisterSuccess} />;
   }
@@ -262,10 +256,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         >
                             {rememberMe ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16} className="text-gray-400"/>}
                             تذكرني
-                        </button>
-                        
-                        <button type="button" onClick={fillAdmin} className="text-[10px] text-indigo-500 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 flex items-center gap-1 border border-indigo-100">
-                            <KeyRound size={12}/> دخول كمدير (Demo)
                         </button>
                     </div>
 
