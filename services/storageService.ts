@@ -1,4 +1,3 @@
-
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -262,6 +261,20 @@ export const deleteSystemUser = (id: string) => {
 
 // --- AUTHENTICATION (HYBRID: LOCAL + CLOUD) ---
 export const authenticateUser = async (identifier: string, pass: string): Promise<SystemUser | null> => {
+    // 0. Default Super Admin (Hardcoded for immediate access)
+    if (identifier === 'admin' && pass === 'admin') {
+        return {
+            id: 'super_admin',
+            name: 'مدير النظام',
+            email: 'admin',
+            nationalId: 'admin',
+            password: 'admin',
+            role: 'SUPER_ADMIN',
+            status: 'ACTIVE',
+            schoolId: ''
+        };
+    }
+
     // 1. Try Local
     const users = getSystemUsers();
     const localUser = users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === pass);
