@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig } from '../types';
 import { getSchools, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
 import { Award, Printer, CheckSquare, Search, LayoutTemplate, TrendingUp, Medal, Star, ThumbsUp } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 interface CertificatesCenterProps {
     students: Student[];
@@ -18,6 +19,8 @@ const TEMPLATES = [
 ];
 
 const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, currentUser, onSaveAttendance }) => {
+    const location = useLocation();
+    
     const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0]);
     const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
     const [filterClass, setFilterClass] = useState('');
@@ -39,7 +42,18 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
             setCustomText(`نظير جهوده المتميزة ومستواه الرائع خلال ${currentTerm.name}، متمنين له دوام التوفيق.`);
         }
         setHeaderConfig(getReportHeaderConfig(currentUser?.id));
-    }, [currentUser]);
+        
+        // Handle Pre-selection from navigation state
+        if (location.state && (location.state as any).studentIds) {
+            const ids = (location.state as any).studentIds as string[];
+            if (ids && ids.length > 0) {
+                setSelectedStudents(new Set(ids));
+                // Optional: Set class filter if all students are in same class
+                const firstStudent = students.find(s => s.id === ids[0]);
+                if(firstStudent && firstStudent.className) setFilterClass(firstStudent.className);
+            }
+        }
+    }, [currentUser, location.state, students]);
 
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
 
@@ -59,8 +73,11 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     };
 
     const selectAll = () => {
-        if (selectedStudents.size === filteredStudents.length) setSelectedStudents(new Set());
-        else setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
+        if (selectedStudents.size === filteredStudents.length && filteredStudents.length > 0) {
+            setSelectedStudents(new Set());
+        } else {
+            setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
+        }
     };
 
     const handlePrint = () => {

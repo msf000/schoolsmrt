@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
-import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig, bulkUpsertStudents } from '../services/storageService';
-import { UserPlus, Trash2, Search, Mail, Phone, User, Eye, Edit, FileSpreadsheet, X, Building2, Lock, Loader2, Smile, Frown, TrendingUp, Clock, Activity, Target, Filter, BookOpen, Calendar, AlertCircle, Award, CreditCard, Key, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare } from 'lucide-react';
+import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
+import { UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key } from 'lucide-react';
 import DataImport from './DataImport';
 import { useNavigate } from 'react-router-dom';
-import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
@@ -41,12 +40,9 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   const [filterClass, setFilterClass] = useState('');
   
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [viewModalTab, setViewModalTab] = useState<'OVERVIEW' | 'ACADEMIC' | 'BEHAVIOR' | 'INFO'>('OVERVIEW');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [viewStudent, setViewStudent] = useState<Student | null>(null);
 
   // --- Print Cards State ---
   const [isPrintCardsOpen, setIsPrintCardsOpen] = useState(false);
@@ -170,73 +166,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       return risks;
   };
 
-  // ... (studentStats logic remains same)
-  const studentStats = useMemo(() => {
-      if (!viewStudent) return null;
-      
-      const activeTerm = terms.find(t => t.id === selectedTermId);
-
-      let sAtt = attendance.filter(a => a.studentId === viewStudent.id);
-      let sPerf = performance.filter(p => p.studentId === viewStudent.id);
-
-      if (activeTerm) {
-          sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
-          sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
-      }
-
-      const totalDays = sAtt.length;
-      const present = sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
-      const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-      const late = sAtt.filter(a => a.status === AttendanceStatus.LATE).length;
-      const excused = sAtt.filter(a => a.status === AttendanceStatus.EXCUSED).length;
-      const attRate = totalDays > 0 ? Math.round(((present + late + excused) / totalDays) * 100) : 100;
-
-      const posBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
-      const negBehavior = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.NEGATIVE).length;
-      const behaviorLogs = sAtt.filter(a => a.behaviorStatus !== BehaviorStatus.NEUTRAL || a.behaviorNote);
-
-      const scores = sPerf.map(p => ({ score: p.score, max: p.maxScore || 10 }));
-      const totalScore = scores.reduce((sum, i) => sum + i.score, 0);
-      const totalMax = scores.reduce((sum, i) => sum + i.max, 0);
-      const avgScore = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
-      
-      const homeworks = sPerf.filter(p => p.category === 'HOMEWORK');
-      const activities = sPerf.filter(p => p.category === 'ACTIVITY');
-      const exams = sPerf.filter(p => p.category === 'PLATFORM_EXAM' || p.category === 'OTHER');
-
-      const recentGrades = sPerf
-        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        .slice(0, 5).reverse()
-        .map(p => ({
-            name: p.title || p.subject,
-            score: Math.round((p.score / p.maxScore) * 100),
-            fullMark: 100
-        }));
-
-      const categories = ['HOMEWORK', 'ACTIVITY', 'PLATFORM_EXAM'];
-      const radarData = categories.map(cat => {
-          const catPerfs = sPerf.filter(p => p.category === cat);
-          if (catPerfs.length === 0) return { subject: cat === 'HOMEWORK' ? 'الواجبات' : cat === 'ACTIVITY' ? 'الأنشطة' : 'الاختبارات', A: 0, fullMark: 100 };
-          const obtained = catPerfs.reduce((acc, curr) => acc + curr.score, 0);
-          const max = catPerfs.reduce((acc, curr) => acc + (curr.maxScore || 10), 0);
-          const pct = max > 0 ? Math.round((obtained / max) * 100) : 0;
-          return {
-              subject: cat === 'HOMEWORK' ? 'الواجبات' : cat === 'ACTIVITY' ? 'الأنشطة' : 'الاختبارات',
-              A: pct,
-              fullMark: 100
-          };
-      });
-      radarData.push({ subject: 'الحضور', A: attRate, fullMark: 100 });
-      radarData.push({ subject: 'السلوك', A: Math.max(0, 100 - (negBehavior * 10)), fullMark: 100 });
-
-      return { 
-          attRate, absent, late, excused, 
-          posBehavior, negBehavior, behaviorLogs,
-          avgScore, recentGrades, radarData,
-          homeworks, activities, exams
-      };
-  }, [viewStudent, attendance, performance, selectedTermId, terms]);
-
   // --- Form Handling ---
   const initialFormState = {
     name: '', nationalId: '', gradeLevel: '', className: '', email: '', phone: '', parentName: '', parentPhone: '', parentEmail: '', password: ''
@@ -308,7 +237,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
 
   // --- PRINT CARDS COMPONENT ---
   const LoginCardsView = () => {
-      // If students selected via bulk action, print those. Else print filtered list.
       const studentsToPrint = selectedStudentIds.size > 0 
           ? students.filter(s => selectedStudentIds.has(s.id))
           : filteredStudents;
@@ -362,13 +290,18 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       );
   };
 
+  const handleStudentClick = (student: Student) => {
+      // Use navigation state to pass student data directly
+      navigate('/followup', { state: { studentId: student.id } });
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in h-full flex flex-col">
       {/* Header & Controls */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div>
             <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <User className="text-purple-600"/> سجل الطلاب
+                <UserPlus className="text-purple-600"/> سجل الطلاب
             </h2>
             <p className="text-xs md:text-sm text-gray-500 mt-1">إدارة بيانات الطلاب، التعديل، والمتابعة الفردية.</p>
         </div>
@@ -482,14 +415,14 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                     return (
                     <tr key={student.id} className={`hover:bg-gray-50 transition-colors group ${isSelected ? 'bg-purple-50/50' : ''}`}>
                         <td className="p-4 text-center">
-                            <button onClick={() => toggleSelectStudent(student.id)} className={`${isSelected ? 'text-purple-600' : 'text-gray-300 hover:text-gray-500'}`}>
+                            <button onClick={() => toggleSelectStudent(student.id)} className={`${isSelected ? 'text-purple-600' : 'text-gray-300 hover:text-gray-50'}`}>
                                 {isSelected ? <CheckSquare size={18}/> : <Square size={18}/>}
                             </button>
                         </td>
                         <td className="p-4 text-gray-400 font-mono text-xs">{i + 1}</td>
                         <td className="p-4">
                             <button 
-                                onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }}
+                                onClick={() => handleStudentClick(student)}
                                 className="font-bold text-gray-800 hover:text-purple-600 hover:underline text-base text-right"
                             >
                                 {student.name}
@@ -519,7 +452,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                         </td>
                         <td className="p-4 text-center">
                             <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => { setViewStudent(student); setIsViewModalOpen(true); }} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50" title="عرض الملف">
+                                <button onClick={() => handleStudentClick(student)} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50" title="عرض الملف">
                                     <Eye size={16} />
                                 </button>
                                 {!isManager && (
@@ -551,223 +484,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
         </div>
       </div>
 
-      {/* ... (Existing modals for view, form, import, etc.) ... */}
-      {/* STUDENT CARD MODAL */}
-      {isViewModalOpen && viewStudent && studentStats && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
-              <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                  {/* Modal Header */}
-                  <div className="bg-gray-900 text-white p-6 flex justify-between items-start shrink-0">
-                      <div className="flex items-center gap-4">
-                          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-2xl font-bold border-4 border-white/20 shadow-lg">
-                              {viewStudent.name.charAt(0)}
-                          </div>
-                          <div>
-                              <h3 className="text-2xl font-bold">{viewStudent.name}</h3>
-                              <div className="flex items-center gap-3 text-gray-300 text-sm mt-1">
-                                  <span className="bg-white/10 px-2 py-0.5 rounded">{viewStudent.gradeLevel}</span>
-                                  <span>|</span>
-                                  <span className="font-mono">ID: {viewStudent.nationalId}</span>
-                              </div>
-                          </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                          {/* TERM SELECTOR INSIDE MODAL */}
-                          <select 
-                              value={selectedTermId}
-                              onChange={(e) => setSelectedTermId(e.target.value)}
-                              className="bg-white/10 border border-white/20 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-purple-500 font-bold"
-                          >
-                              <option value="" className="text-black">كل الفترات (تراكمي)</option>
-                              {terms.map(t => (
-                                  <option key={t.id} value={t.id} className="text-black">{t.name}</option>
-                              ))}
-                          </select>
-                          <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-white bg-white/10 p-2 rounded-full hover:bg-white/20 transition-colors"><X size={20}/></button>
-                      </div>
-                  </div>
-
-                  {/* Navigation Tabs */}
-                  <div className="flex border-b bg-gray-50 px-6 shrink-0 overflow-x-auto">
-                      <button onClick={() => setViewModalTab('OVERVIEW')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'OVERVIEW' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-                          <Target size={16}/> نظرة عامة
-                      </button>
-                      <button onClick={() => setViewModalTab('ACADEMIC')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'ACADEMIC' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-                          <BookOpen size={16}/> الأكاديمي والواجبات
-                      </button>
-                      <button onClick={() => setViewModalTab('BEHAVIOR')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'BEHAVIOR' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-                          <Activity size={16}/> السلوك والحضور
-                      </button>
-                      <button onClick={() => setViewModalTab('INFO')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${viewModalTab === 'INFO' ? 'border-purple-600 text-purple-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-                          <User size={16}/> البيانات الشخصية
-                      </button>
-                  </div>
-
-                  {/* Modal Content */}
-                  <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar">
-                      {/* 1. OVERVIEW TAB */}
-                      {viewModalTab === 'OVERVIEW' && (
-                          <div className="space-y-6">
-                              {/* Quick Stats */}
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                                      <div className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Clock size={14}/> الحضور</div>
-                                      <div className={`text-3xl font-black ${studentStats.attRate >= 90 ? 'text-green-600' : 'text-red-600'}`}>{studentStats.attRate}%</div>
-                                      <div className="text-xs text-gray-400 mt-1">أيام الغياب: {studentStats.absent}</div>
-                                  </div>
-                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                                      <div className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><TrendingUp size={14}/> المستوى الأكاديمي</div>
-                                      <div className="text-3xl font-black text-blue-600">{studentStats.avgScore}%</div>
-                                      <div className="text-xs text-gray-400 mt-1">متوسط الدرجات</div>
-                                  </div>
-                                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                                      <div className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-1"><Smile size={14}/> السلوك</div>
-                                      <div className="flex items-end gap-2">
-                                          <span className="text-3xl font-black text-green-600">{studentStats.posBehavior}</span>
-                                          <span className="text-sm text-gray-300 mb-1">/</span>
-                                          <span className="text-3xl font-black text-red-600">{studentStats.negBehavior}</span>
-                                      </div>
-                                      <div className="text-xs text-gray-400 mt-1">إيجابي / سلبي</div>
-                                  </div>
-                              </div>
-
-                              {/* Charts */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  <div className="bg-white p-4 rounded-xl border border-gray-200">
-                                      <h4 className="font-bold text-gray-700 text-sm mb-4">تحليل المهارات (Radar)</h4>
-                                      <div className="h-64 w-full">
-                                          <ResponsiveContainer width="100%" height="100%">
-                                              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={studentStats.radarData}>
-                                                  <PolarGrid />
-                                                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                                                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false}/>
-                                                  <Radar name="Student" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
-                                                  <Tooltip />
-                                              </RadarChart>
-                                          </ResponsiveContainer>
-                                      </div>
-                                  </div>
-                                  <div className="bg-white p-4 rounded-xl border border-gray-200">
-                                      <h4 className="font-bold text-gray-700 text-sm mb-4">تطور الدرجات (آخر 5)</h4>
-                                      <div className="h-64 w-full">
-                                          <ResponsiveContainer width="100%" height="100%">
-                                              <LineChart data={studentStats.recentGrades}>
-                                                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                  <XAxis dataKey="name" tick={{fontSize: 10}} height={20}/>
-                                                  <YAxis domain={[0, 100]} tick={{fontSize: 10}} width={30}/>
-                                                  <Tooltip />
-                                                  <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={3} dot={{r: 4}} />
-                                              </LineChart>
-                                          </ResponsiveContainer>
-                                      </div>
-                                  </div>
-                              </div>
-                          </div>
-                      )}
-
-                      {/* 2. ACADEMIC TAB */}
-                      {viewModalTab === 'ACADEMIC' && (
-                          <div className="space-y-6">
-                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                  <div className="p-3 bg-blue-50 border-b border-blue-100 font-bold text-blue-800 text-sm flex items-center gap-2"><BookOpen size={16}/> الواجبات المنزلية</div>
-                                  <div className="max-h-60 overflow-y-auto">
-                                      {studentStats.homeworks.length > 0 ? (
-                                          <table className="w-full text-right text-sm">
-                                              <thead className="bg-gray-50 text-xs text-gray-500 sticky top-0"><tr><th className="p-3">العنوان</th><th className="p-3">المادة</th><th className="p-3">الدرجة</th></tr></thead>
-                                              <tbody className="divide-y">
-                                                  {studentStats.homeworks.map((h, i) => (
-                                                      <tr key={i} className="hover:bg-gray-50">
-                                                          <td className="p-3 font-medium">{h.title}</td>
-                                                          <td className="p-3 text-gray-500 text-xs">{h.subject}</td>
-                                                          <td className="p-3"><span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{h.score}/{h.maxScore}</span></td>
-                                                      </tr>
-                                                  ))}
-                                              </tbody>
-                                          </table>
-                                      ) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد واجبات مسجلة</div>}
-                                  </div>
-                              </div>
-
-                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                  <div className="p-3 bg-purple-50 border-b border-purple-100 font-bold text-purple-800 text-sm flex items-center gap-2"><Award size={16}/> الاختبارات والمنصة</div>
-                                  <div className="max-h-60 overflow-y-auto">
-                                      {studentStats.exams.length > 0 ? (
-                                          <table className="w-full text-right text-sm">
-                                              <thead className="bg-gray-50 text-xs text-gray-500 sticky top-0"><tr><th className="p-3">العنوان</th><th className="p-3">المادة</th><th className="p-3">الدرجة</th></tr></thead>
-                                              <tbody className="divide-y">
-                                                  {studentStats.exams.map((h, i) => (
-                                                      <tr key={i} className="hover:bg-gray-50">
-                                                          <td className="p-3 font-medium">{h.title}</td>
-                                                          <td className="p-3 text-gray-500 text-xs">{h.subject}</td>
-                                                          <td className="p-3"><span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">{h.score}/{h.maxScore}</span></td>
-                                                      </tr>
-                                                  ))}
-                                              </tbody>
-                                          </table>
-                                      ) : <div className="p-6 text-center text-gray-400 text-sm">لا توجد اختبارات مسجلة</div>}
-                                  </div>
-                              </div>
-                          </div>
-                      )}
-
-                      {/* 3. BEHAVIOR TAB */}
-                      {viewModalTab === 'BEHAVIOR' && (
-                          <div className="space-y-6">
-                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                  <div className="p-3 bg-gray-100 border-b font-bold text-gray-700 text-sm">سجل الملاحظات السلوكية</div>
-                                  <div className="max-h-80 overflow-y-auto">
-                                      {studentStats.behaviorLogs.length > 0 ? (
-                                          <table className="w-full text-right text-sm">
-                                              <thead className="bg-gray-50 text-xs text-gray-500 sticky top-0"><tr><th className="p-3">التاريخ</th><th className="p-3">النوع</th><th className="p-3">الملاحظة</th></tr></thead>
-                                              <tbody className="divide-y">
-                                                  {studentStats.behaviorLogs.map((log, i) => (
-                                                      <tr key={i} className="hover:bg-gray-50">
-                                                          <td className="p-3 text-xs font-mono text-gray-500">{log.date}</td>
-                                                          <td className="p-3">
-                                                              {log.behaviorStatus === BehaviorStatus.POSITIVE && <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold flex w-fit gap-1"><Smile size={12}/> إيجابي</span>}
-                                                              {log.behaviorStatus === BehaviorStatus.NEGATIVE && <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold flex w-fit gap-1"><Frown size={12}/> سلبي</span>}
-                                                          </td>
-                                                          <td className="p-3 text-gray-700">{log.behaviorNote}</td>
-                                                      </tr>
-                                                  ))}
-                                              </tbody>
-                                          </table>
-                                      ) : <div className="p-10 text-center text-gray-400">سجل السلوك نظيف! لا توجد ملاحظات.</div>}
-                                  </div>
-                              </div>
-                          </div>
-                      )}
-
-                      {/* 4. INFO TAB */}
-                      {viewModalTab === 'INFO' && (
-                          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  <div>
-                                      <h4 className="font-bold text-gray-800 border-b pb-2 mb-3">بيانات الطالب</h4>
-                                      <div className="space-y-3 text-sm">
-                                          <div className="flex justify-between"><span className="text-gray-500">الاسم:</span> <span className="font-bold">{viewStudent.name}</span></div>
-                                          <div className="flex justify-between"><span className="text-gray-500">رقم الهوية:</span> <span className="font-mono">{viewStudent.nationalId}</span></div>
-                                          <div className="flex justify-between"><span className="text-gray-500">الصف / الفصل:</span> <span>{viewStudent.gradeLevel} - {viewStudent.className}</span></div>
-                                          <div className="flex justify-between"><span className="text-gray-500">الجوال:</span> <span className="font-mono dir-ltr">{viewStudent.phone || '-'}</span></div>
-                                          <div className="flex justify-between"><span className="text-gray-500">البريد:</span> <span className="font-mono">{viewStudent.email || '-'}</span></div>
-                                      </div>
-                                  </div>
-                                  <div>
-                                      <h4 className="font-bold text-gray-800 border-b pb-2 mb-3">بيانات ولي الأمر</h4>
-                                      <div className="space-y-3 text-sm">
-                                          <div className="flex justify-between"><span className="text-gray-500">الاسم:</span> <span className="font-bold">{viewStudent.parentName || '-'}</span></div>
-                                          <div className="flex justify-between"><span className="text-gray-500">الجوال:</span> <span className="font-mono dir-ltr text-green-700 font-bold">{viewStudent.parentPhone || '-'}</span></div>
-                                          <div className="flex justify-between"><span className="text-gray-500">البريد:</span> <span className="font-mono">{viewStudent.parentEmail || '-'}</span></div>
-                                      </div>
-                                  </div>
-                              </div>
-                          </div>
-                      )}
-                  </div>
-              </div>
-          </div>
-      )}
-
       {/* Add/Edit Form Modal */}
       {isFormModalOpen && !isManager && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto p-4 backdrop-blur-sm">
@@ -777,7 +493,6 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 <button onClick={() => setIsFormModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
             </h3>
             <form onSubmit={handleFormSubmit} className="space-y-4">
-              {/* ... (Form Content remains same as before) ... */}
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <h4 className="text-sm font-bold text-purple-700 mb-3">البيانات الأساسية</h4>
                   <div className="grid grid-cols-2 gap-4">

@@ -7,6 +7,7 @@ import {
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, Question, StoredLessonPlan } from '../types';
 import { getSchedules, getExams, getAcademicTerms, getQuestionBank, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans } from '../services/storageService';
 import { Users, Clock, Activity, CheckSquare, Plus, Trash2, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, ScanLine, BookOpen, FolderOpen, FileText, Table, Library } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
   students: Student[];
@@ -297,6 +298,7 @@ const AtRiskWidget: React.FC<{ students: Student[], attendance: AttendanceRecord
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, selectedDate, currentUser, onNavigate }) => {
+  const navigate = useNavigate();
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState<string>('');
 
@@ -359,39 +361,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   }, [students, performance, activeTerm]);
 
   const handleRiskClick = (studentId: string) => {
-      localStorage.setItem('nav_context_student_id', studentId);
-      onNavigate('STUDENT_FOLLOWUP');
+      navigate('/followup', { state: { studentId } });
   };
-
-  // Internal navigate wrapper to handle paths correctly if `onNavigate` expects internal keys or paths
-  const handleInternalNavigate = (path: string) => {
-      // Check if path starts with / which implies a route change, or if it's a key for internal dashboard switching
-      if (path.startsWith('/')) {
-          // If onNavigate supports paths directly (from App.tsx)
-          // We cast to any to bypass strict type check if onNavigate signature is strict string
-          // In App.tsx: onNavigate usually handles keys, but we can pass route paths if we update App.tsx handler
-          // However, here we can just use window.location or rely on the parent to handle it.
-          // Since onNavigate in App.tsx maps keys to routes, we should probably pass a key if possible, 
-          // or we can use `useNavigate` directly here.
-          // But to be safe with props:
-          // The App.tsx implementation maps keys. We should stick to keys if we can, BUT 
-          // we added new routes (/resources, etc) which don't have keys in the App.tsx switch.
-          // So we should use window.location.href or useNavigate hook.
-          // Let's use window.location.hash logic or just assume onNavigate handles it or modify App.tsx.
-          // Actually, the simplest way is to use `useNavigate` directly in this component.
-          // But I can't add `useNavigate` easily without changing the function signature significantly if it's not routed.
-          // Wait, Dashboard IS rendered by a Route in App.tsx. So `useNavigate` is available!
-          // I'll leave `onNavigate` for the legacy keys and use `useNavigate` for the new links.
-      } else {
-          onNavigate(path);
-      }
-  };
-  
-  // Need to import useNavigate? No, onNavigate prop is passed from App.tsx which uses useNavigate.
-  // The onNavigate in App.tsx handles specific strings.
-  // I'll update the `QuickToolsWidget` to take a direct navigate function or just pass paths.
-  // In `App.tsx`, `onNavigate` is: (v: string) => navigate(...)
-  // So if I pass '/resources', navigate('/resources') will work! Perfect.
 
   return (
     <div className="space-y-6 animate-fade-in p-6 bg-gray-50/50 min-h-full">
