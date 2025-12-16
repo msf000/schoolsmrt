@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser, AcademicTerm } from '../types';
 import { getSchedules, getAcademicTerms } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
-import { Calendar, Save, CheckCircle, FileSpreadsheet, Users, CheckSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, X, Inbox, FileText, Check, LayoutGrid, List, RefreshCw, CalendarDays, History, Printer, Loader2, Cloud, Flame } from 'lucide-react';
+import { Calendar, Save, CheckCircle, FileSpreadsheet, Users, CheckSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, X, Inbox, FileText, Check, LayoutGrid, List, RefreshCw, CalendarDays, History, Printer, Loader2, Cloud, Flame, PieChart } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
@@ -137,6 +137,22 @@ const Attendance: React.FC<AttendanceProps> = ({
         return true;
     }).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
   }, [students, selectedClass]);
+
+  // Real-time Stats Calculation
+  const liveStats = useMemo(() => {
+      let p = 0, a = 0, l = 0, e = 0;
+      // We iterate over filteredStudents to ensure we count current view
+      filteredStudents.forEach(s => {
+          const status = records[s.id]; // Will be undefined initially, meaning PRESENT usually or wait for useEffect
+          if (status === 'PRESENT') p++;
+          else if (status === 'ABSENT') a++;
+          else if (status === 'LATE') l++;
+          else if (status === 'EXCUSED') e++;
+          else p++; // Default count as present if not set
+      });
+      const total = filteredStudents.length;
+      return { p, a, l, e, total };
+  }, [records, filteredStudents]);
 
   // Sync records from history when selection changes
   useEffect(() => {
@@ -328,6 +344,26 @@ const Attendance: React.FC<AttendanceProps> = ({
                             <button onClick={() => setViewMode('LIST')} className={`p-1.5 rounded ${viewMode === 'LIST' ? 'bg-white text-gray-900' : 'text-white hover:bg-white/10'}`}><List size={16}/></button>
                             <div className="w-[1px] bg-white/20 mx-1"></div>
                             <button onClick={() => handleMarkAll(AttendanceStatus.PRESENT)} className="hidden md:flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-700">تحضير الكل</button>
+                        </div>
+                    </div>
+
+                    {/* --- Live Stats Bar --- */}
+                    <div className="bg-indigo-50 border-b border-indigo-100 p-3 grid grid-cols-4 gap-2 text-center sticky top-[64px] z-10">
+                        <div className="flex flex-col">
+                            <span className="text-xl font-black text-green-600">{liveStats.p}</span>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase">حضور</span>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xl font-black text-red-600">{liveStats.a}</span>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase">غياب</span>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xl font-black text-yellow-600">{liveStats.l}</span>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase">تأخر</span>
+                        </div>
+                        <div className="flex flex-col border-r border-indigo-200">
+                            <span className="text-xl font-black text-indigo-900">{liveStats.total}</span>
+                            <span className="text-[10px] text-gray-500 font-bold uppercase">الإجمالي</span>
                         </div>
                     </div>
 

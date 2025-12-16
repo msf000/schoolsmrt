@@ -11,7 +11,7 @@ import {
     bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
     getUserTheme, bulkUpsertStudents,
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
-    forceRefreshData, initRealtimeSync, stopRealtimeSync
+    forceRefreshData, initRealtimeSync, stopRealtimeSync, initAutoSync
 } from './services/storageService';
 import { isSupabaseConfigured } from './services/supabaseClient';
 import { checkAIConnection } from './services/geminiService';
@@ -219,12 +219,14 @@ const App: React.FC = () => {
 
     // Init Logic
     useEffect(() => {
+        // ALWAYS try to sync on app load, even if not logged in (for parent portal data etc)
+        if (isSupabaseConfigured()) {
+            initAutoSync().then(refreshData);
+            if (currentUser) initRealtimeSync();
+        }
+
         if (currentUser) {
             refreshData();
-            if (isSupabaseConfigured()) {
-                forceRefreshData().then(refreshData);
-                initRealtimeSync();
-            }
             checkAIConnection().then((res: { success: boolean; message: string }) => setAiStatus(res.success ? 'CONNECTED' : 'ERROR'));
             
             const unsubSync = subscribeToSyncStatus(setSyncStatus);

@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
-import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync } from '../services/storageService';
+import React, { useState, useEffect } from 'react';
+import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync, downloadFromSupabase } from '../services/storageService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone, KeyRound } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, AlertCircle, UserPlus, CloudLightning, Trash2, Baby, Phone, KeyRound, RefreshCw } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -19,6 +19,29 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  
+  // New state for manual sync
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // --- Auto Sync on Load (Page Refresh / First Visit) ---
+  useEffect(() => {
+      const autoSync = async () => {
+          if (isSupabaseConfigured()) {
+              setIsSyncing(true);
+              setStatusMessage('جاري المزامنة مع السحابة...');
+              try {
+                  await initAutoSync();
+                  // Refresh local state if needed (students list might update)
+              } catch (e) {
+                  console.error("Auto sync failed", e);
+              } finally {
+                  setIsSyncing(false);
+                  setStatusMessage('');
+              }
+          }
+      };
+      autoSync();
+  }, []);
 
   // Auto-login handler for registration success
   const handleRegisterSuccess = (email: string, pass: string) => {
@@ -30,6 +53,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       setTimeout(() => {
           document.getElementById('login-btn')?.click();
       }, 500);
+  };
+
+  const handleManualSync = async () => {
+      if (!isSupabaseConfigured()) return;
+      setIsSyncing(true);
+      setStatusMessage('جاري سحب أحدث البيانات...');
+      try {
+          await downloadFromSupabase();
+          // Optional: Force a re-render or notify user
+      } catch (e) {
+          setError('فشل الاتصال بالسحابة');
+      } finally {
+          setIsSyncing(false);
+          setStatusMessage('');
+      }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -44,9 +82,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
         // 1. Parent Login Logic
         if (roleMode === 'PARENT') {
-            // Force sync first to get latest students
-            if (isSupabaseConfigured()) {
-                 setStatusMessage('مزامنة البيانات السحابية...');
+            // Check cloud one more time if configured
+            if (isSupabaseConfigured() && getStudents().length === 0) {
                  await initAutoSync();
             }
             
@@ -242,17 +279,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     <button 
                         id="login-btn"
                         type="submit" 
-                        disabled={loading}
+                        disabled={loading || isSyncing}
                         className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group ${
                             roleMode === 'STUDENT' ? 'bg-purple-600 hover:bg-purple-700' :
                             roleMode === 'PARENT' ? 'bg-green-600 hover:bg-green-700' :
                             'bg-indigo-900 hover:bg-black'
                         }`}
                     >
-                        {loading ? <Loader2 size={20} className="animate-spin" /> : <>دخول <ArrowRight size={18} className="group-hover:-translate-x-1 transition-transform"/></>}
+                        {loading || isSyncing ? <Loader2 size={20} className="animate-spin" /> : <>دخول <ArrowRight size={18} className="group-hover:-translate-x-1 transition-transform"/></>}
                     </button>
                     
-                    {loading && statusMessage && (
+                    {(loading || isSyncing) && statusMessage && (
                         <div className="text-center text-[10px] text-gray-400 animate-pulse">
                             {statusMessage}
                         </div>
@@ -270,11 +307,23 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     </div>
                 )}
                 
-                {/* Minimal Footer */}
-                <div className="mt-6 flex justify-center items-center gap-4 border-t border-dashed border-gray-100 pt-4 opacity-50 hover:opacity-100 transition-opacity">
+                {/* Footer with Sync & Reset */}
+                <div className="mt-6 flex flex-wrap justify-center items-center gap-4 border-t border-dashed border-gray-100 pt-4 opacity-75 hover:opacity-100 transition-opacity">
                     <span className={`text-[10px] flex items-center gap-1 ${isSupabaseConfigured() ? 'text-green-600' : 'text-gray-400'}`}>
                         <CloudLightning size={10}/> {isSupabaseConfigured() ? 'Cloud' : 'Local'}
                     </span>
+                    
+                    {isSupabaseConfigured() && (
+                        <button 
+                            onClick={handleManualSync} 
+                            disabled={isSyncing}
+                            className="text-[10px] bg-gray-50 hover:bg-gray-100 text-indigo-600 px-2 py-1 rounded border border-gray-200 flex items-center gap-1 transition-colors"
+                        >
+                            <RefreshCw size={10} className={isSyncing ? 'animate-spin' : ''}/>
+                            {isSyncing ? 'جاري المزامنة' : 'مزامنة الآن'}
+                        </button>
+                    )}
+
                     <button onClick={handleReset} className="text-[10px] text-red-400 hover:text-red-600 flex items-center gap-1">
                         <Trash2 size={10}/> Reset
                     </button>
