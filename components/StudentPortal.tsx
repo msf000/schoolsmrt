@@ -143,7 +143,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-50 custom-scrollbar w-full">
                     <Routes>
-                        <Route path="/" element={<StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={(v) => navigate(v === 'TIMETABLE' ? '/timetable' : v === 'EVALUATION' ? '/evaluation' : '/')} terms={terms} />} />
+                        <Route path="/" element={<StudentDashboard student={currentUser} attendance={attendance} performance={performance} onViewChange={(v: string) => navigate(v === 'TIMETABLE' ? '/timetable' : v === 'EVALUATION' ? '/evaluation' : '/')} terms={terms} />} />
                         <Route path="/plan" element={<StudentWeeklyPlan student={currentUser} />} />
                         <Route path="/profile" element={<StudentProfile student={currentUser} />} />
                         <Route path="/attendance" element={<StudentAttendanceView student={currentUser} attendance={attendance} terms={terms} />} />

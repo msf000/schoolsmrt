@@ -1,0 +1,58 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Icon Generator</title>
+    <style>
+        body { font-family: system-ui, sans-serif; padding: 40px; text-align: center; background: #f3f4f6; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
+        h1 { color: #4f46e5; margin-bottom: 10px; }
+        p { color: #6b7280; margin-bottom: 30px; }
+        canvas { display: none; }
+        .preview { margin: 20px; border-radius: 20%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        button { background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 16px; margin: 5px; }
+        button:hover { background: #4338ca; transform: translateY(-2px); }
+        .grid { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>مولد أيقونات التطبيق</h1>
+        <p>اضغط على الأزرار أدناه لتحميل الأيقونات، ثم قم بنقلها إلى مجلد <code>public</code></p>
+        
+        <img id="source" src="logo.svg" width="128" height="128" class="preview" alt="Logo Preview">
+        
+        <div class="grid">
+            <button onclick="downloadIcon(192, 'pwa-192x192.png')">تحميل 192x192</button>
+            <button onclick="downloadIcon(512, 'pwa-512x512.png')">تحميل 512x512</button>
+            <button onclick="downloadIcon(180, 'apple-touch-icon.png')">تحميل Apple Icon</button>
+            <button onclick="downloadIcon(64, 'favicon.ico')">تحميل Favicon</button>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        function downloadIcon(size, filename) {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = document.getElementById('source');
+            
+            canvas.width = size;
+            canvas.height = size;
+            
+            // Draw
+            ctx.clearRect(0, 0, size, size);
+            ctx.drawImage(img, 0, 0, size, size);
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+    </script>
+</body>
+</html>
