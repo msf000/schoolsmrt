@@ -62,7 +62,10 @@ const App: React.FC = () => {
         try {
             const saved = localStorage.getItem('current_user');
             if (!saved || saved === "undefined" || saved === "null") return null;
-            return JSON.parse(saved);
+            const parsed = JSON.parse(saved);
+            // Validate essential fields to prevent crash
+            if (!parsed || !parsed.id || !parsed.role || !parsed.name) return null;
+            return parsed;
         } catch (e) {
             console.error("Failed to parse user", e);
             localStorage.removeItem('current_user');
@@ -123,7 +126,7 @@ const App: React.FC = () => {
         let allAttendance = getAttendance();
         let allPerformance = getPerformance();
         
-        if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+        if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'PARENT') {
              if (currentUser.role === 'TEACHER') {
                  allStudents = allStudents.filter(s => (currentUser.schoolId && s.schoolId === currentUser.schoolId) || s.createdById === currentUser.id || !s.createdById);
              }
@@ -135,6 +138,10 @@ const App: React.FC = () => {
     };
 
     const login = (user: SystemUser, remember: boolean) => {
+        if (!user || !user.id || !user.role) {
+            alert('بيانات المستخدم غير صالحة');
+            return;
+        }
         setCurrentUser(user);
         if (remember) localStorage.setItem('current_user', JSON.stringify(user));
         navigate('/');
@@ -184,19 +191,34 @@ const App: React.FC = () => {
         importPerformance: handleImportPerformance
     };
 
-    return (
-        <>
-            <ReloadPrompt />
-            {!currentUser ? (
+    // Render Logic with Validations
+    if (!currentUser || !currentUser.id) {
+        return (
+            <>
+                <ReloadPrompt />
                 <Login onLoginSuccess={login} />
-            ) : currentUser.role === 'STUDENT' ? (
+            </>
+        );
+    }
+
+    if (currentUser.role === 'STUDENT') {
+        return (
+            <>
+                <ReloadPrompt />
                 <StudentPortal 
                     currentUser={currentUser as any} 
                     attendance={attendance} 
                     performance={performance} 
                     onLogout={logout} 
                 />
-            ) : currentUser.role === 'PARENT' ? (
+            </>
+        );
+    }
+
+    if (currentUser.role === 'PARENT') {
+        return (
+            <>
+                <ReloadPrompt />
                 <ParentPortal 
                     parentPhone={currentUser.email} 
                     allStudents={getStudents()} 
@@ -204,29 +226,34 @@ const App: React.FC = () => {
                     performance={getPerformance()} 
                     onLogout={logout} 
                 />
-            ) : (
-                <AppContext.Provider value={contextValue}>
-                    <TeacherPortal 
-                        currentUser={currentUser}
-                        students={students}
-                        attendance={attendance}
-                        performance={performance}
-                        syncStatus={syncStatus}
-                        aiStatus={aiStatus}
-                        onLogout={logout}
-                        addStudent={handleAddStudent}
-                        updateStudent={handleUpdateStudent}
-                        deleteStudent={handleDeleteStudent}
-                        saveAttendance={handleSaveAttendance}
-                        addPerformance={handleAddPerformance}
-                        deletePerformance={handleDeletePerformance}
-                        importStudents={handleImportStudents}
-                        importAttendance={handleImportAttendance}
-                        importPerformance={handleImportPerformance}
-                        setTheme={setTheme}
-                    />
-                </AppContext.Provider>
-            )}
+            </>
+        );
+    }
+
+    return (
+        <>
+            <ReloadPrompt />
+            <AppContext.Provider value={contextValue}>
+                <TeacherPortal 
+                    currentUser={currentUser}
+                    students={students}
+                    attendance={attendance}
+                    performance={performance}
+                    syncStatus={syncStatus}
+                    aiStatus={aiStatus}
+                    onLogout={logout}
+                    addStudent={handleAddStudent}
+                    updateStudent={handleUpdateStudent}
+                    deleteStudent={handleDeleteStudent}
+                    saveAttendance={handleSaveAttendance}
+                    addPerformance={handleAddPerformance}
+                    deletePerformance={handleDeletePerformance}
+                    importStudents={handleImportStudents}
+                    importAttendance={handleImportAttendance}
+                    importPerformance={handleImportPerformance}
+                    setTheme={setTheme}
+                />
+            </AppContext.Provider>
         </>
     );
 };

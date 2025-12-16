@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, ScheduleItem, DayOfWeek, BehaviorStatus, PerformanceRecord, SystemUser, AcademicTerm } from '../types';
-import { getSchedules, getAcademicTerms } from '../services/storageService';
+import { getSchedules, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
 import { Calendar, Save, CheckCircle, FileSpreadsheet, Users, CheckSquare, Clock, CalendarClock, School, ArrowRight, Smile, Frown, MessageSquare, Plus, X, Inbox, FileText, Check, LayoutGrid, List, RefreshCw, CalendarDays, History, Printer, Loader2, Cloud, Flame, PieChart } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -192,10 +192,13 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   // --- HELPERS ---
   const uniqueClasses = useMemo(() => {
-      if (!students) return [];
-      const classes = new Set(students.map(s => s.className).filter(Boolean));
-      return Array.from(classes).sort();
-  }, [students]);
+      const studentClasses = new Set(students.map(s => s.className).filter(Boolean));
+      // Merge with manually defined classes from Settings
+      const definedClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+      definedClasses.forEach(c => studentClasses.add(c));
+      
+      return Array.from(studentClasses).sort();
+  }, [students, currentUser]);
 
   const saveSingleRecord = (studentId: string, updates: Partial<AttendanceRecord>) => {
       if (selectedPeriod === null) return;
@@ -404,7 +407,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 bg-gray-50 custom-scrollbar">
-                        {viewMode === 'GRID' ? (
+                        {filteredStudents.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                <Users size={48} className="mb-4 opacity-20"/>
+                                <p className="font-bold">لا يوجد طلاب في هذا الفصل</p>
+                                <p className="text-sm mt-2">انتقل لصفحة "الطلاب" لإضافتهم إلى {selectedClass}</p>
+                            </div>
+                        ) : viewMode === 'GRID' ? (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                 {filteredStudents.map(student => {
                                     const status = records[student.id] || AttendanceStatus.PRESENT;

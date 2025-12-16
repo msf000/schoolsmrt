@@ -56,6 +56,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       setStatusMessage('جاري سحب أحدث البيانات...');
       try {
           await downloadFromSupabase();
+          window.location.reload();
       } catch (e) {
           setError('فشل الاتصال بالسحابة');
       } finally {
@@ -150,12 +151,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 relative overflow-hidden" dir="rtl">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 relative overflow-hidden z-[50]" dir="rtl">
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-br from-indigo-600 to-purple-700 transform -skew-y-6 origin-top-left -z-10 shadow-lg"></div>
       <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl -z-10"></div>
 
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md relative z-10">
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 animate-slide-up relative">
             
             {/* Header */}
@@ -287,7 +288,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 )}
                 
                 {/* Footer with Sync & Reset */}
-                <div className="mt-4 flex flex-wrap justify-center items-center gap-4 pt-2 opacity-50 hover:opacity-100 transition-opacity">
+                <div className="mt-4 flex flex-wrap justify-center items-center gap-4 pt-2 opacity-80 hover:opacity-100 transition-opacity">
                     <span className={`text-[10px] flex items-center gap-1 font-mono ${isSupabaseConfigured() ? 'text-green-600' : 'text-gray-400'}`}>
                         <CloudLightning size={10}/> {isSupabaseConfigured() ? 'Cloud Active' : 'Local Mode'}
                     </span>
@@ -303,8 +304,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         </button>
                     )}
 
-                    <button onClick={handleReset} className="text-[10px] text-red-300 hover:text-red-500 flex items-center gap-1 hover:underline">
-                        <Trash2 size={10}/> Reset
+                    <button onClick={handleReset} className="text-[10px] text-red-400 hover:text-red-500 flex items-center gap-1 hover:underline">
+                        <Trash2 size={10}/> Reset App
                     </button>
                 </div>
             </div>

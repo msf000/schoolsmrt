@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
-import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
+import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
 import { UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key } from 'lucide-react';
 import DataImport from './DataImport';
 import { useNavigate } from 'react-router-dom';
@@ -71,12 +71,18 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   // --- Derived Data for Filters ---
   const existingGrades = useMemo(() => Array.from(new Set([...students.map(s => s.gradeLevel).filter(Boolean), ...SAUDI_GRADES])).sort(), [students]);
   const existingClasses = useMemo(() => {
-      let classes = students.map(s => s.className).filter(Boolean) as string[];
-      if (filterGrade) {
-          classes = students.filter(s => s.gradeLevel === filterGrade).map(s => s.className).filter(Boolean) as string[];
-      }
-      return Array.from(new Set(classes)).sort();
-  }, [students, filterGrade]);
+      const classes = new Set<string>();
+      // 1. From Students
+      students.forEach(s => {
+          if (filterGrade && s.gradeLevel !== filterGrade) return;
+          if (s.className) classes.add(s.className);
+      });
+      // 2. From Manually Defined Classes
+      const defined = getTeacherAssignments(currentUser?.id).map(a => a.classId);
+      defined.forEach(c => classes.add(c));
+
+      return Array.from(classes).sort();
+  }, [students, filterGrade, currentUser]);
 
   // --- Filtering Logic ---
   const filteredStudents = useMemo(() => {

@@ -6,14 +6,15 @@ import {
     getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
     getReportHeaderConfig, saveReportHeaderConfig,
     getUserTheme, saveUserTheme,
-    getTeacherPeriodTimings, saveTeacherPeriodTimings
+    getTeacherPeriodTimings, saveTeacherPeriodTimings,
+    getTeacherAssignments, addTeacherAssignment, deleteTeacherAssignment
 } from '../services/storageService';
 import { 
-    School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod 
+    School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod, TeacherAssignment 
 } from '../types';
 import { 
     Building2, Users, Settings, 
-    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw
+    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Box
 } from 'lucide-react';
 
 // Define locally to avoid import errors
@@ -54,6 +55,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   });
   const [userTheme, setUserTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
   const [periodTimings, setPeriodTimings] = useState<string[]>([]);
+  const [myClasses, setMyClasses] = useState<TeacherAssignment[]>([]);
 
   // UI States
   const [newSubject, setNewSubject] = useState('');
@@ -71,12 +73,16 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const [teacherProfile, setTeacherProfile] = useState<Teacher | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+  // New Class UI State
+  const [newClassName, setNewClassName] = useState('');
+
   useEffect(() => {
       if (currentUser) {
           setSubjects(getSubjects(currentUser.id));
           setReportConfig(getReportHeaderConfig(currentUser.id));
           setAcademicTerms(getAcademicTerms(currentUser.id));
           setPeriodTimings(getTeacherPeriodTimings(currentUser.id));
+          setMyClasses(getTeacherAssignments(currentUser.id));
       }
       setUserTheme(getUserTheme());
       const allTeachers = getTeachers();
@@ -241,6 +247,29 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const handleResetTimings = () => {
       if(confirm('هل أنت متأكد من استعادة التوقيتات الافتراضية؟')) {
           setPeriodTimings([...DEFAULT_PERIOD_TIMES]);
+      }
+  };
+
+  // --- New Class Management Handlers ---
+  const handleAddClass = () => {
+      if (!newClassName.trim() || !currentUser) return;
+      
+      const newClass: TeacherAssignment = {
+          id: Date.now().toString(),
+          classId: newClassName.trim(),
+          subjectName: '', // Optional or default subject could be added here
+          teacherId: currentUser.id
+      };
+      
+      addTeacherAssignment(newClass);
+      setMyClasses(getTeacherAssignments(currentUser.id));
+      setNewClassName('');
+  };
+
+  const handleDeleteClass = (id: string) => {
+      if (confirm('هل أنت متأكد من حذف هذا الفصل من القائمة؟')) {
+          deleteTeacherAssignment(id);
+          setMyClasses(getTeacherAssignments(currentUser?.id));
       }
   };
 
@@ -419,6 +448,43 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             {/* SETTINGS TAB */}
             {activeTab === 'SETTINGS' && (
                 <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-10">
+                    
+                    {/* Class Management Section */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                                <Box className="text-teal-600"/> إدارة فصولي
+                            </h3>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-4">
+                            قم بإضافة الفصول الدراسية التي تقوم بتدريسها لتظهر في قوائم الحضور والطلاب حتى لو كانت فارغة حالياً.
+                        </p>
+                        
+                        <div className="flex gap-2 mb-4">
+                            <input 
+                                className="flex-1 p-2 border rounded-lg"
+                                placeholder="اسم الفصل (مثال: 1/أ، ثاني ثانوي 3)"
+                                value={newClassName}
+                                onChange={e => setNewClassName(e.target.value)}
+                            />
+                            <button onClick={handleAddClass} className="bg-teal-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-teal-700">
+                                إضافة
+                            </button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                            {myClasses.map(cls => (
+                                <div key={cls.id} className="bg-gray-50 border rounded-lg px-3 py-1.5 flex items-center gap-2 text-sm font-bold text-gray-700 group">
+                                    <span>{cls.classId}</span>
+                                    <button onClick={() => handleDeleteClass(cls.id)} className="text-gray-400 hover:text-red-500 p-0.5 rounded-full hover:bg-red-50">
+                                        <Trash2 size={12}/>
+                                    </button>
+                                </div>
+                            ))}
+                            {myClasses.length === 0 && <span className="text-sm text-gray-400 italic">لا توجد فصول مضافة.</span>}
+                        </div>
+                    </div>
+
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
                             <FileText className="text-indigo-600"/> إعدادات الترويسة والتقارير
@@ -489,7 +555,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 </div>
                             ))}
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-2">* هذه التوقيتات ستظهر في الجدول الدراسي.</p>
+                        <p className="text--[10px] text-gray-400 mt-2">* هذه التوقيتات ستظهر في الجدول الدراسي.</p>
                     </div>
 
                     {/* Teacher Profile Section */}

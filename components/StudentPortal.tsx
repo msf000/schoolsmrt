@@ -1,11 +1,10 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, ScheduleItem, Teacher, TeacherAssignment, Subject, TrackingSheet, Exam, ExamResult, Question, WeeklyPlanItem, AcademicTerm, LessonLink, StoredLessonPlan, ReportHeaderConfig } from '../types';
-import { updateStudent, saveAttendance, getSubjects, getAssignments, getSchedules, getTeacherAssignments, getTeachers, downloadFromSupabase, getTrackingSheets, getExams, getExamResults, saveExamResult, getWeeklyPlans, addPerformance, getAcademicTerms, getLessonLinks, getLessonPlans, getReportHeaderConfig } from '../services/storageService';
-import { User, Calendar, Award, LogOut, Lock, Upload, FileText, CheckCircle, AlertTriangle, Smile, Frown, X, Menu, TrendingUp, Calculator, Activity as ActivityIcon, BookOpen, CheckSquare, ExternalLink, Clock, MapPin, RefreshCw, Table, Star, FileQuestion, PlayCircle, Timer, Check, AlertCircle, LayoutGrid, Trophy, Flame, ChevronRight, ChevronLeft, CalendarDays, List, Filter, Library, Globe, Youtube, Link as LinkIcon, Crown, Send, Video, Paperclip, BarChart2, PieChart as PieChartIcon, Printer } from 'lucide-react';
-import { formatDualDate } from '../services/dateService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, PieChart, Pie } from 'recharts';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, ReportHeaderConfig } from '../types';
+import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
+import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -193,6 +192,11 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
     const totalScore = myPerf.reduce((a: any, b: any) => a + (b.score/b.maxScore), 0);
     const avgScore = myPerf.length > 0 ? Math.round((totalScore / myPerf.length) * 100) : 0;
 
+    const pieData = [
+        { name: 'حضور', value: present > 0 ? present : 1, color: '#10b981' },
+        { name: 'غياب', value: absent, color: '#ef4444' }
+    ];
+
     return (
         <div className="space-y-6 animate-fade-in">
             <div className="bg-gradient-to-r from-teal-600 to-teal-800 rounded-2xl p-6 text-white shadow-lg">
@@ -214,20 +218,38 @@ const StudentDashboard = ({ student, attendance, performance, onViewChange, term
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div onClick={() => onViewChange('TIMETABLE')} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between group">
-                    <div>
-                        <h3 className="font-bold text-gray-800">الجدول الدراسي</h3>
-                        <p className="text-xs text-gray-500 mt-1">عرض جدول الحصص اليومي</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><PieChartIcon size={18} className="text-teal-600"/> ملخص الحضور</h3>
+                    <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value">
+                                    {pieData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
-                    <div className="bg-blue-50 text-blue-600 p-3 rounded-full group-hover:scale-110 transition-transform"><Clock size={24}/></div>
                 </div>
-                <div onClick={() => onViewChange('EVALUATION')} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between group">
-                    <div>
-                        <h3 className="font-bold text-gray-800">كشف الدرجات</h3>
-                        <p className="text-xs text-gray-500 mt-1">تفاصيل الدرجات والتقييمات</p>
+
+                <div className="space-y-4">
+                    <div onClick={() => onViewChange('TIMETABLE')} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between group">
+                        <div>
+                            <h3 className="font-bold text-gray-800">الجدول الدراسي</h3>
+                            <p className="text-xs text-gray-500 mt-1">عرض جدول الحصص اليومي</p>
+                        </div>
+                        <div className="bg-blue-50 text-blue-600 p-3 rounded-full group-hover:scale-110 transition-transform"><Clock size={24}/></div>
                     </div>
-                    <div className="bg-purple-50 text-purple-600 p-3 rounded-full group-hover:scale-110 transition-transform"><Award size={24}/></div>
+                    <div onClick={() => onViewChange('EVALUATION')} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between group">
+                        <div>
+                            <h3 className="font-bold text-gray-800">كشف الدرجات</h3>
+                            <p className="text-xs text-gray-500 mt-1">تفاصيل الدرجات والتقييمات</p>
+                        </div>
+                        <div className="bg-purple-50 text-purple-600 p-3 rounded-full group-hover:scale-110 transition-transform"><Award size={24}/></div>
+                    </div>
                 </div>
             </div>
         </div>

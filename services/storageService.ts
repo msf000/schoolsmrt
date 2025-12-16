@@ -1,3 +1,4 @@
+
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -380,7 +381,22 @@ export const deleteScheduleItem = (id: string) => {
 };
 
 // --- Assignments (TeacherAssignments - Class Subject Map) ---
-export const getTeacherAssignments = (): TeacherAssignment[] => get<TeacherAssignment>(KEYS.ASSIGNMENTS);
+export const getTeacherAssignments = (teacherId?: string): TeacherAssignment[] => {
+    const all = get<TeacherAssignment>(KEYS.ASSIGNMENTS);
+    if (teacherId) return all.filter(a => a.teacherId === teacherId);
+    return all;
+};
+export const addTeacherAssignment = (assignment: TeacherAssignment) => {
+    const list = get<TeacherAssignment>(KEYS.ASSIGNMENTS);
+    // Avoid duplicates
+    if (!list.find(a => a.classId === assignment.classId && a.teacherId === assignment.teacherId)) {
+        list.push(assignment);
+        save(KEYS.ASSIGNMENTS, list);
+    }
+};
+export const deleteTeacherAssignment = (id: string) => {
+    save(KEYS.ASSIGNMENTS, get<TeacherAssignment>(KEYS.ASSIGNMENTS).filter(a => a.id !== id));
+};
 
 // --- Assignments (Columns / Assessments) ---
 export const getAssignments = (termId?: string, teacherId?: string, forceAll: boolean = false): Assignment[] => {
