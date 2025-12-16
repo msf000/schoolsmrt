@@ -164,60 +164,50 @@ const App: React.FC = () => {
         importPerformance: handleImportPerformance
     };
 
-    if (!currentUser) {
-        return <Login onLoginSuccess={login} />;
-    }
-
-    // --- APPLICATION ROUTING BASED ON ROLE ---
-    // 1. Student App
-    if (currentUser.role === 'STUDENT') {
-        return (
-            <StudentPortal 
-                currentUser={currentUser as any} 
-                attendance={attendance} 
-                performance={performance} 
-                onLogout={logout} 
-            />
-        );
-    }
-
-    // 2. Parent App
-    if (currentUser.role === 'PARENT') {
-        return (
-            <ParentPortal 
-                parentPhone={currentUser.email} // Storing phone in email field for parents
-                allStudents={getStudents()} 
-                attendance={getAttendance()} 
-                performance={getPerformance()} 
-                onLogout={logout} 
-            />
-        );
-    }
-
-    // 3. Teacher / Admin App (Main System)
     return (
-        <AppContext.Provider value={contextValue}>
+        <>
             <ReloadPrompt />
-            <TeacherPortal 
-                currentUser={currentUser}
-                students={students}
-                attendance={attendance}
-                performance={performance}
-                syncStatus={syncStatus}
-                aiStatus={aiStatus}
-                onLogout={logout}
-                addStudent={handleAddStudent}
-                updateStudent={handleUpdateStudent}
-                deleteStudent={handleDeleteStudent}
-                saveAttendance={handleSaveAttendance}
-                addPerformance={handleAddPerformance}
-                deletePerformance={handleDeletePerformance}
-                importStudents={handleImportStudents}
-                importAttendance={handleImportAttendance}
-                importPerformance={handleImportPerformance}
-                setTheme={setTheme}
-            />
-        </AppContext.Provider>
+            {!currentUser ? (
+                <Login onLoginSuccess={login} />
+            ) : currentUser.role === 'STUDENT' ? (
+                <StudentPortal 
+                    currentUser={currentUser as any} 
+                    attendance={attendance} 
+                    performance={performance} 
+                    onLogout={logout} 
+                />
+            ) : currentUser.role === 'PARENT' ? (
+                <ParentPortal 
+                    parentPhone={currentUser.email} 
+                    allStudents={getStudents()} 
+                    attendance={getAttendance()} 
+                    performance={getPerformance()} 
+                    onLogout={logout} 
+                />
+            ) : (
+                <AppContext.Provider value={contextValue}>
+                    <TeacherPortal 
+                        currentUser={currentUser}
+                        students={students}
+                        attendance={attendance}
+                        performance={performance}
+                        syncStatus={syncStatus}
+                        aiStatus={aiStatus}
+                        onLogout={logout}
+                        addStudent={handleAddStudent}
+                        updateStudent={handleUpdateStudent}
+                        deleteStudent={handleDeleteStudent}
+                        saveAttendance={handleSaveAttendance}
+                        addPerformance={handleAddPerformance}
+                        deletePerformance={handleDeletePerformance}
+                        importStudents={handleImportStudents}
+                        importAttendance={handleImportAttendance}
+                        importPerformance={handleImportPerformance}
+                        setTheme={setTheme}
+                    />
+                </AppContext.Provider>
+            )}
+        </>
     );
 };
 
