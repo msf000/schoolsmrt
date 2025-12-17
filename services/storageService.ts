@@ -58,7 +58,12 @@ export const DB_MAP: Record<string, string> = {
     [KEYS.LESSON_PLANS]: 'lesson_plans',
     [KEYS.TERMS]: 'academic_terms',
     [KEYS.MESSAGES]: 'messages',
-    [KEYS.SCHEDULES]: 'schedules'
+    [KEYS.SCHEDULES]: 'schedules',
+    // NEW TABLES MAPPING
+    [KEYS.CURRICULUM_UNITS]: 'curriculum_units',
+    [KEYS.CURRICULUM_LESSONS]: 'curriculum_lessons',
+    [KEYS.MICRO_CONCEPTS]: 'micro_concepts',
+    [KEYS.CUSTOM_TABLES]: 'custom_tables'
 };
 
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
@@ -843,6 +848,10 @@ export const getTableDisplayName = (table: string) => {
         case KEYS.TERMS: return 'الفصول الدراسية';
         case KEYS.MESSAGES: return 'الرسائل';
         case KEYS.SCHEDULES: return 'الجدول الدراسي';
+        case KEYS.CURRICULUM_UNITS: return 'وحدات المنهج';
+        case KEYS.CURRICULUM_LESSONS: return 'دروس المنهج';
+        case KEYS.MICRO_CONCEPTS: return 'المفاهيم الدقيقة';
+        case KEYS.CUSTOM_TABLES: return 'الجداول الخاصة';
         default: return table;
     }
 };
@@ -1038,10 +1047,53 @@ CREATE TABLE IF NOT EXISTS schedules (
     subject_name TEXT,
     teacher_id TEXT
 );
+
+-- NEW TABLES FOR CURRICULUM AND CUSTOM RECORDS
+CREATE TABLE IF NOT EXISTS curriculum_units (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    grade_level TEXT,
+    title TEXT,
+    order_index INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT,
+    title TEXT,
+    order_index INTEGER,
+    learning_standards JSONB,
+    micro_concept_ids JSONB
+);
+
+CREATE TABLE IF NOT EXISTS micro_concepts (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS custom_tables (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    created_at TEXT,
+    columns JSONB,
+    rows JSONB,
+    source_url TEXT,
+    last_updated TEXT,
+    teacher_id TEXT
+);
 `;
 
 export const getDatabaseUpdateSQL = () => `
 -- Run this if you are updating from an older version
 ALTER TABLE students ADD COLUMN IF NOT EXISTS seat_index INTEGER;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_file TEXT;
+
+-- Create new tables if missing
+CREATE TABLE IF NOT EXISTS curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INTEGER);
+CREATE TABLE IF NOT EXISTS curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INTEGER, learning_standards JSONB, micro_concept_ids JSONB);
+CREATE TABLE IF NOT EXISTS micro_concepts (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, name TEXT);
+CREATE TABLE IF NOT EXISTS custom_tables (id TEXT PRIMARY KEY, name TEXT, created_at TEXT, columns JSONB, rows JSONB, source_url TEXT, last_updated TEXT, teacher_id TEXT);
 `;
