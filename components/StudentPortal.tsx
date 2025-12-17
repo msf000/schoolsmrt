@@ -1,14 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, AttendanceStatus, BehaviorStatus, LessonLink } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, AttendanceStatus, BehaviorStatus, LessonLink, Question } from '../types';
 import { downloadFromSupabase, getAcademicTerms, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, saveExamResult } from '../services/storageService';
 import { 
     User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Library, 
     LayoutGrid, CalendarDays, RefreshCw, X, Activity, CheckCircle, 
     ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, 
-    Bell, Download, Medal, ExternalLink, BookOpen, Zap, Star, TrendingUp, Info,
+    Bell, Download, Medal, ExternalLink, BookOpen, Zap, Star, TrendingUp,
     BrainCircuit, Phone, Mail, Rocket, Trophy, PlayCircle,
-    GraduationCap, Map as MapIcon, DownloadCloud, Eye,
+    GraduationCap, Map as MapIcon, Eye,
     Image as ImageIcon, FolderHeart, LayoutPanelLeft
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
@@ -32,7 +32,8 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
     useEffect(() => {
         setTerms(getAcademicTerms());
-        const myMsgs = getMessages().filter(m => m.studentId === currentUser.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const allMsgs = getMessages();
+        const myMsgs = allMsgs.filter((m: MessageLog) => m.studentId === currentUser.id).sort((a: MessageLog, b: MessageLog) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setMessages(myMsgs);
     }, [currentUser]);
 
@@ -173,9 +174,10 @@ const StudentDashboard = ({ student, attendance, performance }: { student: Stude
     const myPerf = performance.filter((p: PerformanceRecord) => p.studentId === student.id);
     
     const stats = useMemo(() => {
-        const attRate = myAtt.length > 0 ? Math.round((myAtt.filter((a: AttendanceRecord) => a.status === AttendanceStatus.PRESENT).length / myAtt.length) * 100) : 100;
+        const attRate = myAtt.length > 0 
+            ? Math.round((myAtt.filter((a: AttendanceRecord) => a.status === AttendanceStatus.PRESENT).length / myAtt.length) * 100) 
+            : 100;
         
-        // Safe averaging calculation
         const avgScore = myPerf.length > 0 
             ? Math.round((myPerf.reduce((acc: number, curr: PerformanceRecord) => acc + (curr.score / (curr.maxScore || 1)), 0) / myPerf.length) * 100) 
             : 0;
@@ -211,7 +213,7 @@ const StudentDashboard = ({ student, attendance, performance }: { student: Stude
                         <StatsCard label="الحضور" value={`${stats.attRate}%`} icon={<CheckCircle className="text-emerald-400"/>} color="bg-emerald-500/20" />
                         <StatsCard label="المعدل" value={`${stats.avgScore}%`} icon={<TrendingUp className="text-blue-400"/>} color="bg-blue-500/20" />
                         <StatsCard label="النقاط" value={stats.totalPoints} icon={<Star className="text-purple-400"/>} color="bg-purple-500/20" />
-                        <StatsCard label="أوسمة" value={myAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length} icon={<Medal className="text-orange-400"/>} color="bg-orange-500/20" />
+                        <StatsCard label="أوسمة" value={myAtt.filter((a: AttendanceRecord) => a.behaviorStatus === BehaviorStatus.POSITIVE).length} icon={<Medal className="text-orange-400"/>} color="bg-orange-500/20" />
                     </div>
                 </div>
             </div>
@@ -297,7 +299,7 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
 
     useEffect(() => {
         const allPlans = getWeeklyPlans();
-        const filtered = allPlans.filter(p => p.classId === student.className && p.weekStartDate === weekStart);
+        const filtered = allPlans.filter((p: WeeklyPlanItem) => p.classId === student.className && p.weekStartDate === weekStart);
         setPlans(filtered);
     }, [weekStart, student]);
 
@@ -322,15 +324,15 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
             </div>
 
             <div className="grid gap-4">
-                {days.map(day => {
-                    const dayPlans = plans.filter(p => p.day === day).sort((a,b) => a.period - b.period);
+                {days.map((day: string) => {
+                    const dayPlans = plans.filter((p: WeeklyPlanItem) => p.day === day).sort((a: WeeklyPlanItem, b: WeeklyPlanItem) => a.period - b.period);
                     return (
                         <div key={day} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
                             <div className="bg-slate-50 p-3 border-b border-slate-100 font-bold text-slate-700 flex justify-between items-center">
                                 <span className="flex items-center gap-2"><Calendar size={16}/> {dayNamesAr[day]}</span>
                             </div>
                             <div className="divide-y divide-slate-100">
-                                {dayPlans.length > 0 ? dayPlans.map(plan => (
+                                {dayPlans.length > 0 ? dayPlans.map((plan: WeeklyPlanItem) => (
                                     <div key={plan.id} className="p-4 hover:bg-slate-50 transition-colors">
                                         <div className="flex items-center gap-3">
                                             <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded-lg">حصة {plan.period}</span>
@@ -354,12 +356,12 @@ const StudentEvaluationView = ({ student, performance, terms }: { student: Stude
     const [selectedTermId, setSelectedTermId] = useState('');
     
     useEffect(() => {
-        const current = terms.find((t:any) => t.isCurrent);
+        const current = terms.find((t: AcademicTerm) => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (terms.length > 0) setSelectedTermId(terms[0].id);
     }, [terms]);
 
-    const activeTerm = terms.find((t:any) => t.id === selectedTermId);
+    const activeTerm = terms.find((t: AcademicTerm) => t.id === selectedTermId);
     
     const filteredPerf = useMemo(() => {
         if (!activeTerm) return performance.filter((p: PerformanceRecord) => p.studentId === student.id);
@@ -415,8 +417,10 @@ const StudentExamsView = ({ student }: { student: Student }) => {
     const [activeExam, setActiveExam] = useState<Exam | null>(null);
 
     useEffect(() => {
-        setExams(getExams().filter(e => e.isActive && (e.gradeLevel === student.gradeLevel || e.gradeLevel === 'عام')));
-        setResults(getExamResults().filter(r => r.studentId === student.id));
+        const allExams = getExams();
+        setExams(allExams.filter((e: Exam) => e.isActive && (e.gradeLevel === student.gradeLevel || e.gradeLevel === 'عام')));
+        const allResults = getExamResults();
+        setResults(allResults.filter((r: ExamResult) => r.studentId === student.id));
     }, [student]);
 
     if (activeExam) return <ExamPlayer exam={activeExam} student={student} onComplete={() => setActiveExam(null)} />;
@@ -425,8 +429,8 @@ const StudentExamsView = ({ student }: { student: Student }) => {
         <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><FileQuestion className="text-indigo-600" size={28}/> الاختبارات المتاحة</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {exams.map(exam => {
-                    const res = results.find(r => r.examId === exam.id);
+                {exams.map((exam: Exam) => {
+                    const res = results.find((r: ExamResult) => r.examId === exam.id);
                     return (
                         <div key={exam.id} className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl transition-all group">
                             <div className="flex justify-between items-start mb-6">
@@ -452,7 +456,7 @@ const StudentExamsView = ({ student }: { student: Student }) => {
 };
 
 const StudentAttendanceView = ({ student, attendance }: { student: Student, attendance: AttendanceRecord[] }) => {
-    const myAtt = attendance.filter(a => a.studentId === student.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const myAtt = attendance.filter((a: AttendanceRecord) => a.studentId === student.id).sort((a: AttendanceRecord, b: AttendanceRecord) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return (
         <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Calendar className="text-indigo-600" size={28}/> سجل الحضور</h2>
@@ -466,7 +470,7 @@ const StudentAttendanceView = ({ student, attendance }: { student: Student, atte
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {myAtt.map(a => (
+                        {myAtt.map((a: AttendanceRecord) => (
                             <tr key={a.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="p-4 text-slate-400 font-mono text-xs">{a.date}</td>
                                 <td className="p-4">
@@ -487,14 +491,15 @@ const StudentAttendanceView = ({ student, attendance }: { student: Student, atte
 const StudentLibrary = ({ student }: { student: Student }) => {
     const [links, setLinks] = useState<LessonLink[]>([]);
     useEffect(() => {
-        setLinks(getLessonLinks().filter(l => !l.gradeLevel || l.gradeLevel === student.gradeLevel));
+        const allLinks = getLessonLinks();
+        setLinks(allLinks.filter((l: LessonLink) => !l.gradeLevel || l.gradeLevel === student.gradeLevel));
     }, [student]);
 
     return (
         <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Library className="text-indigo-600" size={28}/> المكتبة الرقمية</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {links.map(link => (
+                {links.map((link: LessonLink) => (
                     <a href={link.url} target="_blank" rel="noreferrer" key={link.id} className="bg-white p-6 rounded-3xl border border-slate-200 flex items-center gap-4 hover:shadow-xl transition-all group">
                         <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                             {link.url.includes('youtube') ? <Video size={24}/> : <LinkIcon size={24}/>}
@@ -512,14 +517,14 @@ const StudentLibrary = ({ student }: { student: Student }) => {
 
 const StudentPortfolio = ({ student, performance }: { student: Student, performance: PerformanceRecord[] }) => {
     const galleryItems = useMemo(() => {
-        return performance.filter(p => p.studentId === student.id && (p.url || p.notes?.includes('http')));
+        return performance.filter((p: PerformanceRecord) => p.studentId === student.id && (p.url || p.notes?.includes('http')));
     }, [student, performance]);
 
     return (
         <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><FolderHeart className="text-rose-500" size={28}/> معرض إنجازاتي</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {galleryItems.map(item => (
+                {galleryItems.map((item: PerformanceRecord) => (
                     <div key={item.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-all group">
                         <div className="aspect-video bg-slate-100 relative overflow-hidden flex items-center justify-center">
                             {item.url ? (
@@ -543,7 +548,7 @@ const StudentMessages = ({ messages }: { messages: MessageLog[] }) => (
     <div className="space-y-6 animate-fade-in">
         <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Bell className="text-indigo-600" size={28}/> البريد الوارد</h2>
         <div className="space-y-4">
-            {messages.map(msg => (
+            {messages.map((msg: MessageLog) => (
                 <div key={msg.id} className="bg-white p-6 rounded-3xl border border-slate-200 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-2 h-full bg-indigo-600"></div>
                     <div className="flex justify-between items-start mb-4">
@@ -593,7 +598,7 @@ const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Studen
     
     useEffect(() => {
         const timer = setInterval(() => {
-            setTimeLeft(prev => {
+            setTimeLeft((prev: number) => {
                 if (prev <= 1) {
                     clearInterval(timer);
                     handleSubmit();
@@ -608,7 +613,7 @@ const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Studen
     const handleSubmit = () => {
         let score = 0;
         let total = 0;
-        exam.questions.forEach(q => {
+        exam.questions.forEach((q: Question) => {
             if (answers[q.id] === q.correctAnswer) score += q.points;
             total += q.points;
         });
@@ -647,7 +652,7 @@ const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Studen
                 <div className="flex-1 bg-white/5 rounded-[2.5rem] border border-white/10 p-8 md:p-12 animate-fade-in">
                     <h3 className="text-xl md:text-3xl font-bold mb-10 leading-relaxed text-right">{q.text}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {q.options.map(opt => (
+                        {q.options.map((opt: string) => (
                             <button
                                 key={opt}
                                 onClick={() => setAnswers({...answers, [q.id]: opt})}
@@ -661,7 +666,7 @@ const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Studen
 
                 <div className="flex justify-between items-center mt-10">
                     <button 
-                        onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+                        onClick={() => setCurrentIndex((prev: number) => Math.max(0, prev - 1))}
                         disabled={currentIndex === 0}
                         className="px-8 py-4 bg-white/10 rounded-2xl font-bold disabled:opacity-30"
                     >
@@ -671,7 +676,7 @@ const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Studen
                         <button onClick={handleSubmit} className="px-12 py-4 bg-emerald-600 rounded-2xl font-black text-xl hover:bg-emerald-700 shadow-xl">إنهاء وتسليم</button>
                     ) : (
                         <button 
-                            onClick={() => setCurrentIndex(prev => prev + 1)}
+                            onClick={() => setCurrentIndex((prev: number) => prev + 1)}
                             className="px-8 py-4 bg-indigo-600 rounded-2xl font-bold hover:bg-indigo-700"
                         >
                             التالي
