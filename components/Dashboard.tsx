@@ -4,9 +4,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, CurriculumUnit, CurriculumLesson } from '../types';
-import { getSchedules, getExams, getAcademicTerms } from '../services/storageService';
-import { Users, Clock, Activity, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, BookOpen, MessageSquare, Check, X, ArrowRight, TrendingUp, Calendar, Timer, ScanLine, BrainCircuit, Table, GraduationCap, Award, Star, Plus, BellRing, Sparkles, Siren, Mail } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm } from '../types';
+import { getSchedules, getAcademicTerms } from '../services/storageService';
+import { generateDailyBriefing } from '../services/geminiService';
+import { Users, Clock, Activity, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, BrainCircuit, GraduationCap, ArrowRight, Sparkles, Siren, Mail, Bot, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -17,57 +18,38 @@ interface DashboardProps {
   onNavigate: (view: string) => void;
 }
 
-const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6'];
-
-const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState<string>('');
+  const [aiBrief, setAiBrief] = useState<string>('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   useEffect(() => {
-      // getAcademicTerms updated to accept teacherId
       const loadedTerms = getAcademicTerms(currentUser?.id);
       setTerms(loadedTerms);
       const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
       if (active) setSelectedTermId(active.id);
-  }, [currentUser]);
+      
+      // Load AI Brief
+      if (students.length > 0) {
+          loadAiBrief();
+      }
+  }, [currentUser, students.length]);
+
+  const loadAiBrief = async () => {
+      setIsAiLoading(true);
+      try {
+          const briefing = await generateDailyBriefing(students, attendance, performance);
+          setAiBrief(briefing);
+      } catch (e) {
+          setAiBrief("أهلاً بك! ركز اليوم على تحفيز الطلاب ومتابعة تقدمهم الأكاديمي. بالتوفيق!");
+      } finally {
+          setIsAiLoading(false);
+      }
+  };
 
   const activeTerm = terms.find(t => t.id === selectedTermId);
-
-  // --- NEW: Smart Alerts Logic ---
-  const smartAlerts = useMemo(() => {
-      const alerts = [];
-      const today = new Date().toISOString().split('T')[0];
-
-      // 1. Pending Excuses Alert (NEW)
-      const pendingExcuses = attendance.filter(a => a.excuseNote && a.status === AttendanceStatus.ABSENT);
-      if (pendingExcuses.length > 0) {
-          alerts.push({ id: 'pending-excuses', type: 'INFO', msg: `لديك ${pendingExcuses.length} أعذار غياب جديدة تحتاج لمراجعة.`, icon: <Mail size={14}/>, color: 'bg-indigo-50 text-indigo-700 border-indigo-100', action: () => navigate('/inbox') });
-      }
-
-      // 2. Critical Attendance Alert
-      students.forEach(s => {
-          const sAtt = attendance.filter(a => a.studentId === s.id).sort((a,b) => b.date.localeCompare(a.date));
-          const last3 = sAtt.slice(0, 3);
-          if (last3.length === 3 && last3.every(a => a.status === 'ABSENT')) {
-              alerts.push({ id: `att-${s.id}`, type: 'CRITICAL', msg: `الطالب ${s.name} غائب لليوم الثالث على التوالي.`, icon: <Siren size={14}/>, color: 'bg-red-50 text-red-700 border-red-100', action: () => navigate('/followup', { state: { studentId: s.id } }) });
-          }
-      });
-
-      // 3. Performance Improvement Alert
-      students.forEach(s => {
-          const sPerf = performance.filter(p => p.studentId === s.id).sort((a,b) => a.date.localeCompare(b.date));
-          if (sPerf.length >= 2) {
-              const last = (sPerf[sPerf.length-1].score / sPerf[sPerf.length-1].maxScore) * 100;
-              const prev = (sPerf[sPerf.length-2].score / sPerf[sPerf.length-2].maxScore) * 100;
-              if (last - prev >= 20) {
-                  alerts.push({ id: `perf-${s.id}`, type: 'POSITIVE', msg: `تحسن ملحوظ (+${Math.round(last-prev)}%) في مستوى الطالب ${s.name}.`, icon: <Sparkles size={14}/>, color: 'bg-emerald-50 text-emerald-700 border-emerald-100', action: () => navigate('/followup', { state: { studentId: s.id } }) });
-              }
-          }
-      });
-
-      return alerts.slice(0, 4);
-  }, [students, attendance, performance, navigate]);
 
   const stats = useMemo(() => {
     const totalStudents = students ? students.length : 0;
@@ -75,7 +57,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     const todaysAttendance = attendance ? attendance.filter(a => a.date === today) : [];
     const present = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
     const absent = todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
-    const attendanceRate = totalStudents > 0 && todaysAttendance.length > 0 ? Math.round((present / totalStudents) * 100) : 0;
+    const attendanceRate = totalStudents > 0 && todaysAttendance.length > 0 ? Math.round((present / totalStudents) * 100) : 100;
 
     let filteredPerf = performance || [];
     if (activeTerm) filteredPerf = filteredPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
@@ -91,38 +73,34 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   }, [students, attendance, performance, activeTerm]);
 
   return (
-    <div className="space-y-6 animate-fade-in p-6 bg-gray-50/50 min-h-full">
-      {/* Header & Controls */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-          <div>
-              <h1 className="text-2xl font-black text-gray-800">مرحباً بك، {currentUser?.name.split(' ')[0]}</h1>
-              <p className="text-gray-500 text-sm mt-1">إليك ملخص سريع لأداء طلابك وفصولك اليوم.</p>
-          </div>
-          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm">
-              <Filter size={16} className="text-gray-400 ml-1"/>
-              <select value={selectedTermId} onChange={(e) => setSelectedTermId(e.target.value)} className="bg-transparent text-sm font-bold outline-none text-purple-700 min-w-[150px]">
-                  <option value="">كل الفترات</option>
-                  {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+    <div className="space-y-6 animate-fade-in p-6 bg-gray-50/50 min-h-full pb-24">
+      {/* Smart AI Briefing Section */}
+      <div className="bg-indigo-900 rounded-[2rem] p-6 text-white shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center shrink-0 border border-white/10 shadow-xl">
+                  {isAiLoading ? <Loader2 className="animate-spin text-yellow-400"/> : <Bot className="text-yellow-400" size={32}/>}
+              </div>
+              <div className="flex-1 text-center md:text-right">
+                  <h2 className="text-xl font-black mb-2 flex items-center justify-center md:justify-start gap-2">
+                      موجزك الذكي لليوم <Sparkles size={16} className="text-yellow-400"/>
+                  </h2>
+                  <div className="text-indigo-100 text-sm leading-relaxed whitespace-pre-line opacity-90">
+                      {isAiLoading ? 'جاري تحليل بيانات الطلاب...' : aiBrief}
+                  </div>
+              </div>
+              <button 
+                onClick={() => navigate('/attendance')}
+                className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-bold hover:scale-105 transition-all shadow-xl flex items-center gap-2"
+              >
+                  ابدأ التحضير <ArrowRight size={18}/>
+              </button>
           </div>
       </div>
 
-      {/* Smart Insights Feed */}
-      {smartAlerts.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 animate-slide-up">
-              {smartAlerts.map(alert => (
-                  <div key={alert.id} onClick={alert.action} className={`${alert.color} px-4 py-3 rounded-2xl border flex items-center gap-3 shadow-sm group hover:scale-[1.02] transition-all cursor-pointer`}>
-                      <div className="shrink-0 p-1.5 bg-white/50 rounded-lg">{alert.icon}</div>
-                      <p className="text-[10px] font-bold leading-tight flex-1">{alert.msg}</p>
-                      <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity"/>
-                  </div>
-              ))}
-          </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="الطلاب" value={stats.totalStudents} icon={<Users size={24}/>} color="bg-indigo-50 text-indigo-600" />
-          <StatCard label="حضور اليوم" value={stats.attendanceData.length > 0 ? stats.attendanceRate + '%' : '-'} icon={<Clock size={24}/>} color="bg-green-50 text-green-600" />
+          <StatCard label="حضور اليوم" value={stats.attendanceRate + '%'} icon={<Clock size={24}/>} color="bg-green-50 text-green-600" />
           <StatCard label="المعدل الدراسي" value={stats.avgScore + '%'} icon={<GraduationCap size={24}/>} color="bg-blue-50 text-blue-600" />
           <div className="bg-gradient-to-br from-purple-600 to-indigo-700 p-5 rounded-2xl shadow-lg flex items-center justify-between text-white cursor-pointer hover:shadow-purple-200 transition-all" onClick={() => navigate('/followup')}>
               <div><p className="text-indigo-100 text-[10px] font-bold uppercase mb-1">التقارير الذكية</p><h3 className="text-lg font-bold">ملفات المتابعة</h3></div>
@@ -133,12 +111,17 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-[400px] flex flex-col">
-                  <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-600"/> تحليل الحضور الشهري</h3>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><Activity size={18} className="text-indigo-600"/> تحليل الحضور الأخير</h3>
+                    <select value={selectedTermId} onChange={(e) => setSelectedTermId(e.target.value)} className="text-xs font-bold border-none bg-gray-50 p-1 rounded outline-none">
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={attendance.slice(-30).map(a => ({ date: a.date.slice(5), count: 1 }))}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="date" />
-                            <YAxis />
+                        <AreaChart data={attendance.slice(-30).map(a => ({ date: a.date.slice(5), count: a.status === 'PRESENT' ? 1 : 0 }))}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="date" hide />
+                            <YAxis hide />
                             <Tooltip />
                             <Area type="monotone" dataKey="count" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.1} />
                         </AreaChart>
@@ -147,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
           <div className="lg:col-span-1">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-[400px] flex flex-col">
-                  <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieIcon size={18} className="text-red-500"/> نسب الحضور والغياب</h3>
+                  <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieIcon size={18} className="text-red-500"/> توزيع الحضور اليوم</h3>
                   <div className="flex-1">
                     {stats.attendanceData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
@@ -159,7 +142,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                                 <Legend verticalAlign="bottom" height={36}/>
                             </PieChart>
                         </ResponsiveContainer>
-                    ) : <div className="flex items-center justify-center h-full text-gray-300 text-xs italic">لا توجد بيانات لليوم</div>}
+                    ) : <div className="flex items-center justify-center h-full text-gray-300 text-xs italic">بانتظار رصد حضور اليوم</div>}
                   </div>
               </div>
           </div>
