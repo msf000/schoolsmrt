@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, AttendanceRecord, AttendanceStatus, Assignment } from '../types';
 import { formatDualDate } from '../services/dateService';
 import { getAcademicTerms, getAssignments, getTeacherAssignments } from '../services/storageService';
-import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle, Link, Eye } from 'lucide-react';
+import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle, Link, Eye, Edit } from 'lucide-react';
 import DataImport from './DataImport';
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -33,6 +33,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
   // Single Entry State
   const [studentId, setStudentId] = useState('');
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   
   // Shared/Bulk State
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -213,12 +214,12 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
     e.preventDefault();
     if (!studentId || !title || !score) return;
 
-    if (isSelectedStudentAbsent) {
+    if (isSelectedStudentAbsent && !editingRecordId) {
         if (!confirm('تنبيه: الطالب المحدد مسجل كـ "غائب" اليوم. هل تريد الاستمرار في رصد الدرجة؟')) return;
     }
 
     const record: PerformanceRecord = {
-      id: Date.now().toString(),
+      id: editingRecordId || Date.now().toString(), // Use existing ID if editing
       studentId,
       subject,
       title,
@@ -231,14 +232,49 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
     };
 
     onAddPerformance(record);
-    if (!selectedAssignmentId) {
-        setTitle('');
-        setScore('');
+    
+    // Reset or Clear
+    if (editingRecordId) {
+        setEditingRecordId(null);
+        alert('تم تعديل الدرجة بنجاح');
+        setActiveTab('LOG'); // Go back to log
     } else {
-        setScore(''); // Only clear score if using template
+        if (!selectedAssignmentId) {
+            setTitle('');
+            setScore('');
+        } else {
+            setScore(''); 
+        }
+        setIsSuccess(true);
+        setTimeout(() => setIsSuccess(false), 3000);
     }
-    setIsSuccess(true);
-    setTimeout(() => setIsSuccess(false), 3000);
+  };
+
+  const handleEditRecord = (record: PerformanceRecord) => {
+      setEditingRecordId(record.id);
+      setStudentId(record.studentId);
+      setSubject(record.subject);
+      setTitle(record.title);
+      setScore(record.score.toString());
+      setMaxScore(record.maxScore.toString());
+      setCategory(record.category as any);
+      setNotes(record.notes || '');
+      
+      // If linked to assignment, set it
+      if (record.notes && assignments.some(a => a.id === record.notes)) {
+          setSelectedAssignmentId(record.notes);
+      } else {
+          setSelectedAssignmentId('');
+      }
+
+      // Pre-select filters to show student
+      const student = students.find(s => s.id === record.studentId);
+      if (student) {
+          setEntryGrade(student.gradeLevel || '');
+          setEntryClass(student.className || '');
+      }
+
+      setActiveTab('ENTRY');
   };
 
   const handleBulkScoreChange = (sid: string, val: string) => {
@@ -355,7 +391,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                     <button onClick={() => setActiveTab('BULK')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-primary text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                         <Users size={18}/> رصد جماعي
                     </button>
-                    <button onClick={() => setActiveTab('ENTRY')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'ENTRY' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                    <button onClick={() => { setActiveTab('ENTRY'); setEditingRecordId(null); setTitle(''); setScore(''); }} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'ENTRY' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
                         <PlusCircle size={18}/> رصد فردي
                     </button>
                 </>
@@ -500,8 +536,9 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-gray-700">إضافة درجة لطالب واحد</h3>
+                    <h3 className="font-bold text-lg text-gray-700">{editingRecordId ? 'تعديل درجة' : 'إضافة درجة لطالب واحد'}</h3>
                     <div className="flex items-center gap-2">
+                        {editingRecordId && <button onClick={() => { setEditingRecordId(null); setActiveTab('LOG'); }} className="text-xs bg-gray-100 px-2 py-1 rounded">إلغاء التعديل</button>}
                         <select className="text-[10px] bg-gray-50 border rounded px-1 outline-none" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
                             <option value="">الفترة الحالية</option>
                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -510,19 +547,21 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                 </div>
                 
                 {/* Filter */}
-                <div className="bg-gray-50 p-3 rounded-lg mb-4 grid grid-cols-2 gap-2 border border-gray-200">
-                    <div className="col-span-2 text-xs font-bold text-gray-500 flex items-center gap-1 mb-1">
-                        <Filter size={12}/> تصفية القائمة
+                {!editingRecordId && (
+                    <div className="bg-gray-50 p-3 rounded-lg mb-4 grid grid-cols-2 gap-2 border border-gray-200">
+                        <div className="col-span-2 text-xs font-bold text-gray-500 flex items-center gap-1 mb-1">
+                            <Filter size={12}/> تصفية القائمة
+                        </div>
+                        <select className="p-1 border rounded text-xs outline-none" value={entryGrade} onChange={e => {setEntryGrade(e.target.value); setEntryClass('');}}>
+                            <option value="">الصف: الكل</option>
+                            {uniqueGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                        <select className="p-1 border rounded text-xs outline-none" value={entryClass} onChange={e => setEntryClass(e.target.value)}>
+                            <option value="">الفصل: الكل</option>
+                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
                     </div>
-                    <select className="p-1 border rounded text-xs outline-none" value={entryGrade} onChange={e => {setEntryGrade(e.target.value); setEntryClass('');}}>
-                        <option value="">الصف: الكل</option>
-                        {uniqueGrades.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                    <select className="p-1 border rounded text-xs outline-none" value={entryClass} onChange={e => setEntryClass(e.target.value)}>
-                        <option value="">الفصل: الكل</option>
-                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                </div>
+                )}
 
                 <form onSubmit={handleSingleSubmit} className="space-y-4">
                 <div>
@@ -531,10 +570,13 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                         className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none bg-white ${isSelectedStudentAbsent ? 'border-red-300 bg-red-50 text-red-900' : ''}`}
                         value={studentId}
                         onChange={(e) => setStudentId(e.target.value)}
+                        disabled={!!editingRecordId}
                     >
                     {filteredStudentsEntry.length > 0 ? filteredStudentsEntry.map(s => (
                         <option key={s.id} value={s.id}>{s.name} ({s.className})</option>
                     )) : <option value="">لا يوجد طلاب مطابقين للفلترة</option>}
+                    {/* If editing, ensure student is in list or add fallback option if filtered out */}
+                    {editingRecordId && !filteredStudentsEntry.find(s=>s.id===studentId) && <option value={studentId}>{students.find(s=>s.id===studentId)?.name} (مخفي بالفلتر)</option>}
                     </select>
                     
                     {isSelectedStudentAbsent && (
@@ -594,7 +636,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
                 <button type="submit" disabled={!studentId} className="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium flex justify-center items-center gap-2 disabled:bg-gray-300 shadow-md">
                     {isSuccess ? <Check size={20} /> : null}
-                    {isSuccess ? 'تمت الإضافة!' : 'تسجيل الدرجة'}
+                    {editingRecordId ? 'حفظ التعديلات' : (isSuccess ? 'تمت الإضافة!' : 'تسجيل الدرجة')}
                 </button>
                 </form>
             </div>
@@ -790,7 +832,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                                       <td className="p-3 text-xs text-gray-500 max-w-xs truncate">{rec.notes === rec.notes ? (isLinked ? 'تم الرصد عبر الربط' : rec.notes) : ''}</td>
                                       {!isManager && (
                                       <td className="p-3 text-center">
-                                          <button onClick={() => handleDelete(rec.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
+                                          <div className="flex gap-2 justify-center">
+                                              <button onClick={() => handleEditRecord(rec)} className="text-blue-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50"><Edit size={16}/></button>
+                                              <button onClick={() => handleDelete(rec.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>
+                                          </div>
                                       </td>
                                       )}
                                   </tr>

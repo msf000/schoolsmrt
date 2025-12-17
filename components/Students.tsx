@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
 import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
-import { UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key } from 'lucide-react';
+import { UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key, TrendingUp, Clock } from 'lucide-react';
 import DataImport from './DataImport';
 import { useNavigate } from 'react-router-dom';
 
@@ -143,33 +143,31 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       navigate('/messages', { state: { studentIds: Array.from(selectedStudentIds) } });
   };
 
-  // --- Helper to get Risk Status for Table Row ---
-  const getStudentRisk = (studentId: string) => {
+  // --- Helper to get Stats for Table Row ---
+  const getStudentStats = (studentId: string) => {
       const activeTerm = terms.find(t => t.id === selectedTermId);
+      const today = new Date().toISOString().split('T')[0];
       
       let sAtt = attendance.filter(a => a.studentId === studentId);
       let sPerf = performance.filter(p => p.studentId === studentId);
+
+      // Today's Status
+      const todayRecord = attendance.find(a => a.studentId === studentId && a.date === today);
+      const todaysStatus = todayRecord ? todayRecord.status : 'NONE';
 
       if (activeTerm) {
           sAtt = sAtt.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
           sPerf = sPerf.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
       }
 
-      const totalDays = sAtt.length;
-      const absent = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-      const attRate = totalDays > 0 ? ((totalDays - absent) / totalDays) * 100 : 100;
-
-      let avgGrade = 100;
+      // Academic Avg
+      let avgGrade = 0;
       if (sPerf.length > 0) {
           const totalScore = sPerf.reduce((a,b) => a + (b.score/b.maxScore), 0);
-          avgGrade = (totalScore / sPerf.length) * 100;
+          avgGrade = Math.round((totalScore / sPerf.length) * 100);
       }
 
-      const risks = [];
-      if (attRate < 85) risks.push({ type: 'ATT', level: attRate < 75 ? 'HIGH' : 'MED' });
-      if (avgGrade < 60) risks.push({ type: 'ACAD', level: avgGrade < 50 ? 'HIGH' : 'MED' });
-
-      return risks;
+      return { todaysStatus, avgGrade };
   };
 
   // --- Form Handling ---
@@ -396,7 +394,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
       )}
 
       {/* Main Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex-col">
         <div className="flex-1 overflow-x-auto">
             <table className="w-full text-right min-w-[800px]">
             <thead className="bg-gray-50 text-gray-600 font-bold text-xs uppercase sticky top-0 z-10 shadow-sm">
@@ -410,13 +408,14 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 <th className="p-4">اسم الطالب</th>
                 <th className="p-4">الصف / الفصل</th>
                 <th className="p-4">رقم الهوية</th>
-                <th className="p-4 text-center">تنبيهات (Risk)</th>
+                <th className="p-4 text-center">حالة اليوم</th>
+                <th className="p-4 text-center">المعدل</th>
                 <th className="p-4 text-center w-32">إجراءات</th>
                 </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
                 {filteredStudents.length > 0 ? filteredStudents.map((student, i) => {
-                    const risks = getStudentRisk(student.id);
+                    const stats = getStudentStats(student.id);
                     const isSelected = selectedStudentIds.has(student.id);
                     return (
                     <tr key={student.id} className={`hover:bg-gray-50 transition-colors group ${isSelected ? 'bg-purple-50/50' : ''}`}>
@@ -429,8 +428,9 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                         <td className="p-4">
                             <button 
                                 onClick={() => handleStudentClick(student)}
-                                className="font-bold text-gray-800 hover:text-purple-600 hover:underline text-base text-right"
+                                className="font-bold text-gray-800 hover:text-purple-600 hover:underline text-base text-right flex items-center gap-2"
                             >
+                                <span className={`w-2.5 h-2.5 rounded-full ${stats.todaysStatus === 'PRESENT' ? 'bg-green-500' : stats.todaysStatus === 'ABSENT' ? 'bg-red-500' : stats.todaysStatus === 'LATE' ? 'bg-yellow-500' : 'bg-gray-300'}`} title={`حالة اليوم: ${stats.todaysStatus}`}></span>
                                 {student.name}
                             </button>
                         </td>
@@ -442,19 +442,22 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                         </td>
                         <td className="p-4 font-mono text-gray-500">{student.nationalId || '-'}</td>
                         <td className="p-4 text-center">
-                            <div className="flex justify-center gap-1">
-                                {risks.find(r => r.type === 'ATT') && (
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${risks.find(r=>r.type==='ATT')?.level === 'HIGH' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
-                                        غياب
-                                    </span>
-                                )}
-                                {risks.find(r => r.type === 'ACAD') && (
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${risks.find(r=>r.type==='ACAD')?.level === 'HIGH' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-yellow-50 text-yellow-600 border-yellow-100'}`}>
-                                        مستوى
-                                    </span>
-                                )}
-                                {risks.length === 0 && <span className="text-gray-300 text-xs">-</span>}
-                            </div>
+                            <span className={`text-[10px] px-2 py-1 rounded font-bold ${
+                                stats.todaysStatus === 'PRESENT' ? 'bg-green-100 text-green-700' : 
+                                stats.todaysStatus === 'ABSENT' ? 'bg-red-100 text-red-700' : 
+                                stats.todaysStatus === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 
+                                'bg-gray-100 text-gray-500'
+                            }`}>
+                                {stats.todaysStatus === 'PRESENT' ? 'حاضر' : stats.todaysStatus === 'ABSENT' ? 'غائب' : stats.todaysStatus === 'LATE' ? 'متأخر' : '-'}
+                            </span>
+                        </td>
+                        <td className="p-4 text-center">
+                            {stats.avgGrade > 0 ? (
+                                <div className="flex items-center justify-center gap-1 font-bold text-gray-700">
+                                    <TrendingUp size={14} className={stats.avgGrade >= 80 ? 'text-green-500' : stats.avgGrade >= 60 ? 'text-orange-500' : 'text-red-500'}/>
+                                    {stats.avgGrade}%
+                                </div>
+                            ) : <span className="text-gray-300">-</span>}
                         </td>
                         <td className="p-4 text-center">
                             <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -476,7 +479,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                     </tr>
                 )}) : (
                     <tr>
-                        <td colSpan={7} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center">
+                        <td colSpan={8} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center">
                             <Search size={48} className="mb-4 opacity-20"/>
                             <p>لا يوجد طلاب مطابقين للبحث</p>
                         </td>

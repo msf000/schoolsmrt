@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment } from '../types';
 import { getAssignments, getAcademicTerms, getReportHeaderConfig } from '../services/storageService';
 import { generateStudentAnalysis } from '../services/geminiService';
-import { FileText, Printer, Search, PieChart, Users, MapPin, Phone, TrendingUp, Loader2, Award, Activity, Sparkles, Plus, Calendar, Bot, ArrowRight, CheckCircle, XCircle, Paperclip, Eye } from 'lucide-react';
+import { FileText, Printer, Search, PieChart, Users, MapPin, Phone, TrendingUp, Loader2, Award, Activity, Sparkles, Plus, Calendar, Bot, ArrowRight, CheckCircle, XCircle, Paperclip, Eye, Trash2, Edit } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { formatDualDate } from '../services/dateService';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -51,6 +51,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
     // Attachment Modal
     const [viewingFile, setViewingFile] = useState<string | null>(null);
+
+    // Edit Attendance State
+    const [editingAttendanceId, setEditingAttendanceId] = useState<string | null>(null);
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
@@ -185,15 +188,14 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const handleAddBehaviorNote = () => {
         if (!student || !quickNote || !onSaveAttendance) return;
         const today = new Date().toISOString().split('T')[0];
-        const existingRecord = attendance.find(a => a.studentId === student.id && a.date === today);
         
         const newRecord: AttendanceRecord = {
-            id: existingRecord ? existingRecord.id : `${student.id}-${today}-note-${Date.now()}`,
+            id: `${student.id}-${today}-note-${Date.now()}`,
             studentId: student.id,
             date: today,
-            status: existingRecord ? existingRecord.status : AttendanceStatus.PRESENT,
+            status: AttendanceStatus.PRESENT,
             behaviorStatus: quickBehaviorType,
-            behaviorNote: existingRecord && existingRecord.behaviorNote ? `${existingRecord.behaviorNote} | ${quickNote}` : quickNote,
+            behaviorNote: quickNote,
             createdById: currentUser?.id
         };
 
@@ -206,6 +208,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         if (onSaveAttendance) {
             const updated = { ...record, status: newStatus };
             onSaveAttendance([updated]);
+            setEditingAttendanceId(null);
         }
     };
 
@@ -417,7 +420,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                             <thead className="bg-gray-50 text-gray-600 font-bold border-b">
                                                 <tr>
                                                     <th className="p-3">التاريخ</th>
-                                                    <th className="p-3">الحالة</th>
+                                                    <th className="p-3">الحالة (اضغط للتعديل)</th>
                                                     <th className="p-3">سبب الغياب / العذر</th>
                                                     <th className="p-3">مرفقات</th>
                                                     <th className="p-3 text-center">الإجراء</th>
@@ -428,13 +431,30 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                                     <tr key={record.id} className="hover:bg-gray-50">
                                                         <td className="p-3 font-mono text-gray-500">{formatDualDate(record.date)}</td>
                                                         <td className="p-3">
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                                                record.status === AttendanceStatus.ABSENT ? 'bg-red-100 text-red-700' : 
-                                                                record.status === AttendanceStatus.LATE ? 'bg-yellow-100 text-yellow-700' : 
-                                                                'bg-blue-100 text-blue-700'
-                                                            }`}>
-                                                                {record.status === AttendanceStatus.ABSENT ? 'غائب' : record.status === AttendanceStatus.LATE ? 'تأخر' : 'بعذر'}
-                                                            </span>
+                                                            {editingAttendanceId === record.id ? (
+                                                                <select 
+                                                                    autoFocus
+                                                                    className="text-xs border rounded p-1"
+                                                                    value={record.status}
+                                                                    onChange={(e) => handleUpdateAttendanceStatus(record, e.target.value as AttendanceStatus)}
+                                                                    onBlur={() => setEditingAttendanceId(null)}
+                                                                >
+                                                                    <option value={AttendanceStatus.ABSENT}>غائب</option>
+                                                                    <option value={AttendanceStatus.LATE}>تأخر</option>
+                                                                    <option value={AttendanceStatus.EXCUSED}>بعذر</option>
+                                                                    <option value={AttendanceStatus.PRESENT}>حاضر (حذف الغياب)</option>
+                                                                </select>
+                                                            ) : (
+                                                                <span 
+                                                                    onClick={() => setEditingAttendanceId(record.id)}
+                                                                    className={`px-2 py-1 rounded-full text-xs font-bold cursor-pointer hover:opacity-80 ${
+                                                                    record.status === AttendanceStatus.ABSENT ? 'bg-red-100 text-red-700' : 
+                                                                    record.status === AttendanceStatus.LATE ? 'bg-yellow-100 text-yellow-700' : 
+                                                                    'bg-blue-100 text-blue-700'
+                                                                }`}>
+                                                                    {record.status === AttendanceStatus.ABSENT ? 'غائب' : record.status === AttendanceStatus.LATE ? 'تأخر' : 'بعذر'}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="p-3 max-w-xs truncate text-gray-600">
                                                             {record.excuseNote || record.behaviorNote || '-'}
@@ -455,14 +475,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                                                     <CheckCircle size={12}/> قبول العذر
                                                                 </button>
                                                             )}
-                                                            {record.status === AttendanceStatus.EXCUSED && (
-                                                                <button 
-                                                                    onClick={() => handleUpdateAttendanceStatus(record, AttendanceStatus.ABSENT)}
-                                                                    className="bg-gray-100 text-gray-600 border px-3 py-1 rounded text-xs font-bold hover:bg-gray-200"
-                                                                >
-                                                                    إلغاء
-                                                                </button>
-                                                            )}
+                                                            <button 
+                                                                onClick={() => { if(confirm('حذف هذا السجل؟')) handleUpdateAttendanceStatus(record, AttendanceStatus.PRESENT); }}
+                                                                className="text-red-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50"
+                                                                title="حذف (تحويل لحاضر)"
+                                                            >
+                                                                <Trash2 size={14}/>
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -517,9 +536,17 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                                         <p className="text-gray-800 font-bold text-sm mb-1">{log.behaviorNote}</p>
                                                         <p className="text-xs text-gray-500 flex items-center gap-1"><Calendar size={10}/> {formatDualDate(log.date)}</p>
                                                     </div>
-                                                    <span className={`text-[10px] px-2 py-1 rounded font-bold ${log.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : log.behaviorStatus === BehaviorStatus.NEGATIVE ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700'}`}>
-                                                        {log.behaviorStatus === BehaviorStatus.POSITIVE ? 'إيجابي' : log.behaviorStatus === BehaviorStatus.NEGATIVE ? 'سلبي' : 'ملاحظة'}
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[10px] px-2 py-1 rounded font-bold ${log.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-100 text-green-700' : log.behaviorStatus === BehaviorStatus.NEGATIVE ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700'}`}>
+                                                            {log.behaviorStatus === BehaviorStatus.POSITIVE ? 'إيجابي' : log.behaviorStatus === BehaviorStatus.NEGATIVE ? 'سلبي' : 'ملاحظة'}
+                                                        </span>
+                                                        <button 
+                                                            onClick={() => { if(confirm('حذف هذه الملاحظة؟')) handleUpdateAttendanceStatus(log, AttendanceStatus.PRESENT); }} // Reset to normal present removes behavior
+                                                            className="text-red-400 hover:text-red-600 p-1"
+                                                        >
+                                                            <Trash2 size={14}/>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
