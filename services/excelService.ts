@@ -347,10 +347,9 @@ export const extractGoogleSheetId = (url: string): string | null => {
 };
 
 /**
- * Fetches data directly from Google Sheets API
+ * NEW: Fetch Metadata (Sheet Names)
  */
-export const fetchGoogleSheetData = async (sheetId: string, apiKey: string) => {
-    // 1. Get Spreadsheet Metadata to find sheet names
+export const fetchGoogleSpreadsheetMeta = async (sheetId: string, apiKey: string) => {
     const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?key=${apiKey}`;
     const metaRes = await fetch(metaUrl);
     
@@ -360,17 +359,33 @@ export const fetchGoogleSheetData = async (sheetId: string, apiKey: string) => {
     }
     
     const metaJson = await metaRes.json();
-    const sheetTitle = metaJson.sheets[0].properties.title; // Default to first sheet
+    return {
+        title: metaJson.properties.title,
+        sheets: metaJson.sheets.map((s: any) => s.properties.title) as string[]
+    };
+};
+
+/**
+ * Updated: Fetches data directly from Google Sheets API with optional Sheet Name
+ */
+export const fetchGoogleSheetData = async (sheetId: string, apiKey: string, sheetName?: string) => {
+    // 1. Get Spreadsheet Metadata to find sheet names (if not provided)
+    let targetSheet = sheetName;
+    
+    if (!targetSheet) {
+        const meta = await fetchGoogleSpreadsheetMeta(sheetId, apiKey);
+        targetSheet = meta.sheets[0]; // Default to first sheet
+    }
 
     // 2. Get Values
-    const dataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetTitle)}?key=${apiKey}`;
+    const dataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(targetSheet)}?key=${apiKey}`;
     const dataRes = await fetch(dataUrl);
     if (!dataRes.ok) throw new Error('فشل جلب البيانات من الورقة.');
     
     const dataJson = await dataRes.json();
     const rows = dataJson.values || [];
     
-    if (rows.length === 0) return { sheetName: sheetTitle, headers: [], data: [] };
+    if (rows.length === 0) return { sheetName: targetSheet, headers: [], data: [] };
 
     // Row 0 is header
     const headers = rows[0];
@@ -382,7 +397,7 @@ export const fetchGoogleSheetData = async (sheetId: string, apiKey: string) => {
         return obj;
     });
 
-    return { sheetName: sheetTitle, headers, data };
+    return { sheetName: targetSheet, headers, data };
 };
 
 /**

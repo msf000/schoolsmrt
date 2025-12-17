@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData, getTeacherAssignments } from '../services/storageService';
-import { fetchWorkbookStructureUrl, getSheetHeadersAndData, extractGoogleSheetId, fetchGoogleSheetData } from '../services/excelService';
+import { fetchWorkbookStructureUrl, getSheetHeadersAndData, extractGoogleSheetId, fetchGoogleSheetData, fetchGoogleSpreadsheetMeta } from '../services/excelService';
 import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff, Map, ArrowDownCircle, CheckCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
@@ -88,6 +88,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
     const [sheetData, setSheetData] = useState<any[]>([]);
     const [sheetName, setSheetName] = useState('');
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+    const [selectedSheetName, setSelectedSheetName] = useState('');
     const [connectionStatus, setConnectionStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
     const [identityColumn, setIdentityColumn] = useState(() => localStorage.getItem('works_sheet_identity_col') || '');
     
@@ -233,19 +235,48 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (!googleSheetUrl) return;
         setIsSheetSyncing(true);
         setConnectionStatus('IDLE');
+        setSheetHeaders([]);
+        setSheetData([]);
+        setAvailableSheets([]);
+        
         try {
             const sheetId = extractGoogleSheetId(googleSheetUrl);
             if (!sheetId) throw new Error("رابط غير صالح");
             
             const apiKey = process.env.API_KEY || ''; 
-            const { sheetName, headers, data } = await fetchGoogleSheetData(sheetId, apiKey);
-            
-            setSheetName(sheetName);
-            setSheetHeaders(headers || []);
-            setSheetData(data || []);
+            // 1. Fetch Metadata (Sheet Names)
+            const meta = await fetchGoogleSpreadsheetMeta(sheetId, apiKey);
+            setSheetName(meta.title);
+            setAvailableSheets(meta.sheets);
             saveWorksMasterUrl(googleSheetUrl);
             setConnectionStatus('SUCCESS');
-            
+
+            // 2. Fetch data for first sheet automatically
+            if (meta.sheets.length > 0) {
+                await handleSheetSelection(meta.sheets[0], sheetId, apiKey);
+            }
+
+        } catch (e: any) {
+            console.error(e);
+            setConnectionStatus('ERROR');
+            alert(e.message || "فشل الاتصال.");
+        } finally {
+            setIsSheetSyncing(false);
+        }
+    };
+
+    const handleSheetSelection = async (sheetName: string, id?: string, key?: string) => {
+        setIsSheetSyncing(true);
+        try {
+            const sheetId = id || extractGoogleSheetId(googleSheetUrl);
+            const apiKey = key || process.env.API_KEY || '';
+            if (!sheetId) return;
+
+            setSelectedSheetName(sheetName);
+            const { headers, data } = await fetchGoogleSheetData(sheetId, apiKey, sheetName);
+            setSheetHeaders(headers || []);
+            setSheetData(data || []);
+
             // Auto-detect identity column if not set
             if (!identityColumn && headers && headers.length > 0) {
                 const guessedIdentity = headers.find((h: any) => STUDENT_NAME_HEADERS.includes(String(h).toLowerCase()));
@@ -254,10 +285,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     localStorage.setItem('works_sheet_identity_col', guessedIdentity);
                 }
             }
-        } catch (e: any) {
+        } catch (e) {
             console.error(e);
-            setConnectionStatus('ERROR');
-            alert(e.message || "فشل الاتصال.");
+            alert("فشل جلب بيانات الورقة المختارة");
         } finally {
             setIsSheetSyncing(false);
         }
@@ -276,7 +306,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const handleSyncGrades = () => {
-        if (sheetData.length === 0) return alert("يرجى الاتصال بالملف أولاً");
+        if (sheetData.length === 0) return alert("يرجى الاتصال بالملف واختيار الورقة أولاً");
         if (!identityColumn) return alert("يرجى تحديد عمود اسم الطالب أولاً");
 
         setIsSheetSyncing(true);
@@ -698,7 +728,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             {/* Status Feedback */}
                                             {connectionStatus === 'SUCCESS' && (
                                                 <div className="bg-green-100 text-green-700 p-3 rounded-lg text-sm flex items-center gap-2">
-                                                    <CheckCircle size={16}/> تم الاتصال بنجاح بالورقة: <b>{sheetName}</b>
+                                                    <CheckCircle size={16}/> تم الاتصال بنجاح بالملف: <b>{sheetName}</b>
                                                 </div>
                                             )}
                                             {connectionStatus === 'ERROR' && (
@@ -707,56 +737,73 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                 </div>
                                             )}
 
-                                            {/* Mapping Config (Only if connected) */}
-                                            {connectionStatus === 'SUCCESS' && sheetHeaders.length > 0 && (
+                                            {/* Sheet Selection & Mapping Config (Only if connected) */}
+                                            {connectionStatus === 'SUCCESS' && availableSheets.length > 0 && (
                                                 <div className="bg-white p-4 rounded-xl border border-green-200 mt-4 animate-fade-in">
-                                                    <h5 className="font-bold text-gray-700 mb-3 text-sm flex items-center gap-2"><Map size={16}/> مطابقة الأعمدة</h5>
+                                                    <h5 className="font-bold text-gray-700 mb-3 text-sm flex items-center gap-2"><Map size={16}/> إعدادات الورقة والمطابقة</h5>
                                                     
-                                                    {/* Identity Mapping */}
+                                                    {/* Sheet Selector */}
                                                     <div className="mb-4 bg-gray-50 p-3 rounded-lg border">
-                                                        <label className="block text-xs font-bold text-gray-500 mb-2">1. عمود اسم الطالب / الهوية (للمطابقة)</label>
+                                                        <label className="block text-xs font-bold text-gray-500 mb-2">اختر الورقة (Tab)</label>
                                                         <select 
-                                                            className="w-full p-2 border rounded-lg bg-white font-bold text-indigo-700"
-                                                            value={identityColumn}
-                                                            onChange={e => {
-                                                                setIdentityColumn(e.target.value);
-                                                                localStorage.setItem('works_sheet_identity_col', e.target.value);
-                                                            }}
+                                                            className="w-full p-2 border rounded-lg bg-white font-bold text-gray-700"
+                                                            value={selectedSheetName}
+                                                            onChange={e => handleSheetSelection(e.target.value)}
+                                                            disabled={isSheetSyncing}
                                                         >
-                                                            <option value="">-- اختر العمود --</option>
-                                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                            {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
                                                         </select>
                                                     </div>
 
-                                                    {/* Grades Mapping */}
-                                                    <div className="mb-4">
-                                                        <label className="block text-xs font-bold text-gray-500 mb-2">2. ربط أعمدة الدرجات (Assignment -&gt; Sheet Column)</label>
-                                                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
-                                                            {assignments.map(assign => {
-                                                                const meta = assign.sourceMetadata ? JSON.parse(assign.sourceMetadata) : {};
-                                                                return (
-                                                                    <div key={assign.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded border">
-                                                                        <span className="text-sm font-bold w-1/3 truncate" title={assign.title}>{assign.title}</span>
-                                                                        <ArrowRight size={14} className="text-gray-400"/>
-                                                                        <select 
-                                                                            className="flex-1 p-1.5 border rounded text-xs"
-                                                                            value={meta.sheetHeader || ''}
-                                                                            onChange={e => handleMapColumn(assign.id, e.target.value)}
-                                                                        >
-                                                                            <option value="">(غير مرتبط)</option>
-                                                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                                                                        </select>
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                    {/* Identity Mapping */}
+                                                    {sheetHeaders.length > 0 && (
+                                                        <div className="mb-4 bg-gray-50 p-3 rounded-lg border">
+                                                            <label className="block text-xs font-bold text-gray-500 mb-2">1. عمود اسم الطالب / الهوية (للمطابقة)</label>
+                                                            <select 
+                                                                className="w-full p-2 border rounded-lg bg-white font-bold text-indigo-700"
+                                                                value={identityColumn}
+                                                                onChange={e => {
+                                                                    setIdentityColumn(e.target.value);
+                                                                    localStorage.setItem('works_sheet_identity_col', e.target.value);
+                                                                }}
+                                                            >
+                                                                <option value="">-- اختر العمود --</option>
+                                                                {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                            </select>
                                                         </div>
-                                                    </div>
+                                                    )}
+
+                                                    {/* Grades Mapping */}
+                                                    {sheetHeaders.length > 0 && (
+                                                        <div className="mb-4">
+                                                            <label className="block text-xs font-bold text-gray-500 mb-2">2. ربط أعمدة الدرجات (Assignment -&gt; Sheet Column)</label>
+                                                            <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
+                                                                {assignments.map(assign => {
+                                                                    const meta = assign.sourceMetadata ? JSON.parse(assign.sourceMetadata) : {};
+                                                                    return (
+                                                                        <div key={assign.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded border">
+                                                                            <span className="text-sm font-bold w-1/3 truncate" title={assign.title}>{assign.title}</span>
+                                                                            <ArrowRight size={14} className="text-gray-400"/>
+                                                                            <select 
+                                                                                className="flex-1 p-1.5 border rounded text-xs"
+                                                                                value={meta.sheetHeader || ''}
+                                                                                onChange={e => handleMapColumn(assign.id, e.target.value)}
+                                                                            >
+                                                                                <option value="">(غير مرتبط)</option>
+                                                                                {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                                            </select>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     {/* Action */}
                                                     <div className="pt-2 border-t flex justify-end">
                                                         <button 
                                                             onClick={handleSyncGrades}
-                                                            disabled={isSheetSyncing || !identityColumn}
+                                                            disabled={isSheetSyncing || !identityColumn || sheetData.length === 0}
                                                             className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md disabled:opacity-50"
                                                         >
                                                             {isSheetSyncing ? <Loader2 className="animate-spin" size={16}/> : <ArrowDownCircle size={16}/>}
