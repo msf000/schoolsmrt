@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { 
@@ -15,6 +14,7 @@ import {
 } from './services/storageService';
 import { isSupabaseConfigured } from './services/supabaseClient';
 import { checkAIConnection } from './services/geminiService';
+import { WifiOff } from 'lucide-react';
 
 // Imports
 import Login from './components/Login';
@@ -80,8 +80,23 @@ const App: React.FC = () => {
     const [theme, setTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
     const [aiStatus, setAiStatus] = useState('IDLE');
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
     
     const navigate = useNavigate();
+
+    // Network Status Listener
+    useEffect(() => {
+        const handleOnline = () => { setIsOnline(true); setSystemMode(true); };
+        const handleOffline = () => { setIsOnline(false); setSystemMode(false); };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     // Theme Application Effect
     useEffect(() => {
@@ -191,34 +206,27 @@ const App: React.FC = () => {
         importPerformance: handleImportPerformance
     };
 
-    // Render Logic with Validations
-    if (!currentUser || !currentUser.id) {
-        return (
-            <>
-                <ReloadPrompt />
-                <Login onLoginSuccess={login} />
-            </>
-        );
-    }
+    return (
+        <div className="h-full flex flex-col">
+            <ReloadPrompt />
+            
+            {!isOnline && (
+                <div className="bg-red-600 text-white text-xs font-bold text-center py-1 z-[9999] shadow-md flex items-center justify-center gap-2">
+                    <WifiOff size={14} />
+                    وضع عدم الاتصال: يتم حفظ البيانات محلياً وسيتم المزامنة عند عودة الإنترنت
+                </div>
+            )}
 
-    if (currentUser.role === 'STUDENT') {
-        return (
-            <>
-                <ReloadPrompt />
+            {!currentUser || !currentUser.id ? (
+                <Login onLoginSuccess={login} />
+            ) : currentUser.role === 'STUDENT' ? (
                 <StudentPortal 
                     currentUser={currentUser as any} 
                     attendance={attendance} 
                     performance={performance} 
                     onLogout={logout} 
                 />
-            </>
-        );
-    }
-
-    if (currentUser.role === 'PARENT') {
-        return (
-            <>
-                <ReloadPrompt />
+            ) : currentUser.role === 'PARENT' ? (
                 <ParentPortal 
                     parentPhone={currentUser.email} 
                     allStudents={getStudents()} 
@@ -226,35 +234,30 @@ const App: React.FC = () => {
                     performance={getPerformance()} 
                     onLogout={logout} 
                 />
-            </>
-        );
-    }
-
-    return (
-        <>
-            <ReloadPrompt />
-            <AppContext.Provider value={contextValue}>
-                <TeacherPortal 
-                    currentUser={currentUser}
-                    students={students}
-                    attendance={attendance}
-                    performance={performance}
-                    syncStatus={syncStatus}
-                    aiStatus={aiStatus}
-                    onLogout={logout}
-                    addStudent={handleAddStudent}
-                    updateStudent={handleUpdateStudent}
-                    deleteStudent={handleDeleteStudent}
-                    saveAttendance={handleSaveAttendance}
-                    addPerformance={handleAddPerformance}
-                    deletePerformance={handleDeletePerformance}
-                    importStudents={handleImportStudents}
-                    importAttendance={handleImportAttendance}
-                    importPerformance={handleImportPerformance}
-                    setTheme={setTheme}
-                />
-            </AppContext.Provider>
-        </>
+            ) : (
+                <AppContext.Provider value={contextValue}>
+                    <TeacherPortal 
+                        currentUser={currentUser}
+                        students={students}
+                        attendance={attendance}
+                        performance={performance}
+                        syncStatus={syncStatus}
+                        aiStatus={aiStatus}
+                        onLogout={logout}
+                        addStudent={handleAddStudent}
+                        updateStudent={handleUpdateStudent}
+                        deleteStudent={handleDeleteStudent}
+                        saveAttendance={handleSaveAttendance}
+                        addPerformance={handleAddPerformance}
+                        deletePerformance={handleDeletePerformance}
+                        importStudents={handleImportStudents}
+                        importAttendance={handleImportAttendance}
+                        importPerformance={handleImportPerformance}
+                        setTheme={setTheme}
+                    />
+                </AppContext.Provider>
+            )}
+        </div>
     );
 };
 
