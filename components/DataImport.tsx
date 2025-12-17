@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Sheet, ArrowRight, Table, CheckSquare, Square, RefreshCw, PlusCircle, AlertTriangle, Trash2, ArrowRightCircle, X, Database, Globe, MousePointerClick, Clipboard, Download, Sparkles, BrainCircuit } from 'lucide-react';
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData, extractGoogleSheetId, fetchGoogleSheetData } from '../services/excelService';
@@ -52,7 +51,6 @@ const FIELD_DEFINITIONS = {
 
 const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerformance, onImportAttendance, existingStudents, forcedType, onClose, onDataReady, currentUser }) => {
   // Mode State: SYSTEM (Std/Perf/Att) vs CUSTOM (Generic Excel)
-  // If onDataReady is present, we force 'CUSTOM' mode behavior (selection wise) but with different outcome
   const initialMode = onDataReady ? 'CUSTOM' : (forcedType ? 'SYSTEM' : 'SYSTEM');
   const [importMode, setImportMode] = useState<'SYSTEM' | 'CUSTOM'>(initialMode);
   const [sourceMethod, setSourceMethod] = useState<'FILE' | 'URL'>('FILE');
@@ -121,7 +119,6 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       setCustomTableName('');
       setSelectedCustomColumns(new Set());
       setFile(null);
-      // Keep URL if method is URL
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,58 +128,19 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
     }
   };
 
-  const handlePasteUrl = async () => {
-      try {
-          const text = await navigator.clipboard.readText();
-          if (text) setUrl(text);
-      } catch (err) {
-          console.error('Failed to read clipboard', err);
-          setStatus({ type: 'error', message: 'تعذر اللصق التلقائي. يرجى اللصق يدوياً (Ctrl+V).' });
-      }
-  };
-
-  // --- Template Downloader ---
   const handleDownloadTemplate = () => {
       let headers: any[] = [];
       let filename = 'Template.xlsx';
 
       if (dataType === 'ATTENDANCE') {
           filename = 'قالب_الحضور_والغياب.xlsx';
-          // Sample data row
-          headers = [{
-              'رقم الهوية': '1012345678',
-              'اسم الطالب': 'أحمد محمد',
-              'الحالة': 'حاضر',
-              'التاريخ': '25/10/2023',
-              'المادة': 'رياضيات',
-              'رقم الحصة': '1'
-          }, {
-              'رقم الهوية': '1087654321',
-              'اسم الطالب': 'سعيد علي',
-              'الحالة': 'غائب',
-              'التاريخ': '25/10/2023',
-              'المادة': 'علوم',
-              'رقم الحصة': '2'
-          }];
+          headers = [{ 'رقم الهوية': '1012345678', 'اسم الطالب': 'أحمد محمد', 'الحالة': 'حاضر', 'التاريخ': '25/10/2023', 'المادة': 'رياضيات', 'رقم الحصة': '1' }];
       } else if (dataType === 'PERFORMANCE') {
           filename = 'قالب_الدرجات.xlsx';
-          headers = [{
-              'رقم الهوية': '1012345678',
-              'اسم الطالب': 'أحمد محمد',
-              'المادة': 'رياضيات',
-              'عنوان التقييم': 'اختبار 1',
-              'الدرجة': 18,
-              'الدرجة العظمى': 20
-          }];
+          headers = [{ 'رقم الهوية': '1012345678', 'اسم الطالب': 'أحمد محمد', 'المادة': 'رياضيات', 'عنوان التقييم': 'اختبار 1', 'الدرجة': 18, 'الدرجة العظمى': 20 }];
       } else if (dataType === 'STUDENTS') {
           filename = 'قالب_بيانات_الطلاب.xlsx';
-          headers = [{
-              'رقم الهوية': '10xxxxxxxx',
-              'اسم الطالب': 'الاسم الثلاثي',
-              'الصف': 'الصف الأول',
-              'الفصل': '1/أ',
-              'جوال الطالب': '05xxxxxxxx'
-          }];
+          headers = [{ 'رقم الهوية': '10xxxxxxxx', 'اسم الطالب': 'الاسم الثلاثي', 'الصف': 'الصف الأول', 'الفصل': '1/أ', 'جوال الطالب': '05xxxxxxxx' }];
       }
 
       const ws = XLSX.utils.json_to_sheet(headers);
@@ -191,39 +149,23 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       XLSX.writeFile(wb, filename);
   };
 
-  const getUrlType = (link: string) => {
-    if (!link) return null;
-    if (link.includes('docs.google.com') || link.includes('drive.google.com')) return 'GOOGLE';
-    if (link.includes('onedrive.live.com') || link.includes('1drv.ms') || link.includes('sharepoint.com')) return 'ONEDRIVE';
-    if (link.includes('dropbox.com')) return 'DROPBOX';
-    return 'UNKNOWN';
-  };
-
-  const urlType = getUrlType(url);
-
   const handleScan = async () => {
       setLoading(true);
       setStatus(null);
       try {
           if (sourceMethod === 'URL') {
               if (!url) throw new Error('الرجاء إدخال رابط الملف.');
-              
-              // NEW: CHECK FOR GOOGLE SHEETS AND USE API
               const googleSheetId = extractGoogleSheetId(url);
-              // Use API Key from environment (injected via define in vite.config.ts)
               const apiKey = process.env.API_KEY; 
 
               if (googleSheetId && apiKey) {
                   try {
-                      console.log('Detected Google Sheet, using API...');
                       const { sheetName, headers, data } = await fetchGoogleSheetData(googleSheetId, apiKey);
-                      
                       setSheetNames([sheetName]);
                       setSelectedSheet(sheetName);
                       setFileHeaders(headers);
                       setRawSheetData(data);
                       
-                      // Auto-proceed to mapping/preview based on mode
                       if (importMode === 'SYSTEM' && !onDataReady) {
                           const guessed = guessMapping(headers, dataType);
                           setColumnMapping(guessed);
@@ -234,14 +176,12 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                           setStep('PREVIEW_SELECT');
                       }
                       setLoading(false);
-                      return; // Exit early since we handled it
+                      return;
                   } catch (apiError: any) {
-                      console.warn('Google Sheets API failed, falling back to proxy...', apiError);
-                      // Fallback to fetchWorkbookStructureUrl below if API fails
+                      console.warn('Google Sheets API failed', apiError);
                   }
               }
 
-              // Fallback / Standard URL Fetch
               const structure = await fetchWorkbookStructureUrl(url);
               setWorkbook(structure.workbook);
               setSheetNames(structure.sheetNames);
@@ -253,7 +193,6 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
               }
 
           } else {
-              // FILE UPLOAD
               if (!file) throw new Error('الرجاء اختيار ملف أولاً.');
               const structure = await getWorkbookStructure(file);
               setWorkbook(structure.workbook);
@@ -284,29 +223,23 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       setRawSheetData(data);
       
       if (importMode === 'SYSTEM' && !onDataReady) {
-          // Default heuristic guess first
           const guessed = guessMapping(headers, dataType);
           setColumnMapping(guessed);
           setStep('MAPPING');
       } else {
-          // For Custom OR Generic Data Ready: Skip Mapping, Select ALL columns and rows by default, go to Preview
           setSelectedCustomColumns(new Set(headers));
           setSelectedRowIndices(new Set(data.map((_: any, i: number) => i)));
           setStep('PREVIEW_SELECT');
       }
   };
 
-  // --- AI Mapping Function ---
   const handleSmartMap = async () => {
       if (!fileHeaders.length || rawSheetData.length === 0) return;
-      
       setAiLoading(true);
       try {
           const targetFields = FIELD_DEFINITIONS[dataType];
-          const sampleRow = rawSheetData[0]; // First row for context
-          
+          const sampleRow = rawSheetData[0];
           const mapping = await predictColumnMapping(fileHeaders, targetFields, [sampleRow]);
-          
           if (Object.keys(mapping).length > 0) {
               setColumnMapping(prev => ({ ...prev, ...mapping }));
               setStatus({ type: 'success', message: 'تمت المطابقة الذكية بنجاح! يرجى المراجعة.' });
@@ -314,21 +247,14 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
               setStatus({ type: 'error', message: 'لم يتمكن الذكاء الاصطناعي من العثور على تطابق مؤكد.' });
           }
       } catch (e) {
-          console.error(e);
           setStatus({ type: 'error', message: 'حدث خطأ أثناء المطابقة الذكية.' });
       } finally {
           setAiLoading(false);
       }
   };
 
-  // --- Enrichment Logic (Smart Matching for Missing Data) ---
   const enrichImportData = (data: any[]): any[] => {
-      // Always match students if possible (even without currentUser)
-      // But Schedule matching needs currentUser
-      
       const allSchedules = currentUser ? getSchedules() : [];
-      
-      // Helper to get day name from date string (YYYY-MM-DD)
       const getDayName = (dateStr: string) => {
           const date = new Date(dateStr);
           const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -339,714 +265,338 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           let enrichedRow = { ...row };
           let matchedStudent = null;
 
-          // Clean ID for better matching
+          // 1. Match Student if ID missing
           const cleanRowId = enrichedRow.nationalId ? String(enrichedRow.nationalId).trim() : null;
-
-          // 1. MATCH STUDENT ID (If missing)
-          // If nationalId is missing, try to find student by Name in existingStudents
           if (!cleanRowId && (enrichedRow.studentName || enrichedRow.name)) {
               const nameToSearch = (enrichedRow.studentName || enrichedRow.name).trim();
               if (nameToSearch) {
-                  // Try Exact
-                  matchedStudent = existingStudents.find(s => s.name.trim() === nameToSearch);
-                  // Try Fuzzy (contains) if not found
-                  if (!matchedStudent) matchedStudent = existingStudents.find(s => s.name.includes(nameToSearch) || nameToSearch.includes(s.name));
+                  matchedStudent = existingStudents.find(s => s.name.trim() === nameToSearch) || 
+                                   existingStudents.find(s => s.name.includes(nameToSearch) || nameToSearch.includes(s.name));
                   
                   if (matchedStudent && matchedStudent.nationalId) {
                       enrichedRow.nationalId = matchedStudent.nationalId;
-                      enrichedRow._autoMatchedStudent = true; // Flag for UI
+                      enrichedRow._autoMatchedStudent = true;
                   }
               }
           } else if (cleanRowId) {
-              // If we have nationalId, assume we matched the student (find object for context)
               matchedStudent = existingStudents.find(s => s.nationalId === cleanRowId);
           }
 
-          // 2. MATCH SCHEDULE (Subject/Period) based on Date + Teacher + Student Class
+          // 2. Match Schedule
           if ((dataType === 'ATTENDANCE' || dataType === 'PERFORMANCE') && currentUser) {
               const rowDate = enrichedRow.date || new Date().toISOString().split('T')[0];
               const dayName = getDayName(rowDate);
-              
-              // Get teacher's schedule for this day
-              const teacherSchedule = allSchedules.filter(s => 
-                  s.day === dayName && s.teacherId === currentUser.id
-              );
+              const teacherSchedule = allSchedules.filter(s => s.day === dayName && s.teacherId === currentUser.id);
 
-              // If we matched the student, we can check their specific class in schedule
               if (matchedStudent && matchedStudent.className && teacherSchedule.length > 0) {
                   const classSchedule = teacherSchedule.filter(s => s.classId === matchedStudent?.className);
-                  
-                  // Perfect Match: Teacher has exactly one session with this student's class today
-                  if (classSchedule.length === 1) {
+                  if (classSchedule.length === 1 && (!enrichedRow.subject || !enrichedRow.period)) {
                       if (!enrichedRow.subject) enrichedRow.subject = classSchedule[0].subjectName;
                       if (!enrichedRow.period) enrichedRow.period = classSchedule[0].period;
-                      enrichedRow._autoMatchedSchedule = true;
-                  }
-              } else if (teacherSchedule.length > 0) {
-                  // Fallback: If we don't know the student's class or they aren't in system yet
-                  
-                  // Scenario A: Only 1 class total for teacher that day -> assume it's that one
-                  if (teacherSchedule.length === 1 && (!enrichedRow.subject || !enrichedRow.period)) {
-                      if (!enrichedRow.subject) enrichedRow.subject = teacherSchedule[0].subjectName;
-                      if (!enrichedRow.period) enrichedRow.period = teacherSchedule[0].period;
-                      enrichedRow._autoMatchedSchedule = true;
-                  }
-                  // Scenario B: Subject exists, Period missing -> Find by Subject
-                  else if (enrichedRow.subject && !enrichedRow.period) {
-                      const matches = teacherSchedule.filter(s => s.subjectName === enrichedRow.subject);
-                      if (matches.length === 1) {
-                          enrichedRow.period = matches[0].period;
-                          enrichedRow._autoMatchedSchedule = true;
-                      }
+                      enrichedRow._autoMatchedSchedule = true; 
                   }
               }
           }
-
           return enrichedRow;
       });
   };
 
-  // --- System Mode Logic ---
-  const handleMappingChange = (fieldKey: string, header: string) => {
-      setColumnMapping(prev => ({ ...prev, [fieldKey]: header }));
+  const handleProcessData = () => {
+      const processed = processMappedData(rawSheetData, columnMapping, dataType, existingStudents);
+      const enriched = enrichImportData(processed);
+      setProcessedData(enriched);
+      setSelectedRowIndices(new Set(enriched.map((_, i) => i)));
+      setStep('PREVIEW_SELECT');
   };
 
-  const handleProceedToPreviewSystem = () => {
-      const requiredFields = FIELD_DEFINITIONS[dataType].filter(f => f.required);
-      const missing = requiredFields.filter(f => !columnMapping[f.key]);
-      
-      if (missing.length > 0) {
-          setStatus({ type: 'error', message: `يرجى تحديد الأعمدة للحقول الإجبارية: ${missing.map(f => f.label).join(', ')}` });
-          return;
-      }
-      
-      if (dataType === 'PERFORMANCE' || dataType === 'ATTENDANCE') {
-          if (!columnMapping['nationalId'] && !columnMapping['studentName']) {
-              setStatus({ type: 'error', message: 'يرجى تحديد عمود "رقم الهوية" أو "اسم الطالب" على الأقل لربط البيانات.' });
+  const handleFinalImport = () => {
+      if (importMode === 'CUSTOM' || onDataReady) {
+          const selectedData = rawSheetData.filter((_, i) => selectedRowIndices.has(i)).map((row: any) => {
+              const newRow: any = {};
+              Array.from(selectedCustomColumns).forEach((col: string) => {
+                  newRow[col] = row[col];
+              });
+              return newRow;
+          });
+
+          if (onDataReady) {
+              onDataReady(selectedData);
+              if (onClose) onClose();
               return;
           }
-      }
 
-      setLoading(true);
-      setTimeout(() => {
-          // 1. Basic Extraction
-          let processed = processMappedData(rawSheetData, columnMapping, dataType, existingStudents);
-          
-          // 2. Smart Enrichment (Look for missing IDs or Schedule info)
-          processed = enrichImportData(processed);
-
-          setProcessedData(processed);
-          setSelectedRowIndices(new Set(processed.map((_, i) => i)));
-          setRemovedIndices(new Set());
-          setStep('PREVIEW_SELECT');
-          setLoading(false);
-      }, 500);
-  };
-
-  // --- Custom Mode Logic ---
-  const toggleCustomColumn = (header: string) => {
-      const newSet = new Set(selectedCustomColumns);
-      if(newSet.has(header)) newSet.delete(header);
-      else newSet.add(header);
-      setSelectedCustomColumns(newSet);
-  }
-
-  // Handle Custom Save / Generic Data Return
-  const handleSaveCustomTable = () => {
-      if (selectedCustomColumns.size === 0) {
-          setStatus({ type: 'error', message: 'يرجى اختيار عمود واحد على الأقل.' });
-          return;
-      }
-      if (selectedRowIndices.size === 0) {
-        setStatus({ type: 'error', message: 'يرجى اختيار صف واحد على الأقل.' });
-        return;
-      }
-
-      const columns = Array.from(selectedCustomColumns) as string[];
-      
-      // Filter rows based on selected indices
-      const rows = rawSheetData
-        .filter((_, index) => selectedRowIndices.has(index))
-        .map(row => {
-            const newRow: any = {};
-            columns.forEach((col: string) => newRow[col] = row[col]);
-            return newRow;
-        });
-
-      // === NEW: If onDataReady provided, return data and exit ===
-      if (onDataReady) {
-          onDataReady(rows);
-          if (onClose) onClose();
-          return;
-      }
-
-      if (!customTableName) {
-          setStatus({ type: 'error', message: 'يرجى تسمية الجدول.' });
-          return;
-      }
-
-      const newTable: CustomTable = {
-          id: Date.now().toString(),
-          name: customTableName,
-          createdAt: new Date().toISOString().split('T')[0],
-          columns,
-          rows,
-          sourceUrl: sourceMethod === 'URL' ? url : undefined,
-          lastUpdated: new Date().toISOString(),
-          teacherId: currentUser?.id // STRICT ISOLATION
-      };
-
-      addCustomTable(newTable);
-      setStatus({ type: 'success', message: 'تم حفظ الجدول الخاص بنجاح!' });
-      setExistingCustomTables(getCustomTables());
-      setTimeout(resetState, 2000);
-  }
-
-  // --- Selection & Removal Handlers ---
-  const toggleRowSelection = (originalIndex: number) => {
-      const newSet = new Set(selectedRowIndices);
-      if (newSet.has(originalIndex)) newSet.delete(originalIndex);
-      else newSet.add(originalIndex);
-      setSelectedRowIndices(newSet);
-  };
-
-  const toggleSelectAll = () => {
-      // Logic differs slightly based on mode
-      const totalCount = importMode === 'SYSTEM' && !onDataReady ? analyzedData.length : rawSheetData.length;
-      const allSelected = selectedRowIndices.size === totalCount;
-      
-      if (allSelected) {
-          setSelectedRowIndices(new Set());
-      } else {
-          const newSet = new Set<number>();
-          // For System: use _originalIndex, For Custom: use index (0 to length)
-          if (importMode === 'SYSTEM' && !onDataReady) {
-              analyzedData.forEach(d => newSet.add(d._originalIndex));
-          } else {
-              for(let i=0; i<totalCount; i++) newSet.add(i);
-          }
-          setSelectedRowIndices(newSet);
-      }
-  };
-
-  const handleRemoveSelected = () => {
-      if (selectedRowIndices.size === 0) return;
-      if (window.confirm("هل أنت متأكد من استبعاد السجلات المحددة من الاستيراد؟")) {
-          const newRemoved = new Set(removedIndices);
-          selectedRowIndices.forEach(idx => newRemoved.add(idx));
-          setRemovedIndices(newRemoved);
-          setSelectedRowIndices(new Set());
-      }
-  };
-
-  // --- System Analysis (Memoized) ---
-  const analyzedData = useMemo(() => {
-      if (importMode === 'CUSTOM' || onDataReady) return []; // Process differently for Custom
-      
-      let data = processedData.map((row, index) => {
-          let _status: 'NEW' | 'UPDATE' | 'SKIP' = 'NEW';
-          let _existingMatch: any = null;
-          let _simulatedResult: any = { ...row };
-
-          if (dataType === 'STUDENTS') {
-              // ROBUST MATCHING: Strip all spaces and non-printable chars from ID for matching
-              const rowNid = row.nationalId ? String(row.nationalId).replace(/\s/g, '').trim() : null;
-              
-              if (rowNid) {
-                  _existingMatch = existingStudents.find(s => 
-                      s.nationalId && String(s.nationalId).replace(/\s/g, '').trim() === rowNid
-                  );
-              }
-
-              if (_existingMatch) {
-                  if (duplicateStrategy === 'UPDATE') {
-                      _status = 'UPDATE';
-                      _simulatedResult = { ..._existingMatch };
-                      allowedUpdateFields.forEach(field => {
-                          const incomingVal = row[field];
-                          if (incomingVal !== undefined && incomingVal !== null && String(incomingVal).trim() !== '') {
-                              _simulatedResult[field] = incomingVal;
-                          }
-                      });
-                  } else if (duplicateStrategy === 'SKIP') {
-                       _status = 'SKIP';
-                       _simulatedResult = _existingMatch;
-                  } else {
-                       _status = 'NEW'; 
-                  }
-              }
-          }
-
-          return {
-              ...row,
-              _originalIndex: index,
-              _status,
-              _existingMatch,
-              _simulatedResult
+          if (!customTableName) return alert('يرجى إدخال اسم الجدول');
+          const newTable: CustomTable = {
+              id: Date.now().toString(),
+              name: customTableName,
+              createdAt: new Date().toISOString(),
+              columns: Array.from(selectedCustomColumns),
+              rows: selectedData,
+              teacherId: currentUser?.id
           };
-      });
-
-      data = data.filter(r => !removedIndices.has(r._originalIndex));
-
-      if (sortConfig) {
-          data.sort((a, b) => {
-              const aVal = a._simulatedResult[sortConfig.key] || '';
-              const bVal = b._simulatedResult[sortConfig.key] || '';
-              if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-              if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-              return 0;
-          });
-      }
-      return data;
-  }, [processedData, existingStudents, matchKey, duplicateStrategy, dataType, sortConfig, removedIndices, allowedUpdateFields, importMode, onDataReady]);
-
-
-  // --- Render Helpers ---
-
-  const renderComparisonCell = (key: string, row: any) => {
-    const finalVal = row._simulatedResult[key];
-    const existingVal = row._existingMatch ? row._existingMatch[key] : undefined;
-    
-    // If it's a NEW record, just show value
-    if (!row._existingMatch) return <span className="font-bold text-gray-800">{finalVal || '-'}</span>;
-
-    // Check if value actually changes
-    const hasChanged = String(finalVal || '').trim() !== String(existingVal || '').trim();
-    const wasEmpty = !existingVal || String(existingVal).trim() === '';
-
-    if (hasChanged) {
-        return (
-            <div className="flex flex-col relative group">
-                <span className="font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200 w-fit">{finalVal}</span>
-                {!wasEmpty && <span className="text-[10px] text-gray-400 line-through mt-0.5" title="القيمة القديمة">{existingVal}</span>}
-            </div>
-        );
-    }
-    return <span className="text-gray-400 text-sm">{finalVal || '-'}</span>;
-  };
-
-  // --- Handlers for System Final Save ---
-  const handleFinalImportSystem = () => {
-      setLoading(true);
-      try {
-          const finalData = analyzedData
-              .filter((item) => selectedRowIndices.has(item._originalIndex))
-              .map(({ _status, _existingMatch, _originalIndex, _simulatedResult, ...rest }) => {
-                  // If UPDATE strategy, use the simulated result (merged data)
-                  // If NEW strategy, use the raw data (rest)
-                  // If SKIP, we typically shouldn't be here if filtered correctly, but safe to use match
-                  if (_status === 'UPDATE') return _simulatedResult;
-                  return rest;
-              });
+          addCustomTable(newTable);
+          alert('تم حفظ الجدول بنجاح!');
+          if (onClose) onClose();
+      } else {
+          // SYSTEM IMPORT
+          const finalData = processedData.filter((_, i) => selectedRowIndices.has(i) && !removedIndices.has(i));
           
-          if (finalData.length === 0) throw new Error("لم يتم اختيار أي سجلات للاستيراد.");
-
           if (dataType === 'STUDENTS') {
               onImportStudents(finalData, matchKey, duplicateStrategy, allowedUpdateFields);
-          } else if (dataType === 'ATTENDANCE' && onImportAttendance) {
-              onImportAttendance(finalData);
           } else if (dataType === 'PERFORMANCE') {
               onImportPerformance(finalData);
+          } else if (dataType === 'ATTENDANCE' && onImportAttendance) {
+              onImportAttendance(finalData);
           }
-
-          setStatus({ type: 'success', message: `تم استيراد ${finalData.length} سجل بنجاح!` });
-          setTimeout(() => {
-              if (onClose) onClose();
-          }, 1500);
-      } catch (error: any) {
-          setStatus({ type: 'error', message: error.message });
-      } finally {
-          setLoading(false);
+          
+          alert(`تم استيراد ${finalData.length} سجل بنجاح.`);
+          if (onClose) onClose();
       }
   };
 
   return (
-    <div className="bg-gray-100 min-h-full h-full flex flex-col animate-fade-in relative">
+    <div className="fixed inset-0 z-50 bg-white flex flex-col animate-fade-in" dir="rtl">
+      {/* Header */}
+      <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
+        <h2 className="text-xl font-bold flex items-center gap-2 text-gray-800">
+            <FileSpreadsheet className="text-green-600"/> استيراد البيانات من Excel
+        </h2>
+        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={24} className="text-gray-500"/></button>
+      </div>
+
+      <div className="flex-1 overflow-hidden flex flex-col max-w-5xl mx-auto w-full p-6">
         
-        {/* Top Navigation Bar */}
-        <div className="bg-white border-b shadow-sm z-20">
-            <div className="px-6 py-4 flex justify-between items-center">
-                 <div className="flex items-center gap-3">
-                    {onClose && (
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-600">
-                            <ArrowLeft size={20}/>
-                        </button>
-                    )}
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                            <FileSpreadsheet className={importMode === 'SYSTEM' && !onDataReady ? "text-green-600" : "text-purple-600"} />
-                            {onDataReady ? 'استيراد بيانات للمطابقة' : (importMode === 'SYSTEM' ? 'استيراد بيانات النظام' : 'استيراد جداول خاصة')}
-                        </h2>
-                        <p className="text-xs text-gray-500 mt-1">
-                            {step === 'UPLOAD' && '1. المصدر واختيار الملف'}
-                            {step === 'SHEET_SELECT' && '2. اختيار ورقة العمل'}
-                            {step === 'MAPPING' && '3. تحديد الأعمدة'}
-                            {step === 'PREVIEW_SELECT' && (importMode === 'SYSTEM' && !onDataReady ? '4. المراجعة والحفظ' : '3. تحديد الصفوف والأعمدة')}
-                        </p>
+        {/* Step Indicator */}
+        <div className="flex justify-center mb-8">
+            <div className={`flex items-center ${step === 'UPLOAD' ? 'text-purple-600' : 'text-green-600'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'UPLOAD' ? 'border-purple-600 bg-purple-50' : 'border-green-600 bg-green-50'}`}>1</div>
+                <span className="mx-2 font-bold text-sm">رفع الملف</span>
+            </div>
+            <div className="w-10 h-1 bg-gray-200 mx-2 rounded"></div>
+            <div className={`flex items-center ${step === 'SHEET_SELECT' ? 'text-purple-600' : (['MAPPING','PREVIEW_SELECT'].includes(step) ? 'text-green-600' : 'text-gray-400')}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'SHEET_SELECT' ? 'border-purple-600 bg-purple-50' : (['MAPPING','PREVIEW_SELECT'].includes(step) ? 'border-green-600 bg-green-50' : 'border-gray-300')}`}>2</div>
+                <span className="mx-2 font-bold text-sm">اختيار الورقة</span>
+            </div>
+            {importMode === 'SYSTEM' && (
+                <>
+                    <div className="w-10 h-1 bg-gray-200 mx-2 rounded"></div>
+                    <div className={`flex items-center ${step === 'MAPPING' ? 'text-purple-600' : (step === 'PREVIEW_SELECT' ? 'text-green-600' : 'text-gray-400')}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'MAPPING' ? 'border-purple-600 bg-purple-50' : (step === 'PREVIEW_SELECT' ? 'border-green-600 bg-green-50' : 'border-gray-300')}`}>3</div>
+                        <span className="mx-2 font-bold text-sm">مطابقة الأعمدة</span>
                     </div>
-                </div>
-
-                {!onDataReady && (
-                    <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                        <button 
-                            onClick={() => { setImportMode('SYSTEM'); resetState(); }} 
-                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${importMode === 'SYSTEM' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-800'}`}
-                        >
-                            بيانات الطلاب
-                        </button>
-                        <button 
-                            onClick={() => { setImportMode('CUSTOM'); resetState(); }} 
-                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${importMode === 'CUSTOM' ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-800'}`}
-                        >
-                            استيراد خاص
-                        </button>
-                    </div>
-                )}
-
-                <div className="flex items-center gap-3">
-                    {step === 'MAPPING' && importMode === 'SYSTEM' && !onDataReady && (
-                        <button 
-                            onClick={handleProceedToPreviewSystem} 
-                            disabled={loading} 
-                            className="bg-primary text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold shadow-md hover:bg-teal-800 transition-colors"
-                        >
-                            {loading ? <Loader2 className="animate-spin" size={18}/> : <Table size={18}/>}
-                            <span>معاينة الجدول</span>
-                        </button>
-                    )}
-                    {step === 'PREVIEW_SELECT' && (
-                        <button 
-                            onClick={importMode === 'SYSTEM' && !onDataReady ? handleFinalImportSystem : handleSaveCustomTable} 
-                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 shadow-md transition-colors font-bold"
-                        >
-                            {onDataReady ? <ArrowRightCircle size={18}/> : <CheckCircle size={18}/>}
-                            <span>
-                                {onDataReady ? `استخدام البيانات (${selectedRowIndices.size})` : 
-                                 (importMode === 'SYSTEM' ? `حفظ البيانات (${selectedRowIndices.size})` : 'حفظ الجدول الخاص')}
-                            </span>
-                        </button>
-                    )}
-                </div>
+                </>
+            )}
+            <div className="w-10 h-1 bg-gray-200 mx-2 rounded"></div>
+            <div className={`flex items-center ${step === 'PREVIEW_SELECT' ? 'text-purple-600' : 'text-gray-400'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'PREVIEW_SELECT' ? 'border-purple-600 bg-purple-50' : 'border-gray-300'}`}>4</div>
+                <span className="mx-2 font-bold text-sm">مراجعة وحفظ</span>
             </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-hidden p-6 relative">
-            
-            {/* Step 1: Upload */}
-            {step === 'UPLOAD' && (
-                <div className="max-w-4xl mx-auto mt-10 space-y-8">
-                     
-                     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
-                        {/* Type Selection for System Mode */}
-                        {importMode === 'SYSTEM' && !forcedType && !onDataReady && (
-                            <div className="mb-8">
-                                <label className="block text-sm font-bold text-gray-700 mb-3">نوع البيانات المراد استيرادها</label>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <button onClick={() => setDataType('STUDENTS')} className={`p-4 border rounded-xl text-center transition-all ${dataType === 'STUDENTS' ? 'border-primary bg-primary/5 text-primary font-bold' : 'text-gray-500 hover:bg-gray-50'}`}>الطلاب</button>
-                                    <button onClick={() => setDataType('PERFORMANCE')} className={`p-4 border rounded-xl text-center transition-all ${dataType === 'PERFORMANCE' ? 'border-primary bg-primary/5 text-primary font-bold' : 'text-gray-500 hover:bg-gray-50'}`}>الدرجات</button>
-                                    <button onClick={() => setDataType('ATTENDANCE')} className={`p-4 border rounded-xl text-center transition-all ${dataType === 'ATTENDANCE' ? 'border-primary bg-primary/5 text-primary font-bold' : 'text-gray-500 hover:bg-gray-50'}`}>الحضور</button>
-                                </div>
-                            </div>
-                        )}
+        {/* --- STEP 1: UPLOAD --- */}
+        {step === 'UPLOAD' && (
+            <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 p-10">
+                <div className="w-full max-w-md space-y-6">
+                    <div className="flex bg-white p-1 rounded-lg border shadow-sm">
+                        <button onClick={() => setSourceMethod('FILE')} className={`flex-1 py-2 text-sm font-bold rounded-md ${sourceMethod === 'FILE' ? 'bg-purple-100 text-purple-700' : 'text-gray-500'}`}>ملف محلي</button>
+                        <button onClick={() => setSourceMethod('URL')} className={`flex-1 py-2 text-sm font-bold rounded-md ${sourceMethod === 'URL' ? 'bg-purple-100 text-purple-700' : 'text-gray-500'}`}>رابط (Cloud)</button>
+                    </div>
 
-                        {/* Info Boxes */}
-                        {importMode === 'CUSTOM' && !onDataReady && (
-                            <div className="mb-6 bg-purple-50 text-purple-800 p-4 rounded-lg border border-purple-200">
-                                <h4 className="font-bold flex items-center gap-2 mb-1"><Database size={18}/> استيراد جداول خاصة</h4>
-                                <p className="text-sm">يمكنك هنا رفع أي ملف Excel واختيار صفوف وأعمدة محددة منه لحفظها كجدول مستقل.</p>
-                            </div>
-                        )}
-                        {onDataReady && (
-                             <div className="mb-6 bg-blue-50 text-blue-800 p-4 rounded-lg border border-blue-200">
-                                <h4 className="font-bold flex items-center gap-2 mb-1"><Table size={18}/> استيراد بيانات وتوزيعها</h4>
-                                <p className="text-sm">سيتم جلب البيانات ومحاولة مطابقة أسماء الأعمدة في الملف مع الأعمدة الموجودة في النظام.</p>
-                            </div>
-                        )}
+                    {sourceMethod === 'FILE' ? (
+                        <div className="space-y-4 text-center">
+                            <input type="file" id="file-upload" className="hidden" accept=".xlsx, .xls, .csv" onChange={handleFileChange} />
+                            <label htmlFor="file-upload" className="block w-full py-10 bg-white border-2 border-dashed border-purple-200 rounded-xl cursor-pointer hover:bg-purple-50 transition-colors">
+                                <Upload size={48} className="mx-auto text-purple-400 mb-2"/>
+                                <span className="text-gray-600 font-bold">اضغط هنا لاختيار ملف Excel</span>
+                                <p className="text-xs text-gray-400 mt-1">.xlsx, .xls, .csv</p>
+                            </label>
+                            {file && <div className="text-sm font-bold text-green-600 flex items-center justify-center gap-2"><CheckCircle size={16}/> تم اختيار: {file.name}</div>}
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <label className="block text-sm font-bold text-gray-700">رابط الملف (Google Sheet / OneDrive / Dropbox)</label>
+                            <input className="w-full p-3 border rounded-xl dir-ltr" placeholder="https://..." value={url} onChange={e => setUrl(e.target.value)} />
+                            <p className="text-xs text-gray-500">تأكد أن الرابط عام (Public) أو لديك صلاحية الوصول.</p>
+                        </div>
+                    )}
 
-                        {/* Source Selection Toggle */}
-                        <div className="flex gap-4 mb-4 border-b pb-4">
-                            <button onClick={() => setSourceMethod('FILE')} className={`flex-1 py-3 rounded-lg border flex items-center justify-center gap-2 font-bold transition-all ${sourceMethod === 'FILE' ? 'border-gray-800 bg-gray-50 text-gray-800' : 'border-transparent text-gray-400'}`}>
-                                <Upload size={18}/> رفع ملف
-                            </button>
-                            <button onClick={() => setSourceMethod('URL')} className={`flex-1 py-3 rounded-lg border flex items-center justify-center gap-2 font-bold transition-all ${sourceMethod === 'URL' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-transparent text-gray-400'}`}>
-                                <Globe size={18}/> رابط مباشر
+                    {!onDataReady && (
+                        <div className="text-center">
+                            <button onClick={handleDownloadTemplate} className="text-blue-600 text-xs font-bold hover:underline flex items-center justify-center gap-1 mx-auto">
+                                <Download size={14}/> تحميل قالب {dataType === 'STUDENTS' ? 'الطلاب' : dataType === 'PERFORMANCE' ? 'الدرجات' : 'الحضور'}
                             </button>
                         </div>
+                    )}
 
-                        {sourceMethod === 'FILE' ? (
-                            <div className="space-y-4">
-                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group mb-2">
-                                    <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                    <div className="flex flex-col items-center gap-4 group-hover:scale-105 transition-transform">
-                                        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center">
-                                            <Upload size={32} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-bold text-gray-700">{file ? file.name : 'اسحب الملف هنا أو اضغط للاختيار'}</h3>
-                                            <p className="text-sm text-gray-400 mt-1">يدعم ملفات Excel (.xlsx) و CSV</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {importMode === 'SYSTEM' && !onDataReady && (
-                                    <div className="text-center">
-                                        <button onClick={handleDownloadTemplate} className="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center justify-center gap-1 mx-auto font-bold">
-                                            <Download size={14}/> تحميل قالب Excel جاهز لبيانات {dataType === 'ATTENDANCE' ? 'الحضور' : dataType === 'STUDENTS' ? 'الطلاب' : 'الدرجات'}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                             <div className="mb-6 space-y-3">
-                                <label className="block text-sm font-bold text-gray-700">رابط الملف (مباشر)</label>
-                                <div className="flex gap-2">
-                                    <div className="relative flex-1">
-                                        <input 
-                                            type="url" 
-                                            placeholder="https://docs.google.com/spreadsheets/d/..." 
-                                            className="w-full p-3 border rounded-lg dir-ltr text-left pl-10"
-                                            value={url}
-                                            onChange={e => setUrl(e.target.value)}
-                                        />
-                                        <button 
-                                            onClick={handlePasteUrl}
-                                            className="absolute left-2 top-2.5 text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100"
-                                            title="لصق الرابط"
-                                        >
-                                            <Clipboard size={16}/>
-                                        </button>
-                                    </div>
-                                    <div className="bg-blue-50 text-blue-600 p-3 rounded-lg border border-blue-100 flex items-center">
-                                        <Globe size={20}/>
-                                    </div>
-                                </div>
-                                
-                                {urlType === 'GOOGLE' && <span className="text-green-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> رابط Google Sheets صالح (سيتم استخدام API)</span>}
-                                {urlType === 'ONEDRIVE' && <span className="text-blue-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> رابط OneDrive/SharePoint صالح</span>}
+                    {status && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold border border-red-100">{status.message}</div>}
 
-                                <p className="text-xs text-gray-400 leading-relaxed">
-                                    يدعم النظام تحويل الروابط تلقائياً من: <br/>
-                                    - <b className="text-gray-600">Google Sheets</b> (تأكد أن الرابط متاح "Anyone with link"). <br/>
-                                    - <b className="text-gray-600">OneDrive / SharePoint</b> (انسخ الرابط وقم بلصقه هنا). <br/>
-                                    - <b className="text-gray-600">Dropbox</b>.
-                                </p>
-                            </div>
-                        )}
-
-                        <button onClick={handleScan} disabled={loading} className="w-full bg-gray-900 text-white py-3 rounded-lg font-bold hover:bg-black transition-colors disabled:opacity-50">
-                            {loading ? 'جاري قراءة البيانات...' : 'متابعة'}
-                        </button>
-                    </div>
-
-                    {status && <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">{status.message}</div>}
-                </div>
-            )}
-
-            {/* ... other steps ... */}
-            {step === 'SHEET_SELECT' && (
-                <div className="max-w-2xl mx-auto mt-10 animate-fade-in">
-                    <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
-                         <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                            <FileSpreadsheet className="text-green-600"/>
-                            اختر ورقة العمل (Sheet)
-                         </h3>
-                         <p className="text-sm text-gray-500 mb-4">يحتوي الملف على {sheetNames.length} أوراق عمل. يرجى اختيار الورقة التي تحتوي على البيانات.</p>
-                         
-                         <div className="space-y-3 max-h-60 overflow-y-auto mb-8 pr-1 custom-scrollbar">
-                            {sheetNames.map(sheet => (
-                                <label key={sheet} className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all ${selectedSheet === sheet ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                    <input 
-                                        type="radio" 
-                                        name="sheet" 
-                                        value={sheet} 
-                                        checked={selectedSheet === sheet} 
-                                        onChange={() => setSelectedSheet(sheet)}
-                                        className="w-5 h-5 text-primary focus:ring-primary accent-primary"
-                                    />
-                                    <span className="font-bold text-gray-700">{sheet}</span>
-                                </label>
-                            ))}
-                         </div>
-                         
-                         <div className="flex gap-4">
-                             <button onClick={() => setStep('UPLOAD')} className="flex-1 py-3 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50">
-                                عودة
-                             </button>
-                             <button onClick={handleSheetConfirm} className="flex-2 w-full py-3 bg-primary text-white rounded-lg font-bold hover:bg-teal-800 shadow-md flex items-center justify-center gap-2">
-                                متابعة <ArrowLeft size={18}/>
-                             </button>
-                         </div>
-                    </div>
-                </div>
-            )}
-            {step === 'MAPPING' && importMode === 'SYSTEM' && !onDataReady && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
-                    <div className="p-4 border-b bg-gray-50 flex items-center justify-between gap-4">
-                         <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border">
-                             <Sheet size={16} className="text-gray-500"/>
-                             <span className="text-sm text-gray-600 font-bold">ورقة العمل الحالية:</span>
-                             <select 
-                                value={selectedSheet} 
-                                onChange={(e) => handleSheetLoad(workbook, e.target.value)} 
-                                className="bg-transparent font-bold text-primary outline-none cursor-pointer text-sm"
-                            >
-                                {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                         </div>
-
-                         {/* SMART AI MAP BUTTON */}
-                         <button 
-                            onClick={handleSmartMap} 
-                            disabled={aiLoading}
-                            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold shadow hover:shadow-lg transition-all disabled:opacity-50 text-sm"
-                         >
-                             {aiLoading ? <Loader2 className="animate-spin" size={16}/> : <BrainCircuit size={16}/>}
-                             {aiLoading ? 'جاري التحليل...' : 'مطابقة ذكية (AI)'}
-                         </button>
-                    </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
-                            {FIELD_DEFINITIONS[dataType].map((field) => (
-                                <div key={field.key} className="p-4 border rounded-lg hover:border-blue-300 transition-colors bg-white shadow-sm">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2 flex justify-between">
-                                        <span>{field.label} {field.required && <span className="text-red-500">*</span>}</span>
-                                        {columnMapping[field.key] && <CheckCircle size={16} className="text-green-500"/>}
-                                    </label>
-                                    <select 
-                                        className={`w-full p-2 border rounded-lg bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500/20 ${columnMapping[field.key] ? 'border-blue-500 bg-blue-50/20' : ''}`}
-                                        value={columnMapping[field.key] || ''}
-                                        onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                                    >
-                                        <option value="">-- تخطي هذا العمود --</option>
-                                        {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                                    </select>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {step === 'PREVIEW_SELECT' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
-                    <div className="p-4 border-b bg-gray-50 flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
-                        <div className="flex gap-4">
-                            <div className="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1.5 rounded-lg border border-green-200">
-                                <PlusCircle size={16}/>
-                                <div className="flex flex-col leading-tight">
-                                    <span className="text-xs opacity-75">سجلات جديدة</span>
-                                    <span className="font-bold">{importMode === 'SYSTEM' && !onDataReady ? analyzedData.filter(d => d._status === 'NEW').length : rawSheetData.length}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                         {dataType === 'STUDENTS' && importMode === 'SYSTEM' && !onDataReady && (
-                            <div className="flex items-center gap-3 bg-white p-2 rounded-lg border">
-                                <span className="text-xs font-bold text-gray-500">في حال وجود الطالب:</span>
-                                <div className="flex rounded overflow-hidden border border-gray-200">
-                                    <button onClick={() => setDuplicateStrategy('UPDATE')} className={`px-3 py-1 text-xs font-bold ${duplicateStrategy === 'UPDATE' ? 'bg-blue-600 text-white' : 'bg-gray-50 hover:bg-gray-100'}`}>دمج وتحديث</button>
-                                    <div className="w-[1px] bg-gray-200"></div>
-                                    <button onClick={() => setDuplicateStrategy('SKIP')} className={`px-3 py-1 text-xs font-bold ${duplicateStrategy === 'SKIP' ? 'bg-orange-500 text-white' : 'bg-gray-50 hover:bg-gray-100'}`}>تجاهل</button>
-                                </div>
-                            </div>
-                        )}
-                        
-                        <div className="flex items-center gap-2">
-                             <button onClick={toggleSelectAll} className="flex items-center gap-2 text-xs font-bold bg-white border px-3 py-2 rounded hover:bg-gray-50">
-                                <CheckSquare size={14}/>
-                                تحديد الكل
-                            </button>
-                            {selectedRowIndices.size > 0 && (
-                                <button onClick={handleRemoveSelected} className="flex items-center gap-2 text-xs font-bold text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded hover:bg-red-100">
-                                    <Trash2 size={14}/> حذف المحدد
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex-1 overflow-auto bg-gray-50 relative">
-                        <table className="w-full text-right text-sm border-collapse bg-white">
-                            <thead className="bg-gray-100 text-gray-600 sticky top-0 z-10 shadow-sm text-xs uppercase">
-                                <tr>
-                                    <th className="p-3 w-10 text-center bg-gray-100 border-b">#</th>
-                                    {importMode === 'SYSTEM' && !onDataReady && <th className="p-3 w-32 border-b bg-gray-100">الحالة</th>}
-                                    {importMode === 'SYSTEM' && !onDataReady ? 
-                                        Object.keys(processedData[0] || {}).filter(k => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(k => (
-                                            <th key={k} className="p-3 border-b bg-gray-100 font-bold whitespace-nowrap min-w-[120px]">
-                                                {FIELD_DEFINITIONS[dataType].find(f => f.key === k)?.label || k}
-                                                {/* Allow user to skip updating this specific column if needed in future (not implemented yet) */}
-                                            </th>
-                                        )) 
-                                    : 
-                                        fileHeaders.map(col => (
-                                            <th key={col} className="p-3 border-b whitespace-nowrap bg-gray-100 font-bold">
-                                                {importMode === 'CUSTOM' || onDataReady ? (
-                                                    <div onClick={() => toggleCustomColumn(col)} className="cursor-pointer flex items-center gap-1">
-                                                        {col} {selectedCustomColumns.has(col) && <CheckCircle size={12} className="text-purple-600"/>}
-                                                    </div>
-                                                ) : col}
-                                            </th>
-                                        ))
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {(importMode === 'SYSTEM' && !onDataReady ? analyzedData : rawSheetData).map((row, i) => {
-                                    const actualIndex = importMode === 'SYSTEM' && !onDataReady ? row._originalIndex : i;
-                                    return (
-                                        <tr 
-                                            key={actualIndex} 
-                                            className={`transition-colors hover:bg-gray-50 ${!selectedRowIndices.has(actualIndex) ? 'opacity-50 bg-gray-50 grayscale' : ''}`}
-                                            onClick={() => toggleRowSelection(actualIndex)}
-                                        >
-                                            <td className="p-3 text-center border-l bg-gray-50/50"><input type="checkbox" checked={selectedRowIndices.has(actualIndex)} readOnly className="w-4 h-4 rounded text-primary"/></td>
-                                            {importMode === 'SYSTEM' && !onDataReady && (
-                                                <td className="p-3 border-l">
-                                                    {row._status === 'NEW' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold">جديد</span>}
-                                                    {row._status === 'UPDATE' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">دمج</span>}
-                                                    {row._status === 'SKIP' && <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded text-[10px] font-bold">مكرر</span>}
-                                                </td>
-                                            )}
-                                            {importMode === 'SYSTEM' && !onDataReady ? (
-                                                Object.entries(row).filter(([k]) => !k.startsWith('_') && k !== 'id' && k !== 'studentId').map(([k, val]: any) => (
-                                                    <td key={k} className={`p-3 border-l border-gray-50 ${row._status === 'UPDATE' && k !== 'nationalId' ? 'bg-blue-50/10' : ''}`}>
-                                                        {dataType === 'STUDENTS' ? renderComparisonCell(k, row) : (
-                                                            <span>
-                                                                {String(val)}
-                                                                {row._autoMatchedStudent && k === 'nationalId' && <span className="mr-1 text-[10px] text-blue-600 font-bold">(هوية تلقائية)</span>}
-                                                                {row._autoMatchedSchedule && (k === 'subject' || k === 'period') && <span className="mr-1 text-[10px] text-green-600 font-bold">(جدول تلقائي)</span>}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                ))
-                                            ) : (
-                                                fileHeaders.map(col => {
-                                                    const isSelected = selectedCustomColumns.has(col);
-                                                    return <td key={col} className={`p-3 border-l whitespace-nowrap max-w-[200px] overflow-hidden text-ellipsis ${isSelected ? 'text-gray-700' : 'text-gray-300 bg-gray-50'}`}>{row[col]}</td>
-                                                })
-                                            )}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-        </div>
-        
-        {/* Messages Toast */}
-        {status && (
-            <div className={`fixed bottom-6 left-6 right-6 md:right-auto md:w-96 p-4 rounded-xl shadow-2xl border flex items-center gap-3 z-50 animate-bounce-in ${status.type === 'success' ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'}`}>
-                {status.type === 'success' ? <CheckCircle size={24}/> : <AlertTriangle size={24}/>}
-                <div>
-                    <h4 className="font-bold">{status.type === 'success' ? 'تمت العملية' : 'تنبيه'}</h4>
-                    <p className="text-sm opacity-90">{status.message}</p>
+                    <button onClick={handleScan} disabled={loading || (sourceMethod === 'FILE' && !file) || (sourceMethod === 'URL' && !url)} className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 flex justify-center items-center gap-2">
+                        {loading ? <Loader2 className="animate-spin"/> : <ArrowLeft/>} التالي
+                    </button>
                 </div>
             </div>
         )}
+
+        {/* --- STEP 2: SHEET SELECT --- */}
+        {step === 'SHEET_SELECT' && (
+            <div className="flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">اختر ورقة العمل (Sheet)</h3>
+                <div className="w-full space-y-2 max-h-60 overflow-y-auto border rounded-xl p-2 bg-gray-50">
+                    {sheetNames.map(sheet => (
+                        <button key={sheet} onClick={() => setSelectedSheet(sheet)} className={`w-full text-right p-3 rounded-lg font-bold text-sm flex items-center gap-3 transition-colors ${selectedSheet === sheet ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-white hover:bg-gray-100 border border-transparent'}`}>
+                            <Sheet size={18}/> {sheet}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex gap-4 w-full mt-6">
+                    <button onClick={resetState} className="flex-1 border py-3 rounded-xl font-bold text-gray-600 hover:bg-gray-50">إلغاء</button>
+                    <button onClick={handleSheetConfirm} disabled={!selectedSheet} className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50">التالي</button>
+                </div>
+            </div>
+        )}
+
+        {/* --- STEP 3: MAPPING (System Mode) --- */}
+        {step === 'MAPPING' && importMode === 'SYSTEM' && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold border border-blue-100 flex items-center gap-2">
+                        <BrainCircuit size={18}/> المطابقة الذكية مفعلة
+                    </div>
+                    <button onClick={handleSmartMap} disabled={aiLoading} className="text-purple-600 text-sm font-bold flex items-center gap-1 hover:underline">
+                        {aiLoading ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>} إعادة المطابقة بالذكاء الاصطناعي
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto border rounded-xl bg-gray-50 p-4 space-y-4">
+                    {FIELD_DEFINITIONS[dataType].map(field => (
+                        <div key={field.key} className="bg-white p-4 rounded-xl border shadow-sm">
+                            <div className="flex justify-between mb-2">
+                                <label className="font-bold text-gray-700 flex items-center gap-2">
+                                    {field.label} {field.required && <span className="text-red-500">*</span>}
+                                </label>
+                                {columnMapping[field.key] && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">تم الربط</span>}
+                            </div>
+                            <select 
+                                className={`w-full p-2 border rounded-lg text-sm font-bold outline-none focus:ring-2 ${columnMapping[field.key] ? 'border-green-500 bg-green-50' : 'bg-gray-50 focus:ring-purple-500'}`}
+                                value={columnMapping[field.key] || ''}
+                                onChange={(e) => setColumnMapping({ ...columnMapping, [field.key]: e.target.value })}
+                            >
+                                <option value="">-- اختر العمود من الملف --</option>
+                                {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                        </div>
+                    ))}
+                </div>
+
+                {status && <div className={`mt-4 p-3 rounded-lg text-sm font-bold ${status.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{status.message}</div>}
+
+                <div className="flex gap-4 mt-6">
+                    <button onClick={() => setStep('UPLOAD')} className="px-6 py-3 border rounded-xl font-bold text-gray-600 hover:bg-gray-50">رجوع</button>
+                    <button onClick={handleProcessData} className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 shadow-lg">معاينة البيانات</button>
+                </div>
+            </div>
+        )}
+
+        {/* --- STEP 4: PREVIEW & SELECT --- */}
+        {step === 'PREVIEW_SELECT' && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex justify-between items-center mb-4 bg-gray-50 p-2 rounded-xl border">
+                    <div className="text-sm font-bold text-gray-600 px-2">
+                        تم العثور على {importMode === 'SYSTEM' ? processedData.length : rawSheetData.length} سجل
+                    </div>
+                    {importMode === 'CUSTOM' && !onDataReady && (
+                        <div className="flex gap-2 items-center">
+                            <input className="p-2 border rounded-lg text-sm" placeholder="اسم الجدول الجديد" value={customTableName} onChange={e => setCustomTableName(e.target.value)} />
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex-1 overflow-auto border rounded-xl bg-white shadow-inner relative">
+                    <table className="w-full text-right text-sm border-collapse">
+                        <thead className="bg-gray-100 text-gray-700 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th className="p-3 w-10 text-center bg-gray-100 border-b">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedRowIndices.size === (importMode === 'SYSTEM' ? processedData.length : rawSheetData.length)} 
+                                        onChange={(e) => {
+                                            const total = importMode === 'SYSTEM' ? processedData.length : rawSheetData.length;
+                                            if (e.target.checked) setSelectedRowIndices(new Set(Array.from({length: total}, (_, i) => i)));
+                                            else setSelectedRowIndices(new Set());
+                                        }}
+                                        className="w-4 h-4 cursor-pointer"
+                                    />
+                                </th>
+                                {importMode === 'SYSTEM' ? (
+                                    // System Columns
+                                    FIELD_DEFINITIONS[dataType].map(f => (
+                                        <th key={f.key} className="p-3 border-b whitespace-nowrap font-bold">{f.label.split('(')[0]}</th>
+                                    ))
+                                ) : (
+                                    // Custom Columns (Selectable)
+                                    fileHeaders.map(h => (
+                                        <th key={h} className={`p-3 border-b whitespace-nowrap cursor-pointer transition-colors ${selectedCustomColumns.has(h) ? 'bg-purple-100 text-purple-800' : 'hover:bg-gray-200'}`} onClick={() => {
+                                            const newSet = new Set(selectedCustomColumns);
+                                            if (newSet.has(h)) newSet.delete(h); else newSet.add(h);
+                                            setSelectedCustomColumns(newSet);
+                                        }}>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-4 h-4 border rounded flex items-center justify-center ${selectedCustomColumns.has(h) ? 'bg-purple-600 border-purple-600' : 'bg-white border-gray-400'}`}>
+                                                    {selectedCustomColumns.has(h) && <CheckSquare size={12} className="text-white"/>}
+                                                </div>
+                                                {h}
+                                            </div>
+                                        </th>
+                                    ))
+                                )}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {(importMode === 'SYSTEM' ? processedData : rawSheetData).map((row, i) => (
+                                <tr key={i} className={`hover:bg-blue-50 transition-colors ${!selectedRowIndices.has(i) ? 'opacity-50 bg-gray-50' : ''}`}>
+                                    <td className="p-3 text-center border-l bg-gray-50">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedRowIndices.has(i)} 
+                                            onChange={(e) => {
+                                                const newSet = new Set(selectedRowIndices);
+                                                if (e.target.checked) newSet.add(i); else newSet.delete(i);
+                                                setSelectedRowIndices(newSet);
+                                            }}
+                                            className="w-4 h-4 cursor-pointer"
+                                        />
+                                    </td>
+                                    {importMode === 'SYSTEM' ? (
+                                        FIELD_DEFINITIONS[dataType].map(f => (
+                                            <td key={f.key} className="p-3 border-l text-gray-700 whitespace-nowrap max-w-[200px] truncate">
+                                                {row[f.key]}
+                                                {row._autoMatchedStudent && f.key === 'nationalId' && <span className="mr-1 text-[10px] text-blue-600 font-bold">(ID تلقائي)</span>}
+                                                {row._autoMatchedSchedule && (f.key === 'subject' || f.key === 'period') && <span className="mr-1 text-[10px] text-green-600 font-bold">(جدول)</span>}
+                                            </td>
+                                        ))
+                                    ) : (
+                                        fileHeaders.map(h => (
+                                            <td key={h} className={`p-3 border-l text-gray-700 whitespace-nowrap max-w-[200px] truncate ${!selectedCustomColumns.has(h) ? 'text-gray-300' : ''}`}>
+                                                {row[h]}
+                                            </td>
+                                        ))
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="flex gap-4 mt-6 pt-4 border-t">
+                    <button onClick={() => setStep(importMode === 'SYSTEM' ? 'MAPPING' : 'SHEET_SELECT')} className="px-6 py-3 border rounded-xl font-bold text-gray-600 hover:bg-gray-50">تعديل</button>
+                    <button onClick={handleFinalImport} disabled={selectedRowIndices.size === 0 || (importMode === 'CUSTOM' && !onDataReady && !customTableName)} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg flex justify-center items-center gap-2 disabled:opacity-50">
+                        <CheckCircle size={18}/> إتمام الاستيراد ({selectedRowIndices.size})
+                    </button>
+                </div>
+            </div>
+        )}
+
+      </div>
     </div>
   );
 };
