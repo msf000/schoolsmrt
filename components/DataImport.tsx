@@ -230,7 +230,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                           setStep('MAPPING');
                       } else {
                           setSelectedCustomColumns(new Set(headers));
-                          setSelectedRowIndices(new Set(data.map((_, i) => i)));
+                          setSelectedRowIndices(new Set(data.map((_: any, i: number) => i)));
                           setStep('PREVIEW_SELECT');
                       }
                       setLoading(false);
@@ -291,7 +291,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       } else {
           // For Custom OR Generic Data Ready: Skip Mapping, Select ALL columns and rows by default, go to Preview
           setSelectedCustomColumns(new Set(headers));
-          setSelectedRowIndices(new Set(data.map((_, i) => i)));
+          setSelectedRowIndices(new Set(data.map((_: any, i: number) => i)));
           setStep('PREVIEW_SELECT');
       }
   };
