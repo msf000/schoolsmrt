@@ -1,11 +1,13 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser } from '../types';
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, PieChart as PieIcon, ArrowRight, GraduationCap } from 'lucide-react';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, AcademicTerm } from '../types';
+import { getAcademicTerms } from '../services/storageService';
+import { generateDailyBriefing } from '../services/geminiService';
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, PieChart as PieIcon, ArrowRight, GraduationCap, Sparkles, Bot, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -16,8 +18,35 @@ interface DashboardProps {
   onNavigate: (view: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
+  const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<string>('');
+  const [aiBrief, setAiBrief] = useState<string>('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  useEffect(() => {
+    const loadedTerms = getAcademicTerms(currentUser?.id);
+    setTerms(loadedTerms);
+    const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
+    if (active) setSelectedTermId(active.id);
+    
+    if (students.length > 0) {
+        loadAiBrief();
+    }
+  }, [currentUser, students.length]);
+
+  const loadAiBrief = async () => {
+    setIsAiLoading(true);
+    try {
+        const briefing = await generateDailyBriefing(students, attendance, performance);
+        setAiBrief(briefing);
+    } catch (e) {
+        setAiBrief("أهلاً بك! ركز اليوم على تحفيز الطلاب ومتابعة تقدمهم. بالتوفيق!");
+    } finally {
+        setIsAiLoading(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const totalStudents = students.length;
@@ -45,23 +74,28 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24">
-      {/* Welcome Banner */}
-      <div className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700">
-            <Activity size={240}/>
-        </div>
-        <div className="relative z-10">
-          <h2 className="text-3xl font-black mb-2">أهلاً بك في نظام المتابع الذكي</h2>
-          <p className="text-indigo-100 font-medium mb-6 max-w-lg">تابع حضور طلابك وأدائهم الأكاديمي بسهولة وبأدوات ذكية متطورة.</p>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => navigate('/attendance')}
-              className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:scale-105 transition-all shadow-lg flex items-center gap-2"
-            >
-              بدء التحضير <ArrowRight size={18}/>
-            </button>
+      {/* Welcome & AI Briefing Banner */}
+      <div className="bg-indigo-900 rounded-[2rem] p-6 text-white shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center shrink-0 border border-white/10 shadow-xl">
+                  {isAiLoading ? <Loader2 className="animate-spin text-yellow-400"/> : <Bot className="text-yellow-400" size={32}/>}
+              </div>
+              <div className="flex-1 text-center md:text-right">
+                  <h2 className="text-xl font-black mb-2 flex items-center justify-center md:justify-start gap-2">
+                      موجزك الذكي لليوم <Sparkles size={16} className="text-yellow-400"/>
+                  </h2>
+                  <div className="text-indigo-100 text-sm leading-relaxed whitespace-pre-line opacity-90">
+                      {isAiLoading ? 'جاري تحليل بيانات الطلاب...' : aiBrief}
+                  </div>
+              </div>
+              <button 
+                onClick={() => navigate('/attendance')}
+                className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-bold hover:scale-105 transition-all shadow-xl flex items-center gap-2"
+              >
+                  ابدأ التحضير <ArrowRight size={18}/>
+              </button>
           </div>
-        </div>
       </div>
 
       {/* KPI Cards */}
@@ -73,7 +107,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Attendance Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-gray-800 flex items-center gap-2">
@@ -99,7 +132,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
         </div>
 
-        {/* Distribution Chart */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
             <PieIcon size={18} className="text-red-500"/> توزيع الحضور اليوم

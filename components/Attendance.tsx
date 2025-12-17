@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Save, Search, CheckSquare } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X } from 'lucide-react';
 
 interface AttendanceProps {
   students: Student[];
@@ -9,6 +9,14 @@ interface AttendanceProps {
   onSaveAttendance: (records: AttendanceRecord[]) => void;
   currentUser?: SystemUser | null;
 }
+
+const QUICK_BEHAVIORS = [
+    { label: 'مشاركة ممتازة', status: BehaviorStatus.POSITIVE, icon: <Sparkles size={14}/>, color: 'text-yellow-600 bg-yellow-50' },
+    { label: 'حل الواجب', status: BehaviorStatus.POSITIVE, icon: <CheckCircle size={14}/>, color: 'text-green-600 bg-green-50' },
+    { label: 'سلوك منضبط', status: BehaviorStatus.POSITIVE, icon: <Star size={14}/>, color: 'text-blue-600 bg-blue-50' },
+    { label: 'مشاغبة', status: BehaviorStatus.NEGATIVE, icon: <ThumbsDown size={14}/>, color: 'text-red-600 bg-red-50' },
+    { label: 'بدون كتاب', status: BehaviorStatus.NEGATIVE, icon: <BookOpen size={14}/>, color: 'text-orange-600 bg-orange-50' },
+];
 
 const Attendance: React.FC<AttendanceProps> = ({ 
     students, 
@@ -19,6 +27,7 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeStudentMenu, setActiveStudentMenu] = useState<string | null>(null);
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -33,32 +42,19 @@ const Attendance: React.FC<AttendanceProps> = ({
     }).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   }, [students, selectedClass, searchTerm]);
 
-  const handleStatusToggle = (studentId: string, currentStatus: AttendanceStatus) => {
-    const nextStatus = currentStatus === AttendanceStatus.PRESENT ? AttendanceStatus.ABSENT : AttendanceStatus.PRESENT;
-    
+  const handleUpdate = (studentId: string, status: AttendanceStatus, bStatus?: BehaviorStatus, bNote?: string) => {
     const existing = attendanceHistory.find(a => a.studentId === studentId && a.date === selectedDate);
     const record: AttendanceRecord = {
       id: existing?.id || `${studentId}-${selectedDate}`,
       studentId,
       date: selectedDate,
-      status: nextStatus,
-      behaviorStatus: existing?.behaviorStatus || BehaviorStatus.NEUTRAL,
+      status,
+      behaviorStatus: bStatus || existing?.behaviorStatus || BehaviorStatus.NEUTRAL,
+      behaviorNote: bNote || existing?.behaviorNote || '',
       createdById: currentUser?.id
     };
     onSaveAttendance([record]);
-  };
-
-  const setStatus = (studentId: string, status: AttendanceStatus) => {
-    const existing = attendanceHistory.find(a => a.studentId === studentId && a.date === selectedDate);
-    const record: AttendanceRecord = {
-      id: existing?.id || `${studentId}-${selectedDate}`,
-      studentId,
-      date: selectedDate,
-      status: status,
-      behaviorStatus: existing?.behaviorStatus || BehaviorStatus.NEUTRAL,
-      createdById: currentUser?.id
-    };
-    onSaveAttendance([record]);
+    setActiveStudentMenu(null);
   };
 
   const markAllPresent = () => {
@@ -130,62 +126,78 @@ const Attendance: React.FC<AttendanceProps> = ({
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
         {filteredStudents.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {filteredStudents.map(student => {
               const record = attendanceHistory.find(a => a.studentId === student.id && a.date === selectedDate);
               const status = record?.status || AttendanceStatus.PRESENT;
+              const bStatus = record?.behaviorStatus || BehaviorStatus.NEUTRAL;
+              const isMenuOpen = activeStudentMenu === student.id;
 
               return (
-                <div 
-                  key={student.id} 
-                  className={`p-4 rounded-2xl border-2 transition-all group relative overflow-hidden ${
-                    status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-100 shadow-sm' : 
-                    status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-100 shadow-sm' : 
-                    'bg-white border-transparent hover:border-indigo-100 hover:shadow-md'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${
-                      status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white' : 
-                      status === AttendanceStatus.LATE ? 'bg-yellow-500 text-white' : 
-                      'bg-indigo-600 text-white'
-                    }`}>
-                      {student.name.charAt(0)}
-                    </div>
-                    <div className="flex gap-1">
-                      <button 
-                        onClick={() => setStatus(student.id, AttendanceStatus.LATE)}
-                        title="تأخر"
-                        className={`p-1.5 rounded-lg transition-all ${status === AttendanceStatus.LATE ? 'bg-yellow-500 text-white shadow-md' : 'bg-gray-100 text-gray-400 hover:bg-yellow-100 hover:text-yellow-600'}`}
-                      >
-                        <Clock size={16}/>
-                      </button>
-                    </div>
-                  </div>
-
-                  <h4 className="font-bold text-gray-800 line-clamp-1 mb-1">{student.name}</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-4">
-                    {student.className || 'بدون فصل'}
-                  </p>
-
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleStatusToggle(student.id, status)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                        status === AttendanceStatus.ABSENT 
-                        ? 'bg-red-600 text-white shadow-lg shadow-red-100' 
-                        : 'bg-green-100 text-green-700 hover:bg-green-200'
-                      }`}
+                <div key={student.id} className="relative group">
+                    <div 
+                        onClick={() => setActiveStudentMenu(isMenuOpen ? null : student.id)}
+                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer h-40 flex flex-col justify-between shadow-sm relative overflow-hidden ${
+                            status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-200' : 
+                            status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-200' : 
+                            'bg-white border-transparent hover:border-indigo-100 hover:shadow-md'
+                        }`}
                     >
-                      {status === AttendanceStatus.ABSENT ? <XCircle size={14}/> : <CheckCircle size={14}/>}
-                      {status === AttendanceStatus.ABSENT ? 'غائب' : 'حاضر'}
-                    </button>
-                  </div>
-                  
-                  {/* Decorative icon background */}
-                  <div className="absolute -bottom-4 -left-4 opacity-[0.03] pointer-events-none group-hover:scale-110 transition-transform">
-                    {status === AttendanceStatus.ABSENT ? <XCircle size={100}/> : <CheckCircle size={100}/>}
-                  </div>
+                        <div className="flex justify-between items-start z-10">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shadow-sm border-2 border-white ${
+                                status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white' : 
+                                status === AttendanceStatus.LATE ? 'bg-yellow-500 text-white' : 
+                                'bg-indigo-600 text-white'
+                            }`}>
+                                {student.name.charAt(0)}
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                {bStatus === BehaviorStatus.POSITIVE && <div className="p-1 bg-green-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsUp size={12}/></div>}
+                                {bStatus === BehaviorStatus.NEGATIVE && <div className="p-1 bg-red-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsDown size={12}/></div>}
+                            </div>
+                        </div>
+
+                        <div className="z-10">
+                            <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{student.name}</h4>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'متأخر' : 'حاضر'}
+                            </p>
+                        </div>
+                        
+                        <div className="absolute -bottom-4 -left-4 opacity-[0.03] pointer-events-none group-hover:scale-110 transition-transform">
+                            {status === AttendanceStatus.ABSENT ? <XCircle size={100}/> : <CheckCircle size={100}/>}
+                        </div>
+                    </div>
+
+                    {/* Quick Action Overlay Menu */}
+                    {isMenuOpen && (
+                        <div className="absolute inset-0 z-20 bg-white/95 backdrop-blur-sm rounded-2xl p-3 shadow-2xl border border-indigo-100 flex flex-col gap-2 animate-zoom-in">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[10px] font-black text-indigo-600">إجراء سريع</span>
+                                <button onClick={() => setActiveStudentMenu(null)} className="p-1 text-gray-400 hover:text-red-500"><X size={14}/></button>
+                            </div>
+                            
+                            <div className="flex gap-1 mb-2">
+                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.PRESENT?'bg-green-600 text-white':'bg-green-50 text-green-700'}`}>حاضر</button>
+                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.ABSENT?'bg-red-600 text-white':'bg-red-50 text-red-700'}`}>غائب</button>
+                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.LATE)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.LATE?'bg-yellow-600 text-white':'bg-yellow-50 text-yellow-700'}`}>تأخر</button>
+                            </div>
+
+                            <div className="h-[1px] bg-gray-100 mb-1"></div>
+
+                            <div className="grid grid-cols-1 gap-1 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                                {QUICK_BEHAVIORS.map(b => (
+                                    <button 
+                                      key={b.label}
+                                      onClick={() => handleUpdate(student.id, status, b.status, b.label)}
+                                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[9px] font-bold transition-all hover:scale-105 ${b.color}`}
+                                    >
+                                        {b.icon} {b.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
               );
             })}
