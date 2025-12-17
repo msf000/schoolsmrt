@@ -71,7 +71,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     </div>
                 </div>
 
-                {stats && stats.unexcused.length > 0 && (
+                {stats && stats.unexcused && stats.unexcused.length > 0 && (
                     <div className="bg-red-50 p-6 rounded-[2rem] border border-red-100 shadow-sm animate-slide-up">
                         <h3 className="font-black text-red-700 flex items-center gap-2 mb-4"><AlertTriangle size={20}/> تنبيه: غياب يحتاج لتبرير</h3>
                         <div className="space-y-3">
@@ -91,7 +91,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
                     <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 border-b pb-4"><Clock size={20} className="text-indigo-600"/> ملخص الحضور الأخير</h3>
                     <div className="space-y-3">
-                        {stats?.recentAtt.map(rec => (
+                        {stats?.recentAtt?.map(rec => (
                             <div key={rec.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                 <span className="text-sm font-bold text-gray-600">{formatDualDate(rec.date)}</span>
                                 <span className={`text-xs font-black px-3 py-1 rounded-full ${

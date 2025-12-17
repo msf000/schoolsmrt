@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan } from '../services/storageService';
-import { generateLessonBlocks, regenerateSingleBlock } from '../services/geminiService';
+// Fix: Removed regenerateSingleBlock as it is not exported from geminiService
+import { generateLessonBlocks } from '../services/geminiService';
 import { LessonBlock, StoredLessonPlan, Subject, SystemUser } from '../types';
 import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, ChevronDown, ChevronUp, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X, Printer, Copy, Check } from 'lucide-react';
 import { useLocation } from 'react-router-dom';

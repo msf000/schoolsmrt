@@ -1,13 +1,13 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm } from '../types';
-import { getSchedules, getAcademicTerms } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, AcademicTerm } from '../types';
+import { getAcademicTerms } from '../services/storageService';
 import { generateDailyBriefing } from '../services/geminiService';
-import { Users, Clock, Activity, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, BrainCircuit, GraduationCap, ArrowRight, Sparkles, Siren, Mail, Bot, Loader2 } from 'lucide-react';
+import { Users, Clock, Activity, PieChart as PieIcon, BrainCircuit, GraduationCap, ArrowRight, Sparkles, Bot, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -31,7 +31,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
       if (active) setSelectedTermId(active.id);
       
-      // Load AI Brief
       if (students.length > 0) {
           loadAiBrief();
       }
@@ -43,7 +42,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           const briefing = await generateDailyBriefing(students, attendance, performance);
           setAiBrief(briefing);
       } catch (e) {
-          setAiBrief("أهلاً بك! ركز اليوم على تحفيز الطلاب ومتابعة تقدمهم الأكاديمي. بالتوفيق!");
+          setAiBrief("أهلاً بك! ركز اليوم على تحفيز الطلاب ومتابعة تقدمهم. بالتوفيق!");
       } finally {
           setIsAiLoading(false);
       }
@@ -74,7 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   return (
     <div className="space-y-6 animate-fade-in p-6 bg-gray-50/50 min-h-full pb-24">
-      {/* Smart AI Briefing Section */}
+      {/* Smart AI Briefing - New addition */}
       <div className="bg-indigo-900 rounded-[2rem] p-6 text-white shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">

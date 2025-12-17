@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, PerformanceRecord, SystemUser } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
 import { CheckSquare, Clock, Plus, X, ChevronRight, ChevronLeft, CheckCircle, XCircle, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 interface AttendanceProps {
   students: Student[];
@@ -12,7 +11,7 @@ interface AttendanceProps {
   selectedDate?: string;
   onDateChange?: (date: string) => void;
   currentUser?: SystemUser | null;
-  selectedClass?: string;
+  selectedClass?: string; // التأكد من وجود الخاصية في الـ Interface
   onNavigate?: (view: string) => void;
 }
 
@@ -80,6 +79,7 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   return (
     <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50/50 animate-fade-in relative pb-24">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6">
           <div className="flex items-center gap-4 w-full md:w-auto">
               <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><CheckSquare size={20}/></div>
@@ -115,6 +115,7 @@ const Attendance: React.FC<AttendanceProps> = ({
           </div>
       </div>
 
+      {/* Students Grid */}
       {selectedClass ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filteredStudents.map(student => {
@@ -146,26 +147,36 @@ const Attendance: React.FC<AttendanceProps> = ({
                                       {bStatus === BehaviorStatus.NEGATIVE && <div className="p-1 bg-red-500 text-white rounded-lg animate-bounce-in"><ThumbsDown size={12}/></div>}
                                   </div>
                               </div>
+
                               <div className="z-10">
                                   <h4 className="text-sm font-bold text-gray-800 line-clamp-2 mb-1">{student.name}</h4>
                                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
                                       {status === 'ABSENT' ? 'غائب' : status === 'LATE' ? 'متأخر' : status === 'EXCUSED' ? 'بعذر' : 'حاضر'}
                                   </p>
                               </div>
+
+                              {/* Decorative background emoji */}
+                              <div className="absolute -bottom-2 -left-2 opacity-5 scale-150 rotate-12 transition-transform group-hover:scale-110">
+                                  {status === 'ABSENT' ? <XCircle size={80}/> : <CheckCircle size={80}/>}
+                              </div>
                           </div>
 
+                          {/* Quick Action Overlay Menu */}
                           {isMenuOpen && (
                               <div className="absolute inset-0 z-20 bg-white/95 backdrop-blur-sm rounded-[1.5rem] p-3 shadow-2xl border border-indigo-100 flex flex-col gap-2 animate-zoom-in">
                                   <div className="flex justify-between items-center mb-1">
                                       <span className="text-[10px] font-black text-indigo-600">إجراء سريع</span>
                                       <button onClick={() => setActiveStudentMenu(null)} className="p-1 text-gray-400 hover:text-red-500"><X size={14}/></button>
                                   </div>
+                                  
                                   <div className="flex gap-1 mb-2">
                                       <button onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status==='PRESENT'?'bg-green-600 text-white':'bg-green-50 text-green-700'}`}>حاضر</button>
                                       <button onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status==='ABSENT'?'bg-red-600 text-white':'bg-red-50 text-red-700'}`}>غائب</button>
                                       <button onClick={() => handleUpdate(student.id, AttendanceStatus.LATE)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status==='LATE'?'bg-yellow-600 text-white':'bg-yellow-50 text-yellow-700'}`}>تأخر</button>
                                   </div>
+
                                   <div className="h-[1px] bg-gray-100 mb-1"></div>
+
                                   <div className="grid grid-cols-1 gap-1 flex-1 overflow-y-auto custom-scrollbar pr-1">
                                       {QUICK_BEHAVIORS.map(b => (
                                           <button 

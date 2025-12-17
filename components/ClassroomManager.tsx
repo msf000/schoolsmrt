@@ -1,14 +1,16 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, SystemUser, PerformanceRecord } from '../types';
-import { MonitorPlay, Maximize, Clock, Eye, Plus } from 'lucide-react';
+import { 
+    MonitorPlay, Maximize, Clock, Eye, Plus 
+} from 'lucide-react';
 import { getTeacherAssignments, updateStudent } from '../services/storageService';
 import { useNavigate } from 'react-router-dom';
 
 interface ClassroomManagerProps {
     students: Student[];
     attendance: AttendanceRecord[];
-    performance?: PerformanceRecord[];
+    performance?: PerformanceRecord[]; // التأكد من وجود الخاصية
     onLaunchScreen: () => void;
     onNavigateToAttendance?: () => void;
     onSaveAttendance: (records: AttendanceRecord[]) => void;
@@ -35,7 +37,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
     useEffect(() => {
         if (uniqueClasses.length > 0 && !selectedClass) {
-            setSelectedClass(uniqueClasses[0] || '');
+            setSelectedClass(uniqueClasses[0] || ''); // إصلاح الخطأ بتوفير قيمة افتراضية
         }
     }, [uniqueClasses, selectedClass]);
 
@@ -62,9 +64,9 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                     </select>
 
                     <div className="bg-white p-1 rounded-xl border flex gap-1">
-                        <button onClick={() => setActiveTab('TOOLS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'TOOLS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-50'}`}>الأدوات</button>
-                        <button onClick={() => setActiveTab('SEATING')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'SEATING' ? 'bg-indigo-600 text-white shadow' : 'text-gray-50'}`}>المقاعد</button>
-                        <button onClick={() => setActiveTab('BEHAVIOR')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'BEHAVIOR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-50'}`}>السلوك</button>
+                        <button onClick={() => setActiveTab('TOOLS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'TOOLS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>الأدوات</button>
+                        <button onClick={() => setActiveTab('SEATING')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'SEATING' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>المقاعد</button>
+                        <button onClick={() => setActiveTab('BEHAVIOR')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'BEHAVIOR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>السلوك</button>
                     </div>
 
                     <button onClick={onLaunchScreen} className="bg-gray-900 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-black shadow-lg">
