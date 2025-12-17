@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam, CurriculumUnit, CurriculumLesson } from '../types';
-import { getSchedules, getExams, getAcademicTerms, getTeacherPeriodTimings, getCurriculumUnits, getCurriculumLessons, getExamResults } from '../services/storageService';
+import { getSchedules, getExams, getAcademicTerms } from '../services/storageService';
 import { Users, Clock, Activity, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, BookOpen, MessageSquare, Check, X, ArrowRight, TrendingUp, Calendar, Timer, ScanLine, BrainCircuit, Table, GraduationCap, Award, Star, Plus, BellRing, Sparkles, Siren, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,6 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   const [selectedTermId, setSelectedTermId] = useState<string>('');
 
   useEffect(() => {
+      // getAcademicTerms updated to accept teacherId
       const loadedTerms = getAcademicTerms(currentUser?.id);
       setTerms(loadedTerms);
       const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
