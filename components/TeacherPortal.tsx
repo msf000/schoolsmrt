@@ -24,7 +24,7 @@ import MessageCenter from './MessageCenter';
 import AITools from './AITools';
 import TeacherSubscription from './TeacherSubscription';
 import LessonPlanning from './LessonPlanning';
-import ReportsCenter from './ReportsCenter'; // UPDATED IMPORT
+import ReportsCenter from './ReportsCenter'; 
 import ExamsManager from './ExamsManager';
 import QuestionBank from './QuestionBank';
 import AutoGrading from './AutoGrading';
