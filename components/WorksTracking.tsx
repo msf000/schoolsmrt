@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData, getTeacherAssignments } from '../services/storageService';
@@ -240,14 +241,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const { sheetName, headers, data } = await fetchGoogleSheetData(sheetId, apiKey);
             
             setSheetName(sheetName);
-            setSheetHeaders(headers);
-            setSheetData(data);
+            setSheetHeaders(headers || []);
+            setSheetData(data || []);
             saveWorksMasterUrl(googleSheetUrl);
             setConnectionStatus('SUCCESS');
             
             // Auto-detect identity column if not set
-            if (!identityColumn) {
-                const guessedIdentity = headers.find(h => STUDENT_NAME_HEADERS.includes(h.toLowerCase()));
+            if (!identityColumn && headers && headers.length > 0) {
+                const guessedIdentity = headers.find((h: any) => STUDENT_NAME_HEADERS.includes(String(h).toLowerCase()));
                 if (guessedIdentity) {
                     setIdentityColumn(guessedIdentity);
                     localStorage.setItem('works_sheet_identity_col', guessedIdentity);
