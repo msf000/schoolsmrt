@@ -514,18 +514,18 @@ const StudentPortfolio = ({ student, performance }: { student: Student, performa
 
 const StudentDashboard = ({ student, attendance, performance, terms }: any) => {
     const navigate = useNavigate();
-    const myAtt = attendance.filter((a: any) => a.studentId === student.id);
-    const myPerf = performance.filter((p: any) => p.studentId === student.id);
+    const myAtt = attendance.filter((a: AttendanceRecord) => a.studentId === student.id);
+    const myPerf = performance.filter((p: PerformanceRecord) => p.studentId === student.id);
     
     const stats = useMemo(() => {
-        const attRate = myAtt.length > 0 ? Math.round((myAtt.filter((a:any)=>a.status==='PRESENT').length / myAtt.length) * 100) : 100;
-        const avgScore = myPerf.length > 0 ? Math.round((myPerf.reduce((a:any,b:any)=>a+(b.score/b.maxScore),0)/myPerf.length)*100) : 0;
-        const totalPoints = (myAtt.filter((a:any)=>a.behaviorStatus==='POSITIVE').length * 50) + (avgScore * 10);
+        const attRate = myAtt.length > 0 ? Math.round((myAtt.filter((a: AttendanceRecord) => a.status === 'PRESENT').length / myAtt.length) * 100) : 100;
+        const avgScore = myPerf.length > 0 ? Math.round((myPerf.reduce((a: number, b: PerformanceRecord) => a + (b.score / b.maxScore), 0) / myPerf.length) * 100) : 0;
+        const totalPoints = (myAtt.filter((a: AttendanceRecord) => a.behaviorStatus === 'POSITIVE').length * 50) + (avgScore * 10);
         
         const radarData = [
             { subject: 'الانضباط', A: attRate, fullMark: 100 },
-            { subject: 'المشاركة', A: Math.min(100, myAtt.filter(a => a.behaviorStatus === 'POSITIVE').length * 20), fullMark: 100 },
-            { subject: 'الواجبات', A: Math.round((myPerf.filter(p => p.category === 'HOMEWORK').reduce((a,b)=>a+(b.score/b.maxScore),0) / Math.max(1, myPerf.filter(p=>p.category==='HOMEWORK').length)) * 100), fullMark: 100 },
+            { subject: 'المشاركة', A: Math.min(100, myAtt.filter((a: AttendanceRecord) => a.behaviorStatus === 'POSITIVE').length * 20), fullMark: 100 },
+            { subject: 'الواجبات', A: Math.round((myPerf.filter((p: PerformanceRecord) => p.category === 'HOMEWORK').reduce((a: number, b: PerformanceRecord) => a + (b.score / b.maxScore), 0) / Math.max(1, myPerf.filter((p: PerformanceRecord) => p.category === 'HOMEWORK').length)) * 100), fullMark: 100 },
             { subject: 'الاختبارات', A: avgScore, fullMark: 100 },
         ];
 
@@ -560,7 +560,7 @@ const StudentDashboard = ({ student, attendance, performance, terms }: any) => {
                         <StatsCard label="الحضور" value={`${stats.attRate}%`} color="bg-emerald-500/20" icon={<CheckCircle className="text-emerald-400"/>} />
                         <StatsCard label="المعدل" value={`${stats.avgScore}%`} color="bg-blue-500/20" icon={<TrendingUp className="text-blue-400"/>} />
                         <StatsCard label="النقاط" value={stats.totalPoints} color="bg-purple-500/20" icon={<Star className="text-purple-400"/>} />
-                        <StatsCard label="أوسمة" value={myAtt.filter(a=>a.behaviorStatus==='POSITIVE').length} color="bg-orange-500/20" icon={<Medal className="text-orange-400"/>} />
+                        <StatsCard label="أوسمة" value={myAtt.filter((a: AttendanceRecord) => a.behaviorStatus === 'POSITIVE').length} color="bg-orange-500/20" icon={<Medal className="text-orange-400"/>} />
                     </div>
                 </div>
             </div>
@@ -586,7 +586,7 @@ const StudentDashboard = ({ student, attendance, performance, terms }: any) => {
                     <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
                         <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><Activity size={20} className="text-rose-500"/> آخر النشاطات</h3>
                         <div className="space-y-4">
-                            {myPerf.slice(-3).map((p: any) => (
+                            {myPerf.slice(-3).map((p: PerformanceRecord) => (
                                 <div key={p.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors">
                                     <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">{p.score}</div>
                                     <div>
@@ -613,7 +613,7 @@ const StatsCard = ({ label, value, icon, color }: any) => (
 
 const StudentAchievements = ({ student, attendance, performance }: any) => {
     const medals = useMemo(() => {
-        return attendance.filter((a: any) => a.studentId === student.id && a.behaviorStatus === 'POSITIVE');
+        return attendance.filter((a: AttendanceRecord) => a.studentId === student.id && a.behaviorStatus === 'POSITIVE');
     }, [attendance, student]);
 
     return (
@@ -621,7 +621,7 @@ const StudentAchievements = ({ student, attendance, performance }: any) => {
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Award className="text-yellow-600" size={28}/> سجل الأوسمة والجوائز</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {medals.map(medal => (
+                {medals.map((medal: AttendanceRecord) => (
                     <div key={medal.id} className="bg-white p-6 rounded-[2rem] border-4 border-yellow-100 shadow-sm text-center relative group overflow-hidden">
                         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-100 transition-opacity"><Medal size={80}/></div>
                         <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 mx-auto mb-4 border-4 border-white shadow-md">
