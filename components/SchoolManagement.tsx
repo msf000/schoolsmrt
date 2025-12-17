@@ -588,3 +588,4 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
 
 export const SchoolManagementComponent = SchoolManagement; // Alias export for consistency
 export default SchoolManagement;
+
