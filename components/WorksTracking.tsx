@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, AcademicTerm } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, AcademicTerm, PerformanceCategory } from '../types';
 import { getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, bulkAddPerformance, deletePerformance } from '../services/storageService';
 import { extractGoogleSheetId, fetchGoogleSheetData, fetchGoogleSpreadsheetMeta } from '../services/excelService';
 import { Save, Filter, Trash2, Search, FileSpreadsheet, Settings, Link as LinkIcon, RefreshCw, Loader2, Calculator, ArrowRight, Layers, LayoutPanelLeft, Edit2, Plus, X, Check } from 'lucide-react';
@@ -62,7 +62,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     // New Col Form
     const [newColTitle, setNewColTitle] = useState('');
     const [newColMax, setNewColMax] = useState('10');
-    const [newColCategory, setNewColCategory] = useState<string>('HOMEWORK');
+    // Fix: Changed type from string to PerformanceCategory to prevent TS2322 error
+    const [newColCategory, setNewColCategory] = useState<PerformanceCategory>('HOMEWORK');
     const [newColUrl, setNewColUrl] = useState('');
 
     // Persistence
@@ -505,7 +506,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             </div>
                                             <div className="md:col-span-1">
                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">التصنيف</label>
-                                                <select className="w-full p-2 border rounded-lg text-sm bg-gray-50" value={newColCategory} onChange={e => setNewColCategory(e.target.value)}>
+                                                <select className="w-full p-2 border rounded-lg text-sm bg-gray-50" value={newColCategory} onChange={e => setNewColCategory(e.target.value as PerformanceCategory)}>
                                                     {DEFAULT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                                                 </select>
                                             </div>
