@@ -1,4 +1,3 @@
-
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -714,7 +713,8 @@ export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) =
 
 export const getAISettings = (): AISettings => {
     const s = localStorage.getItem(KEYS.AI_SETTINGS);
-    return s ? JSON.parse(s) : { modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' };
+    // Fix: Updated default model to gemini-3-flash-preview per guidelines
+    return s ? JSON.parse(s) : { modelId: 'gemini-3-flash-preview', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' };
 };
 export const saveAISettings = (settings: AISettings) => {
     localStorage.setItem(KEYS.AI_SETTINGS, JSON.stringify(settings));

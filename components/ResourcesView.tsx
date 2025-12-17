@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { LessonLink, SystemUser, Subject } from '../types';
 import { getLessonLinks, saveLessonLink, deleteLessonLink, getSubjects, getTeacherAssignments } from '../services/storageService';
@@ -72,16 +71,14 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
         if (!suggestionTopic) return;
         setIsSuggesting(true);
         try {
-            // Using a direct call here for specific prompt, ideally move to geminiService
-            const apiKey = process.env.API_KEY || '';
-            if(!apiKey) throw new Error("API Key Missing");
-            
-            const ai = new GoogleGenAI({ apiKey });
+            // Fix: Initialize GoogleGenAI strictly using process.env.API_KEY per guidelines
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Suggest 3 educational YouTube video titles and search queries for: "${suggestionTopic}" for grade: "${newGrade || 'General'}". 
             Format as JSON array: [{"title": "Video Title", "searchQuery": "YouTube Search Query"}].`;
             
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                // Fix: Updated model name to gemini-3-flash-preview per guidelines
+                model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: { responseMimeType: "application/json" }
             });

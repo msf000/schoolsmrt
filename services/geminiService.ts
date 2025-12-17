@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, LessonBlock, Exam } from "../types";
 import { getAISettings } from "./storageService";
@@ -7,7 +6,8 @@ import { getAISettings } from "./storageService";
 const getConfig = () => {
     const settings = getAISettings();
     return {
-        model: settings.modelId || 'gemini-2.5-flash',
+        // Fix: Updated default model to gemini-3-flash-preview per guidelines
+        model: settings.modelId || 'gemini-3-flash-preview',
         config: {
             temperature: settings.temperature || 0.7,
             systemInstruction: settings.systemInstruction
@@ -21,8 +21,9 @@ const getConfig = () => {
 };
 
 // Check if a real key is present
+// Fix: Simplified check to use process.env.API_KEY exclusively
 const hasValidKey = () => {
-    const key = import.meta.env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+    const key = process.env.API_KEY;
     return key && key.length > 20;
 };
 
@@ -30,7 +31,8 @@ const hasValidKey = () => {
 let aiInstance: GoogleGenAI | null = null;
 const getAIClient = () => {
     if (aiInstance) return aiInstance;
-    const apiKey = import.meta.env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '') || '';
+    // Fix: Strictly initialize GoogleGenAI using process.env.API_KEY as per guidelines
+    const apiKey = process.env.API_KEY || '';
     if (!apiKey) throw new Error("مفتاح API غير متوفر.");
     aiInstance = new GoogleGenAI({ apiKey });
     return aiInstance;
