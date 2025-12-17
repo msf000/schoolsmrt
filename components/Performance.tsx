@@ -3,8 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, AttendanceRecord, AttendanceStatus, Assignment } from '../types';
 import { formatDualDate } from '../services/dateService';
 import { getAcademicTerms, getAssignments, getTeacherAssignments } from '../services/storageService';
-import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle, Link, Eye, Edit } from 'lucide-react';
+import { PlusCircle, FileText, Check, FileSpreadsheet, Filter, History, Search, Download, Trash2, Printer, X, Loader2, Users, Save, Zap, BarChart2, PieChart as PieChartIcon, AlertCircle, Link, Eye, Edit, Cloud } from 'lucide-react';
 import DataImport from './DataImport';
+import AIDataImport from './AIDataImport';
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useNavigate } from 'react-router-dom';
@@ -53,6 +54,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
   const [isSuccess, setIsSuccess] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
 
   // Filter State for Log/Entry
   const [entryGrade, setEntryGrade] = useState('');
@@ -406,10 +408,16 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
         <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
             {!isManager && (
-                <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold whitespace-nowrap">
-                    <FileSpreadsheet size={18} />
-                    <span className="hidden md:inline">استيراد درجات</span>
-                </button>
+                <>
+                    <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold whitespace-nowrap">
+                        <FileSpreadsheet size={18} />
+                        <span className="hidden md:inline">استيراد Excel</span>
+                    </button>
+                    <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold whitespace-nowrap">
+                        <Cloud size={18} />
+                        <span className="hidden md:inline">استيراد AI</span>
+                    </button>
+                </>
             )}
         </div>
       </div>
@@ -848,6 +856,36 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
               </div>
           </div>
       )}
+
+      {/* AI Import Modal */}
+      {isAIImportModalOpen && !isManager && (
+          <div className="fixed inset-0 z-50 bg-white">
+              <AIDataImport 
+                  onImportStudents={() => {}}
+                  onImportAttendance={() => {}}
+                  onImportPerformance={(recs) => { onImportPerformance(recs); setIsAIImportModalOpen(false); }}
+                  forcedType="GRADES"
+                  onClose={() => setIsAIImportModalOpen(false)}
+                  currentUser={currentUser}
+                  existingStudents={students}
+              />
+          </div>
+      )}
+
+      {isImportModalOpen && !isManager && (
+          <div className="fixed inset-0 z-[100] bg-white">
+              <DataImport 
+                  existingStudents={students}
+                  onImportStudents={() => {}}
+                  onImportAttendance={() => {}} 
+                  onImportPerformance={(recs) => { onImportPerformance(recs); setIsImportModalOpen(false); }}
+                  forcedType="PERFORMANCE"
+                  onClose={() => setIsImportModalOpen(false)}
+                  currentUser={currentUser}
+              />
+          </div>
+      )}
+
     </div>
   );
 };

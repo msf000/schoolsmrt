@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
 import { deleteAllStudents, getAcademicTerms, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
-import { UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key, TrendingUp, Clock } from 'lucide-react';
+import { UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key, TrendingUp, Clock, Cloud } from 'lucide-react';
 import DataImport from './DataImport';
+import AIDataImport from './AIDataImport';
 import { useNavigate } from 'react-router-dom';
 
 const SAUDI_GRADES = [
@@ -41,6 +42,7 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
   
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
   
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
@@ -350,7 +352,10 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 {!isManager && (
                     <>
                         <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
-                            <FileSpreadsheet size={18} /> استيراد
+                            <FileSpreadsheet size={18} /> Excel
+                        </button>
+                        <button onClick={() => setIsAIImportModalOpen(true)} className="flex-1 md:flex-none bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
+                            <Cloud size={18} /> استيراد AI
                         </button>
                         <button onClick={openAddModal} className="flex-1 md:flex-none bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap">
                             <UserPlus size={18} /> إضافة
@@ -664,6 +669,24 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                   forcedType="STUDENTS"
                   onClose={() => setIsImportModalOpen(false)}
                   currentUser={currentUser}
+              />
+          </div>
+      )}
+
+      {/* AI Import Modal */}
+      {isAIImportModalOpen && !isManager && (
+          <div className="fixed inset-0 z-[100] bg-white">
+              <AIDataImport
+                  onImportStudents={(data) => { 
+                      onImportStudents(data); 
+                      setIsAIImportModalOpen(false); 
+                  }}
+                  onImportAttendance={() => {}} 
+                  onImportPerformance={() => {}}
+                  forcedType="STUDENTS"
+                  onClose={() => setIsAIImportModalOpen(false)}
+                  currentUser={currentUser}
+                  existingStudents={students}
               />
           </div>
       )}
