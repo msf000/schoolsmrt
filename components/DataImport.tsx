@@ -159,6 +159,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
               const googleSheetId = extractGoogleSheetId(url);
               const apiKey = process.env.API_KEY; 
 
+              // 1. Try Google Sheets API if ID detected and Key exists
               if (googleSheetId && apiKey) {
                   try {
                       const { sheetName, headers, data } = await fetchGoogleSheetData(googleSheetId, apiKey);
@@ -167,6 +168,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                       setFileHeaders(headers);
                       setRawSheetData(data);
                       
+                      // Auto-advance
                       if (importMode === 'SYSTEM' && !onDataReady) {
                           const guessed = guessMapping(headers, dataType);
                           setColumnMapping(guessed);
@@ -179,10 +181,12 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                       setLoading(false);
                       return;
                   } catch (apiError: any) {
-                      console.warn('Google Sheets API failed', apiError);
+                      console.warn('Google Sheets API failed, falling back to public export', apiError);
+                      // Fallback to fetchWorkbookStructureUrl if API fails (e.g. key invalid or permissions)
                   }
               }
 
+              // 2. Fallback to normal URL fetch (Proxy/Direct)
               const structure = await fetchWorkbookStructureUrl(url);
               setWorkbook(structure.workbook);
               setSheetNames(structure.sheetNames);
@@ -360,7 +364,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       {/* Header */}
       <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
         <h2 className="text-xl font-bold flex items-center gap-2 text-gray-800">
-            <FileSpreadsheet className="text-green-600"/> استيراد البيانات من Excel
+            <FileSpreadsheet className="text-green-600"/> استيراد البيانات من Excel / Google Sheets
         </h2>
         <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={24} className="text-gray-500"/></button>
       </div>
@@ -371,26 +375,26 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
         <div className="flex justify-center mb-8">
             <div className={`flex items-center ${step === 'UPLOAD' ? 'text-purple-600' : 'text-green-600'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'UPLOAD' ? 'border-purple-600 bg-purple-50' : 'border-green-600 bg-green-50'}`}>1</div>
-                <span className="mx-2 font-bold text-sm">رفع الملف</span>
+                <span className="mx-2 font-bold text-sm">المصدر</span>
             </div>
             <div className="w-10 h-1 bg-gray-200 mx-2 rounded"></div>
             <div className={`flex items-center ${step === 'SHEET_SELECT' ? 'text-purple-600' : (['MAPPING','PREVIEW_SELECT'].includes(step) ? 'text-green-600' : 'text-gray-400')}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'SHEET_SELECT' ? 'border-purple-600 bg-purple-50' : (['MAPPING','PREVIEW_SELECT'].includes(step) ? 'border-green-600 bg-green-50' : 'border-gray-300')}`}>2</div>
-                <span className="mx-2 font-bold text-sm">اختيار الورقة</span>
+                <span className="mx-2 font-bold text-sm">الورقة</span>
             </div>
             {importMode === 'SYSTEM' && (
                 <>
                     <div className="w-10 h-1 bg-gray-200 mx-2 rounded"></div>
                     <div className={`flex items-center ${step === 'MAPPING' ? 'text-purple-600' : (step === 'PREVIEW_SELECT' ? 'text-green-600' : 'text-gray-400')}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'MAPPING' ? 'border-purple-600 bg-purple-50' : (step === 'PREVIEW_SELECT' ? 'border-green-600 bg-green-50' : 'border-gray-300')}`}>3</div>
-                        <span className="mx-2 font-bold text-sm">مطابقة الأعمدة</span>
+                        <span className="mx-2 font-bold text-sm">المطابقة</span>
                     </div>
                 </>
             )}
             <div className="w-10 h-1 bg-gray-200 mx-2 rounded"></div>
             <div className={`flex items-center ${step === 'PREVIEW_SELECT' ? 'text-purple-600' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold ${step === 'PREVIEW_SELECT' ? 'border-purple-600 bg-purple-50' : 'border-gray-300'}`}>4</div>
-                <span className="mx-2 font-bold text-sm">مراجعة وحفظ</span>
+                <span className="mx-2 font-bold text-sm">مراجعة</span>
             </div>
         </div>
 
@@ -415,9 +419,11 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            <label className="block text-sm font-bold text-gray-700">رابط الملف (Google Sheet / OneDrive / Dropbox)</label>
-                            <input className="w-full p-3 border rounded-xl dir-ltr" placeholder="https://..." value={url} onChange={e => setUrl(e.target.value)} />
-                            <p className="text-xs text-gray-500">تأكد أن الرابط عام (Public) أو لديك صلاحية الوصول.</p>
+                            <label className="block text-sm font-bold text-gray-700">رابط الملف (Google Sheet / OneDrive)</label>
+                            <input className="w-full p-3 border rounded-xl dir-ltr" placeholder="https://docs.google.com/spreadsheets/d/..." value={url} onChange={e => setUrl(e.target.value)} />
+                            <p className="text-xs text-gray-500">
+                                <b>ملاحظة:</b> إذا كان الملف Google Sheet، تأكد من أنه "عام" (Anyone with the link) أو استخدم إعدادات API.
+                            </p>
                         </div>
                     )}
 
@@ -432,7 +438,7 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                     {status && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold border border-red-100">{status.message}</div>}
 
                     <button onClick={handleScan} disabled={loading || (sourceMethod === 'FILE' && !file) || (sourceMethod === 'URL' && !url)} className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 flex justify-center items-center gap-2">
-                        {loading ? <Loader2 className="animate-spin"/> : <ArrowLeft/>} التالي
+                        {loading ? <Loader2 className="animate-spin"/> : <ArrowLeft/>} {loading ? 'جاري التحميل...' : 'التالي'}
                     </button>
                 </div>
             </div>
