@@ -1,3 +1,4 @@
+
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -5,11 +6,10 @@ import {
     Exam, Question, ExamResult, TrackingSheet, MessageLog,
     CurriculumUnit, CurriculumLesson, MicroConcept,
     AISettings, ReportHeaderConfig, UserTheme, Assignment,
-    CustomTable
+    CustomTable, Achievement
 } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
-// --- Constants ---
 export const KEYS = {
     STUDENTS: 'students',
     ATTENDANCE: 'attendance',
@@ -20,7 +20,7 @@ export const KEYS = {
     SUBJECTS: 'subjects',
     SCHEDULES: 'schedules',
     ASSIGNMENTS: 'assignments', 
-    TRACKING_ASSIGNMENTS: 'tracking_assignments', // For gradebook columns
+    TRACKING_ASSIGNMENTS: 'tracking_assignments',
     TERMS: 'academic_terms',
     WEEKLY_PLANS: 'weekly_plans',
     LESSON_LINKS: 'lesson_links',
@@ -41,7 +41,6 @@ export const KEYS = {
     WORKS_MASTER_URL: 'works_master_url'
 };
 
-// Map LocalStorage Keys to Supabase Table Names
 export const DB_MAP: Record<string, string> = {
     [KEYS.STUDENTS]: 'students',
     [KEYS.ATTENDANCE]: 'attendance',
@@ -52,13 +51,12 @@ export const DB_MAP: Record<string, string> = {
     [KEYS.EXAMS]: 'exams',
     [KEYS.QUESTIONS]: 'question_bank',
     [KEYS.EXAM_RESULTS]: 'exam_results',
-    [KEYS.TRACKING_ASSIGNMENTS]: 'assignments', // assignments table
+    [KEYS.TRACKING_ASSIGNMENTS]: 'assignments',
     [KEYS.WEEKLY_PLANS]: 'weekly_plans',
     [KEYS.LESSON_PLANS]: 'lesson_plans',
     [KEYS.TERMS]: 'academic_terms',
     [KEYS.MESSAGES]: 'messages',
     [KEYS.SCHEDULES]: 'schedules',
-    // NEW TABLES MAPPING
     [KEYS.CURRICULUM_UNITS]: 'curriculum_units',
     [KEYS.CURRICULUM_LESSONS]: 'curriculum_lessons',
     [KEYS.MICRO_CONCEPTS]: 'micro_concepts',
@@ -67,7 +65,6 @@ export const DB_MAP: Record<string, string> = {
 
 export type SyncStatus = 'IDLE' | 'SYNCING' | 'ONLINE' | 'OFFLINE' | 'ERROR';
 
-// --- Local Storage Helpers ---
 export function get<T>(key: string): T[] {
     try {
         const data = localStorage.getItem(key);
@@ -78,11 +75,9 @@ export function get<T>(key: string): T[] {
 export function save(key: string, data: any) {
     localStorage.setItem(key, JSON.stringify(data));
     notifySubscribers();
-    // Auto-push to cloud if configured (Optimistic UI)
     if (isSupabaseConfigured()) {
         const tableName = DB_MAP[key];
         if (tableName) {
-            // Don't await, let it sync in background
             supabase.from(tableName).upsert(data).then(({ error }) => {
                 if (error) console.error(`Failed to sync ${key} to cloud:`, error);
             });
@@ -90,7 +85,6 @@ export function save(key: string, data: any) {
     }
 }
 
-// --- Subscriptions ---
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
 export const subscribeToDataChanges = (listener: Listener) => {
@@ -107,12 +101,10 @@ export const subscribeToSyncStatus = (listener: SyncListener) => {
 };
 const notifySync = (status: SyncStatus) => syncListeners.forEach(l => l(status));
 
-// --- System Mode ---
 export const setSystemMode = (online: boolean) => {
     notifySync(online ? 'ONLINE' : 'OFFLINE');
 };
 
-// --- Students ---
 export const getStudents = (): Student[] => get<Student>(KEYS.STUDENTS);
 export const addStudent = (s: Student) => {
     const list = getStudents();
@@ -154,7 +146,6 @@ export const bulkUpsertStudents = (students: Student[], matchKey: keyof Student 
     save(KEYS.STUDENTS, current);
 };
 
-// --- Attendance ---
 export const getAttendance = (): AttendanceRecord[] => get<AttendanceRecord>(KEYS.ATTENDANCE);
 export const saveAttendance = (records: AttendanceRecord[]) => {
     const list = getAttendance();
@@ -167,21 +158,14 @@ export const saveAttendance = (records: AttendanceRecord[]) => {
 };
 export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance(records);
 
-// --- Performance ---
 export const getPerformance = (): PerformanceRecord[] => get<PerformanceRecord>(KEYS.PERFORMANCE);
-
-// UPDATED: Supports Updates now
 export const addPerformance = (record: PerformanceRecord) => {
     const list = get<PerformanceRecord>(KEYS.PERFORMANCE);
     const idx = list.findIndex(r => r.id === record.id);
-    if (idx !== -1) {
-        list[idx] = record; // Update
-    } else {
-        list.push(record); // Insert
-    }
+    if (idx !== -1) list[idx] = record;
+    else list.push(record);
     save(KEYS.PERFORMANCE, list);
 };
-
 export const deletePerformance = (id: string) => {
     const list = getPerformance().filter(r => r.id !== id);
     save(KEYS.PERFORMANCE, list);
@@ -189,28 +173,21 @@ export const deletePerformance = (id: string) => {
         supabase.from('performance').delete().eq('id', id).then();
     }
 };
-
-// UPDATED: Supports Updates now
 export const bulkAddPerformance = (records: PerformanceRecord[]) => {
     const list = get<PerformanceRecord>(KEYS.PERFORMANCE);
     records.forEach(rec => {
         const idx = list.findIndex(r => r.id === rec.id);
-        if (idx !== -1) {
-            list[idx] = rec; // Update existing
-        } else {
-            list.push(rec); // Insert new
-        }
+        if (idx !== -1) list[idx] = rec;
+        else list.push(rec);
     });
     save(KEYS.PERFORMANCE, list);
 };
 
-// --- Teachers ---
 export const getTeachers = (): Teacher[] => get<Teacher>(KEYS.TEACHERS);
 export const addTeacher = async (t: Teacher) => {
     const list = getTeachers();
     list.push(t);
     save(KEYS.TEACHERS, list);
-    // Also add to system users if not exists
     const users = getSystemUsers();
     if (!users.find(u => u.email === t.email)) {
         await addSystemUser({
@@ -234,7 +211,6 @@ export const updateTeacher = (t: Teacher) => {
     }
 };
 
-// --- Schools ---
 export const getSchools = (): School[] => get<School>(KEYS.SCHOOLS);
 export const addSchool = (s: School) => {
     const list = getSchools();
@@ -256,7 +232,6 @@ export const deleteSchool = (id: string) => {
     }
 };
 
-// --- System Users ---
 export const getSystemUsers = (): SystemUser[] => get<SystemUser>(KEYS.SYSTEM_USERS);
 export const addSystemUser = async (u: SystemUser) => {
     const list = getSystemUsers();
@@ -278,9 +253,7 @@ export const deleteSystemUser = (id: string) => {
     }
 };
 
-// --- AUTHENTICATION (HYBRID: LOCAL + CLOUD) ---
 export const authenticateUser = async (identifier: string, pass: string): Promise<SystemUser | null> => {
-    // 0. Default Super Admin (Hardcoded for immediate access)
     if (identifier === 'admin' && pass === 'admin') {
         return {
             id: 'super_admin',
@@ -293,27 +266,18 @@ export const authenticateUser = async (identifier: string, pass: string): Promis
             schoolId: ''
         };
     }
-
-    // 1. Try Local
     const users = getSystemUsers();
     const localUser = users.find(u => (u.email === identifier || u.nationalId === identifier) && u.password === pass);
     if (localUser) return localUser;
-
-    // 2. Try Cloud (If configured)
     if (isSupabaseConfigured()) {
         try {
-            // Check system_users table
             const { data, error } = await supabase
                 .from('system_users')
                 .select('*')
                 .or(`email.eq.${identifier},national_id.eq.${identifier}`)
                 .eq('password', pass)
                 .single();
-            
             if (data && !error) {
-                // User found in cloud! Cache it locally and return
-                // IMPORTANT: Don't call addSystemUser here to avoid saving back to cloud loop in some cases,
-                // but since we just fetched it, it's safe to update local cache.
                 const user: SystemUser = data as SystemUser;
                 const list = getSystemUsers();
                 if (!list.find(u => u.id === user.id)) {
@@ -330,7 +294,6 @@ export const authenticateUser = async (identifier: string, pass: string): Promis
 };
 
 export const authenticateStudent = async (identifier: string, pass: string): Promise<any | null> => {
-    // 1. Try Local
     const students = getStudents();
     const localStudent = students.find(s => (s.nationalId === identifier || s.email === identifier) && (s.password === pass || !s.password));
     if (localStudent) {
@@ -345,8 +308,6 @@ export const authenticateStudent = async (identifier: string, pass: string): Pro
             gradeLevel: localStudent.gradeLevel
         };
     }
-
-    // 2. Try Cloud (If configured)
     if (isSupabaseConfigured()) {
         try {
             const { data, error } = await supabase
@@ -355,9 +316,7 @@ export const authenticateStudent = async (identifier: string, pass: string): Pro
                 .or(`national_id.eq.${identifier},email.eq.${identifier}`)
                 .eq('password', pass)
                 .single();
-
             if (data && !error) {
-                // Student found in cloud! Cache locally
                 const std: Student = {
                     id: data.id,
                     name: data.name,
@@ -372,26 +331,18 @@ export const authenticateStudent = async (identifier: string, pass: string): Pro
                     parentEmail: data.parent_email || data.parentEmail,
                     createdById: data.created_by_id || data.createdById
                 };
-                
                 const list = getStudents();
                 if (!list.find(s => s.id === std.id)) {
                     list.push(std);
                     localStorage.setItem(KEYS.STUDENTS, JSON.stringify(list));
                 }
-
-                return {
-                    ...std,
-                    role: 'STUDENT'
-                };
+                return { ...std, role: 'STUDENT' };
             }
-        } catch (e) {
-            console.error("Cloud student auth failed", e);
-        }
+        } catch (e) { console.error("Cloud student auth failed", e); }
     }
     return null;
 };
 
-// --- Subjects ---
 export const getSubjects = (teacherId?: string): Subject[] => {
     const all = get<Subject>(KEYS.SUBJECTS);
     if (teacherId) return all.filter(s => s.teacherId === teacherId || !s.teacherId);
@@ -406,7 +357,6 @@ export const deleteSubject = (id: string) => {
     save(KEYS.SUBJECTS, get<Subject>(KEYS.SUBJECTS).filter(s => s.id !== id));
 };
 
-// --- Schedule ---
 export const getSchedules = (): ScheduleItem[] => get<ScheduleItem>(KEYS.SCHEDULES);
 export const saveScheduleItem = (item: ScheduleItem) => {
     const list = getSchedules();
@@ -419,7 +369,6 @@ export const deleteScheduleItem = (id: string) => {
     save(KEYS.SCHEDULES, getSchedules().filter(s => s.id !== id));
 };
 
-// --- Assignments (TeacherAssignments - Class Subject Map) ---
 export const getTeacherAssignments = (teacherId?: string): TeacherAssignment[] => {
     const raw = localStorage.getItem('teacher_class_map');
     const list: TeacherAssignment[] = raw ? JSON.parse(raw) : [];
@@ -438,7 +387,6 @@ export const deleteTeacherAssignment = (id: string) => {
     localStorage.setItem('teacher_class_map', JSON.stringify(list));
 };
 
-// --- Assignments (Columns / Assessments) ---
 export const getAssignments = (termId?: string, teacherId?: string, forceAll: boolean = false): Assignment[] => {
     let list = get<Assignment>(KEYS.TRACKING_ASSIGNMENTS);
     if (!forceAll && teacherId) {
@@ -460,9 +408,8 @@ export const deleteAssignment = (id: string) => {
     save(KEYS.TRACKING_ASSIGNMENTS, get<Assignment>(KEYS.TRACKING_ASSIGNMENTS).filter(a => a.id !== id));
 };
 
-// --- Terms ---
 export const getAcademicTerms = (teacherId?: string): AcademicTerm[] => {
-    return get<AcademicTerm>(KEYS.TERMS); // Shared for simplicity now
+    return get<AcademicTerm>(KEYS.TERMS);
 };
 export const saveAcademicTerm = (t: AcademicTerm) => {
     const list = get<AcademicTerm>(KEYS.TERMS);
@@ -480,7 +427,6 @@ export const setCurrentTerm = (id: string, teacherId?: string) => {
     save(KEYS.TERMS, list);
 };
 
-// --- Weekly Plans ---
 export const getWeeklyPlans = (teacherId?: string): WeeklyPlanItem[] => {
     const all = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS);
     if (teacherId) return all.filter(p => p.teacherId === teacherId);
@@ -494,7 +440,6 @@ export const saveWeeklyPlanItem = (item: WeeklyPlanItem) => {
     save(KEYS.WEEKLY_PLANS, list);
 };
 
-// --- Lesson Plans & Links ---
 export const getLessonLinks = (): LessonLink[] => get<LessonLink>(KEYS.LESSON_LINKS);
 export const saveLessonLink = (l: LessonLink) => {
     const list = getLessonLinks();
@@ -521,7 +466,6 @@ export const deleteLessonPlan = (id: string) => {
     save(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.id !== id));
 };
 
-// --- Exams & Questions ---
 export const getExams = (teacherId?: string): Exam[] => {
     const all = get<Exam>(KEYS.EXAMS);
     if (teacherId) return all.filter(e => e.teacherId === teacherId);
@@ -568,7 +512,6 @@ export const deleteExamResult = (id: string) => {
     save(KEYS.EXAM_RESULTS, get<ExamResult>(KEYS.EXAM_RESULTS).filter(r => r.id !== id));
 };
 
-// --- Tracking Sheets (Flexible) ---
 export const getTrackingSheets = (teacherId?: string): TrackingSheet[] => {
     const all = get<TrackingSheet>(KEYS.TRACKING_SHEETS);
     if (teacherId) return all.filter(s => s.teacherId === teacherId);
@@ -585,7 +528,6 @@ export const deleteTrackingSheet = (id: string) => {
     save(KEYS.TRACKING_SHEETS, get<TrackingSheet>(KEYS.TRACKING_SHEETS).filter(s => s.id !== id));
 };
 
-// --- Messages ---
 export const getMessages = (teacherId?: string): MessageLog[] => {
     const all = get<MessageLog>(KEYS.MESSAGES);
     if (teacherId) return all.filter(m => m.teacherId === teacherId || !m.teacherId);
@@ -597,7 +539,6 @@ export const saveMessage = (m: MessageLog) => {
     save(KEYS.MESSAGES, list);
 };
 
-// --- Curriculum ---
 export const getCurriculumUnits = (teacherId?: string): CurriculumUnit[] => {
     const all = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS);
     if (teacherId) return all.filter(u => u.teacherId === teacherId);
@@ -620,11 +561,23 @@ export const getCurriculumLessons = (unitId?: string): CurriculumLesson[] => {
     return all;
 };
 export const saveCurriculumLesson = (l: CurriculumLesson) => {
-    const list = getCurriculumLessons();
+    const list = get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS);
     const idx = list.findIndex(x => x.id === l.id);
     if (idx !== -1) list[idx] = l;
     else list.push(l);
     save(KEYS.CURRICULUM_LESSONS, list);
+};
+export const toggleCurriculumLesson = (lessonId: string, isCompleted: boolean) => {
+    const list = get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS);
+    const idx = list.findIndex(l => l.id === lessonId);
+    if (idx !== -1) {
+        list[idx] = { 
+            ...list[idx], 
+            isCompleted, 
+            completedAt: isCompleted ? new Date().toISOString() : undefined 
+        };
+        save(KEYS.CURRICULUM_LESSONS, list);
+    }
 };
 export const deleteCurriculumLesson = (id: string) => {
     save(KEYS.CURRICULUM_LESSONS, getCurriculumLessons().filter(l => l.id !== id));
@@ -646,7 +599,6 @@ export const deleteMicroConcept = (id: string) => {
     save(KEYS.MICRO_CONCEPTS, getMicroConcepts().filter(c => c.id !== id));
 };
 
-// --- Custom Tables ---
 export const getCustomTables = (teacherId?: string): CustomTable[] => {
     const all = get<CustomTable>(KEYS.CUSTOM_TABLES);
     if (teacherId) return all.filter(t => t.teacherId === teacherId);
@@ -669,7 +621,6 @@ export const deleteCustomTable = (id: string) => {
     save(KEYS.CUSTOM_TABLES, getCustomTables().filter(t => t.id !== id));
 };
 
-// --- Configs & Settings ---
 export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig => {
     const configs = get<ReportHeaderConfig & { id: string }>(KEYS.REPORT_CONFIG);
     if (teacherId) {
@@ -713,7 +664,6 @@ export const saveTeacherPeriodTimings = (teacherId: string, timings: string[]) =
 
 export const getAISettings = (): AISettings => {
     const s = localStorage.getItem(KEYS.AI_SETTINGS);
-    // Fix: Updated default model to gemini-3-flash-preview per guidelines
     return s ? JSON.parse(s) : { modelId: 'gemini-3-flash-preview', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' };
 };
 export const saveAISettings = (settings: AISettings) => {
@@ -723,7 +673,6 @@ export const saveAISettings = (settings: AISettings) => {
 export const getWorksMasterUrl = (): string => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
 
-// --- Admin & Cloud Utils ---
 export const createBackup = () => JSON.stringify(localStorage);
 export const restoreBackup = (json: string) => {
     const data = JSON.parse(json);
@@ -746,11 +695,9 @@ export const checkConnection = async () => {
     }
 };
 
-// --- DYNAMIC CLOUD SYNC ---
 export const uploadToSupabase = async () => {
     if (!isSupabaseConfigured()) return;
     notifySync('SYNCING');
-    
     try {
         const promises = Object.entries(DB_MAP).map(async ([localKey, tableName]) => {
             const data = get(localKey);
@@ -759,7 +706,6 @@ export const uploadToSupabase = async () => {
                 if (error) console.error(`Error uploading ${tableName}:`, error);
             }
         });
-        
         await Promise.all(promises);
         notifySync('ONLINE');
     } catch (e) {
@@ -771,14 +717,12 @@ export const uploadToSupabase = async () => {
 export const downloadFromSupabase = async () => {
     if (!isSupabaseConfigured()) return;
     notifySync('SYNCING');
-    
     try {
         const promises = Object.entries(DB_MAP).map(async ([localKey, tableName]) => {
             const { data, error } = await supabase.from(tableName).select('*');
-            if (data) localStorage.setItem(localKey, JSON.stringify(data)); // update local without triggering upload
+            if (data) localStorage.setItem(localKey, JSON.stringify(data));
             if (error) console.error(`Error downloading ${tableName}:`, error);
         });
-
         await Promise.all(promises);
         notifySubscribers();
         notifySync('ONLINE');
@@ -786,51 +730,6 @@ export const downloadFromSupabase = async () => {
         console.error(e);
         notifySync('ERROR');
     }
-};
-
-export const fetchCloudTableData = async (table: string) => {
-    if (!isSupabaseConfigured()) return [];
-    const { data } = await supabase.from(table).select('*').limit(50);
-    return data;
-};
-
-export const clearCloudTable = async (table: string) => {
-    if (!isSupabaseConfigured()) return;
-    await supabase.from(table).delete().neq('id', '0'); // Delete all
-};
-
-export const resetCloudDatabase = async () => {
-    const tables = Object.values(DB_MAP);
-    for (const t of tables) await clearCloudTable(t);
-};
-
-export const backupCloudDatabase = async () => {
-    const backup: any = {};
-    for (const key of Object.keys(DB_MAP)) {
-        const table = DB_MAP[key as keyof typeof DB_MAP];
-        const { data } = await supabase.from(table).select('*');
-        backup[table] = data;
-    }
-    return JSON.stringify(backup);
-};
-
-export const restoreCloudDatabase = async (json: string) => {
-    const backup = JSON.parse(json);
-    for (const table of Object.keys(backup)) {
-        const rows = backup[table];
-        if (rows && rows.length > 0) {
-            await supabase.from(table).upsert(rows);
-        }
-    }
-};
-
-export const validateCloudSchema = async () => {
-    const missing: string[] = [];
-    for (const table of Object.values(DB_MAP)) {
-        const { error } = await supabase.from(table).select('id').limit(1);
-        if (error) missing.push(table);
-    }
-    return { valid: missing.length === 0, missingTables: missing };
 };
 
 export const forceRefreshData = async () => {
@@ -845,47 +744,28 @@ export const initAutoSync = async () => {
     return false;
 };
 
-// --- REALTIME SYNC IMPLEMENTATION ---
 let realtimeChannel: any = null;
-
 export const initRealtimeSync = () => {
     if (!isSupabaseConfigured() || realtimeChannel) return;
-
     realtimeChannel = supabase.channel('db-changes')
-        .on(
-            'postgres_changes',
-            { event: '*', schema: 'public' },
-            (payload) => {
-                console.log('Realtime change received:', payload);
-                const table = payload.table;
-                const localKey = Object.keys(DB_MAP).find(k => DB_MAP[k] === table);
-                
-                if (localKey) {
-                    handleRealtimeDelta(localKey, payload);
-                }
-            }
-        )
-        .subscribe();
+        .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+            const table = payload.table;
+            const localKey = Object.keys(DB_MAP).find(k => DB_MAP[k] === table);
+            if (localKey) handleRealtimeDelta(localKey, payload);
+        }).subscribe();
 };
 
 const handleRealtimeDelta = async (localKey: string, payload: any) => {
     const { eventType, new: newRecord, old: oldRecord } = payload;
     const currentData = get<any>(localKey);
     let updatedData = [...currentData];
-    
     if (eventType === 'INSERT' || eventType === 'UPDATE') {
         const idx = updatedData.findIndex((item: any) => item.id === newRecord.id);
-        if (idx !== -1) {
-            updatedData[idx] = newRecord;
-        } else {
-            updatedData.push(newRecord);
-        }
+        if (idx !== -1) updatedData[idx] = newRecord;
+        else updatedData.push(newRecord);
     } else if (eventType === 'DELETE') {
         updatedData = updatedData.filter((item: any) => item.id !== oldRecord.id);
     }
-    
-    // Save to local storage WITHOUT triggering upload again (avoid loop)
-    // We use localStorage.setItem directly to bypass the 'save' wrapper which calls uploadToSupabase
     localStorage.setItem(localKey, JSON.stringify(updatedData));
     notifySubscribers();
 };
@@ -897,86 +777,349 @@ export const stopRealtimeSync = () => {
     }
 };
 
-// --- FILE UPLOAD (Storage) ---
-export const uploadFile = async (file: File, bucket: string = 'uploads'): Promise<string | null> => {
-    if (!isSupabaseConfigured()) return null;
-    try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-        const filePath = `${fileName}`;
+// Fix: Adding missing exported functions for AdminDashboard
+export const fetchCloudTableData = async (tableName: string): Promise<any[]> => {
+    if (!isSupabaseConfigured()) return [];
+    const { data, error } = await supabase.from(tableName).select('*');
+    if (error) {
+        console.error(`Error fetching cloud data for ${tableName}:`, error);
+        return [];
+    }
+    return data || [];
+};
 
-        const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file);
-        if (uploadError) {
-            console.error('Storage upload error:', uploadError);
-            return null;
+export const getTableDisplayName = (tableName: string): string => {
+    const entry = Object.entries(DB_MAP).find(([key, val]) => val === tableName);
+    return entry ? entry[0] : tableName;
+};
+
+export const getDatabaseSchemaSQL = (): string => {
+    return `
+-- SQL schema for Supabase
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT,
+    class_id TEXT,
+    school_id TEXT,
+    created_by_id TEXT,
+    grade_level TEXT,
+    class_name TEXT,
+    email TEXT,
+    phone TEXT,
+    parent_id TEXT,
+    parent_name TEXT,
+    parent_phone TEXT,
+    parent_email TEXT,
+    password TEXT,
+    seat_index INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS attendance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    status TEXT NOT NULL,
+    subject TEXT,
+    period INTEGER,
+    behavior_status TEXT,
+    behavior_note TEXT,
+    excuse_note TEXT,
+    excuse_file TEXT,
+    created_by_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS performance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT,
+    score NUMERIC NOT NULL,
+    max_score NUMERIC NOT NULL,
+    date TEXT NOT NULL,
+    notes TEXT,
+    url TEXT,
+    created_by_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS teachers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT,
+    email TEXT,
+    phone TEXT,
+    password TEXT,
+    subject_specialty TEXT,
+    school_id TEXT,
+    manager_id TEXT,
+    subscription_status TEXT,
+    subscription_end_date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS schools (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    ministry_code TEXT,
+    education_administration TEXT,
+    type TEXT,
+    manager_name TEXT NOT NULL,
+    manager_national_id TEXT,
+    phone TEXT,
+    student_count INTEGER,
+    works_master_url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS system_users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    national_id TEXT,
+    password TEXT,
+    role TEXT NOT NULL,
+    school_id TEXT,
+    status TEXT NOT NULL,
+    is_demo BOOLEAN,
+    phone TEXT
+);
+
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    grade_level TEXT NOT NULL,
+    duration_minutes INTEGER,
+    questions JSONB,
+    is_active BOOLEAN,
+    created_at TEXT,
+    teacher_id TEXT,
+    date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS question_bank (
+    id TEXT PRIMARY KEY,
+    text TEXT NOT NULL,
+    image_url TEXT,
+    type TEXT NOT NULL,
+    options JSONB,
+    correct_answer TEXT,
+    points INTEGER,
+    subject TEXT,
+    grade_level TEXT,
+    topic TEXT,
+    difficulty TEXT,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS exam_results (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    score NUMERIC NOT NULL,
+    total_score NUMERIC NOT NULL,
+    date TEXT NOT NULL,
+    answers JSONB
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    max_score NUMERIC NOT NULL,
+    url TEXT,
+    is_visible BOOLEAN,
+    order_index INTEGER,
+    source_metadata TEXT,
+    teacher_id TEXT,
+    term_id TEXT,
+    period_id TEXT,
+    class_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS weekly_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT NOT NULL,
+    class_id TEXT NOT NULL,
+    subject_name TEXT NOT NULL,
+    day TEXT NOT NULL,
+    period INTEGER NOT NULL,
+    week_start_date TEXT NOT NULL,
+    lesson_topic TEXT,
+    homework TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lesson_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT NOT NULL,
+    lesson_id TEXT,
+    subject TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    content_json TEXT,
+    resources JSONB,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS academic_terms (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    is_current BOOLEAN,
+    teacher_id TEXT,
+    periods JSONB
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    parent_phone TEXT,
+    type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL,
+    date TEXT NOT NULL,
+    sent_by TEXT NOT NULL,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    class_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    period INTEGER NOT NULL,
+    subject_name TEXT NOT NULL,
+    teacher_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_units (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT NOT NULL,
+    grade_level TEXT NOT NULL,
+    title TEXT NOT NULL,
+    order_index INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    order_index INTEGER NOT NULL,
+    learning_standards JSONB,
+    micro_concept_ids JSONB,
+    is_completed BOOLEAN,
+    completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS micro_concepts (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS custom_tables (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    columns JSONB,
+    rows JSONB,
+    source_url TEXT,
+    last_updated TEXT,
+    teacher_id TEXT
+);
+`;
+};
+
+export const getDatabaseUpdateSQL = (): string => {
+    return `-- Update SQL for adding new tables or columns
+CREATE TABLE IF NOT EXISTS curriculum_units (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT NOT NULL,
+    grade_level TEXT NOT NULL,
+    title TEXT NOT NULL,
+    order_index INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    order_index INTEGER NOT NULL,
+    learning_standards JSONB,
+    micro_concept_ids JSONB,
+    is_completed BOOLEAN,
+    completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS micro_concepts (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    subject TEXT,
+    name TEXT NOT NULL
+);
+`;
+};
+
+export const clearCloudTable = async (tableName: string): Promise<void> => {
+    if (!isSupabaseConfigured()) return;
+    const { error } = await supabase.from(tableName).delete().neq('id', '0');
+    if (error) throw error;
+};
+
+export const resetCloudDatabase = async (): Promise<void> => {
+    if (!isSupabaseConfigured()) return;
+    const tables = Object.values(DB_MAP);
+    for (const table of tables) {
+        await clearCloudTable(table);
+    }
+};
+
+export const backupCloudDatabase = async (): Promise<string> => {
+    if (!isSupabaseConfigured()) return '{}';
+    const backup: Record<string, any[]> = {};
+    const tables = Object.values(DB_MAP);
+    for (const table of tables) {
+        backup[table] = await fetchCloudTableData(table);
+    }
+    return JSON.stringify(backup);
+};
+
+export const restoreCloudDatabase = async (json: string): Promise<void> => {
+    if (!isSupabaseConfigured()) return;
+    const backup = JSON.parse(json);
+    for (const [tableName, data] of Object.entries(backup)) {
+        if (Array.isArray(data) && data.length > 0) {
+            const { error } = await supabase.from(tableName).upsert(data);
+            if (error) console.error(`Error restoring ${tableName}:`, error);
         }
+    }
+};
 
-        const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-        return data.publicUrl;
-    } catch (e) {
-        console.error('Upload failed:', e);
+export const validateCloudSchema = async (): Promise<{ success: boolean, missingTables: string[] }> => {
+    if (!isSupabaseConfigured()) return { success: false, missingTables: [] };
+    const missingTables: string[] = [];
+    const tables = Object.values(DB_MAP);
+    for (const table of tables) {
+        const { error } = await supabase.from(table).select('id').limit(1);
+        if (error && error.code === '42P01') {
+            missingTables.push(table);
+        }
+    }
+    return { success: missingTables.length === 0, missingTables };
+};
+
+// Fix: Adding missing uploadFile for StudentFollowUp
+export const uploadFile = async (file: File, bucket: string): Promise<string | null> => {
+    if (!isSupabaseConfigured()) return null;
+    const fileName = `${Date.now()}_${file.name}`;
+    const { data, error } = await supabase.storage.from(bucket).upload(fileName, file);
+    if (error) {
+        console.error("Error uploading file:", error);
         return null;
     }
+    const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(data.path);
+    return publicUrl;
 };
-
-export const getTableDisplayName = (table: string) => {
-    const reverseMap = Object.entries(DB_MAP).find(([k, v]) => v === table);
-    const key = reverseMap ? reverseMap[0] : table;
-
-    switch(key) {
-        case KEYS.STUDENTS: return 'الطلاب';
-        case KEYS.ATTENDANCE: return 'الحضور';
-        case KEYS.PERFORMANCE: return 'الدرجات';
-        case KEYS.TEACHERS: return 'المعلمين';
-        case KEYS.SCHOOLS: return 'المدارس';
-        case KEYS.SYSTEM_USERS: return 'المستخدمين';
-        case KEYS.EXAMS: return 'الاختبارات';
-        case KEYS.QUESTIONS: return 'بنك الأسئلة';
-        case KEYS.EXAM_RESULTS: return 'نتائج الاختبارات';
-        case KEYS.TRACKING_ASSIGNMENTS: return 'أعمدة الرصد';
-        case KEYS.WEEKLY_PLANS: return 'الخطط الأسبوعية';
-        case KEYS.LESSON_PLANS: return 'تحضير الدروس';
-        case KEYS.TERMS: return 'الفصول الدراسية';
-        case KEYS.MESSAGES: return 'الرسائل';
-        case KEYS.SCHEDULES: return 'الجدول الدراسي';
-        case KEYS.CURRICULUM_UNITS: return 'وحدات المنهج';
-        case KEYS.CURRICULUM_LESSONS: return 'دروس المنهج';
-        case KEYS.MICRO_CONCEPTS: return 'المفاهيم الدقيقة';
-        case KEYS.CUSTOM_TABLES: return 'الجداول الخاصة';
-        default: return table;
-    }
-};
-
-export const getDatabaseSchemaSQL = () => `
--- Full Schema
-CREATE TABLE IF NOT EXISTS schools (id TEXT PRIMARY KEY, name TEXT NOT NULL, ministry_code TEXT, manager_name TEXT, manager_national_id TEXT, type TEXT, phone TEXT, student_count INTEGER, education_administration TEXT);
-CREATE TABLE IF NOT EXISTS system_users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT, national_id TEXT, password TEXT, role TEXT, school_id TEXT, status TEXT, phone TEXT);
-CREATE TABLE IF NOT EXISTS teachers (id TEXT PRIMARY KEY, name TEXT NOT NULL, national_id TEXT, email TEXT, phone TEXT, subject_specialty TEXT, school_id TEXT, manager_id TEXT, subscription_status TEXT, subscription_end_date TEXT);
-CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, name TEXT NOT NULL, national_id TEXT, class_id TEXT, school_id TEXT, created_by_id TEXT, grade_level TEXT, class_name TEXT, email TEXT, phone TEXT, parent_name TEXT, parent_phone TEXT, parent_email TEXT, password TEXT, seat_index INTEGER);
-CREATE TABLE IF NOT EXISTS attendance (id TEXT PRIMARY KEY, student_id TEXT NOT NULL, date TEXT NOT NULL, status TEXT NOT NULL, subject TEXT, period INTEGER, behavior_status TEXT, behavior_note TEXT, excuse_note TEXT, excuse_file TEXT, created_by_id TEXT);
-CREATE TABLE IF NOT EXISTS performance (id TEXT PRIMARY KEY, student_id TEXT NOT NULL, subject TEXT, title TEXT, category TEXT, score NUMERIC, max_score NUMERIC, date TEXT, notes TEXT, created_by_id TEXT);
-CREATE TABLE IF NOT EXISTS exams (id TEXT PRIMARY KEY, title TEXT, subject TEXT, grade_level TEXT, duration_minutes INTEGER, questions JSONB, is_active BOOLEAN, created_at TEXT, teacher_id TEXT, date TEXT);
-CREATE TABLE IF NOT EXISTS question_bank (id TEXT PRIMARY KEY, text TEXT, type TEXT, options JSONB, correct_answer TEXT, points INTEGER, subject TEXT, grade_level TEXT, topic TEXT, difficulty TEXT, teacher_id TEXT);
-CREATE TABLE IF NOT EXISTS exam_results (id TEXT PRIMARY KEY, exam_id TEXT, student_id TEXT, student_name TEXT, score NUMERIC, total_score NUMERIC, date TEXT, answers JSONB);
-CREATE TABLE IF NOT EXISTS assignments (id TEXT PRIMARY KEY, title TEXT, category TEXT, max_score NUMERIC, url TEXT, is_visible BOOLEAN, order_index INTEGER, source_metadata TEXT, teacher_id TEXT, term_id TEXT, period_id TEXT, class_id TEXT);
-CREATE TABLE IF NOT EXISTS weekly_plans (id TEXT PRIMARY KEY, teacher_id TEXT, class_id TEXT, subject_name TEXT, day TEXT, period INTEGER, week_start_date TEXT, lesson_topic TEXT, homework TEXT);
-CREATE TABLE IF NOT EXISTS lesson_plans (id TEXT PRIMARY KEY, teacher_id TEXT, lesson_id TEXT, subject TEXT, topic TEXT, content_json TEXT, resources JSONB, created_at TEXT);
-CREATE TABLE IF NOT EXISTS academic_terms (id TEXT PRIMARY KEY, name TEXT, start_date TEXT, end_date TEXT, is_current BOOLEAN, teacher_id TEXT, periods JSONB);
-CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, student_id TEXT, student_name TEXT, parent_phone TEXT, type TEXT, content TEXT, status TEXT, date TEXT, sent_by TEXT, teacher_id TEXT);
-CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, class_id TEXT, day TEXT, period INTEGER, subject_name TEXT, teacher_id TEXT);
-CREATE TABLE IF NOT EXISTS curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INTEGER);
-CREATE TABLE IF NOT EXISTS curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INTEGER, learning_standards JSONB, micro_concept_ids JSONB);
-CREATE TABLE IF NOT EXISTS micro_concepts (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, name TEXT);
-CREATE TABLE IF NOT EXISTS custom_tables (id TEXT PRIMARY KEY, name TEXT, created_at TEXT, columns JSONB, rows JSONB, source_url TEXT, last_updated TEXT, teacher_id TEXT);
--- Storage Bucket Policy needs to be set manually in Supabase Dashboard for 'uploads' bucket to be public.
-`;
-
-export const getDatabaseUpdateSQL = () => `
--- Run this if you are updating from an older version
-ALTER TABLE students ADD COLUMN IF NOT EXISTS seat_index INTEGER;
-ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_file TEXT;
-CREATE TABLE IF NOT EXISTS curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INTEGER);
-CREATE TABLE IF NOT EXISTS curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INTEGER, learning_standards JSONB, micro_concept_ids JSONB);
-CREATE TABLE IF NOT EXISTS micro_concepts (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, name TEXT);
-CREATE TABLE IF NOT EXISTS custom_tables (id TEXT PRIMARY KEY, name TEXT, created_at TEXT, columns JSONB, rows JSONB, source_url TEXT, last_updated TEXT, teacher_id TEXT);
-`;

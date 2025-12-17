@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory, BehaviorStatus } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData, getTeacherAssignments } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData, extractGoogleSheetId, fetchGoogleSheetData, fetchGoogleSpreadsheetMeta } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff, Map, ArrowDownCircle, CheckCircle, ArrowUp, ArrowDown, ArrowLeftRight, Layers } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff, Map, ArrowDownCircle, CheckCircle, ArrowUp, ArrowDown, ArrowLeftRight, Layers, LayoutPanelLeft } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,52 +32,49 @@ const CATEGORY_LABELS: Record<string, string> = {
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, currentUser }) => {
     const navigate = useNavigate();
     
-    // --- State Management ---
+    // --- UI State ---
     const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('works_active_tab') || 'HOMEWORK');
     const [selectedTermId, setSelectedTermId] = useState(() => localStorage.getItem('works_term_id') || '');
     const [selectedPeriodId, setSelectedPeriodId] = useState(() => localStorage.getItem('works_period_id') || ''); 
-    const [selectedSubject, setSelectedSubject] = useState(() => localStorage.getItem('works_subject') || '');
     const [selectedClass, setSelectedClass] = useState(() => localStorage.getItem('works_class') || ''); 
     const [searchTerm, setSearchTerm] = useState('');
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isSheetSyncing, setIsSheetSyncing] = useState(false);
+    const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET' | 'DISTRIBUTION'>('MANUAL');
 
+    // --- Data State ---
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
-    const [isSaving, setIsSaving] = useState(false);
-    const [isSheetSyncing, setIsSheetSyncing] = useState(false);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
-
     const [yearWorkConfig, setYearWorkConfig] = useState(() => {
         const saved = localStorage.getItem('works_year_config');
         return saved ? JSON.parse(saved) : { hw: 10, act: 10, att: 5, exam: 20 };
     });
 
+    // --- Smart Sync State ---
     const [googleSheetUrl, setGoogleSheetUrl] = useState<string>(getWorksMasterUrl());
     const [availableSheets, setAvailableSheets] = useState<string[]>([]);
-    const [connectionStatus, setConnectionStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
-    const [identityColumn, setIdentityColumn] = useState(() => localStorage.getItem('works_sheet_identity_col') || '');
     const [sheetMapping, setSheetMapping] = useState<Record<string, string>>(() => {
         const saved = localStorage.getItem('works_sheet_mapping');
         return saved ? JSON.parse(saved) : {};
     });
+    const [allSheetHeaders, setAllSheetHeaders] = useState<Record<string, string[]>>({});
+    const [connectionStatus, setConnectionStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
 
-    const [settingTermId, setSettingTermId] = useState(selectedTermId);
-    const [settingPeriodId, setSettingPeriodId] = useState(selectedPeriodId);
-    const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET' | 'DISTRIBUTION'>('MANUAL');
+    // New Col Form
     const [newColTitle, setNewColTitle] = useState('');
     const [newColMax, setNewColMax] = useState('10');
     const [newColCategory, setNewColCategory] = useState<string>('HOMEWORK');
 
-    // Persistence Effect
+    // Persistence
     useEffect(() => {
         localStorage.setItem('works_active_tab', activeTab);
         localStorage.setItem('works_term_id', selectedTermId);
         localStorage.setItem('works_period_id', selectedPeriodId);
-        localStorage.setItem('works_subject', selectedSubject);
         localStorage.setItem('works_class', selectedClass);
         localStorage.setItem('works_sheet_mapping', JSON.stringify(sheetMapping));
         localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig));
-    }, [activeTab, selectedTermId, selectedPeriodId, selectedSubject, selectedClass, sheetMapping, yearWorkConfig]);
+    }, [activeTab, selectedTermId, selectedPeriodId, selectedClass, sheetMapping, yearWorkConfig]);
 
     useEffect(() => {
         if (currentUser) {
@@ -85,7 +83,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     }, [currentUser, isSettingsOpen]);
 
-    // --- Memoized Data ---
+    // --- Memos ---
     const uniqueClasses = useMemo(() => { 
         const classes = new Set(students.map(s => s.className).filter(Boolean));
         getTeacherAssignments(currentUser?.id).forEach(a => classes.add(a.classId));
@@ -96,7 +94,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let filtered = students;
         if (selectedClass) filtered = filtered.filter(s => s.className === selectedClass);
         if (searchTerm) filtered = filtered.filter(s => s.name.includes(searchTerm));
-        return filtered.sort((a,b) => a.name.localeCompare(b.name));
+        return filtered.sort((a,b) => a.name.localeCompare(b.name, 'ar'));
     }, [students, selectedClass, searchTerm]);
     
     const filteredAssignments = useMemo(() => { 
@@ -109,14 +107,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)); 
     }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
 
-    // --- Handlers ---
+    const activeTerm = terms.find(t => t.id === selectedTermId);
+    const activePeriod = activeTerm?.periods?.find(p => p.id === selectedPeriodId);
+
+    // --- Actions ---
     const handleScoreChange = (studentId: string, assignmentId: string, value: string) => {
         setScores(prev => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), [assignmentId]: value } }));
     };
 
-    const saveAllChanges = async () => {
+    const saveManualChanges = async () => {
         if (Object.keys(scores).length === 0) return;
-        setIsSaving(true);
         const recordsToSave: PerformanceRecord[] = [];
         Object.keys(scores).forEach(studentId => {
             Object.keys(scores[studentId]).forEach(assignmentId => {
@@ -131,7 +131,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         recordsToSave.push({
                             id: recordId,
                             studentId: studentId,
-                            subject: selectedSubject || 'عام',
+                            subject: 'عام',
                             title: assignment.title,
                             category: assignment.category,
                             score: numVal,
@@ -145,22 +145,34 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             });
         });
         if (recordsToSave.length > 0) bulkAddPerformance(recordsToSave);
-        setScores({}); 
-        setIsSaving(false);
-        alert('تم حفظ التعديلات اليدوية بنجاح');
+        setScores({});
+        alert('تم حفظ التغييرات يدوياً');
     };
 
-    // --- Google Sheets Integration ---
+    // --- Google Sheets Logic ---
     const handleConnectSheet = async () => {
         if (!googleSheetUrl) return;
         setIsSheetSyncing(true);
         try {
             const sheetId = extractGoogleSheetId(googleSheetUrl);
             if (!sheetId) throw new Error("رابط غير صالح");
-            const meta = await fetchGoogleSpreadsheetMeta(sheetId, process.env.API_KEY || '');
+            const apiKey = process.env.API_KEY || '';
+            const meta = await fetchGoogleSpreadsheetMeta(sheetId, apiKey);
             setAvailableSheets(meta.sheets);
             saveWorksMasterUrl(googleSheetUrl);
             setConnectionStatus('SUCCESS');
+
+            // Pre-fetch headers for mapped sheets
+            const headersMap: Record<string, string[]> = {};
+            for (const cat of DEFAULT_CATEGORIES) {
+                const mappedSheet = sheetMapping[cat.id];
+                if (mappedSheet && meta.sheets.includes(mappedSheet)) {
+                    const { headers } = await fetchGoogleSheetData(sheetId, apiKey, mappedSheet);
+                    headersMap[cat.id] = headers;
+                }
+            }
+            setAllSheetHeaders(headersMap);
+
         } catch (e: any) {
             setConnectionStatus('ERROR');
             alert(e.message || "فشل الاتصال.");
@@ -179,8 +191,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let totalUpdated = 0;
 
         try {
-            const currentIdentityCol = identityColumn || localStorage.getItem('works_sheet_identity_col');
-            if (!currentIdentityCol) throw new Error("لم يتم تحديد عمود اسم الطالب للمطابقة.");
+            const identityCol = localStorage.getItem('works_sheet_identity_col');
+            if (!identityCol) throw new Error("لم يتم تحديد عمود اسم الطالب للمطابقة في الإعدادات.");
 
             for (const cat of DEFAULT_CATEGORIES) {
                 const targetSheet = sheetMapping[cat.id];
@@ -193,7 +205,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const categoryAssignments = assignments.filter(a => a.category === cat.id);
 
                 data.forEach((row: any) => {
-                    const studentIdentity = row[currentIdentityCol];
+                    const studentIdentity = row[identityCol];
                     if (!studentIdentity) return;
 
                     const student = students.find(s => s.name.trim() === String(studentIdentity).trim() || s.nationalId === String(studentIdentity).trim());
@@ -208,7 +220,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         recordsToSync.push({
                                             id: `${student.id}_${assign.id}`,
                                             studentId: student.id,
-                                            subject: selectedSubject || 'عام',
+                                            subject: 'عام',
                                             title: assign.title,
                                             category: assign.category,
                                             score: numVal,
@@ -226,9 +238,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 });
                 if (recordsToSync.length > 0) bulkAddPerformance(recordsToSync);
             }
-            alert(`تمت مزامنة ${totalUpdated} درجة بنجاح لجميع التبويبات المتاحة.`);
+            alert(`تمت مزامنة ${totalUpdated} درجة لجميع التبويبات بنجاح.`);
         } catch (e: any) {
-            alert("خطأ في المزامنة الشاملة: " + e.message);
+            alert("خطأ في المزامنة: " + e.message);
         } finally {
             setIsSheetSyncing(false);
         }
@@ -249,16 +261,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const header = meta.sheetHeader;
                 if (header) {
                     const index = headers.indexOf(header);
-                    if (index !== -1) {
-                        saveAssignment({ ...assign, orderIndex: index });
-                    }
+                    if (index !== -1) saveAssignment({ ...assign, orderIndex: index });
                 }
             });
 
             setAssignments(getAssignments('ALL', currentUser?.id, true));
-            alert(`تم ترتيب أعمدة ${CATEGORY_LABELS[category]} بنجاح بناءً على ملف الإكسل.`);
+            alert(`تم ترتيب أعمدة ${CATEGORY_LABELS[category]} بنجاح.`);
         } catch (e) {
-            alert("فشل ترتيب الأعمدة.");
+            alert("فشل الترتيب.");
         } finally {
             setIsSheetSyncing(false);
         }
@@ -275,11 +285,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    // Fix: Added missing handleUpdateMapping function
-    const handleUpdateMapping = (categoryId: string, sheetName: string) => {
-        setSheetMapping(prev => ({ ...prev, [categoryId]: sheetName }));
-    };
-
     const handleAddAssignment = () => {
         if (!newColTitle) return;
         const newAssign: Assignment = {
@@ -290,21 +295,18 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             isVisible: true,
             orderIndex: assignments.length,
             teacherId: currentUser?.id,
-            termId: settingTermId,
-            periodId: settingPeriodId || undefined
+            termId: selectedTermId,
+            periodId: selectedPeriodId || undefined
         };
         saveAssignment(newAssign);
         setAssignments(getAssignments('ALL', currentUser?.id, true)); 
         setNewColTitle('');
     };
 
-    const activeTerm = terms.find(t => t.id === selectedTermId);
-    const activePeriod = activeTerm?.periods?.find(p => p.id === selectedPeriodId);
-
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative pb-24 md:pb-6">
             
-            {/* Header Controls */}
+            {/* Header Toolbar */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                     <div className="bg-white p-1 rounded-lg border shadow-sm flex gap-1">
@@ -338,15 +340,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </button>
                     )}
                     {Object.keys(scores).length > 0 && (
-                        <button onClick={saveAllChanges} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 animate-bounce-in shadow-lg">
+                        <button onClick={saveManualChanges} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 animate-bounce-in shadow-lg">
                             <Save size={16}/> حفظ التغييرات
                         </button>
                     )}
-                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-white border rounded hover:bg-gray-50 text-gray-600"><Settings size={18}/></button>
+                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-white border rounded hover:bg-gray-50 text-gray-600 shadow-sm"><Settings size={18}/></button>
                 </div>
             </div>
 
-            {/* Filters Bar */}
+            {/* Filter Bar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border">
                     <Filter size={14} className="text-gray-400 mr-1"/>
@@ -365,7 +367,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     )}
                 </div>
                 
-                <select className="p-2 border rounded-lg text-sm font-bold bg-white" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+                <select className="p-2 border rounded-lg text-sm font-bold bg-white outline-none" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
                     <option value="">كل الفصول</option>
                     {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -376,7 +378,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             </div>
 
-            {/* Main Content Area */}
+            {/* Main Table Content */}
             {activeTab !== 'YEAR_WORK' ? (
                 <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                     {filteredAssignments.length > 0 ? (
@@ -387,7 +389,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <th className="p-3 w-10 text-center border-b">#</th>
                                         <th className="p-3 border-b min-w-[200px] sticky right-0 bg-gray-50 z-20 shadow-sm">اسم الطالب</th>
                                         {filteredAssignments.map(col => (
-                                            <th key={col.id} className="p-3 border-b text-center min-w-[100px] border-l border-gray-200 group relative">
+                                            <th key={col.id} className="p-3 border-b text-center min-w-[100px] border-l border-gray-200">
                                                 <div className="flex flex-col items-center">
                                                     <div className="flex items-center gap-1">
                                                         {col.url && <a href={col.url} target="_blank" rel="noreferrer" className="text-blue-600"><LinkIcon size={12}/></a>}
@@ -401,9 +403,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredStudents.map((student, idx) => (
-                                        <tr key={student.id} className="hover:bg-gray-50/50">
+                                        <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                                             <td className="p-3 text-center text-gray-400 text-xs font-mono">{idx + 1}</td>
-                                            <td className="p-3 font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer hover:text-indigo-600" onClick={() => navigate('/followup', { state: { studentId: student.id } })}>
+                                            <td className="p-3 font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm cursor-pointer hover:text-indigo-600" onClick={() => navigate('/followup', { state: { studentId: student.id } })}>
                                                 {student.name}
                                                 <div className="text-[10px] text-gray-400 font-normal">{student.className}</div>
                                             </td>
@@ -424,60 +426,61 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                            <Layers size={48} className="mb-4 opacity-20"/>
-                            <p>لا توجد تقييمات في هذا التبويب (تأكد من الفلاتر).</p>
-                            <button onClick={() => setIsSettingsOpen(true)} className="mt-2 text-indigo-600 font-bold hover:underline">إضافة عمود جديد</button>
+                            <LayoutPanelLeft size={48} className="mb-4 opacity-20"/>
+                            <p>لا توجد تقييمات في هذا التبويب لهذه الفترة.</p>
+                            <button onClick={() => setIsSettingsOpen(true)} className="mt-2 text-indigo-600 font-bold hover:underline">أضف عمود جديد</button>
                         </div>
                     )}
                 </div>
             ) : (
-                // YEAR WORK VIEW: Strictly filtered by Term and Period
+                // --- YEAR WORK VIEW ---
                 <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col animate-fade-in">
                     <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-center text-sm border-collapse">
                             <thead className="bg-orange-50 text-orange-900 font-bold sticky top-0 z-10">
                                 <tr>
-                                    <th className="p-3 text-right bg-orange-50 sticky right-0 z-20">الطالب</th>
+                                    <th className="p-3 text-right bg-orange-50 sticky right-0 z-20">اسم الطالب</th>
                                     <th className="p-3 border-l border-orange-200">الواجبات ({yearWorkConfig.hw})</th>
                                     <th className="p-3 border-l border-orange-200">الأنشطة ({yearWorkConfig.act})</th>
                                     <th className="p-3 border-l border-orange-200">الاختبارات ({yearWorkConfig.exam})</th>
                                     <th className="p-3 border-l border-orange-200">الحضور ({yearWorkConfig.att})</th>
-                                    <th className="p-3 border-l border-orange-200 bg-orange-100 text-orange-950">المجموع (100)</th>
+                                    <th className="p-3 border-l border-orange-200 bg-orange-100 text-orange-950 font-black">المجموع (100)</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {filteredStudents.map(student => {
-                                    const calcTotal = (cat: string, weight: number) => {
+                                    const calcCategoryScore = (catId: string, weight: number) => {
                                         const catAssigns = assignments.filter(a => 
-                                            a.category === cat && 
+                                            a.category === catId && 
                                             (!selectedTermId || a.termId === selectedTermId) &&
                                             (!selectedPeriodId || a.periodId === selectedPeriodId)
                                         );
-                                        let totalObtained = 0;
-                                        let totalMax = 0;
+                                        let obtained = 0;
+                                        let maxPossible = 0;
                                         catAssigns.forEach(assign => {
                                             const rec = performance.find(p => p.studentId === student.id && p.notes === assign.id);
-                                            if (rec) { totalObtained += rec.score; totalMax += rec.maxScore; } 
-                                            else { totalMax += assign.maxScore; }
+                                            if (rec) { obtained += rec.score; maxPossible += rec.maxScore; }
+                                            else { maxPossible += assign.maxScore; }
                                         });
-                                        return totalMax > 0 ? Math.round((totalObtained / totalMax) * weight) : 0;
+                                        return maxPossible > 0 ? Math.round((obtained / maxPossible) * weight) : 0;
                                     };
 
-                                    const hw = calcTotal('HOMEWORK', yearWorkConfig.hw);
-                                    const act = calcTotal('ACTIVITY', yearWorkConfig.act);
-                                    const exam = calcTotal('PLATFORM_EXAM', yearWorkConfig.exam);
+                                    const hw = calcCategoryScore('HOMEWORK', yearWorkConfig.hw);
+                                    const act = calcCategoryScore('ACTIVITY', yearWorkConfig.act);
+                                    const exam = calcCategoryScore('PLATFORM_EXAM', yearWorkConfig.exam);
                                     
-                                    const studAtt = attendance.filter(a => 
+                                    // Attendance Calculation for Period
+                                    const studentAtt = attendance.filter(a => 
                                         a.studentId === student.id && 
                                         (!activeTerm || (a.date >= activeTerm.startDate && a.date <= activeTerm.endDate)) &&
                                         (!activePeriod || (a.date >= activePeriod.startDate && a.date <= activePeriod.endDate))
                                     );
-                                    const totalDays = studAtt.length;
-                                    const present = studAtt.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length;
-                                    const attScore = totalDays > 0 ? Math.round((present / totalDays) * yearWorkConfig.att) : yearWorkConfig.att;
+                                    const totalDays = studentAtt.length;
+                                    const presentDays = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
+                                    const attScore = totalDays > 0 ? Math.round((presentDays / totalDays) * yearWorkConfig.att) : yearWorkConfig.att;
 
                                     return (
-                                        <tr key={student.id} className="hover:bg-orange-50/20">
+                                        <tr key={student.id} className="hover:bg-orange-50/20 transition-colors">
                                             <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white border-l">{student.name}</td>
                                             <td className="p-3 border-l">{hw}</td>
                                             <td className="p-3 border-l">{act}</td>
@@ -496,107 +499,119 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             {/* Settings Modal */}
             {isSettingsOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-bounce-in overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-bounce-in overflow-hidden">
                         <div className="flex border-b">
-                            <button onClick={() => setSettingsTab('MANUAL')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'MANUAL' ? 'border-b-2 border-indigo-600 text-indigo-700 bg-indigo-50' : 'text-gray-500'}`}>الأعمدة</button>
-                            <button onClick={() => setSettingsTab('SHEET')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'SHEET' ? 'border-b-2 border-green-600 text-green-700 bg-green-50' : 'text-gray-500'}`}>الربط الذكي</button>
-                            <button onClick={() => setSettingsTab('DISTRIBUTION')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'DISTRIBUTION' ? 'border-b-2 border-orange-600 text-orange-700 bg-orange-50' : 'text-gray-500'}`}>أوزان الدرجات</button>
+                            <button onClick={() => setSettingsTab('MANUAL')} className={`flex-1 py-4 font-bold text-sm transition-all ${settingsTab === 'MANUAL' ? 'border-b-2 border-indigo-600 text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'}`}>الأعمدة اليدوية</button>
+                            <button onClick={() => setSettingsTab('SHEET')} className={`flex-1 py-4 font-bold text-sm transition-all ${settingsTab === 'SHEET' ? 'border-b-2 border-green-600 text-green-700 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>الربط الذكي (Excel)</button>
+                            <button onClick={() => setSettingsTab('DISTRIBUTION')} className={`flex-1 py-4 font-bold text-sm transition-all ${settingsTab === 'DISTRIBUTION' ? 'border-b-2 border-orange-600 text-orange-700 bg-orange-50' : 'text-gray-500 hover:bg-gray-50'}`}>أوزان الدرجات</button>
                         </div>
 
-                        <div className="flex-1 overflow-auto p-6">
+                        <div className="flex-1 overflow-auto p-6 bg-gray-50/50">
                             {settingsTab === 'MANUAL' && (
                                 <div className="space-y-6">
-                                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-                                        <h4 className="font-bold text-indigo-800 mb-4 text-sm">إضافة عمود رصد جديد</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                                            <div className="md:col-span-1">
-                                                <label className="block text-[10px] font-bold text-gray-500 mb-1">الفصل</label>
-                                                <select className="w-full p-2 border rounded text-xs" value={settingTermId} onChange={e => {setSettingTermId(e.target.value); setSettingPeriodId('');}}>
-                                                    <option value="">اختر الفصل...</option>
-                                                    {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                                </select>
+                                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                        <h4 className="font-bold text-gray-800 mb-4 text-sm flex items-center gap-2"><Plus size={16}/> إضافة عمود رصد جديد</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">العنوان</label>
+                                                <input className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" value={newColTitle} onChange={e => setNewColTitle(e.target.value)} placeholder="مثال: واجب 1"/>
                                             </div>
-                                            <div className="md:col-span-1">
-                                                <label className="block text-[10px] font-bold text-gray-500 mb-1">الفترة</label>
-                                                <select className="w-full p-2 border rounded text-xs" value={settingPeriodId} onChange={e => setSettingPeriodId(e.target.value)}>
-                                                    <option value="">اختر الفترة...</option>
-                                                    {terms.find(t=>t.id===settingTermId)?.periods?.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                </select>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">الدرجة العظمى</label>
+                                                <input type="number" className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" value={newColMax} onChange={e => setNewColMax(e.target.value)}/>
                                             </div>
-                                            <div className="md:col-span-1"><input className="w-full p-2 border rounded text-xs" value={newColTitle} onChange={e => setNewColTitle(e.target.value)} placeholder="العنوان"/></div>
-                                            <div className="md:col-span-1">
-                                                <select className="w-full p-2 border rounded text-xs" value={newColCategory} onChange={e => setNewColCategory(e.target.value)}>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">التصنيف</label>
+                                                <select className="w-full p-2 border rounded-lg text-sm bg-gray-50" value={newColCategory} onChange={e => setNewColCategory(e.target.value)}>
                                                     {DEFAULT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                                                 </select>
                                             </div>
-                                            <button onClick={handleAddAssignment} className="bg-indigo-600 text-white p-2 rounded font-bold text-xs">إضافة</button>
+                                            <button onClick={handleAddAssignment} className="bg-indigo-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-indigo-700">إضافة العمود</button>
                                         </div>
                                     </div>
-                                    <div className="divide-y border rounded-xl overflow-hidden bg-white">
-                                        {assignments.map((a, idx) => (
-                                            <div key={a.id} className="p-3 flex justify-between items-center hover:bg-gray-50">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-xs font-bold text-gray-400">#{idx+1}</span>
-                                                    <span className="font-bold text-sm w-32 truncate">{a.title}</span>
-                                                    <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded border uppercase">{a.category}</span>
-                                                    {a.periodId && <span className="text-[10px] text-purple-600 font-bold">الفترة: {terms.find(t=>t.id===a.termId)?.periods?.find(p=>p.id===a.periodId)?.name}</span>}
+
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                        <div className="p-3 bg-gray-50 border-b font-bold text-xs text-gray-500">الأعمدة الحالية في "{CATEGORY_LABELS[activeTab]}"</div>
+                                        <div className="divide-y">
+                                            {filteredAssignments.map((a, idx) => (
+                                                <div key={a.id} className="p-3 flex justify-between items-center hover:bg-gray-50">
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="text-xs font-bold text-gray-300">#{idx+1}</span>
+                                                        <span className="font-bold text-sm text-gray-800">{a.title}</span>
+                                                        <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded border font-bold text-gray-500">Max: {a.maxScore}</span>
+                                                    </div>
+                                                    <button onClick={() => { deleteAssignment(a.id); setAssignments(getAssignments('ALL', currentUser?.id, true)); }} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
                                                 </div>
-                                                <button onClick={() => { deleteAssignment(a.id); setAssignments(getAssignments('ALL', currentUser?.id, true)); }} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                                            </div>
-                                        ))}
+                                            ))}
+                                            {filteredAssignments.length === 0 && <p className="p-8 text-center text-gray-400 text-sm italic">لا توجد أعمدة في هذا التبويب.</p>}
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6 animate-fade-in">
-                                    <div className="bg-green-50 p-6 rounded-xl border border-green-200">
-                                        <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2"><FileSpreadsheet size={20}/> إعدادات الربط المتعدد مع Google Sheet</h4>
+                                    <div className="bg-green-50 p-6 rounded-2xl border border-green-200">
+                                        <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2"><FileSpreadsheet size={20}/> الربط مع Google Sheets</h4>
                                         <div className="flex gap-2 mb-6">
-                                            <input className="flex-1 p-3 border rounded-lg text-sm dir-ltr bg-white" placeholder="رابط Google Sheet" value={googleSheetUrl} onChange={e => setGoogleSheetUrl(e.target.value)} />
-                                            <button onClick={handleConnectSheet} className="bg-green-600 text-white px-6 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm hover:bg-green-700 transition-colors"><LinkIcon size={16}/> اتصال</button>
+                                            <input className="flex-1 p-3 border-2 border-green-100 rounded-xl text-sm dir-ltr bg-white focus:border-green-500 outline-none transition-all" placeholder="رابط الملف السحابي" value={googleSheetUrl} onChange={e => setGoogleSheetUrl(e.target.value)} />
+                                            <button onClick={handleConnectSheet} disabled={isSheetSyncing} className="bg-green-600 text-white px-8 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-green-700 disabled:opacity-50">
+                                                {isSheetSyncing ? <Loader2 size={18} className="animate-spin"/> : <LinkIcon size={18}/>} 
+                                                {isSheetSyncing ? 'اتصال...' : 'اتصال'}
+                                            </button>
                                         </div>
 
                                         {connectionStatus === 'SUCCESS' && (
-                                            <div className="space-y-6">
-                                                <div className="bg-white p-4 rounded-xl border border-green-100">
-                                                    <h5 className="font-bold text-gray-700 mb-3 text-xs flex items-center gap-2"><Layers size={14}/> ربط التصنيفات بالأوراق (Tabs)</h5>
+                                            <div className="space-y-6 animate-slide-up">
+                                                {/* Category Mapping */}
+                                                <div className="bg-white p-4 rounded-xl border border-green-100 shadow-sm">
+                                                    <h5 className="font-bold text-gray-700 mb-4 text-xs flex items-center gap-2 uppercase tracking-wide">1. تخصيص أوراق العمل (Tabs)</h5>
                                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                         {DEFAULT_CATEGORIES.map(cat => (
-                                                            <div key={cat.id} className="p-3 bg-gray-50 rounded-lg border">
-                                                                <label className="block text-[10px] font-bold text-gray-500 mb-1">{cat.label}</label>
+                                                            <div key={cat.id} className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-green-300 transition-all">
+                                                                <label className="block text-[10px] font-bold text-gray-500 mb-2 uppercase">{cat.label}</label>
                                                                 <select 
-                                                                    className="w-full p-2 border rounded-lg text-xs bg-white font-bold"
+                                                                    className="w-full p-2 border rounded-lg text-xs bg-white font-bold text-gray-700"
                                                                     value={sheetMapping[cat.id] || ''}
-                                                                    onChange={e => handleUpdateMapping(cat.id, e.target.value)}
+                                                                    onChange={e => setSheetMapping(prev => ({ ...prev, [cat.id]: e.target.value }))}
                                                                 >
                                                                     <option value="">-- اختر الورقة --</option>
                                                                     {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
                                                                 </select>
-                                                                <button onClick={() => handleSortBySheet(cat.id)} className="mt-2 text-[9px] text-indigo-600 font-bold hover:underline flex items-center gap-1"><ArrowLeftRight size={10}/> ترتيب أعمدة {cat.label}</button>
+                                                                <button onClick={() => handleSortBySheet(cat.id)} className="mt-3 w-full text-[10px] text-indigo-600 font-bold hover:underline flex items-center justify-center gap-1"><ArrowLeftRight size={12}/> ترتيب الأعمدة حسب الملف</button>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
 
-                                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                                                    <h5 className="font-bold text-indigo-800 mb-3 text-xs">تعيين أعمدة الدرجات (للفترة المختارة)</h5>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-1">
-                                                        {assignments.filter(a => a.category === activeTab).map(assign => {
+                                                {/* Assignment Header Mapping */}
+                                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 shadow-sm">
+                                                    <h5 className="font-bold text-indigo-800 mb-4 text-xs flex items-center gap-2 uppercase tracking-wide">2. ربط التقييمات بأعمدة الملف (للفترة الحالية)</h5>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-60 overflow-y-auto p-1 custom-scrollbar">
+                                                        {assignments.filter(a => a.category === activeTab && (!selectedTermId || a.termId === selectedTermId)).map(assign => {
                                                             const meta = assign.sourceMetadata ? JSON.parse(assign.sourceMetadata) : {};
+                                                            const currentHeaders = allSheetHeaders[activeTab] || [];
                                                             return (
-                                                                <div key={assign.id} className="flex items-center gap-2 bg-white p-2 rounded border text-xs">
-                                                                    <span className="font-bold w-1/3 truncate" title={assign.title}>{assign.title}</span>
-                                                                    <ArrowRight size={12} className="text-gray-400"/>
-                                                                    <input 
-                                                                        className="flex-1 p-1 border rounded text-[10px] bg-gray-50"
-                                                                        placeholder="اسم العمود في الإكسل"
+                                                                <div key={assign.id} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <span className="block font-bold text-gray-800 text-xs truncate" title={assign.title}>{assign.title}</span>
+                                                                        <span className="text-[9px] text-gray-400">Max: {assign.maxScore}</span>
+                                                                    </div>
+                                                                    <ArrowRight size={14} className="text-indigo-300"/>
+                                                                    <select 
+                                                                        className="w-1/2 p-2 border rounded-lg text-xs bg-gray-50 focus:bg-white outline-none"
                                                                         value={meta.sheetHeader || ''}
                                                                         onChange={e => handleMapColumn(assign.id, e.target.value)}
-                                                                    />
+                                                                    >
+                                                                        <option value="">(غير مرتبط)</option>
+                                                                        {currentHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                                    </select>
                                                                 </div>
                                                             );
                                                         })}
+                                                        {assignments.filter(a => a.category === activeTab && (!selectedTermId || a.termId === selectedTermId)).length === 0 && (
+                                                            <p className="col-span-full text-center text-indigo-400 text-xs italic py-4">أضف أعمدة يدوية أولاً لتقوم بربطها بالإكسل.</p>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -606,19 +621,39 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             )}
 
                             {settingsTab === 'DISTRIBUTION' && (
-                                <div className="max-w-md mx-auto space-y-4 pt-10 text-center">
-                                    <h4 className="font-black text-orange-900 mb-6">توزيع درجات أعمال السنة (من 100)</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1"><label className="text-[10px] font-bold text-gray-500">الواجبات</label><input type="number" className="w-full p-3 border rounded-xl text-center font-black text-xl" value={yearWorkConfig.hw} onChange={e => setYearWorkConfig({...yearWorkConfig, hw: Number(e.target.value)})}/></div>
-                                        <div className="space-y-1"><label className="text-[10px] font-bold text-gray-500">الأنشطة</label><input type="number" className="w-full p-3 border rounded-xl text-center font-black text-xl" value={yearWorkConfig.act} onChange={e => setYearWorkConfig({...yearWorkConfig, act: Number(e.target.value)})}/></div>
-                                        <div className="space-y-1"><label className="text-[10px] font-bold text-gray-500">الحضور</label><input type="number" className="w-full p-3 border rounded-xl text-center font-black text-xl" value={yearWorkConfig.att} onChange={e => setYearWorkConfig({...yearWorkConfig, att: Number(e.target.value)})}/></div>
-                                        <div className="space-y-1"><label className="text-[10px] font-bold text-gray-500">الاختبارات</label><input type="number" className="w-full p-3 border rounded-xl text-center font-black text-xl" value={yearWorkConfig.exam} onChange={e => setYearWorkConfig({...yearWorkConfig, exam: Number(e.target.value)})}/></div>
+                                <div className="max-w-md mx-auto py-10">
+                                    <div className="bg-white p-8 rounded-3xl border border-gray-200 shadow-xl text-center space-y-6">
+                                        <PieChartIcon size={48} className="mx-auto text-orange-500 opacity-80"/>
+                                        <h4 className="font-black text-xl text-gray-800">توزيع درجات أعمال السنة (100)</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">الواجبات</label>
+                                                <input type="number" className="w-full bg-transparent text-center font-black text-2xl text-orange-600 outline-none" value={yearWorkConfig.hw} onChange={e => setYearWorkConfig({...yearWorkConfig, hw: Number(e.target.value)})}/>
+                                            </div>
+                                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">الأنشطة</label>
+                                                <input type="number" className="w-full bg-transparent text-center font-black text-2xl text-orange-600 outline-none" value={yearWorkConfig.act} onChange={e => setYearWorkConfig({...yearWorkConfig, act: Number(e.target.value)})}/>
+                                            </div>
+                                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">الحضور</label>
+                                                <input type="number" className="w-full bg-transparent text-center font-black text-2xl text-orange-600 outline-none" value={yearWorkConfig.att} onChange={e => setYearWorkConfig({...yearWorkConfig, att: Number(e.target.value)})}/>
+                                            </div>
+                                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">الاختبارات</label>
+                                                <input type="number" className="w-full bg-transparent text-center font-black text-2xl text-orange-600 outline-none" value={yearWorkConfig.exam} onChange={e => setYearWorkConfig({...yearWorkConfig, exam: Number(e.target.value)})}/>
+                                            </div>
+                                        </div>
+                                        <div className="pt-4 border-t border-gray-100">
+                                            <div className="text-sm font-bold text-gray-600 mb-6">المجموع الكلي: {yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam} / 100</div>
+                                            <button onClick={() => { alert('تم الحفظ بنجاح'); setIsSettingsOpen(false); }} className="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold shadow-lg hover:bg-orange-700 transition-all hover:scale-[1.02]">تأكيد وحفظ الأوزان</button>
+                                        </div>
                                     </div>
-                                    <div className="mt-4 p-3 bg-gray-50 rounded border">المجموع الكلي: {yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam}</div>
                                 </div>
                             )}
                         </div>
-                        <div className="p-4 border-t bg-gray-50 flex justify-end"><button onClick={() => setIsSettingsOpen(false)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">إغلاق</button></div>
+                        <div className="p-4 border-t bg-gray-50 flex justify-end">
+                            <button onClick={() => setIsSettingsOpen(false)} className="px-8 py-2.5 bg-gray-200 rounded-xl font-bold hover:bg-gray-300 transition-colors text-gray-700">إغلاق</button>
+                        </div>
                     </div>
                 </div>
             )}

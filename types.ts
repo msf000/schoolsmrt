@@ -1,89 +1,74 @@
 
 export interface EducationalStage {
   id: string;
-  name: string; // e.g., "المرحلة الابتدائية"
+  name: string;
 }
 
 export interface GradeLevel {
   id: string;
-  stageId: string; // Link to EducationalStage
-  name: string; // e.g., "الصف الخامس"
+  stageId: string;
+  name: string;
 }
 
 export interface ClassRoom {
   id: string;
-  gradeLevelId: string; // Link to GradeLevel
-  name: string; // e.g., "5-A"
+  gradeLevelId: string;
+  name: string;
 }
 
 export interface Student {
   id: string;
   name: string;
-  nationalId?: string; // New: National ID / Identity Number
-  classId?: string; // Link to ClassRoom
-  schoolId?: string; // Link to School
-  createdById?: string; // NEW: Strict link to the Teacher who added this student
-  // Denormalized fields for easier display if class is deleted, or for imports
+  nationalId?: string;
+  classId?: string;
+  schoolId?: string;
+  createdById?: string;
   gradeLevel?: string; 
   className?: string;
-  
   email?: string;
   phone?: string;
-  parentId?: string; // Link to Parent
+  parentId?: string;
   parentName?: string;
   parentPhone?: string;
-  parentEmail?: string; // New: Parent Email
-  password?: string; // Added: Password for student portal
-  
-  // For Seating Plan
-  seatIndex?: number; // 0 to N
+  parentEmail?: string;
+  password?: string;
+  seatIndex?: number;
 }
 
 export interface Teacher {
   id: string;
   name: string;
-  nationalId?: string; // Added
+  nationalId?: string;
   email?: string;
   phone?: string;
-  password?: string; // Added: Password
+  password?: string;
   subjectSpecialty?: string;
-  schoolId?: string;   // Link to School
-  managerId?: string;  // Link to School Manager (Direct link via National ID search)
-  subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE'; // New
-  subscriptionEndDate?: string; // New
+  schoolId?: string;
+  managerId?: string;
+  subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE';
+  subscriptionEndDate?: string;
 }
 
 export interface TeacherAssignment {
   id: string;
-  classId: string;      // The Class Name (e.g., "1/A")
-  subjectName: string;  // The Subject (e.g., "Math")
-  teacherId: string;    // The Teacher ID
-}
-
-export interface Parent {
-  id: string;
-  name: string;
-  email?: string;
-  phone: string;
-  childrenIds: string[]; // List of Student IDs
+  classId: string;
+  subjectName: string;
+  teacherId: string;
 }
 
 export interface Subject {
   id: string;
   name: string;
-  teacherId?: string; // NEW: Private subject for this teacher
+  teacherId?: string;
 }
-
-// --- Schedule Types ---
-export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
 
 export interface ScheduleItem {
   id: string;
   classId: string;
-  day: DayOfWeek;
-  period: number; // 1 to 8 usually
+  day: string;
+  period: number;
   subjectName: string;
-  teacherId?: string; // Linked Teacher ID
+  teacherId?: string;
 }
 
 export interface WeeklyPlanItem {
@@ -91,9 +76,9 @@ export interface WeeklyPlanItem {
   teacherId: string;
   classId: string;
   subjectName: string;
-  day: DayOfWeek;
+  day: string;
   period: number;
-  weekStartDate: string; // YYYY-MM-DD of the Sunday of that week
+  weekStartDate: string;
   lessonTopic: string;
   homework: string;
 }
@@ -106,138 +91,104 @@ export enum AttendanceStatus {
 }
 
 export enum BehaviorStatus {
-  POSITIVE = 'POSITIVE', // Good behavior
-  NEGATIVE = 'NEGATIVE', // Disruptive/Bad
-  NEUTRAL = 'NEUTRAL'    // Normal
+  POSITIVE = 'POSITIVE',
+  NEGATIVE = 'NEGATIVE',
+  NEUTRAL = 'NEUTRAL'
 }
 
 export interface AttendanceRecord {
   id: string;
   studentId: string;
-  date: string; // ISO Date string YYYY-MM-DD
+  date: string;
   status: AttendanceStatus;
-  subject?: string; // Subject name
-  period?: number; // Added: Period number (1, 2, 3...)
-  
-  // New Behavior Fields
+  subject?: string;
+  period?: number;
   behaviorStatus?: BehaviorStatus; 
   behaviorNote?: string;
-
-  // New Excuse Fields
-  excuseNote?: string; // Student's written excuse
-  excuseFile?: string; // Base64 string of the image/pdf
-  
-  createdById?: string; // NEW: Link to the teacher who took attendance
+  excuseNote?: string;
+  excuseFile?: string;
+  createdById?: string;
 }
 
-// Changed to string to support dynamic custom tabs
-export type PerformanceCategory = string; 
-
-// NEW: Sub-periods for Academic Term (e.g., Period 1, Period 2)
 export interface TermPeriod {
     id: string;
-    name: string; // e.g. "الفترة الأولى"
+    name: string;
     startDate: string;
     endDate: string;
 }
 
-// NEW: Academic Term for Calendar
 export interface AcademicTerm {
     id: string;
-    name: string; // e.g. "الفصل الدراسي الأول 1446"
-    startDate: string; // YYYY-MM-DD
-    endDate: string; // YYYY-MM-DD
+    name: string;
+    startDate: string;
+    endDate: string;
     isCurrent: boolean;
-    teacherId?: string; // Created by teacher
-    periods?: TermPeriod[]; // Nested periods
+    teacherId?: string;
+    periods?: TermPeriod[];
 }
 
-// NEW: Dedicated Assignment Table
 export interface Assignment {
-    id: string; // Unique ID (used as key in WorksTracking)
+    id: string;
     title: string;
-    category: PerformanceCategory;
+    category: string;
     maxScore: number;
     url?: string;
     isVisible: boolean;
     orderIndex?: number;
-    sourceMetadata?: string; // JSON string for excel source info
-    teacherId?: string; // NEW: Assignment belongs to teacher
-    termId?: string; // NEW: Linked to Academic Term
-    periodId?: string; // NEW: Linked to specific Period inside Term
-    classId?: string; // NEW: Linked to specific Class
+    sourceMetadata?: string;
+    teacherId?: string;
+    termId?: string;
+    periodId?: string;
+    classId?: string;
 }
 
 export interface PerformanceRecord {
   id: string;
   studentId: string;
   subject: string;
-  title: string; // e.g., "Midterm Exam", "Homework 1"
-  category?: PerformanceCategory; // New field for classification
+  title: string;
+  category?: string;
   score: number;
   maxScore: number;
   date: string;
-  notes?: string; // Used to store Column Key / Assignment ID for linking
-  url?: string; // Legacy: kept for compatibility, but Assignment.url is preferred
-  createdById?: string; // NEW: Link to the teacher who graded this
+  notes?: string;
+  url?: string;
+  createdById?: string;
 }
 
-export interface ExternalSource {
+export interface Achievement {
     id: string;
-    name: string;
-    url: string;
-    lastSynced?: string;
+    studentId: string;
+    type: 'ATTENDANCE' | 'ACADEMIC' | 'BEHAVIOR' | 'PROGRESS';
+    title: string;
+    icon: string;
+    date: string;
 }
 
-export interface DataSourceConfig {
-    sourceId: string; // Reference to ExternalSource
-    sheet: string;
-    sourceHeader: string; // The column name in the Excel file
-}
-
-export interface WorksColumnConfig {
-    key: string; // e.g., 'col_1'
-    label: string; // e.g., 'Activity 1'
-    isVisible: boolean;
-    maxScore: number;
-    url?: string; // Static Display Link (legacy/info)
-    dataSource?: DataSourceConfig; // New: Live Connection Config
-}
-
-// --- System Admin Types ---
 export interface School {
     id: string;
     name: string;
-    ministryCode?: string; // NEW: Ministry Code
-    educationAdministration?: string; // New: e.g., "Riyadh Education"
+    ministryCode?: string;
+    educationAdministration?: string;
     type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL';
     managerName: string;
-    managerNationalId?: string; // Link to Manager User
+    managerNationalId?: string;
     phone: string;
     studentCount: number;
-    // subscriptionStatus removed
-    worksMasterUrl?: string; // New: Global Cloud Link for Works Tracking
+    worksMasterUrl?: string;
 }
 
 export interface SystemUser {
     id: string;
     name: string;
     email: string;
-    nationalId?: string; // Added for linking
-    password?: string; // Added: Password
-    // Updated Role to explicitly include PARENT
+    nationalId?: string;
+    password?: string;
     role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; 
-    schoolId?: string; // If null, super admin. If Manager, lists owned schools logic handled elsewhere
+    schoolId?: string;
     status: 'ACTIVE' | 'INACTIVE';
-    isDemo?: boolean; // For demo accounts
-    phone?: string; // For parents
-}
-
-export interface SubscriptionPlan {
-    id: string;
-    name: string;
-    price: number;
-    features: string[];
+    isDemo?: boolean;
+    phone?: string;
 }
 
 export interface CustomTable {
@@ -246,24 +197,23 @@ export interface CustomTable {
     createdAt: string;
     columns: string[];
     rows: any[];
-    sourceUrl?: string; // Link to refresh data from
-    lastUpdated?: string; // Timestamp of last refresh
-    teacherId?: string; // NEW: Private table
+    sourceUrl?: string;
+    lastUpdated?: string;
+    teacherId?: string;
 }
 
 export interface ReportHeaderConfig {
     schoolName: string;
     educationAdmin: string;
     teacherName: string;
-    schoolManager: string; // New
-    academicYear: string; // New: e.g., 1446
-    term: string; // New: e.g., First Term
-    logoBase64?: string; // New: To store image locally
-    signatureBase64?: string; // New: Teacher's Signature
-    teacherId?: string; // NEW: Private config
+    schoolManager: string;
+    academicYear: string;
+    term: string;
+    logoBase64?: string;
+    signatureBase64?: string;
+    teacherId?: string;
 }
 
-// --- Message Center Types ---
 export interface MessageLog {
     id: string;
     studentId: string;
@@ -274,47 +224,18 @@ export interface MessageLog {
     status: 'SENT' | 'FAILED';
     date: string;
     sentBy: string;
-    teacherId?: string; // NEW: Strict link to the teacher
+    teacherId?: string;
 }
 
-// --- Lesson Planning Types ---
 export interface LessonLink {
     id: string;
     title: string;
     url: string;
-    teacherId?: string; // NEW: Link to the teacher who created it
+    teacherId?: string;
     createdAt: string;
-    gradeLevel?: string; // NEW: Filter by Grade
-    className?: string; // NEW: Filter by Class
+    gradeLevel?: string;
+    className?: string;
 }
-
-// --- Feedback Types (NEW) ---
-export interface Feedback {
-    id: string;
-    teacherId: string;
-    managerId: string;
-    content: string;
-    date: string;
-    isRead: boolean;
-}
-
-// --- AI Settings (NEW) ---
-export interface AISettings {
-    modelId: string; // 'gemini-2.5-flash' | 'gemini-3-pro-preview'
-    temperature: number; // 0.0 to 1.0
-    enableReports: boolean;
-    enableQuiz: boolean;
-    enablePlanning: boolean;
-    systemInstruction: string; // Custom persona
-}
-
-// --- UI Theme Settings (NEW) ---
-export interface UserTheme {
-    mode: 'LIGHT' | 'DARK';
-    backgroundStyle: 'FLAT' | 'GRADIENT';
-}
-
-// --- Added Types for Missing References ---
 
 export interface LessonBlock {
     id: string;
@@ -337,7 +258,7 @@ export interface StoredLessonPlan {
 
 export interface CurriculumUnit {
     id: string;
-    teacherId?: string; // Optional if global
+    teacherId?: string;
     subject: string;
     gradeLevel: string;
     title: string;
@@ -349,8 +270,10 @@ export interface CurriculumLesson {
     unitId: string;
     title: string;
     orderIndex: number;
-    learningStandards: string[]; // Codes
+    learningStandards: string[];
     microConceptIds: string[];
+    isCompleted?: boolean;
+    completedAt?: string;
 }
 
 export interface MicroConcept {
@@ -363,7 +286,7 @@ export interface MicroConcept {
 export interface Question {
     id: string;
     text: string;
-    imageUrl?: string; // NEW: Support for image-based questions
+    imageUrl?: string;
     type: 'MCQ' | 'TRUE_FALSE';
     options: string[];
     correctAnswer: string;
@@ -385,7 +308,7 @@ export interface Exam {
     isActive: boolean;
     createdAt: string;
     teacherId?: string;
-    date?: string; // Scheduled Date
+    date?: string;
 }
 
 export interface ExamResult {
@@ -396,7 +319,7 @@ export interface ExamResult {
     score: number;
     totalScore: number;
     date: string;
-    answers?: Record<string, string>; // questionId -> answer
+    answers?: Record<string, string>;
 }
 
 export interface TrackingColumn {
@@ -414,5 +337,24 @@ export interface TrackingSheet {
     teacherId: string;
     createdAt: string;
     columns: TrackingColumn[];
-    scores: Record<string, Record<string, any>>; // studentId -> colId -> value
+    scores: Record<string, Record<string, any>>;
 }
+
+// Fix: Adding missing exported types
+export interface AISettings {
+    modelId: string;
+    temperature: number;
+    enableReports: boolean;
+    enableQuiz: boolean;
+    enablePlanning: boolean;
+    systemInstruction: string;
+}
+
+export interface UserTheme {
+    mode: 'LIGHT' | 'DARK';
+    backgroundStyle: 'FLAT' | 'GRADIENT';
+}
+
+export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+
+export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';

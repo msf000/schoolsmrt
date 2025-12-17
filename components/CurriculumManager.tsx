@@ -5,11 +5,15 @@ import {
     getCurriculumUnits, saveCurriculumUnit, deleteCurriculumUnit,
     getCurriculumLessons, saveCurriculumLesson, deleteCurriculumLesson,
     getMicroConcepts, saveMicroConcept, deleteMicroConcept,
-    getSubjects, getAcademicTerms
+    getSubjects, getAcademicTerms, toggleCurriculumLesson
 } from '../services/storageService';
 import { generateCurriculumMap } from '../services/geminiService';
-import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, BrainCircuit, Plus, List, Sparkles, Loader2, PenTool } from 'lucide-react';
+import { BookOpen, FolderPlus, FilePlus, Trash2, Edit2, ChevronDown, ChevronRight, Hash, BrainCircuit, Plus, List, Sparkles, Loader2, PenTool, CheckCircle2, Circle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+interface CurriculumManagerProps {
+    currentUser: SystemUser;
+}
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
@@ -22,52 +26,34 @@ const SAUDI_GRADES = [
 
 const SAUDI_SUBJECTS = [
     "علم الأرض والفضاء", "التقنية الرقمية", "علوم البيانات", "الذكاء الاصطناعي", "الأمن السيبراني", "الهندسة", 
-    "الدراسات الإسلامية", "القرآن الكريم", "لغتي (اللغة العربية)", "الرياضيات", "العلوم", "اللغة الإنجليزية (We Can / Super Goal / Mega Goal)",
+    "الدراسات الإسلامية", "القرآن الكريم", "لغتي", "الرياضيات", "العلوم", "اللغة الإنجليزية",
     "الدراسات الاجتماعية", "المهارات الرقمية", "التربية الفنية", "التربية البدنية والدفاع عن النفس",
     "التفكير الناقد", "أحياء", "فيزياء", "كيمياء", "علم البيئة",
     "المهارات الحياتية والأسرية", "اللياقة والثقافة الصحية",
     "الإدارة المالية", "البحث ومصادر المعلومات"
 ];
 
-interface CurriculumManagerProps {
-    currentUser: SystemUser;
-}
-
 const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) => {
     const navigate = useNavigate();
     const [view, setView] = useState<'MAP' | 'CONCEPTS'>('MAP');
     const [userSubjects, setUserSubjects] = useState<Subject[]>([]);
-    
-    // Selection State
     const [selectedGrade, setSelectedGrade] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
-    
-    // Terms State
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [selectedTermId, setSelectedTermId] = useState('');
-
-    // Data State
     const [units, setUnits] = useState<CurriculumUnit[]>([]);
     const [lessons, setLessons] = useState<CurriculumLesson[]>([]);
     const [concepts, setConcepts] = useState<MicroConcept[]>([]);
-
-    // Form States
     const [newUnitName, setNewUnitName] = useState('');
     const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
     const [editingLesson, setEditingLesson] = useState<Partial<CurriculumLesson> | null>(null);
     const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
-    
-    // AI Generation State
     const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
         if (currentUser?.id) {
             setUserSubjects(getSubjects(currentUser.id));
-            const loadedTerms = getAcademicTerms(currentUser.id);
-            setTerms(loadedTerms);
-            const current = loadedTerms.find(t => t.isCurrent);
-            if (current) setSelectedTermId(current.id);
-            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
+            setTerms(getAcademicTerms(currentUser.id));
             refreshData();
         }
     }, [currentUser]);
@@ -77,6 +63,19 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
         setUnits(getCurriculumUnits(currentUser.id));
         setLessons(getCurriculumLessons()); 
         setConcepts(getMicroConcepts(currentUser.id));
+    };
+
+    const handleToggleCompletion = (lessonId: string, currentStatus: boolean) => {
+        toggleCurriculumLesson(lessonId, !currentStatus);
+        refreshData();
+    };
+
+    // Fix: Adding missing toggleUnit function
+    const toggleUnit = (unitId: string) => {
+        const newSet = new Set(expandedUnits);
+        if (newSet.has(unitId)) newSet.delete(unitId);
+        else newSet.add(unitId);
+        setExpandedUnits(newSet);
     };
 
     const allSubjectsList = useMemo(() => {
@@ -93,343 +92,113 @@ const CurriculumManager: React.FC<CurriculumManagerProps> = ({ currentUser }) =>
 
     const handleAddUnit = () => {
         if (!newUnitName || !selectedSubject) return alert('الرجاء اختيار المادة وكتابة اسم الوحدة');
-        const unit: CurriculumUnit = {
-            id: Date.now().toString(),
-            teacherId: currentUser.id,
-            subject: selectedSubject,
-            gradeLevel: selectedGrade || 'عام',
-            title: newUnitName,
-            orderIndex: units.length
-        };
-        saveCurriculumUnit(unit);
-        setNewUnitName('');
-        refreshData();
-    };
-
-    const handleDeleteUnit = (id: string) => {
-        if (confirm('حذف الوحدة؟ سيتم حذف جميع الدروس داخلها.')) {
-            deleteCurriculumUnit(id);
-            const unitLessons = lessons.filter(l => l.unitId === id);
-            unitLessons.forEach(l => deleteCurriculumLesson(l.id));
-            refreshData();
-        }
-    };
-
-    const toggleUnit = (id: string) => {
-        const newSet = new Set(expandedUnits);
-        if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
-        setExpandedUnits(newSet);
-    };
-
-    const openAddLesson = (unitId: string) => {
-        setEditingLesson({ unitId, title: '', orderIndex: lessons.filter(l => l.unitId === unitId).length, learningStandards: [], microConceptIds: [] });
-        setIsLessonModalOpen(true);
-    };
-
-    const handleSaveLesson = () => {
-        if (!editingLesson?.title || !editingLesson.unitId) return;
-        
-        const lesson: CurriculumLesson = {
-            id: editingLesson.id || Date.now().toString(),
-            unitId: editingLesson.unitId,
-            title: editingLesson.title,
-            orderIndex: editingLesson.orderIndex || 0,
-            learningStandards: editingLesson.learningStandards || [],
-            microConceptIds: editingLesson.microConceptIds || []
-        };
-        
-        saveCurriculumLesson(lesson);
-        setIsLessonModalOpen(false);
-        setEditingLesson(null);
-        refreshData();
-    };
-
-    const handleDeleteLesson = (id: string) => {
-        if (confirm('حذف الدرس؟')) {
-            deleteCurriculumLesson(id);
-            refreshData();
-        }
-    };
-
-    const handlePrepareLesson = (lessonTitle: string, subject: string, grade: string) => {
-        navigate('/planning', { 
-            state: { 
-                topic: lessonTitle, 
-                subject: subject, 
-                grade: grade 
-            } 
-        });
+        saveCurriculumUnit({ id: Date.now().toString(), teacherId: currentUser.id, subject: selectedSubject, gradeLevel: selectedGrade || 'عام', title: newUnitName, orderIndex: units.length });
+        setNewUnitName(''); refreshData();
     };
 
     const handleAutoGenerate = async () => {
-        if (!selectedSubject || !selectedGrade) {
-            alert('يرجى تحديد المادة والصف أولاً لتوليد المنهج.');
-            return;
-        }
-        
-        if (filteredUnits.length > 0) {
-            if (!confirm('يوجد وحدات مسجلة بالفعل لهذه المادة. هل تريد الاستمرار وإضافة المزيد من الوحدات المقترحة؟')) return;
-        }
-
+        if (!selectedSubject || !selectedGrade || !selectedTermId) return alert('أكمل الخيارات أولاً');
         setIsGenerating(true);
         try {
-            // Find term name or fallback
             const term = terms.find(t => t.id === selectedTermId);
-            const termName = term ? term.name : 'الفصل الدراسي الأول';
-
-            const structure = await generateCurriculumMap(selectedSubject, selectedGrade, termName);
-            
-            if (Array.isArray(structure) && structure.length > 0) {
-                let unitOrder = units.length;
-                
-                for (const unitData of structure) {
-                    const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
-                    
-                    const unit: CurriculumUnit = {
-                        id: unitId,
-                        teacherId: currentUser.id,
-                        subject: selectedSubject,
-                        gradeLevel: selectedGrade,
-                        title: unitData.unitTitle || 'وحدة جديدة',
-                        orderIndex: unitOrder++
-                    };
-                    saveCurriculumUnit(unit);
-
-                    if (Array.isArray(unitData.lessons)) {
-                        let lessonOrder = 0;
-                        for (const lesData of unitData.lessons) {
-                            const lesson: CurriculumLesson = {
-                                id: `les_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
-                                unitId: unitId,
-                                title: lesData.title || 'درس جديد',
-                                orderIndex: lessonOrder++,
-                                learningStandards: lesData.standards || [], 
-                                microConceptIds: [] 
-                            };
-                            saveCurriculumLesson(lesson);
-                        }
-                    }
-                }
+            const structure = await generateCurriculumMap(selectedSubject, selectedGrade, term?.name || 'الفصل الدراسي الأول');
+            if (Array.isArray(structure)) {
+                structure.forEach((unitData, uIdx) => {
+                    const unitId = `u_${Date.now()}_${uIdx}`;
+                    saveCurriculumUnit({ id: unitId, teacherId: currentUser.id, subject: selectedSubject, gradeLevel: selectedGrade, title: unitData.unitTitle, orderIndex: uIdx });
+                    unitData.lessons?.forEach((l:any, lIdx:number) => {
+                        saveCurriculumLesson({ id: `l_${Date.now()}_${uIdx}_${lIdx}`, unitId, title: l.title, orderIndex: lIdx, learningStandards: l.standards || [], microConceptIds: [] });
+                    });
+                });
                 refreshData();
-                alert(`تم استيراد منهج ${termName} بنجاح!`);
-            } else {
-                alert('لم يتمكن النظام من استخراج المنهج. تأكد من اسم المادة والصف.');
             }
-        } catch (e: any) {
-            console.error(e);
-            alert('حدث خطأ أثناء التوليد: ' + e.message);
-        } finally {
-            setIsGenerating(false);
-        }
+        } catch (e) { alert('فشل التوليد'); } finally { setIsGenerating(false); }
     };
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <List className="text-purple-600"/> توزيع المنهج والذكاء
-                </h2>
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><List className="text-purple-600"/> خطة المنهج والتقدم</h2>
                 <div className="flex bg-white rounded-lg p-1 border shadow-sm">
                     <button onClick={() => setView('MAP')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view === 'MAP' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>خريطة المنهج</button>
-                    <button onClick={() => setView('CONCEPTS')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view === 'CONCEPTS' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>المفاهيم الدقيقة</button>
+                    <button onClick={() => setView('CONCEPTS')} className={`px-4 py-2 rounded-lg text-sm font-bold ${view === 'CONCEPTS' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}>المفاهيم</button>
                 </div>
             </div>
 
             {view === 'MAP' && (
                 <div className="flex-1 flex flex-col overflow-hidden">
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4 flex flex-wrap gap-4 items-end">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">1. الفصل الدراسي</label>
-                            <select 
-                                className="p-2 border rounded text-sm bg-gray-50 min-w-[140px] font-bold text-purple-700"
-                                value={selectedTermId}
-                                onChange={e => setSelectedTermId(e.target.value)}
-                            >
-                                <option value="">اختر الفصل...</option>
-                                {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
+                        <div className="flex-1 min-w-[200px] grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <select className="p-2 border rounded text-sm bg-gray-50" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}><option value="">الفصل الدراسي...</option>{terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                            <select className="p-2 border rounded text-sm" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}><option value="">الصف...</option>{SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select>
+                            <select className="p-2 border rounded text-sm" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}><option value="">المادة...</option>{allSubjectsList.map(s => <option key={s} value={s}>{s}</option>)}</select>
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">2. الصف الدراسي</label>
-                            <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}>
-                                <option value="">-- اختر الصف --</option>
-                                {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">3. المادة</label>
-                            <select className="p-2 border rounded text-sm min-w-[160px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
-                                <option value="">-- اختر المادة --</option>
-                                {allSubjectsList.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex-1 flex gap-2">
-                            <input className="flex-1 p-2 border rounded text-sm" placeholder="اسم الوحدة الجديدة (يدوي)..." value={newUnitName} onChange={e => setNewUnitName(e.target.value)}/>
-                            <button onClick={handleAddUnit} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700 flex items-center gap-2 text-sm whitespace-nowrap">
-                                <FolderPlus size={16}/> إضافة
-                            </button>
-                        </div>
-                        <div className="w-full md:w-auto border-t md:border-t-0 md:border-r pr-0 md:pr-4 pt-4 md:pt-0">
-                            <button 
-                                onClick={handleAutoGenerate} 
-                                disabled={isGenerating || !selectedSubject || !selectedGrade || !selectedTermId}
-                                className="bg-gradient-to-r from-teal-500 to-green-600 text-white px-4 py-2 rounded font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap shadow-md w-full justify-center"
-                            >
-                                {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
-                                {isGenerating ? 'جاري سحب المنهج...' : `استيراد المنهج (AI)`}
-                            </button>
-                        </div>
+                        <button onClick={handleAutoGenerate} disabled={isGenerating || !selectedSubject} className="bg-teal-600 text-white px-4 py-2 rounded font-bold hover:bg-teal-700 flex items-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap">{isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>} سحب المنهج (AI)</button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
                         {filteredUnits.length > 0 ? filteredUnits.map(unit => {
                             const unitLessons = lessons.filter(l => l.unitId === unit.id).sort((a,b) => a.orderIndex - b.orderIndex);
                             const isExpanded = expandedUnits.has(unit.id);
+                            const completedCount = unitLessons.filter(l => l.isCompleted).length;
+                            const progressPct = unitLessons.length > 0 ? Math.round((completedCount / unitLessons.length) * 100) : 0;
+
                             return (
                                 <div key={unit.id} className="border border-gray-200 rounded-lg overflow-hidden">
                                     <div className="bg-gray-50 p-3 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => toggleUnit(unit.id)}>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-3 flex-1">
                                             {isExpanded ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}
-                                            <FolderPlus size={18} className="text-purple-600"/>
                                             <span className="font-bold text-gray-800">{unit.title}</span>
-                                            <span className="text-xs bg-white border px-2 py-0.5 rounded text-gray-500">{unitLessons.length} درس</span>
+                                            <div className="hidden md:flex flex-1 items-center gap-2 max-w-xs">
+                                                <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div className="bg-teal-500 h-full" style={{width: `${progressPct}%`}}></div>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-teal-600">{progressPct}%</span>
+                                            </div>
                                         </div>
-                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteUnit(unit.id); }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteCurriculumUnit(unit.id); refreshData(); }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
                                     </div>
                                     {isExpanded && (
                                         <div className="p-0 bg-white border-t border-gray-100 animate-slide-up">
-                                            {unitLessons.length > 0 && (
-                                                <div className="hidden md:grid md:grid-cols-12 bg-gray-50 text-xs font-bold text-gray-500 p-2 border-b">
-                                                    <div className="col-span-5 pr-8">اسم الدرس</div>
-                                                    <div className="col-span-4">المعيار (Standard)</div>
-                                                    <div className="col-span-3 text-center">إجراءات</div>
-                                                </div>
-                                            )}
                                             {unitLessons.map(lesson => (
-                                                <div key={lesson.id} className="flex flex-col md:grid md:grid-cols-12 items-start md:items-center p-3 md:p-2 hover:bg-purple-50 group border-b border-gray-50 last:border-0 gap-2 md:gap-0">
-                                                    <div className="md:col-span-5 flex items-center gap-2 font-medium text-gray-700 w-full">
-                                                        <FilePlus size={16} className="text-gray-400 shrink-0"/>
-                                                        <span className="truncate flex-1" title={lesson.title}>{lesson.title}</span>
-                                                        <div className="md:hidden flex gap-2">
-                                                            <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 p-1 rounded bg-blue-50"><Edit2 size={14}/></button>
-                                                            <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 p-1 rounded bg-red-50"><Trash2 size={14}/></button>
+                                                <div key={lesson.id} className={`flex items-center p-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 gap-4 group ${lesson.isCompleted ? 'bg-green-50/20' : ''}`}>
+                                                    <button 
+                                                        onClick={() => handleToggleCompletion(lesson.id, !!lesson.isCompleted)}
+                                                        className={`transition-colors ${lesson.isCompleted ? 'text-green-600' : 'text-gray-300 hover:text-green-500'}`}
+                                                    >
+                                                        {lesson.isCompleted ? <CheckCircle2 size={20}/> : <Circle size={20}/>}
+                                                    </button>
+                                                    <div className="flex-1 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                                        <span className={`text-sm font-medium ${lesson.isCompleted ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{lesson.title}</span>
+                                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => navigate('/planning', { state: { topic: lesson.title, subject: unit.subject, grade: unit.gradeLevel } })} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-bold border border-indigo-100 hover:bg-indigo-100"><PenTool size={10} className="inline ml-1"/> تحضير</button>
+                                                            <button onClick={() => deleteCurriculumLesson(lesson.id)} className="text-red-400 p-1 rounded hover:bg-red-50"><Trash2 size={14}/></button>
                                                         </div>
-                                                    </div>
-                                                    <div className="md:col-span-4 flex flex-wrap gap-1 pl-6">
-                                                        {lesson.learningStandards && lesson.learningStandards.length > 0 ? (
-                                                            lesson.learningStandards.map((std, i) => (
-                                                                <span key={i} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-mono font-bold" title="كود المعيار الوزاري">
-                                                                    {std}
-                                                                </span>
-                                                            ))
-                                                        ) : (
-                                                            <span className="text-xs text-gray-300">-</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="hidden md:flex md:col-span-3 justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button 
-                                                            onClick={() => handlePrepareLesson(lesson.title, unit.subject, unit.gradeLevel)}
-                                                            className="flex items-center gap-1 text-[10px] bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded hover:bg-green-100 transition-colors font-bold"
-                                                            title="إنشاء تحضير لهذا الدرس"
-                                                        >
-                                                            <PenTool size={12}/> تحضير
-                                                        </button>
-                                                        <button onClick={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }} className="text-blue-500 hover:bg-blue-100 p-1.5 rounded"><Edit2 size={14}/></button>
-                                                        <button onClick={() => handleDeleteLesson(lesson.id)} className="text-red-500 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/></button>
                                                     </div>
                                                 </div>
                                             ))}
-                                            <button onClick={() => openAddLesson(unit.id)} className="w-full py-2 text-gray-400 hover:text-purple-600 text-sm font-bold flex justify-center items-center gap-2 hover:bg-gray-50 transition-colors">
-                                                <Plus size={16}/> إضافة درس جديد
-                                            </button>
+                                            <button onClick={() => { const t = prompt('اسم الدرس:'); if(t) saveCurriculumLesson({id:Date.now().toString(), unitId:unit.id, title:t, orderIndex:unitLessons.length, learningStandards:[], microConceptIds:[]}); refreshData(); }} className="w-full py-2 text-gray-400 hover:text-purple-600 text-xs font-bold border-t border-dashed">إضافة درس</button>
                                         </div>
                                     )}
                                 </div>
                             );
-                        }) : (
-                            <div className="text-center py-20 text-gray-400">
-                                <BookOpen size={48} className="mx-auto mb-4 opacity-20"/>
-                                <p className="text-lg font-bold">لا يوجد منهج مسجل</p>
-                                <p className="text-sm">ابدأ باختيار الفصل الدراسي والصف والمادة ثم اضغط على زر الاستيراد.</p>
-                            </div>
-                        )}
+                        }) : <div className="text-center py-20 text-gray-400">حدد المادة والصف لسحب أو إنشاء المنهج</div>}
                     </div>
                 </div>
             )}
-
-            {isLessonModalOpen && editingLesson && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
-                        <h3 className="font-bold text-lg mb-4 text-gray-800">تفاصيل الدرس</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-600 mb-1">عنوان الدرس</label>
-                                <input className="w-full p-2 border rounded" value={editingLesson.title} onChange={e => setEditingLesson({...editingLesson, title: e.target.value})} autoFocus/>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-600 mb-1 flex items-center gap-1"><Hash size={14}/> الكود الوزاري (المعيار) <span className="text-xs font-normal text-gray-400">(افصل بفواصل)</span></label>
-                                <input 
-                                    className="w-full p-2 border rounded font-mono text-sm" 
-                                    placeholder="EAS.12.1.1, EAS.12.1.2" 
-                                    value={editingLesson.learningStandards?.join(', ')} 
-                                    onChange={e => setEditingLesson({...editingLesson, learningStandards: e.target.value.split(',').map(s=>s.trim()).filter(Boolean)})}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-600 mb-1 flex items-center gap-1"><BrainCircuit size={14}/> المفاهيم الدقيقة (Micro-Concepts)</label>
-                                <div className="border rounded p-2 max-h-32 overflow-y-auto bg-gray-50">
-                                    {concepts.filter(c => !c.subject || c.subject === selectedSubject).map(c => (
-                                        <label key={c.id} className="flex items-center gap-2 p-1 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={editingLesson.microConceptIds?.includes(c.id)}
-                                                onChange={(e) => {
-                                                    const current = editingLesson.microConceptIds || [];
-                                                    if(e.target.checked) setEditingLesson({...editingLesson, microConceptIds: [...current, c.id]});
-                                                    else setEditingLesson({...editingLesson, microConceptIds: current.filter(id => id !== c.id)});
-                                                }}
-                                            />
-                                            {c.name}
-                                        </label>
-                                    ))}
-                                    {concepts.length === 0 && <p className="text-xs text-gray-400 text-center">لا توجد مفاهيم مضافة. انتقل لتبويب المفاهيم لإضافتها.</p>}
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2">
-                                <button onClick={() => setIsLessonModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">إلغاء</button>
-                                <button onClick={handleSaveLesson} className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold">حفظ</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
+            
             {view === 'CONCEPTS' && (
-                <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <h3 className="font-bold text-lg text-gray-800">جدول المفاهيم الدقيقة (Micro-Concepts)</h3>
-                            <p className="text-sm text-gray-500">تستخدم هذه المفاهيم لتحليل الفجوات التعليمية بدقة.</p>
-                        </div>
-                        <button 
-                            onClick={() => {
-                                const name = prompt('اسم المفهوم الدقيق:');
-                                if (name) {
-                                    saveMicroConcept({ id: Date.now().toString(), name, teacherId: currentUser.id, subject: selectedSubject });
-                                    refreshData();
-                                }
-                            }} 
-                            className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700"
-                        >
-                            <Plus size={16}/> مفهوم جديد
-                        </button>
+                <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="font-bold text-lg text-gray-800 mb-4">المفاهيم التعليمية</h3>
+                    <div className="flex gap-2 mb-6">
+                        <input id="conceptInput" className="flex-1 p-2 border rounded-lg" placeholder="مفهوم جديد..."/>
+                        <button onClick={() => { const input = document.getElementById('conceptInput') as HTMLInputElement; if(input.value) saveMicroConcept({id:Date.now().toString(), name:input.value, teacherId:currentUser.id}); input.value=''; refreshData(); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold">إضافة</button>
                     </div>
-                    <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {concepts.map(c => (
-                            <div key={c.id} className="border p-3 rounded-lg flex justify-between items-center bg-gray-50 hover:border-purple-300 transition-colors">
-                                <span className="font-bold text-gray-700">{c.name}</span>
-                                <button onClick={() => { if(confirm('حذف؟')) { deleteMicroConcept(c.id); refreshData(); } }} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                            <div key={c.id} className="p-3 border rounded-lg bg-gray-50 flex justify-between items-center group">
+                                <span className="text-sm font-bold text-gray-700">{c.name}</span>
+                                <button onClick={() => { deleteMicroConcept(c.id); refreshData(); }} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={14}/></button>
                             </div>
                         ))}
                     </div>
