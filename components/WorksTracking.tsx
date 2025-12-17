@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData, getTeacherAssignments } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData, extractGoogleSheetId, fetchGoogleSheetData, fetchGoogleSpreadsheetMeta } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff, Map, ArrowDownCircle, CheckCircle } from 'lucide-react';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff, Map, ArrowDownCircle, CheckCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, PieChart, Pie, Legend } from 'recharts';
@@ -398,6 +398,32 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
+    const handleUpdateAssignment = (id: string, updates: Partial<Assignment>) => {
+        const assign = assignments.find(a => a.id === id);
+        if (assign) {
+            const updated = { ...assign, ...updates };
+            saveAssignment(updated);
+            setAssignments(getAssignments('ALL', currentUser?.id, true));
+        }
+    };
+
+    const handleMoveAssignment = (index: number, direction: number) => {
+        const sorted = [...assignments].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+        if (index + direction < 0 || index + direction >= sorted.length) return;
+        
+        const item = sorted[index];
+        const target = sorted[index + direction];
+        
+        // Swap indices
+        const temp = item.orderIndex || index;
+        item.orderIndex = target.orderIndex || (index + direction);
+        target.orderIndex = temp;
+        
+        saveAssignment(item);
+        saveAssignment(target);
+        setAssignments(getAssignments('ALL', currentUser?.id, true));
+    };
+
     const saveYearWorkSettings = () => { 
         localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig)); 
         alert('تم حفظ توزيع الدرجات بنجاح'); 
@@ -488,6 +514,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <th key={col.id} className={`p-3 border-b text-center min-w-[100px] border-l border-gray-200 group relative ${!col.isVisible ? 'bg-red-50/50' : ''}`}>
                                                 <div className="flex flex-col items-center">
                                                     <div className="flex items-center gap-1">
+                                                        {col.url && (
+                                                            <a href={col.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800" title="رابط المرفق">
+                                                                <LinkIcon size={12}/>
+                                                            </a>
+                                                        )}
                                                         <span>{col.title}</span>
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); toggleAssignmentVisibility(col.id); }}
@@ -644,12 +675,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                                         <div className="p-3 bg-gray-50 border-b font-bold text-sm text-gray-600">الأعمدة الحالية</div>
                                         <div className="divide-y divide-gray-100">
-                                            {assignments.map(a => (
+                                            {assignments.sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((a, idx) => (
                                                 <div key={a.id} className="p-3 flex justify-between items-center hover:bg-gray-50">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-bold text-gray-800 text-sm">{a.title}</span>
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <div className="flex flex-col gap-1">
+                                                            <button onClick={() => handleMoveAssignment(idx, -1)} disabled={idx===0} className="text-gray-400 hover:text-blue-500 disabled:opacity-30"><ArrowUp size={12}/></button>
+                                                            <button onClick={() => handleMoveAssignment(idx, 1)} disabled={idx===assignments.length-1} className="text-gray-400 hover:text-blue-500 disabled:opacity-30"><ArrowDown size={12}/></button>
+                                                        </div>
+                                                        <span className="font-bold text-gray-800 text-sm w-32 truncate">{a.title}</span>
                                                         <span className="text-xs text-gray-400">({a.maxScore})</span>
                                                         <span className="text-xs bg-gray-100 px-2 py-0.5 rounded border">{CATEGORY_LABELS[a.category] || a.category}</span>
+                                                        <input 
+                                                            className="border rounded px-2 py-1 text-xs w-48 text-left dir-ltr" 
+                                                            placeholder="رابط (URL)..."
+                                                            value={a.url || ''}
+                                                            onChange={e => handleUpdateAssignment(a.id, { url: e.target.value })}
+                                                        />
                                                         <button 
                                                             onClick={() => toggleAssignmentVisibility(a.id)}
                                                             className={`p-1 rounded-full ${a.isVisible ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'}`}
