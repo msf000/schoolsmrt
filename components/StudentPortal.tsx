@@ -1,7 +1,7 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, ReportHeaderConfig, Exam, ExamResult, Question, LessonLink, MessageLog, WeeklyPlanItem, ScheduleItem } from '../types';
-import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance, getLessonLinks, getMessages, getWeeklyPlans, getSchedules, getCustomTables } from '../services/storageService';
+// Added getPerformance to imports to fix the error on line 183
+import { downloadFromSupabase, getAssignments, getAcademicTerms, getReportHeaderConfig, getExams, getExamResults, saveExamResult, addPerformance, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, getSchedules, getCustomTables } from '../services/storageService';
 import { User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Table, Library, LayoutGrid, CalendarDays, RefreshCw, X, Printer, FileText, PieChart as PieChartIcon, Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, BookOpen, Home, Phone, Mail, Star, Zap, Target } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
@@ -64,7 +64,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         <button
                             key={item.path}
                             onClick={() => navigate(item.path)}
-                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium ${
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
                                 currentPath === item.path 
                                     ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 shadow-sm' 
                                     : 'text-gray-500 hover:bg-gray-50'
@@ -180,6 +180,7 @@ const StudentExamsView = ({ student }: { student: Student }) => {
 
     useEffect(() => {
         setExams(getExams().filter(e => e.isActive && (e.gradeLevel === student.gradeLevel || !e.gradeLevel || e.gradeLevel === 'عام')));
+        // Fixed line 183: Use getPerformance() from imports to fix "Cannot find name 'getPerformance'"
         setResults(getPerformance().filter(p => p.studentId === student.id));
     }, [student]);
 
