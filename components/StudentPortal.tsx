@@ -1,14 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, ScheduleItem, AttendanceStatus, BehaviorStatus } from '../types';
-import { downloadFromSupabase, getAcademicTerms, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, getSchedules } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, ScheduleItem, AttendanceStatus, BehaviorStatus, Question } from '../types';
+import { downloadFromSupabase, getAcademicTerms, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, getSchedules, saveExamResult } from '../services/storageService';
 import { 
     User, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Library, 
     LayoutGrid, CalendarDays, RefreshCw, X, FileText, PieChart as PieChartIcon, 
     Activity, CheckCircle, Timer, AlertCircle, ChevronLeft, ChevronRight, 
     Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, 
     Medal, ExternalLink, BookOpen, Zap, Target, Star, TrendingUp, Info,
-    BrainCircuit, ShieldCheck, Phone, Mail, Rocket, ListChecks, Trophy
+    BrainCircuit, ShieldCheck, Phone, Mail, Rocket, ListChecks, Trophy, PlayCircle
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
@@ -46,7 +46,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         { path: '/', label: 'الرئيسية', icon: LayoutGrid },
         { path: '/plan', label: 'الخطة الأسبوعية', icon: CalendarDays },
         { path: '/evaluation', label: 'الدرجات والنتائج', icon: Activity },
-        { path: '/exams', label: 'الاختبارات', icon: FileQuestion },
+        { path: '/exams', label: 'الاختبارات الرقمية', icon: FileQuestion },
         { path: '/attendance', label: 'سجل الحضور', icon: Calendar },
         { path: '/certificates', label: 'الأوسمة والجوائز', icon: Award },
         { path: '/library', label: 'المكتبة الرقمية', icon: Library },
@@ -96,6 +96,26 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 </div>
             </aside>
 
+            {/* Mobile Menu Overlay */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 bg-black/50 z-[100] lg:hidden animate-fade-in" onClick={() => setIsMobileMenuOpen(false)}>
+                    <aside className="w-64 h-full bg-white flex flex-col animate-slide-in-right" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b flex justify-between items-center">
+                            <span className="font-bold">القائمة</span>
+                            <button onClick={() => setIsMobileMenuOpen(false)}><X/></button>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-1">
+                            {navItems.map(item => (
+                                <button key={item.path} onClick={() => { navigate(item.path); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${location.pathname === item.path ? 'bg-indigo-600 text-white' : 'text-slate-600'}`}>
+                                    <item.icon size={18} />
+                                    <span className="text-sm">{item.label}</span>
+                                </button>
+                            ))}
+                        </nav>
+                    </aside>
+                </div>
+            )}
+
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden relative">
                 {/* Mobile Header */}
@@ -126,7 +146,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     );
 };
 
-// --- Enhanced Dashboard ---
+// --- Dashboard ---
 const StudentDashboard = ({ student, attendance, performance, terms }: any) => {
     const navigate = useNavigate();
     const myAtt = attendance.filter((a: any) => a.studentId === student.id);
@@ -145,12 +165,18 @@ const StudentDashboard = ({ student, attendance, performance, terms }: any) => {
                         <p className="text-indigo-200 text-lg font-medium leading-relaxed">أنت تبلي بلاءً حسناً. واصل هذا المستوى المتميز لتحقيق أهدافك.</p>
                         <div className="flex gap-4 mt-8">
                             <button onClick={() => navigate('/plan')} className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-bold hover:scale-105 transition-transform flex items-center gap-2 shadow-xl"><Calendar size={20}/> جدول اليوم</button>
-                            <button onClick={() => navigate('/certificates')} className="bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold border border-indigo-500 hover:bg-indigo-600 transition-colors flex items-center gap-2"><Trophy size={20}/> إنجازاتي</button>
+                            <button onClick={() => navigate('/exams')} className="bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold border border-indigo-500 hover:bg-indigo-600 transition-colors flex items-center gap-2"><FileQuestion size={20}/> الاختبارات</button>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <StatsBox label="معدل الحضور" value={`${attRate}%`} icon={<CheckCircle className="text-emerald-400"/>} color="bg-emerald-500/20" />
-                        <StatsBox label="متوسط الدرجات" value={`${avgScore}%`} icon={<TrendingUp className="text-blue-400"/>} color="bg-blue-500/20" />
+                        <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10 text-center">
+                             <div className="text-3xl font-black">{attRate}%</div>
+                             <div className="text-[10px] opacity-70 font-bold uppercase mt-1">نسبة الحضور</div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10 text-center">
+                             <div className="text-3xl font-black">{avgScore}%</div>
+                             <div className="text-[10px] opacity-70 font-bold uppercase mt-1">متوسط الدرجات</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -158,11 +184,18 @@ const StudentDashboard = ({ student, attendance, performance, terms }: any) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                        <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><ListChecks size={24} className="text-indigo-600"/> التقييمات القادمة</h3>
-                        <div className="space-y-3">
-                            <UpcomingTask title="اختبار الرياضيات الدوري" date="بعد 3 أيام" type="اختبار" color="bg-red-50 text-red-700 border-red-100" />
-                            <UpcomingTask title="مشروع الحاسب الآلي" date="هذا الخميس" type="مهمة" color="bg-blue-50 text-blue-700 border-blue-100" />
-                            <UpcomingTask title="واجب اللغة الإنجليزية" date="غداً" type="واجب" color="bg-orange-50 text-orange-700 border-orange-100" />
+                        <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><TrendingUp size={24} className="text-indigo-600"/> تقدم المستوى</h3>
+                        <div className="h-64">
+                             <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={myPerf.slice(-7).map((p:any)=>({name: p.title, score: Math.round((p.score/p.maxScore)*100)}))}>
+                                    <defs><linearGradient id="colS" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/></linearGradient></defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
+                                    <XAxis dataKey="name" hide />
+                                    <YAxis hide domain={[0, 100]} />
+                                    <Tooltip />
+                                    <Area type="monotone" dataKey="score" stroke="#4f46e5" strokeWidth={3} fill="url(#colS)" />
+                                </AreaChart>
+                             </ResponsiveContainer>
                         </div>
                     </div>
                 </div>
@@ -180,25 +213,205 @@ const StudentDashboard = ({ student, attendance, performance, terms }: any) => {
     );
 };
 
-const StatsBox = ({ label, value, icon, color }: any) => (
-    <div className={`${color} backdrop-blur-md p-6 rounded-3xl border border-white/10 flex flex-col items-center text-center`}>
-        <div className="mb-2">{icon}</div>
-        <div className="text-3xl font-black">{value}</div>
-        <div className="text-[10px] opacity-70 font-bold uppercase tracking-widest mt-1">{label}</div>
-    </div>
-);
+// --- Exams View (Functional) ---
+const StudentExamsView = ({ student }: { student: Student }) => {
+    const [exams, setExams] = useState<Exam[]>([]);
+    const [results, setResults] = useState<ExamResult[]>([]);
+    const [activeExam, setActiveExam] = useState<Exam | null>(null);
 
-const UpcomingTask = ({ title, date, type, color }: any) => (
-    <div className={`p-4 rounded-2xl border flex justify-between items-center ${color}`}>
-        <div className="flex items-center gap-3">
-            <div className="font-bold text-sm">{title}</div>
-            <span className="text-[10px] opacity-60 font-black uppercase">[{type}]</span>
+    useEffect(() => {
+        const allExams = getExams().filter(e => e.isActive && (e.gradeLevel === student.gradeLevel || e.gradeLevel === 'عام'));
+        setExams(allExams);
+        setResults(getExamResults().filter(r => r.studentId === student.id));
+    }, [student]);
+
+    if (activeExam) {
+        return <ExamPlayer exam={activeExam} student={student} onComplete={() => setActiveExam(null)} />;
+    }
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2"><FileQuestion className="text-indigo-600"/> الاختبارات الإلكترونية</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {exams.map(exam => {
+                    const myResult = results.find(r => r.examId === exam.id);
+                    return (
+                        <div key={exam.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-indigo-300 transition-all">
+                            <div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><BookOpen size={24}/></div>
+                                    {myResult ? (
+                                        <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">تم الإكمال</div>
+                                    ) : (
+                                        <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">متاح للحل</div>
+                                    )}
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 mb-2">{exam.title}</h3>
+                                <p className="text-sm text-slate-500 mb-4">{exam.subject} • {exam.questions.length} أسئلة • {exam.durationMinutes} دقيقة</p>
+                            </div>
+                            
+                            {myResult ? (
+                                <div className="mt-4 pt-4 border-t flex justify-between items-center">
+                                    <div>
+                                        <p className="text-xs text-slate-400 font-bold uppercase">درجتك</p>
+                                        <p className="text-2xl font-black text-indigo-600">{myResult.score} / {myResult.totalScore}</p>
+                                    </div>
+                                    <button onClick={() => alert('ميزة مراجعة الإجابات ستتوفر قريباً')} className="text-sm font-bold text-slate-400 hover:text-indigo-600 underline">عرض التفاصيل</button>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => setActiveExam(exam)}
+                                    className="mt-6 w-full py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <PlayCircle size={20}/> ابدأ الاختبار الآن
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+                {exams.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[3rem]">لا توجد اختبارات متاحة حالياً</div>}
+            </div>
         </div>
-        <div className="text-xs font-bold">{date}</div>
-    </div>
-);
+    );
+};
 
-// --- Evaluation View (Grades) ---
+// --- Exam Player Component ---
+const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Student, onComplete: () => void }) => {
+    const [currentIdx, setCurrentIdx] = useState(0);
+    const [answers, setAnswers] = useState<Record<string, string>>({});
+    const [timeLeft, setTimeLeft] = useState(exam.durationMinutes * 60);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) { clearInterval(timer); handleSubmit(); return 0; }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const handleSubmit = async () => {
+        setIsSubmitting(true);
+        let score = 0;
+        let total = 0;
+        exam.questions.forEach(q => {
+            total += q.points;
+            if (answers[q.id] === q.correctAnswer) score += q.points;
+        });
+
+        const result: ExamResult = {
+            id: `res-${Date.now()}`,
+            examId: exam.id,
+            studentId: student.id,
+            studentName: student.name,
+            score,
+            totalScore: total,
+            date: new Date().toISOString(),
+            answers
+        };
+
+        saveExamResult(result);
+        setTimeout(() => {
+            alert(`تم تسليم الاختبار بنجاح! درجتك: ${score} من ${total}`);
+            onComplete();
+        }, 1000);
+    };
+
+    const q = exam.questions[currentIdx];
+    const progress = ((currentIdx + 1) / exam.questions.length) * 100;
+
+    return (
+        <div className="fixed inset-0 bg-slate-900 z-[200] flex flex-col text-white animate-fade-in" dir="rtl">
+            {/* Exam Header */}
+            <div className="p-6 bg-slate-800 border-b border-white/10 flex justify-between items-center shadow-xl">
+                <div>
+                    <h2 className="text-xl font-black">{exam.title}</h2>
+                    <p className="text-xs text-slate-400 mt-1">{exam.subject}</p>
+                </div>
+                <div className="flex items-center gap-6">
+                    <div className="text-center">
+                        <div className={`text-2xl font-mono font-bold ${timeLeft < 60 ? 'text-red-500 animate-pulse' : 'text-indigo-400'}`}>
+                            {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">الوقت المتبقي</span>
+                    </div>
+                    <button onClick={() => { if(confirm('هل تريد حقاً الخروج؟ لن يتم حفظ إجاباتك.')) onComplete(); }} className="p-2 hover:bg-white/10 rounded-full"><X size={24}/></button>
+                </div>
+            </div>
+
+            {/* Question Area */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-12 flex flex-col items-center">
+                <div className="w-full max-w-3xl">
+                    <div className="mb-10">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-bold text-indigo-400">سؤال {currentIdx + 1} من {exam.questions.length}</span>
+                            <span className="text-sm font-bold text-slate-500">درجة السؤال: {q.points}</span>
+                        </div>
+                        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                            <div className="bg-indigo-500 h-full transition-all duration-500" style={{width: `${progress}%`}}></div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-[2.5rem] p-8 md:p-12 border border-white/10 shadow-2xl backdrop-blur-xl animate-slide-up">
+                        <h3 className="text-2xl md:text-3xl font-bold mb-10 leading-relaxed text-right">{q.text}</h3>
+                        {q.imageUrl && <img src={q.imageUrl} className="max-h-60 mx-auto rounded-2xl mb-8 border border-white/10" />}
+
+                        <div className="grid grid-cols-1 gap-4">
+                            {q.options.map((opt, i) => (
+                                <button 
+                                    key={i} 
+                                    onClick={() => setAnswers({...answers, [q.id]: opt})}
+                                    className={`p-6 rounded-3xl text-right text-lg font-bold transition-all border-2 flex justify-between items-center group ${
+                                        answers[q.id] === opt 
+                                        ? 'bg-indigo-600 border-indigo-400 shadow-lg shadow-indigo-600/20' 
+                                        : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
+                                    }`}
+                                >
+                                    <span>{opt}</span>
+                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${answers[q.id] === opt ? 'bg-white border-white text-indigo-600' : 'border-white/20'}`}>
+                                        {answers[q.id] === opt && <Check size={14}/>}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Navigation Footer */}
+            <div className="p-6 bg-slate-800 border-t border-white/10 flex justify-between items-center">
+                <button 
+                    disabled={currentIdx === 0} 
+                    onClick={() => setCurrentIdx(prev => prev - 1)}
+                    className="px-8 py-3 rounded-2xl font-bold bg-white/5 hover:bg-white/10 disabled:opacity-30 transition-all flex items-center gap-2"
+                >
+                    <ChevronRight size={20}/> السابق
+                </button>
+
+                {currentIdx < exam.questions.length - 1 ? (
+                    <button 
+                        onClick={() => setCurrentIdx(prev => prev + 1)}
+                        className="px-8 py-3 bg-indigo-600 rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20"
+                    >
+                        التالي <ChevronLeft size={20}/>
+                    </button>
+                ) : (
+                    <button 
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className="px-12 py-3 bg-green-600 rounded-2xl font-bold hover:bg-green-700 transition-all flex items-center gap-2 shadow-lg shadow-green-600/20"
+                    >
+                        {isSubmitting ? 'جاري الإرسال...' : 'إنهاء وتسليم الإجابات'} <CheckCircle size={20}/>
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const StudentEvaluationView = ({ student, performance, attendance, terms }: any) => {
     const [selectedTermId, setSelectedTermId] = useState(terms.find((t:any)=>t.isCurrent)?.id || '');
     const yearConfig = useMemo(() => {
@@ -209,7 +422,7 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: any)
     const myPerf = useMemo(() => performance.filter((p:any) => p.studentId === student.id), [performance, student]);
     const termData = useMemo(() => {
         const term = terms.find((t:any) => t.id === selectedTermId);
-        if (!term) return { total: 0, items: [] };
+        if (!term) return { items: [] };
         const items = myPerf.filter(p => p.date >= term.startDate && p.date <= term.endDate);
         return { items };
     }, [selectedTermId, myPerf, terms]);
@@ -235,6 +448,7 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: any)
                                 <td className="p-4 text-center font-black text-indigo-600 text-lg">{p.score} <span className="text-xs font-normal text-gray-300">/ {p.maxScore}</span></td>
                             </tr>
                         ))}
+                        {termData.items.length === 0 && <tr><td colSpan={3} className="p-10 text-center text-slate-400">لا توجد درجات مرصودة لهذه الفترة</td></tr>}
                     </tbody>
                 </table>
             </div>
@@ -242,7 +456,6 @@ const StudentEvaluationView = ({ student, performance, attendance, terms }: any)
     );
 };
 
-// ... Remaining Profile/WeeklyPlan/Exams sub-components (Keep same as before or refine styling)
 const StudentProfile = ({ student }: { student: Student }) => (
     <div className="max-w-2xl mx-auto space-y-6 pb-10">
         <div className="bg-white rounded-[2.5rem] border shadow-xl overflow-hidden">
@@ -267,7 +480,6 @@ const StudentProfile = ({ student }: { student: Student }) => (
     </div>
 );
 
-// Placeholder for other sub-components... (Same as provided in last turn but ensure complete)
 const StudentWeeklyPlan = ({ student }: { student: Student }) => {
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();
@@ -290,13 +502,13 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
                         <div key={day} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                             <div className="bg-indigo-600 p-4 text-white font-black text-center">{dayNamesAr[day]}</div>
                             <div className="p-4 space-y-4 flex-1 overflow-y-auto max-h-[400px]">
-                                {dayPlans.map(plan => (
+                                {dayPlans.length > 0 ? dayPlans.map(plan => (
                                     <div key={plan.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                         <div className="flex items-center gap-2 mb-2"><span className="bg-white text-indigo-600 text-[10px] font-black px-2 py-0.5 rounded border">حصة {plan.period}</span><h4 className="font-bold text-sm text-slate-800">{plan.subjectName}</h4></div>
                                         <p className="text-xs text-slate-600 font-medium leading-relaxed">{plan.lessonTopic}</p>
                                         {plan.homework && <div className="mt-3 text-[10px] text-orange-600 bg-orange-50 p-2 rounded-lg border border-orange-100 font-bold">🏠 واجب: {plan.homework}</div>}
                                     </div>
-                                ))}
+                                )) : <div className="text-center py-10 text-slate-300 text-xs italic">لا توجد حصص مسجلة</div>}
                             </div>
                         </div>
                     );
@@ -305,13 +517,6 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
         </div>
     );
 };
-
-const StudentExamsView = ({ student }: any) => (
-    <div className="p-20 text-center text-slate-400 bg-white rounded-3xl border border-dashed border-gray-200">
-        <FileQuestion size={64} className="mx-auto mb-4 opacity-10"/>
-        <p className="text-xl font-bold">لا توجد اختبارات مجدولة حالياً</p>
-    </div>
-);
 
 const StudentAttendanceView = ({ student, attendance }: any) => (
     <div className="bg-white rounded-3xl border overflow-hidden">
@@ -322,8 +527,8 @@ const StudentAttendanceView = ({ student, attendance }: any) => (
             <tbody className="divide-y">
                 {attendance.filter((a:any)=>a.studentId === student.id).sort((a:any,b:any)=>new Date(b.date).getTime()-new Date(a.date).getTime()).map((a:any)=>(
                     <tr key={a.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 font-mono text-xs text-gray-500">{a.date}</td>
-                        <td className="p-4"><span className={`px-3 py-1 rounded-full text-[10px] font-bold ${a.status === 'PRESENT' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{a.status === 'PRESENT' ? 'حاضر' : 'غائب'}</span></td>
+                        <td className="p-4 font-mono text-xs text-gray-500">{formatDualDate(a.date)}</td>
+                        <td className="p-4"><span className={`px-3 py-1 rounded-full text-[10px] font-bold ${a.status === 'PRESENT' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{a.status === 'PRESENT' ? 'حاضر' : a.status === 'ABSENT' ? 'غائب' : 'متأخر'}</span></td>
                         <td className="p-4 text-xs text-gray-500 italic">{a.behaviorNote || '-'}</td>
                     </tr>
                 ))}
