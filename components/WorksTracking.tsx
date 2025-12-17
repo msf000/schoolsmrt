@@ -330,7 +330,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             if (!currentIdentityCol) throw new Error("لم يتم تحديد عمود اسم الطالب");
 
-            data.forEach(row => {
+            data.forEach((row: any) => {
                 const studentIdentity = row[currentIdentityCol];
                 if (!studentIdentity) return;
 
@@ -421,7 +421,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         let updatedCount = 0;
 
         // Iterate through sheet rows
-        sheetData.forEach(row => {
+        sheetData.forEach((row: any) => {
             const studentIdentity = row[identityColumn];
             if (!studentIdentity) return;
 
@@ -689,7 +689,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     )}
                 </div>
             ) : (
-                // YEAR WORK VIEW (UNCHANGED)
+                // YEAR WORK VIEW
                 <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                     <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-center text-sm border-collapse">
@@ -705,28 +705,37 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {filteredStudents.map(student => {
-                                    // ... logic unchanged ...
+                                    // Calculate aggregations dynamically
                                     const calcTotal = (cat: string, weight: number) => {
                                         const catAssigns = assignments.filter(a => a.category === cat && (!selectedTermId || a.termId === selectedTermId));
                                         let totalObtained = 0;
                                         let totalMax = 0;
+                                        
                                         catAssigns.forEach(assign => {
                                             const rec = performance.find(p => p.studentId === student.id && (p.notes === assign.id || p.title === assign.title));
-                                            if (rec) { totalObtained += rec.score; totalMax += rec.maxScore; } 
-                                            else { totalMax += assign.maxScore; }
+                                            if (rec) {
+                                                totalObtained += rec.score;
+                                                totalMax += rec.maxScore;
+                                            } else {
+                                                totalMax += assign.maxScore; // Assume 0 if missing
+                                            }
                                         });
+                                        
                                         const percentage = totalMax > 0 ? totalObtained / totalMax : 0;
                                         return Math.round(percentage * weight);
                                     };
+
                                     const hw = calcTotal('HOMEWORK', yearWorkConfig.hw);
                                     const act = calcTotal('ACTIVITY', yearWorkConfig.act);
                                     const exam = calcTotal('PLATFORM_EXAM', yearWorkConfig.exam);
                                     
+                                    // Attendance Calc
                                     const studAtt = attendance.filter(a => a.studentId === student.id);
                                     const totalDays = studAtt.length;
                                     const present = studAtt.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length;
                                     const attRate = totalDays > 0 ? present / totalDays : 1;
                                     const attScore = Math.round(attRate * yearWorkConfig.att);
+
                                     const total = hw + act + exam + attScore;
 
                                     return (
@@ -760,7 +769,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         </div>
 
                         <div className="flex-1 overflow-auto p-6 bg-gray-50">
-                            {/* MANUAL TAB (Unchanged) */}
                             {settingsTab === 'MANUAL' && (
                                 <div className="space-y-6">
                                     <div className="bg-white p-4 rounded-xl border border-gray-200">
@@ -820,7 +828,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </div>
                             )}
 
-                            {/* DISTRIBUTION TAB (Unchanged) */}
                             {settingsTab === 'DISTRIBUTION' && (
                                 <div className="max-w-2xl mx-auto space-y-6">
                                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
@@ -828,7 +835,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <PieChartIcon size={18}/> توزيع درجات أعمال السنة
                                         </h4>
                                         <div className="grid grid-cols-2 gap-4">
-                                            {/* ... Inputs ... */}
                                             <div className="bg-white p-3 rounded-lg border border-orange-100">
                                                 <label className="block text-xs font-bold text-gray-500 mb-1">الواجبات</label>
                                                 <input type="number" className="w-full p-2 border rounded font-bold text-center text-lg" value={yearWorkConfig.hw} onChange={e => setYearWorkConfig({...yearWorkConfig, hw: Number(e.target.value)})}/>
@@ -854,7 +860,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 </div>
                             )}
                             
-                            {/* SHEET TAB (Updated) */}
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6">
                                     <div className="bg-green-50 p-6 rounded-xl border border-green-200">
