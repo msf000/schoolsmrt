@@ -11,7 +11,7 @@ interface State {
 }
 
 class ErrorBoundary extends React.Component<Props, State> {
-  // Directly initializing state property for TS class component
+  // Define state property directly
   public state: State = {
     hasError: false
   };

@@ -65,6 +65,20 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
     
     const isManager = currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'SUPER_ADMIN';
 
+    const handleDashboardNavigate = (view: string) => {
+        switch(view) {
+            case 'CLASSROOM_MANAGEMENT': navigate('/classroom'); break;
+            case 'ATTENDANCE': navigate('/attendance'); break;
+            case 'EXAMS_MANAGER': navigate('/exams'); break;
+            case 'AUTO_GRADING': navigate('/auto-grading'); break;
+            case 'STUDENT_FOLLOWUP': navigate('/followup'); break;
+            case 'AI_REPORTS': navigate('/reports'); break;
+            case 'WORKS_TRACKING': navigate('/works'); break;
+            case 'AI_TOOLS': navigate('/ai-tools'); break;
+            default: navigate('/');
+        }
+    };
+
     const NavItem = ({ path, label, icon: Icon }: any) => (
         <button 
             onClick={() => { navigate(path); setIsSidebarOpen(false); }}
@@ -172,7 +186,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                 </header>
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
                     <Routes>
-                        <Route path="/" element={<Dashboard students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser} onNavigate={(v: string) => navigate(v === 'CLASSROOM_MANAGEMENT' ? '/classroom' : v === 'ATTENDANCE' ? '/attendance' : v === 'EXAMS_MANAGER' ? '/exams' : v === 'AUTO_GRADING' ? '/auto-grading' : v === 'STUDENT_FOLLOWUP' ? '/followup' : v === 'AI_REPORTS' ? '/reports' : '/')} />} />
+                        <Route path="/" element={<Dashboard students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser} onNavigate={handleDashboardNavigate} />} />
                         <Route path="/students" element={<Students students={props.students} attendance={props.attendance} performance={props.performance} onAddStudent={props.addStudent} onUpdateStudent={props.updateStudent} onDeleteStudent={props.deleteStudent} onImportStudents={props.importStudents} currentUser={currentUser} />} />
                         <Route path="/attendance" element={<AttendanceComponent students={props.students} attendanceHistory={props.attendance} onSaveAttendance={props.saveAttendance} onImportAttendance={props.importAttendance} currentUser={currentUser} onNavigate={() => {}} />} />
                         <Route path="/classroom" element={<ClassroomManager students={props.students} attendance={props.attendance} performance={props.performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={props.saveAttendance} onImportAttendance={props.importAttendance} currentUser={currentUser} />} />

@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, ScheduleItem, SystemUser, AcademicTerm, Exam } from '../types';
 import { getSchedules, getExams, getAcademicTerms, getTeacherPeriodTimings, getWeeklyPlans, getLessonPlans, getExamResults } from '../services/storageService';
-import { Users, Clock, Activity, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, BookOpen, MessageSquare, Check, X, ArrowRight, TrendingUp, Calendar, Timer } from 'lucide-react';
+import { Users, Clock, Activity, CalendarDays, FileQuestion, Filter, CheckCircle, PieChart as PieIcon, AlertTriangle, MonitorPlay, BookOpen, MessageSquare, Check, X, ArrowRight, TrendingUp, Calendar, Timer, ScanLine, BrainCircuit, Table } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -373,6 +373,31 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               </div>
               <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
                   <FileQuestion size={24}/>
+              </div>
+          </div>
+      </div>
+
+      {/* --- NEW: Quick Actions Section --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div onClick={() => onNavigate('WORKS_TRACKING')} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group flex items-center gap-3">
+              <div className="bg-purple-50 p-3 rounded-lg text-purple-600 group-hover:scale-110 transition-transform"><Table size={20}/></div>
+              <div>
+                  <h4 className="font-bold text-gray-800">رصد الدرجات</h4>
+                  <p className="text-xs text-gray-500">كشف المتابعة والدرجات</p>
+              </div>
+          </div>
+          <div onClick={() => onNavigate('AI_TOOLS')} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group flex items-center gap-3">
+              <div className="bg-teal-50 p-3 rounded-lg text-teal-600 group-hover:scale-110 transition-transform"><BrainCircuit size={20}/></div>
+              <div>
+                  <h4 className="font-bold text-gray-800">الأدوات الذكية (AI)</h4>
+                  <p className="text-xs text-gray-500">تحضير، اختبارات، خطط</p>
+              </div>
+          </div>
+          <div onClick={() => onNavigate('AUTO_GRADING')} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group flex items-center gap-3">
+              <div className="bg-orange-50 p-3 rounded-lg text-orange-600 group-hover:scale-110 transition-transform"><ScanLine size={20}/></div>
+              <div>
+                  <h4 className="font-bold text-gray-800">المصحح الآلي</h4>
+                  <p className="text-xs text-gray-500">تصحيح الأوراق بالكاميرا</p>
               </div>
           </div>
       </div>
