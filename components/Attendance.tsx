@@ -99,7 +99,6 @@ const Attendance: React.FC<AttendanceProps> = ({
   });
 
   // Filter States
-  const [logFilterClass, setLogFilterClass] = useState('');
   const [logFilterDateStart, setLogFilterDateStart] = useState(() => {
       const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0];
   });
@@ -192,10 +191,15 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   // --- HELPERS ---
   const uniqueClasses = useMemo(() => {
-      const studentClasses = new Set(students.map(s => s.className).filter(Boolean));
+      const studentClasses = new Set<string>();
+      students.forEach(s => {
+          if (s.className) studentClasses.add(s.className);
+      });
       // Merge with manually defined classes from Settings
       const definedClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
-      definedClasses.forEach(c => studentClasses.add(c));
+      definedClasses.forEach(c => {
+          if (c) studentClasses.add(c);
+      });
       
       return Array.from(studentClasses).sort();
   }, [students, currentUser]);
