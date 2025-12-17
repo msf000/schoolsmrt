@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, downloadFromSupabase, bulkAddPerformance, deletePerformance, forceRefreshData, getTeacherAssignments } from '../services/storageService';
-import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff } from 'lucide-react';
+import { fetchWorkbookStructureUrl, getSheetHeadersAndData, extractGoogleSheetId, fetchGoogleSheetData } from '../services/excelService';
+import { Save, Filter, Table, Download, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, Link as LinkIcon, DownloadCloud, X, Check, ExternalLink, RefreshCw, Loader2, CheckSquare, Square, AlertTriangle, ArrowRight, Calculator, CloudLightning, Zap, Edit2, Grid, ListFilter, Tag, ArrowDownToLine, Maximize, Link2, PieChart as PieChartIcon, ChevronRight, PenTool, Clipboard, Printer, MoreVertical, Eye, EyeOff, Map, ArrowDownCircle, CheckCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataImport from './DataImport';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area, PieChart, Pie, Legend } from 'recharts';
@@ -77,14 +76,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSheetSyncing, setIsSheetSyncing] = useState(false);
-    const [syncStatusMsg, setSyncStatusMsg] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
 
     const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
         hw: 10, act: 10, att: 5, exam: 20
     });
 
+    // --- Google Sheet Integration State ---
     const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+    const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
+    const [sheetData, setSheetData] = useState<any[]>([]);
+    const [sheetName, setSheetName] = useState('');
+    const [connectionStatus, setConnectionStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
+    const [identityColumn, setIdentityColumn] = useState(() => localStorage.getItem('works_sheet_identity_col') || '');
     
     // Independent state for Settings Modal
     const [settingTermId, setSettingTermId] = useState('');
@@ -98,7 +102,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     
     // --- Mobile Grading Mode State ---
     const [mobileGradingMode, setMobileGradingMode] = useState(false);
-    const [selectedMobileAssignment, setSelectedMobileAssignment] = useState<Assignment | null>(null);
 
     useEffect(() => {
         const syncData = async () => {
@@ -139,24 +142,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
     useEffect(() => {
         if (currentUser) {
-            // Pass 'true' as 3rd arg to fetch ALL assignments, then filter locally.
-            // This fixes the bug where teachers saw no columns because isManager was false.
             setAssignments(getAssignments('ALL', currentUser.id, true));
         }
     }, [activeTab, currentUser, isManager, selectedTermId, selectedPeriodId]);
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
-    const activePeriods = useMemo(() => { if (!activeTerm?.periods) return []; return [...activeTerm.periods].sort((a, b) => { const dateA = a.startDate || ''; const dateB = b.startDate || ''; if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB); return a.name.localeCompare(b.name, 'ar'); }); }, [activeTerm]);
-    const settingsTermObj = terms.find(t => t.id === settingTermId);
-    const settingsPeriods = useMemo(() => { if (!settingsTermObj?.periods) return []; return [...settingsTermObj.periods].sort((a, b) => { const dateA = a.startDate || ''; const dateB = b.startDate || ''; if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB); return a.name.localeCompare(b.name, 'ar'); }); }, [settingsTermObj]);
-    
-    // --- UPDATED: Merge Student Classes with Manually Defined Classes ---
     const uniqueClasses = useMemo(() => { 
         const classes = new Set(students.map(s => s.className).filter(Boolean));
-        // Add manual classes
         const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
         manualClasses.forEach(c => classes.add(c));
-        
         return Array.from(classes).sort(); 
     }, [students, currentUser]);
 
@@ -165,12 +159,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     
     // --- Score Logic ---
     const getStudentScore = (studentId: string, assignmentId: string) => {
-        // First check local state (unsaved edits)
         if (scores[studentId] && scores[studentId][assignmentId] !== undefined) {
             return scores[studentId][assignmentId];
         }
-        // Then check database (via performance prop)
-        const record = performance.find(p => p.studentId === studentId && (p.notes === assignmentId)); // Linking by Assignment ID in 'notes'
+        const record = performance.find(p => p.studentId === studentId && (p.notes === assignmentId)); 
         return record ? record.score.toString() : '';
     };
 
@@ -202,8 +194,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 const assignment = assignments.find(a => a.id === assignmentId);
                 if (!assignment) return;
 
-                // Create or Update Record
-                // ID logic: unique combo of student + assignment
                 const recordId = `${studentId}_${assignmentId}`;
                 
                 if (valStr.trim() === '') {
@@ -232,9 +222,113 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             bulkAddPerformance(recordsToSave);
         }
         
-        setScores({}); // Clear local unsaved state
+        setScores({}); 
         setIsSaving(false);
         setLastSaved(new Date());
+    };
+
+    // --- Google Sheets Integration ---
+    const handleConnectSheet = async () => {
+        if (!googleSheetUrl) return;
+        setIsSheetSyncing(true);
+        setConnectionStatus('IDLE');
+        try {
+            const sheetId = extractGoogleSheetId(googleSheetUrl);
+            if (!sheetId) throw new Error("رابط غير صالح");
+            
+            const apiKey = process.env.API_KEY || ''; 
+            const { sheetName, headers, data } = await fetchGoogleSheetData(sheetId, apiKey);
+            
+            setSheetName(sheetName);
+            setSheetHeaders(headers);
+            setSheetData(data);
+            saveWorksMasterUrl(googleSheetUrl);
+            setConnectionStatus('SUCCESS');
+            
+            // Auto-detect identity column if not set
+            if (!identityColumn) {
+                const guessedIdentity = headers.find(h => STUDENT_NAME_HEADERS.includes(h.toLowerCase()));
+                if (guessedIdentity) {
+                    setIdentityColumn(guessedIdentity);
+                    localStorage.setItem('works_sheet_identity_col', guessedIdentity);
+                }
+            }
+        } catch (e: any) {
+            console.error(e);
+            setConnectionStatus('ERROR');
+            alert(e.message || "فشل الاتصال.");
+        } finally {
+            setIsSheetSyncing(false);
+        }
+    };
+
+    const handleMapColumn = (assignmentId: string, sheetHeader: string) => {
+        const assignment = assignments.find(a => a.id === assignmentId);
+        if (assignment) {
+            const meta = assignment.sourceMetadata ? JSON.parse(assignment.sourceMetadata) : {};
+            meta.sheetHeader = sheetHeader;
+            
+            const updated = { ...assignment, sourceMetadata: JSON.stringify(meta) };
+            saveAssignment(updated);
+            setAssignments(prev => prev.map(a => a.id === assignmentId ? updated : a));
+        }
+    };
+
+    const handleSyncGrades = () => {
+        if (sheetData.length === 0) return alert("يرجى الاتصال بالملف أولاً");
+        if (!identityColumn) return alert("يرجى تحديد عمود اسم الطالب أولاً");
+
+        setIsSheetSyncing(true);
+        const recordsToSync: PerformanceRecord[] = [];
+        let updatedCount = 0;
+
+        // Iterate through sheet rows
+        sheetData.forEach(row => {
+            const studentIdentity = row[identityColumn];
+            if (!studentIdentity) return;
+
+            // Find matching student
+            const student = students.find(s => s.name.trim() === String(studentIdentity).trim() || s.nationalId === String(studentIdentity).trim());
+            
+            if (student) {
+                // Check all mapped assignments
+                assignments.forEach(assign => {
+                    if (assign.sourceMetadata) {
+                        const meta = JSON.parse(assign.sourceMetadata);
+                        const header = meta.sheetHeader;
+                        
+                        if (header && row[header] !== undefined) {
+                            const val = row[header];
+                            const numVal = parseFloat(val);
+                            
+                            if (!isNaN(numVal)) {
+                                recordsToSync.push({
+                                    id: `${student.id}_${assign.id}`,
+                                    studentId: student.id,
+                                    subject: selectedSubject || 'عام',
+                                    title: assign.title,
+                                    category: assign.category,
+                                    score: numVal,
+                                    maxScore: assign.maxScore,
+                                    date: new Date().toISOString().split('T')[0],
+                                    notes: assign.id,
+                                    createdById: currentUser?.id
+                                });
+                                updatedCount++;
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        if (recordsToSync.length > 0) {
+            bulkAddPerformance(recordsToSync);
+            alert(`تمت مزامنة ${updatedCount} درجة بنجاح!`);
+        } else {
+            alert("لم يتم العثور على بيانات مطابقة. تأكد من أسماء الطلاب وتعيين الأعمدة.");
+        }
+        setIsSheetSyncing(false);
     };
 
     // --- Settings Handlers ---
@@ -250,10 +344,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             teacherId: currentUser?.id,
             termId: settingTermId,
             periodId: settingPeriodId || undefined,
-            classId: undefined // General for all classes for now
+            classId: undefined 
         };
         saveAssignment(newAssign);
-        setAssignments(getAssignments('ALL', currentUser?.id, true)); // Refresh list
+        setAssignments(getAssignments('ALL', currentUser?.id, true)); 
         setNewColTitle('');
     };
 
@@ -269,7 +363,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (assign) {
             const updated = { ...assign, isVisible: !assign.isVisible };
             saveAssignment(updated);
-            setAssignments(getAssignments('ALL', currentUser?.id, true)); // Refresh
+            setAssignments(getAssignments('ALL', currentUser?.id, true)); 
         }
     };
 
@@ -367,7 +461,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); toggleAssignmentVisibility(col.id); }}
                                                             className={`p-1 rounded-full transition-colors ${col.isVisible ? 'text-gray-300 hover:text-blue-500' : 'text-red-500 bg-red-100 hover:text-red-700'}`}
-                                                            title={col.isVisible ? 'إخفاء عن الطلاب' : 'إظهار للطلاب'}
+                                                            title={col.isVisible ? 'ظاهر للطلاب' : 'مخفي عن الطلاب'}
                                                         >
                                                             {col.isVisible ? <Eye size={12}/> : <EyeOff size={12}/>}
                                                         </button>
@@ -576,27 +670,103 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6">
-                                    <div className="bg-green-50 p-4 rounded-xl border border-green-200">
-                                        <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2">
-                                            <FileSpreadsheet size={18}/> الربط مع Google Sheets
+                                    <div className="bg-green-50 p-6 rounded-xl border border-green-200">
+                                        <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2">
+                                            <FileSpreadsheet size={20}/> إعدادات الربط مع Google Sheets
                                         </h4>
-                                        <p className="text-xs text-green-700 mb-4">الصق رابط الملف العام (Published / Anyone with link) للمزامنة التلقائية.</p>
-                                        <div className="flex gap-2">
-                                            <input 
-                                                className="flex-1 p-2 border rounded text-sm dir-ltr" 
-                                                placeholder="https://docs.google.com/spreadsheets/d/..."
-                                                value={googleSheetUrl}
-                                                onChange={e => setGoogleSheetUrl(e.target.value)}
-                                            />
-                                            <button 
-                                                onClick={() => { saveWorksMasterUrl(googleSheetUrl); alert('تم حفظ الرابط'); }}
-                                                className="bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700 text-sm"
-                                            >
-                                                حفظ الرابط
-                                            </button>
+                                        
+                                        <div className="space-y-4">
+                                            {/* Connection Area */}
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    className="flex-1 p-3 border rounded-lg text-sm dir-ltr bg-white" 
+                                                    placeholder="الصق رابط الملف (https://docs.google.com/spreadsheets/d/...)"
+                                                    value={googleSheetUrl}
+                                                    onChange={e => setGoogleSheetUrl(e.target.value)}
+                                                />
+                                                <button 
+                                                    onClick={handleConnectSheet}
+                                                    disabled={isSheetSyncing}
+                                                    className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 text-sm flex items-center gap-2 disabled:opacity-50"
+                                                >
+                                                    {isSheetSyncing ? <Loader2 className="animate-spin" size={16}/> : <LinkIcon size={16}/>}
+                                                    اتصال
+                                                </button>
+                                            </div>
+
+                                            {/* Status Feedback */}
+                                            {connectionStatus === 'SUCCESS' && (
+                                                <div className="bg-green-100 text-green-700 p-3 rounded-lg text-sm flex items-center gap-2">
+                                                    <CheckCircle size={16}/> تم الاتصال بنجاح بالورقة: <b>{sheetName}</b>
+                                                </div>
+                                            )}
+                                            {connectionStatus === 'ERROR' && (
+                                                <div className="bg-red-100 text-red-700 p-3 rounded-lg text-sm flex items-center gap-2">
+                                                    <AlertTriangle size={16}/> فشل الاتصال. تأكد أن الملف عام (Anyone with link) أو تحقق من المفتاح.
+                                                </div>
+                                            )}
+
+                                            {/* Mapping Config (Only if connected) */}
+                                            {connectionStatus === 'SUCCESS' && sheetHeaders.length > 0 && (
+                                                <div className="bg-white p-4 rounded-xl border border-green-200 mt-4 animate-fade-in">
+                                                    <h5 className="font-bold text-gray-700 mb-3 text-sm flex items-center gap-2"><Map size={16}/> مطابقة الأعمدة</h5>
+                                                    
+                                                    {/* Identity Mapping */}
+                                                    <div className="mb-4 bg-gray-50 p-3 rounded-lg border">
+                                                        <label className="block text-xs font-bold text-gray-500 mb-2">1. عمود اسم الطالب / الهوية (للمطابقة)</label>
+                                                        <select 
+                                                            className="w-full p-2 border rounded-lg bg-white font-bold text-indigo-700"
+                                                            value={identityColumn}
+                                                            onChange={e => {
+                                                                setIdentityColumn(e.target.value);
+                                                                localStorage.setItem('works_sheet_identity_col', e.target.value);
+                                                            }}
+                                                        >
+                                                            <option value="">-- اختر العمود --</option>
+                                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Grades Mapping */}
+                                                    <div className="mb-4">
+                                                        <label className="block text-xs font-bold text-gray-500 mb-2">2. ربط أعمدة الدرجات (Assignment -&gt; Sheet Column)</label>
+                                                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
+                                                            {assignments.map(assign => {
+                                                                const meta = assign.sourceMetadata ? JSON.parse(assign.sourceMetadata) : {};
+                                                                return (
+                                                                    <div key={assign.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded border">
+                                                                        <span className="text-sm font-bold w-1/3 truncate" title={assign.title}>{assign.title}</span>
+                                                                        <ArrowRight size={14} className="text-gray-400"/>
+                                                                        <select 
+                                                                            className="flex-1 p-1.5 border rounded text-xs"
+                                                                            value={meta.sheetHeader || ''}
+                                                                            onChange={e => handleMapColumn(assign.id, e.target.value)}
+                                                                        >
+                                                                            <option value="">(غير مرتبط)</option>
+                                                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Action */}
+                                                    <div className="pt-2 border-t flex justify-end">
+                                                        <button 
+                                                            onClick={handleSyncGrades}
+                                                            disabled={isSheetSyncing || !identityColumn}
+                                                            className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md disabled:opacity-50"
+                                                        >
+                                                            {isSheetSyncing ? <Loader2 className="animate-spin" size={16}/> : <ArrowDownCircle size={16}/>}
+                                                            سحب الدرجات وتحديث السجل
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                    <p className="text-center text-gray-400 text-xs">ميزة المزامنة التلقائية تتطلب ضبط الأعمدة لتطابق عناوين الملف.</p>
+                                    <p className="text-center text-gray-400 text-xs">ملاحظة: تأكد من تطابق أسماء الطلاب أو أرقام الهوية بين النظام وملف Excel لضمان دقة المزامنة.</p>
                                 </div>
                             )}
                         </div>
