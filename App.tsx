@@ -1,8 +1,7 @@
+
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
-import { 
-    Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme 
-} from './types';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme } from './types';
 import { 
     getStudents, getAttendance, getPerformance, 
     addStudent, updateStudent, deleteStudent, 
@@ -10,20 +9,18 @@ import {
     bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
     getUserTheme, bulkUpsertStudents,
     setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
-    forceRefreshData, initRealtimeSync, stopRealtimeSync, initAutoSync
+    initRealtimeSync, stopRealtimeSync, initAutoSync
 } from './services/storageService';
 import { isSupabaseConfigured } from './services/supabaseClient';
 import { checkAIConnection } from './services/geminiService';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, Loader2, Sparkles } from 'lucide-react';
 
-// Imports
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
 import ParentPortal from './components/ParentPortal';
 import TeacherPortal from './components/TeacherPortal';
 import ReloadPrompt from './components/ReloadPrompt';
 
-// --- CONTEXT ---
 interface AppContextType {
     currentUser: SystemUser | null;
     students: Student[];
@@ -35,8 +32,6 @@ interface AppContextType {
     refreshData: () => void;
     login: (user: SystemUser, remember: boolean) => void;
     logout: () => void;
-    
-    // Actions
     addStudent: (s: Student) => void;
     updateStudent: (s: Student) => void;
     deleteStudent: (id: string) => void;
@@ -49,7 +44,6 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | null>(null);
-
 export const useApp = () => {
     const context = useContext(AppContext);
     if (!context) throw new Error("useApp must be used within AppProvider");
@@ -57,23 +51,8 @@ export const useApp = () => {
 };
 
 const App: React.FC = () => {
-    // Auth State with Safe Initialization
-    const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => {
-        try {
-            const saved = localStorage.getItem('current_user');
-            if (!saved || saved === "undefined" || saved === "null") return null;
-            const parsed = JSON.parse(saved);
-            // Validate essential fields to prevent crash
-            if (!parsed || !parsed.id || !parsed.role || !parsed.name) return null;
-            return parsed;
-        } catch (e) {
-            console.error("Failed to parse user", e);
-            localStorage.removeItem('current_user');
-            return null;
-        }
-    });
-
-    // Data State
+    const [isAppLoading, setIsAppLoading] = useState(true);
+    const [currentUser, setCurrentUser] = useState<SystemUser | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
@@ -81,183 +60,145 @@ const App: React.FC = () => {
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
     const [aiStatus, setAiStatus] = useState('IDLE');
     const [isOnline, setIsOnline] = useState(navigator.onLine);
-    
     const navigate = useNavigate();
 
-    // Network Status Listener
+    const refreshData = () => {
+        try {
+            let allStudents = getStudents();
+            let allAttendance = getAttendance();
+            let allPerformance = getPerformance();
+            
+            // Apply filtering logic if user is teacher
+            if (currentUser && currentUser.role === 'TEACHER') {
+                allStudents = allStudents.filter(s => 
+                    (currentUser.schoolId && s.schoolId === currentUser.schoolId) || 
+                    s.createdById === currentUser.id || !s.createdById
+                );
+            }
+
+            setStudents(allStudents);
+            setAttendance(allAttendance);
+            setPerformance(allPerformance);
+            setTheme(getUserTheme());
+        } catch (err) {
+            console.error("Critical error refreshing data", err);
+        }
+    };
+
     useEffect(() => {
+        const bootApp = async () => {
+            setIsAppLoading(true);
+            try {
+                // Load user first
+                const saved = localStorage.getItem('current_user');
+                if (saved && saved !== "undefined") {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.id) setCurrentUser(parsed);
+                }
+
+                // Sync from cloud if configured
+                if (isSupabaseConfigured()) {
+                    await initAutoSync();
+                    initRealtimeSync();
+                }
+
+                refreshData();
+                checkAIConnection().then(res => setAiStatus(res.success ? 'CONNECTED' : 'ERROR')).catch(() => {});
+            } catch (err) {
+                console.error("App boot sequence failed", err);
+            } finally {
+                // Ensure small delay for smoother transition
+                setTimeout(() => setIsAppLoading(false), 800);
+            }
+        };
+
+        bootApp();
+
+        const unsubSync = subscribeToSyncStatus(setSyncStatus);
+        const unsubData = subscribeToDataChanges(refreshData);
+        
         const handleOnline = () => { setIsOnline(true); setSystemMode(true); };
         const handleOffline = () => { setIsOnline(false); setSystemMode(false); };
-
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
         return () => {
+            unsubSync(); unsubData(); stopRealtimeSync();
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
 
-    // Theme Application Effect
-    useEffect(() => {
-        const root = document.documentElement;
-        if (theme.mode === 'DARK') {
-            root.classList.add('dark');
-        } else {
-            root.classList.remove('dark');
-        }
-        
-        if (theme.backgroundStyle === 'GRADIENT') {
-             document.body.style.background = theme.mode === 'DARK' 
-                ? 'linear-gradient(135deg, #1f2937 0%, #111827 100%)' 
-                : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)';
-             document.body.style.backgroundAttachment = 'fixed';
-        } else {
-             document.body.style.background = '';
-             document.body.style.backgroundColor = theme.mode === 'DARK' ? '#111827' : '#f9fafb';
-        }
-    }, [theme]);
-
-    // Init Logic
-    useEffect(() => {
-        // ALWAYS try to sync on app load, even if not logged in (for parent portal data etc)
-        if (isSupabaseConfigured()) {
-            initAutoSync().then(refreshData);
-            if (currentUser) initRealtimeSync();
-        }
-
-        if (currentUser) {
-            refreshData();
-            checkAIConnection().then((res: { success: boolean; message: string }) => setAiStatus(res.success ? 'CONNECTED' : 'ERROR'));
-            
-            const unsubSync = subscribeToSyncStatus(setSyncStatus);
-            const unsubData = subscribeToDataChanges(refreshData);
-            return () => { unsubSync(); unsubData(); stopRealtimeSync(); };
-        }
-    }, [currentUser]);
-
-    const refreshData = () => {
-        let allStudents = getStudents();
-        let allAttendance = getAttendance();
-        let allPerformance = getPerformance();
-        
-        if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'PARENT') {
-             if (currentUser.role === 'TEACHER') {
-                 allStudents = allStudents.filter(s => (currentUser.schoolId && s.schoolId === currentUser.schoolId) || s.createdById === currentUser.id || !s.createdById);
-             }
-        }
-        setStudents(allStudents);
-        setAttendance(allAttendance);
-        setPerformance(allPerformance);
-        setTheme(getUserTheme());
-    };
-
     const login = (user: SystemUser, remember: boolean) => {
-        if (!user || !user.id || !user.role) {
-            alert('بيانات المستخدم غير صالحة');
-            return;
-        }
         setCurrentUser(user);
         if (remember) localStorage.setItem('current_user', JSON.stringify(user));
+        refreshData();
         navigate('/');
     };
 
     const logout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
-        setSystemMode(false);
         stopRealtimeSync();
         navigate('/');
     };
 
-    // Actions
-    const handleAddStudent = (s: Student) => { addStudent(s); refreshData(); };
-    const handleUpdateStudent = (s: Student) => { updateStudent(s); refreshData(); };
-    const handleDeleteStudent = (id: string) => { deleteStudent(id); refreshData(); };
-    const handleSaveAttendance = (recs: AttendanceRecord[]) => { 
-        const enriched = recs.map(r => ({ ...r, createdById: r.createdById || currentUser?.id }));
-        saveAttendance(enriched); refreshData(); 
-    };
-    const handleAddPerformance = (p: PerformanceRecord | PerformanceRecord[]) => {
-        if (Array.isArray(p)) bulkAddPerformance(p.map(x => ({...x, createdById: currentUser?.id})));
-        else addPerformance({...p, createdById: currentUser?.id});
-        refreshData();
-    };
-    const handleDeletePerformance = (id: string) => { deletePerformance(id); refreshData(); };
-    const handleImportStudents = (d: Student[], k: any, s: any, f?: any[]) => { 
-        const e = d.map(x => ({...x, createdById: currentUser?.id, schoolId: currentUser?.schoolId}));
-        if (s === 'UPDATE') bulkUpsertStudents(e, k); else bulkAddStudents(e); 
-        refreshData(); 
-    };
-    const handleImportAttendance = (r: AttendanceRecord[]) => { bulkAddAttendance(r.map(x => ({...x, createdById: currentUser?.id}))); refreshData(); };
-    const handleImportPerformance = (r: PerformanceRecord[]) => { bulkAddPerformance(r.map(x => ({...x, createdById: currentUser?.id}))); refreshData(); };
+    if (isAppLoading) {
+        return (
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 text-indigo-600">
+                <div className="relative mb-6">
+                    <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-2xl animate-bounce">
+                        <Sparkles size={40} className="animate-pulse" />
+                    </div>
+                </div>
+                <Loader2 size={32} className="animate-spin mb-4" />
+                <h2 className="text-xl font-bold text-gray-800 animate-pulse">جاري تحضير المكتب الذكي...</h2>
+                <p className="text-sm text-gray-400 mt-2 font-medium">نظام المدرس المتكامل v2.1</p>
+            </div>
+        );
+    }
 
     const contextValue: AppContextType = {
         currentUser, students, attendance, performance, theme, syncStatus, aiStatus,
         refreshData, login, logout,
-        addStudent: handleAddStudent,
-        updateStudent: handleUpdateStudent,
-        deleteStudent: handleDeleteStudent,
-        saveAttendance: handleSaveAttendance,
-        addPerformance: handleAddPerformance,
-        deletePerformance: handleDeletePerformance,
-        importStudents: handleImportStudents,
-        importAttendance: handleImportAttendance,
-        importPerformance: handleImportPerformance
+        addStudent: (s) => { addStudent(s); refreshData(); },
+        updateStudent: (s) => { updateStudent(s); refreshData(); },
+        deleteStudent: (id) => { deleteStudent(id); refreshData(); },
+        saveAttendance: (recs) => { saveAttendance(recs); refreshData(); },
+        addPerformance: (p) => { if (Array.isArray(p)) bulkAddPerformance(p); else addPerformance(p); refreshData(); },
+        deletePerformance: (id) => { deletePerformance(id); refreshData(); },
+        importStudents: (d, k, s, f) => { if (s === 'UPDATE') bulkUpsertStudents(d, k); else bulkAddStudents(d); refreshData(); },
+        importAttendance: (r) => { bulkAddAttendance(r); refreshData(); },
+        importPerformance: (r) => { bulkAddPerformance(r); refreshData(); }
     };
 
     return (
-        <div className="h-full flex flex-col">
-            <ReloadPrompt />
-            
-            {!isOnline && (
-                <div className="bg-red-600 text-white text-xs font-bold text-center py-1 z-[9999] shadow-md flex items-center justify-center gap-2">
-                    <WifiOff size={14} />
-                    وضع عدم الاتصال: يتم حفظ البيانات محلياً وسيتم المزامنة عند عودة الإنترنت
-                </div>
-            )}
-
-            {!currentUser || !currentUser.id ? (
-                <Login onLoginSuccess={login} />
-            ) : currentUser.role === 'STUDENT' ? (
-                <StudentPortal 
-                    currentUser={currentUser as any} 
-                    attendance={attendance} 
-                    performance={performance} 
-                    onLogout={logout} 
-                />
-            ) : currentUser.role === 'PARENT' ? (
-                <ParentPortal 
-                    parentPhone={currentUser.email} 
-                    allStudents={getStudents()} 
-                    attendance={getAttendance()} 
-                    performance={getPerformance()} 
-                    onLogout={logout} 
-                />
-            ) : (
-                <AppContext.Provider value={contextValue}>
+        <AppContext.Provider value={contextValue}>
+            <div className="h-full flex flex-col font-sans">
+                <ReloadPrompt />
+                {!isOnline && (
+                    <div className="bg-red-600 text-white text-[10px] font-bold text-center py-1 z-[9999] flex items-center justify-center gap-2">
+                        <WifiOff size={12} /> وضع عدم الاتصال: التغييرات تحفظ محلياً
+                    </div>
+                )}
+                {!currentUser ? (
+                    <Login onLoginSuccess={login} />
+                ) : currentUser.role === 'STUDENT' ? (
+                    <StudentPortal currentUser={currentUser as any} attendance={attendance} performance={performance} onLogout={logout} />
+                ) : currentUser.role === 'PARENT' ? (
+                    <ParentPortal parentPhone={currentUser.email} allStudents={students} attendance={attendance} performance={performance} onLogout={logout} />
+                ) : (
                     <TeacherPortal 
-                        currentUser={currentUser}
-                        students={students}
-                        attendance={attendance}
-                        performance={performance}
-                        syncStatus={syncStatus}
-                        aiStatus={aiStatus}
-                        onLogout={logout}
-                        addStudent={handleAddStudent}
-                        updateStudent={handleUpdateStudent}
-                        deleteStudent={handleDeleteStudent}
-                        saveAttendance={handleSaveAttendance}
-                        addPerformance={handleAddPerformance}
-                        deletePerformance={handleDeletePerformance}
-                        importStudents={handleImportStudents}
-                        importAttendance={handleImportAttendance}
-                        importPerformance={handleImportPerformance}
+                        currentUser={currentUser} students={students} attendance={attendance} performance={performance}
+                        syncStatus={syncStatus} aiStatus={aiStatus} onLogout={logout}
+                        addStudent={contextValue.addStudent} updateStudent={contextValue.updateStudent} deleteStudent={contextValue.deleteStudent}
+                        saveAttendance={contextValue.saveAttendance} addPerformance={contextValue.addPerformance} deletePerformance={contextValue.deletePerformance}
+                        importStudents={contextValue.importStudents} importAttendance={contextValue.importAttendance} importPerformance={contextValue.importPerformance}
                         setTheme={setTheme}
                     />
-                </AppContext.Provider>
-            )}
-        </div>
+                )}
+            </div>
+        </AppContext.Provider>
     );
 };
 
