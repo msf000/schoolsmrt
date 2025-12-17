@@ -127,10 +127,12 @@ export interface AcademicTerm {
     periods?: TermPeriod[];
 }
 
+export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
+
 export interface Assignment {
     id: string;
     title: string;
-    category: string;
+    category: PerformanceCategory; // تم التغيير من string إلى PerformanceCategory
     maxScore: number;
     url?: string;
     isVisible: boolean;
@@ -340,7 +342,6 @@ export interface TrackingSheet {
     scores: Record<string, Record<string, any>>;
 }
 
-// Fix: Adding missing exported types
 export interface AISettings {
     modelId: string;
     temperature: number;
@@ -356,5 +357,3 @@ export interface UserTheme {
 }
 
 export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
-
-export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
