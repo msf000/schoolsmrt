@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import React, { ErrorInfo, ReactNode } from "react";
 import { AlertCircle, RefreshCw, Home } from "lucide-react";
 
 interface Props {
@@ -10,7 +10,8 @@ interface State {
   error?: Error;
 }
 
-class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundary extends React.Component<Props, State> {
+  // Directly initializing state property for TS class component
   public state: State = {
     hasError: false
   };
