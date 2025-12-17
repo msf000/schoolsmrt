@@ -1,5 +1,4 @@
 
-// ... (existing code imports)
 import * as XLSX from 'xlsx';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
 
@@ -114,7 +113,6 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
     return mapping;
 };
 
-// ... (rest of file remains the same: parseDate, processMappedData, etc)
 // Helper to parse date from various formats
 const parseDate = (dateStr: string | undefined): string => {
     if (!dateStr) return new Date().toISOString().split('T')[0];
@@ -341,12 +339,59 @@ export const getSheetHeadersAndData = (workbook: any, sheetName: string): { head
 };
 
 /**
+ * Extracts Google Sheet ID from URL
+ */
+export const extractGoogleSheetId = (url: string): string | null => {
+    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : null;
+};
+
+/**
+ * Fetches data directly from Google Sheets API
+ */
+export const fetchGoogleSheetData = async (sheetId: string, apiKey: string) => {
+    // 1. Get Spreadsheet Metadata to find sheet names
+    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?key=${apiKey}`;
+    const metaRes = await fetch(metaUrl);
+    
+    if (!metaRes.ok) {
+        const error = await metaRes.json();
+        throw new Error(error.error?.message || 'فشل الوصول لبيانات الملف. تأكد من أن الملف "عام" (Public) وأن مفتاح API مفعل.');
+    }
+    
+    const metaJson = await metaRes.json();
+    const sheetTitle = metaJson.sheets[0].properties.title; // Default to first sheet
+
+    // 2. Get Values
+    const dataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetTitle)}?key=${apiKey}`;
+    const dataRes = await fetch(dataUrl);
+    if (!dataRes.ok) throw new Error('فشل جلب البيانات من الورقة.');
+    
+    const dataJson = await dataRes.json();
+    const rows = dataJson.values || [];
+    
+    if (rows.length === 0) return { sheetName: sheetTitle, headers: [], data: [] };
+
+    // Row 0 is header
+    const headers = rows[0];
+    const data = rows.slice(1).map((row: any[]) => {
+        const obj: any = {};
+        headers.forEach((h: string, i: number) => {
+            obj[h] = row[i];
+        });
+        return obj;
+    });
+
+    return { sheetName: sheetTitle, headers, data };
+};
+
+/**
  * Converts various cloud storage view links to direct download links.
  */
 const normalizeDownloadUrl = (url: string): string => {
     let cleanUrl = url.trim();
 
-    // 1. Google Sheets / Drive
+    // 1. Google Sheets / Drive (Legacy export fallback)
     if (cleanUrl.includes('docs.google.com/spreadsheets/d/')) {
         const match = cleanUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
         if (match && match[1]) {

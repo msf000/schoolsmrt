@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Sheet, ArrowRight, Table, CheckSquare, Square, RefreshCw, PlusCircle, AlertTriangle, Trash2, ArrowRightCircle, X, Database, Globe, MousePointerClick, Clipboard, Download, Sparkles, BrainCircuit } from 'lucide-react';
-import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData } from '../services/excelService';
+import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData, extractGoogleSheetId, fetchGoogleSheetData } from '../services/excelService';
 import { predictColumnMapping } from '../services/geminiService';
 import { Student, CustomTable, SystemUser } from '../types';
 import { addCustomTable, getCustomTables, deleteCustomTable, getSchedules } from '../services/storageService';
@@ -205,24 +205,65 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
       setLoading(true);
       setStatus(null);
       try {
-          let structure;
-          if (sourceMethod === 'FILE') {
-              if (!file) throw new Error('الرجاء اختيار ملف أولاً.');
-              structure = await getWorkbookStructure(file);
-          } else {
+          if (sourceMethod === 'URL') {
               if (!url) throw new Error('الرجاء إدخال رابط الملف.');
-              structure = await fetchWorkbookStructureUrl(url);
-          }
-          
-          setWorkbook(structure.workbook);
-          setSheetNames(structure.sheetNames);
-          
-          if (structure.sheetNames.length > 0) {
-              setSelectedSheet(structure.sheetNames[0]);
-              // Don't auto select, let user choose in SHEET_SELECT
-              setStep('SHEET_SELECT'); 
+              
+              // NEW: CHECK FOR GOOGLE SHEETS AND USE API
+              const googleSheetId = extractGoogleSheetId(url);
+              // Use API Key from environment (injected via define in vite.config.ts)
+              const apiKey = process.env.API_KEY; 
+
+              if (googleSheetId && apiKey) {
+                  try {
+                      console.log('Detected Google Sheet, using API...');
+                      const { sheetName, headers, data } = await fetchGoogleSheetData(googleSheetId, apiKey);
+                      
+                      setSheetNames([sheetName]);
+                      setSelectedSheet(sheetName);
+                      setFileHeaders(headers);
+                      setRawSheetData(data);
+                      
+                      // Auto-proceed to mapping/preview based on mode
+                      if (importMode === 'SYSTEM' && !onDataReady) {
+                          const guessed = guessMapping(headers, dataType);
+                          setColumnMapping(guessed);
+                          setStep('MAPPING');
+                      } else {
+                          setSelectedCustomColumns(new Set(headers));
+                          setSelectedRowIndices(new Set(data.map((_, i) => i)));
+                          setStep('PREVIEW_SELECT');
+                      }
+                      setLoading(false);
+                      return; // Exit early since we handled it
+                  } catch (apiError: any) {
+                      console.warn('Google Sheets API failed, falling back to proxy...', apiError);
+                      // Fallback to fetchWorkbookStructureUrl below if API fails
+                  }
+              }
+
+              // Fallback / Standard URL Fetch
+              const structure = await fetchWorkbookStructureUrl(url);
+              setWorkbook(structure.workbook);
+              setSheetNames(structure.sheetNames);
+              if (structure.sheetNames.length > 0) {
+                  setSelectedSheet(structure.sheetNames[0]);
+                  setStep('SHEET_SELECT'); 
+              } else {
+                  throw new Error("الملف لا يحتوي على أوراق عمل.");
+              }
+
           } else {
-              throw new Error("الملف لا يحتوي على أوراق عمل.");
+              // FILE UPLOAD
+              if (!file) throw new Error('الرجاء اختيار ملف أولاً.');
+              const structure = await getWorkbookStructure(file);
+              setWorkbook(structure.workbook);
+              setSheetNames(structure.sheetNames);
+              if (structure.sheetNames.length > 0) {
+                  setSelectedSheet(structure.sheetNames[0]);
+                  setStep('SHEET_SELECT'); 
+              } else {
+                  throw new Error("الملف لا يحتوي على أوراق عمل.");
+              }
           }
       } catch (error: any) {
           setStatus({ type: 'error', message: error.message });
@@ -781,12 +822,12 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                                     </div>
                                 </div>
                                 
-                                {urlType === 'GOOGLE' && <span className="text-green-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> رابط Google Sheets صالح</span>}
+                                {urlType === 'GOOGLE' && <span className="text-green-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> رابط Google Sheets صالح (سيتم استخدام API)</span>}
                                 {urlType === 'ONEDRIVE' && <span className="text-blue-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> رابط OneDrive/SharePoint صالح</span>}
 
                                 <p className="text-xs text-gray-400 leading-relaxed">
                                     يدعم النظام تحويل الروابط تلقائياً من: <br/>
-                                    - <b className="text-gray-600">Google Sheets</b> (تأكد أن الرابط متاح للعرض "Anyone with link"). <br/>
+                                    - <b className="text-gray-600">Google Sheets</b> (تأكد أن الرابط متاح "Anyone with link"). <br/>
                                     - <b className="text-gray-600">OneDrive / SharePoint</b> (انسخ الرابط وقم بلصقه هنا). <br/>
                                     - <b className="text-gray-600">Dropbox</b>.
                                 </p>
