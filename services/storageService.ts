@@ -165,17 +165,19 @@ export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance
 
 // --- Performance ---
 export const getPerformance = (): PerformanceRecord[] => get<PerformanceRecord>(KEYS.PERFORMANCE);
-// UPDATED: Now supports Upsert logic based on ID
-export const addPerformance = (record: PerformanceRecord) => { 
-    const list = get<PerformanceRecord>(KEYS.PERFORMANCE); 
+
+// UPDATED: Supports Updates now
+export const addPerformance = (record: PerformanceRecord) => {
+    const list = get<PerformanceRecord>(KEYS.PERFORMANCE);
     const idx = list.findIndex(r => r.id === record.id);
     if (idx !== -1) {
         list[idx] = record; // Update
     } else {
         list.push(record); // Insert
     }
-    save(KEYS.PERFORMANCE, list); 
+    save(KEYS.PERFORMANCE, list);
 };
+
 export const deletePerformance = (id: string) => {
     const list = getPerformance().filter(r => r.id !== id);
     save(KEYS.PERFORMANCE, list);
@@ -183,9 +185,10 @@ export const deletePerformance = (id: string) => {
         supabase.from('performance').delete().eq('id', id).then();
     }
 };
-// UPDATED: Now supports Upsert
-export const bulkAddPerformance = (records: PerformanceRecord[]) => { 
-    const list = get<PerformanceRecord>(KEYS.PERFORMANCE); 
+
+// UPDATED: Supports Updates now
+export const bulkAddPerformance = (records: PerformanceRecord[]) => {
+    const list = get<PerformanceRecord>(KEYS.PERFORMANCE);
     records.forEach(rec => {
         const idx = list.findIndex(r => r.id === rec.id);
         if (idx !== -1) {
@@ -194,7 +197,7 @@ export const bulkAddPerformance = (records: PerformanceRecord[]) => {
             list.push(rec); // Insert new
         }
     });
-    save(KEYS.PERFORMANCE, list); 
+    save(KEYS.PERFORMANCE, list);
 };
 
 // --- Teachers ---

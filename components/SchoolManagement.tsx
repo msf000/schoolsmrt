@@ -17,7 +17,6 @@ import {
     Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Package
 } from 'lucide-react';
 
-// Define locally to avoid import errors
 const DEFAULT_PERIOD_TIMES = [
     "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
     "09:45 - 10:30", "10:30 - 11:15", "11:15 - 12:00", 
