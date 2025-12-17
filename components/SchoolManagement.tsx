@@ -556,7 +556,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </div>
                         <p className="text-xs text-gray-400 mt-2">* هذه التوقيتات ستظهر في الجدول الدراسي.</p>
                     </div>
-</div>
                     {/* Teacher Profile Section */}
                     {!isManager && teacherProfile && (
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -582,6 +581,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                     </div>
                 </div>
             )}
+        </div>
         </div>
     );
 };
