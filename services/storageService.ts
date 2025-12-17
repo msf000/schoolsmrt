@@ -165,6 +165,7 @@ export const bulkAddAttendance = (records: AttendanceRecord[]) => saveAttendance
 
 // --- Performance ---
 export const getPerformance = (): PerformanceRecord[] => get<PerformanceRecord>(KEYS.PERFORMANCE);
+// UPDATED: Now supports Upsert logic based on ID
 export const addPerformance = (record: PerformanceRecord) => { 
     const list = get<PerformanceRecord>(KEYS.PERFORMANCE); 
     const idx = list.findIndex(r => r.id === record.id);
@@ -182,6 +183,7 @@ export const deletePerformance = (id: string) => {
         supabase.from('performance').delete().eq('id', id).then();
     }
 };
+// UPDATED: Now supports Upsert
 export const bulkAddPerformance = (records: PerformanceRecord[]) => { 
     const list = get<PerformanceRecord>(KEYS.PERFORMANCE); 
     records.forEach(rec => {
@@ -390,14 +392,7 @@ export const deleteScheduleItem = (id: string) => {
 };
 
 // --- Assignments (TeacherAssignments - Class Subject Map) ---
-// Note: These are different from 'Assignment' table. This maps Teacher -> Class -> Subject
 export const getTeacherAssignments = (teacherId?: string): TeacherAssignment[] => {
-    const all = get<TeacherAssignment>('teacher_class_assignments') || []; // Use separate key or same? Using separate.
-    // Actually, reused ASSIGNMENTS key before? Let's check imports.
-    // The previous implementation might have used KEYS.ASSIGNMENTS for TeacherAssignments.
-    // But KEYS.TRACKING_ASSIGNMENTS for Assignment Columns.
-    // Let's clarify: TeacherAssignment is usually stored in local settings or specific key.
-    // I will use a specific key for clarity.
     const raw = localStorage.getItem('teacher_class_map');
     const list: TeacherAssignment[] = raw ? JSON.parse(raw) : [];
     if (teacherId) return list.filter(a => a.teacherId === teacherId);
@@ -656,7 +651,6 @@ export const getReportHeaderConfig = (teacherId?: string): ReportHeaderConfig =>
     return { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '' };
 };
 export const saveReportHeaderConfig = (config: ReportHeaderConfig) => {
-    // Basic implementation: array of configs
     const list = get<ReportHeaderConfig & { id?: string }>(KEYS.REPORT_CONFIG);
     const idx = list.findIndex(c => c.teacherId === config.teacherId);
     if (idx !== -1) list[idx] = config;
