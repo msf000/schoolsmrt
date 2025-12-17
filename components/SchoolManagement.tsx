@@ -14,7 +14,7 @@ import {
 } from '../types';
 import { 
     Building2, Users, Settings, 
-    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Box
+    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Package
 } from 'lucide-react';
 
 // Define locally to avoid import errors
@@ -453,7 +453,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <div className="flex justify-between items-center mb-4 border-b pb-2">
                             <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                                <Box className="text-teal-600"/> إدارة فصولي
+                                <Package className="text-teal-600"/> إدارة فصولي
                             </h3>
                         </div>
                         <p className="text-xs text-gray-500 mb-4">
@@ -555,7 +555,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                 </div>
                             ))}
                         </div>
-                        <p className="text--[10px] text-gray-400 mt-2">* هذه التوقيتات ستظهر في الجدول الدراسي.</p>
+                        <p className="text-xs text-gray-400 mt-2">* هذه التوقيتات ستظهر في الجدول الدراسي.</p>
                     </div>
 
                     {/* Teacher Profile Section */}
