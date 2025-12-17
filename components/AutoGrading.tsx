@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { ScanLine, Upload, Check, X, Camera, Save, RefreshCw, FileText, Plus, Trash2, ListChecks, FileQuestion, ArrowRight, BrainCircuit } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ScanLine, Upload, Check, X, Camera, Save, RefreshCw, FileText, Plus, Trash2, ListChecks, FileQuestion, ArrowRight, BrainCircuit, Video, Repeat, StopCircle } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, Question, SystemUser } from '../types';
 import { getExams, getStudents, addPerformance } from '../services/storageService';
 import { gradeExamPaper } from '../services/geminiService';
@@ -17,8 +17,18 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
     const [gradingMode, setGradingMode] = useState<'SYSTEM' | 'MANUAL'>('SYSTEM');
     const [selectedExamId, setSelectedExamId] = useState('');
     const [selectedStudentId, setSelectedStudentId] = useState('');
+    
+    // Image Input State
+    const [inputMethod, setInputMethod] = useState<'UPLOAD' | 'CAMERA'>('UPLOAD');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    
+    // Camera State
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+    const [cameraActive, setCameraActive] = useState(false);
+    const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+
     const [isGrading, setIsGrading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [step, setStep] = useState<'UPLOAD' | 'REVIEW'>('UPLOAD');
@@ -34,6 +44,10 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
         // Only fetch exams and students related to this user/school
         setExams(getExams(currentUser?.id));
         setStudents(getStudents().filter(s => s.schoolId === currentUser?.schoolId || s.createdById === currentUser?.id));
+        
+        return () => {
+            stopCamera(); // Cleanup on unmount
+        };
     }, [currentUser]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,8 +55,63 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
         if (file) {
             setImageFile(file);
             const reader = new FileReader();
-            reader.onloadend = () => setImagePreview(reader.result as string);
+            reader.onloadend = () => {
+                setImagePreview(reader.result as string);
+                stopCamera(); // Ensure camera is off if file uploaded
+            };
             reader.readAsDataURL(file);
+        }
+    };
+
+    // --- Camera Functions ---
+    const startCamera = async () => {
+        try {
+            stopCamera(); // Stop existing if any
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: facingMode }
+            });
+            setCameraStream(stream);
+            setCameraActive(true);
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+        } catch (err) {
+            console.error(err);
+            alert('تعذر الوصول للكاميرا. يرجى التأكد من منح الصلاحيات.');
+        }
+    };
+
+    const stopCamera = () => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            setCameraStream(null);
+            setCameraActive(false);
+        }
+    };
+
+    const switchCamera = () => {
+        setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
+        // Effect will not auto-trigger, need to manual restart or use effect on facingMode
+        // Simpler to just restart immediately if active
+        if (cameraActive) {
+            // Slight delay to allow state update
+            setTimeout(() => startCamera(), 100);
+        }
+    };
+
+    const capturePhoto = () => {
+        if (videoRef.current) {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(videoRef.current, 0, 0);
+                const dataUrl = canvas.toDataURL('image/jpeg');
+                setImagePreview(dataUrl);
+                setImageFile(null); // Clear file input if any
+                stopCamera();
+            }
         }
     };
 
@@ -60,7 +129,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
     };
 
     const handleAutoGrade = async () => {
-        if (!imageFile && !imagePreview) return alert('الرجاء رفع صورة الورقة');
+        if (!imagePreview) return alert('الرجاء توفير صورة الورقة (رفع ملف أو تصوير)');
         
         let targetExam: Exam | undefined;
 
@@ -153,6 +222,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
             setImageFile(null);
             setImagePreview(null);
             setSelectedStudentId('');
+            setCameraActive(false);
         }
     };
 
@@ -174,7 +244,7 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                 </div>
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">المصحح الآلي الذكي (AI)</h2>
-                    <p className="text-sm text-gray-500">تصحيح أوراق الاختبارات تلقائياً باستخدام الذكاء الاصطناعي</p>
+                    <p className="text-sm text-gray-500">تصحيح أوراق الاختبارات تلقائياً باستخدام الكاميرا أو رفع الصور</p>
                 </div>
             </div>
 
@@ -262,15 +332,51 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
                         )}
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">2. رفع صورة ورقة الطالب</label>
-                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group bg-gray-50">
-                                <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileChange}/>
-                                <div className="flex flex-col items-center gap-3 text-gray-400 group-hover:text-purple-600 transition-colors">
-                                    <Camera size={40}/>
-                                    <span className="font-bold">اضغط أو اسحب الصورة هنا</span>
-                                    <span className="text-xs text-gray-400">يدعم JPG, PNG (تأكد من وضوح الصورة)</span>
-                                </div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">2. مصدر الصورة (ورقة الطالب)</label>
+                            
+                            <div className="flex gap-2 mb-3">
+                                <button 
+                                    onClick={() => { setInputMethod('UPLOAD'); stopCamera(); }} 
+                                    className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${inputMethod === 'UPLOAD' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white hover:bg-gray-50 text-gray-600'}`}
+                                >
+                                    <Upload size={16} className="inline ml-1"/> رفع ملف
+                                </button>
+                                <button 
+                                    onClick={() => { setInputMethod('CAMERA'); startCamera(); }} 
+                                    className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${inputMethod === 'CAMERA' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white hover:bg-gray-50 text-gray-600'}`}
+                                >
+                                    <Camera size={16} className="inline ml-1"/> استخدام الكاميرا
+                                </button>
                             </div>
+
+                            {inputMethod === 'UPLOAD' ? (
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors relative cursor-pointer group bg-gray-50 animate-fade-in">
+                                    <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileChange}/>
+                                    <div className="flex flex-col items-center gap-3 text-gray-400 group-hover:text-purple-600 transition-colors">
+                                        <Upload size={40}/>
+                                        <span className="font-bold">اضغط أو اسحب الصورة هنا</span>
+                                        <span className="text-xs text-gray-400">يدعم JPG, PNG (تأكد من وضوح الصورة)</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="relative bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center animate-fade-in group">
+                                    {cameraActive ? (
+                                        <>
+                                            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
+                                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 z-10">
+                                                <button onClick={stopCamera} className="p-3 bg-red-600/80 text-white rounded-full hover:bg-red-700"><StopCircle size={20}/></button>
+                                                <button onClick={capturePhoto} className="p-4 bg-white text-indigo-600 rounded-full shadow-lg hover:scale-110 transition-transform ring-4 ring-indigo-500/30"><Camera size={32}/></button>
+                                                <button onClick={switchCamera} className="p-3 bg-gray-800/80 text-white rounded-full hover:bg-gray-900"><Repeat size={20}/></button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-center">
+                                            <Camera size={48} className="text-gray-500 mx-auto mb-2"/>
+                                            <button onClick={startCamera} className="text-white font-bold bg-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-700">تشغيل الكاميرا</button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <button 
@@ -285,11 +391,17 @@ const AutoGrading: React.FC<AutoGradingProps> = ({ currentUser }) => {
 
                     <div className="w-full md:w-1/3 bg-gray-100 rounded-xl border border-gray-200 flex items-center justify-center relative overflow-hidden group">
                         {imagePreview ? (
-                            <img src={imagePreview} className="max-w-full max-h-full object-contain transition-transform group-hover:scale-105" alt="Preview"/>
+                            <div className="relative w-full h-full flex flex-col">
+                                <div className="absolute top-2 right-2 z-10">
+                                    <button onClick={() => { setImagePreview(null); if(inputMethod === 'CAMERA') startCamera(); }} className="bg-black/50 text-white p-1 rounded-full hover:bg-red-500"><X size={16}/></button>
+                                </div>
+                                <img src={imagePreview} className="w-full h-full object-contain" alt="Preview"/>
+                            </div>
                         ) : (
-                            <div className="text-gray-400 text-center">
+                            <div className="text-gray-400 text-center p-4">
                                 <FileText size={48} className="mx-auto mb-2 opacity-50"/>
                                 <p>معاينة الورقة</p>
+                                <p className="text-xs opacity-70 mt-1">ستظهر الصورة هنا بعد الرفع أو التصوير</p>
                             </div>
                         )}
                     </div>
