@@ -14,6 +14,7 @@ import {
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip } from 'recharts';
 import { formatDualDate } from '../services/dateService';
+import BottomNavigation from './BottomNavigation';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -100,16 +101,8 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                             {item.badge && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ring-2 ring-white animate-pulse">{item.badge}</span>}
                         </button>
                     ))}
+                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 mt-4 font-bold"><LogOut size={20}/> خروج</button>
                 </nav>
-
-                <div className="p-4 border-t border-slate-100 space-y-2 bg-slate-50/50">
-                    <button onClick={handleRefresh} disabled={isSyncing} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-blue-600 bg-white border border-blue-100 hover:bg-blue-50 rounded-xl transition-all text-sm font-bold shadow-sm">
-                        <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} /><span>مزامنة البيانات</span>
-                    </button>
-                    <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all text-sm font-bold">
-                        <LogOut size={16} /><span>خروج</span>
-                    </button>
-                </div>
             </aside>
 
             {/* Main Content Area */}
@@ -117,12 +110,15 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 <header className="lg:hidden bg-white p-4 border-b border-slate-200 flex justify-between items-center shadow-sm shrink-0">
                     <div className="font-black text-indigo-600 flex items-center gap-2">
                         <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xs">S</div>
-                        بوابة الطالب
+                        {currentUser.name.split(' ')[0]}
                     </div>
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600 bg-slate-100 rounded-xl"><Menu size={20}/></button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleRefresh} className="p-2 text-slate-500"><RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''}/></button>
+                        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600 bg-slate-100 rounded-xl"><Menu size={20}/></button>
+                    </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar relative">
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar relative pb-24 md:pb-8">
                     <Routes>
                         <Route path="/" element={<StudentDashboard student={currentUser} attendance={attendance} performance={performance} terms={terms} />} />
                         <Route path="/plan" element={<StudentWeeklyPlan student={currentUser} />} />
@@ -137,10 +133,13 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
                 </main>
+
+                {/* Mobile Bottom Nav */}
+                <BottomNavigation role="STUDENT" onMenuClick={() => setIsMobileMenuOpen(true)} />
             </div>
 
             {isMobileMenuOpen && (
-                <div className="fixed inset-0 z-50 lg:hidden animate-fade-in">
+                <div className="fixed inset-0 z-[100] lg:hidden animate-fade-in">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
                     <div className="absolute top-0 right-0 h-full w-72 bg-white shadow-2xl flex flex-col">
                         <div className="p-6 border-b flex justify-between items-center">
@@ -158,6 +157,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                                     <span className="text-sm font-bold">{item.label}</span>
                                 </button>
                             ))}
+                            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 mt-4 font-bold"><LogOut size={20}/> خروج</button>
                         </nav>
                     </div>
                 </div>
@@ -166,8 +166,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     );
 };
 
-// --- Sub-Components ---
-
+// ... (Rest of sub-components same as before)
 const StudentDashboard = ({ student, attendance, performance }: { student: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[], terms: AcademicTerm[] }) => {
     const navigate = useNavigate();
     const myAtt = attendance.filter((a: AttendanceRecord) => a.studentId === student.id);
@@ -203,8 +202,8 @@ const StudentDashboard = ({ student, attendance, performance }: { student: Stude
                         <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full text-xs font-bold mb-4 border border-white/10 backdrop-blur-md">
                             <Zap size={14} className="text-yellow-400 fill-yellow-400"/> طالب نشط
                         </div>
-                        <h2 className="text-3xl md:text-5xl font-black mb-4 leading-tight">واصل التألق، {student.name.split(' ')[0]}! 🌟</h2>
-                        <div className="flex gap-4 mt-8">
+                        <h2 className="text-3xl md:text-5xl font-black mb-4 leading-tight text-right">واصل التألق، {student.name.split(' ')[0]}! 🌟</h2>
+                        <div className="flex gap-4 mt-8 flex-wrap">
                             <button onClick={() => navigate('/plan')} className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-bold hover:scale-105 transition-all shadow-xl flex items-center gap-2"><MapIcon size={20}/> رحلتي التعليمية</button>
                             <button onClick={() => navigate('/exams')} className="bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold border border-indigo-500 hover:bg-indigo-600 transition-colors flex items-center gap-2"><PlayCircle size={20}/> الاختبارات</button>
                         </div>
@@ -220,7 +219,7 @@ const StudentDashboard = ({ student, attendance, performance }: { student: Stude
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
+                    <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                         <h3 className="text-xl font-bold text-slate-800 mb-8 flex items-center gap-2"><BrainCircuit size={24} className="text-indigo-600"/> رادار المهارات الشخصي</h3>
                         <div className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -237,12 +236,12 @@ const StudentDashboard = ({ student, attendance, performance }: { student: Stude
 
                 <div className="space-y-6">
                     <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
-                        <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><Activity size={20} className="text-rose-500"/> آخر النشاطات</h3>
+                        <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 text-right"><Activity size={20} className="text-rose-500"/> آخر النشاطات</h3>
                         <div className="space-y-4">
                             {myPerf.slice(-5).map((p: PerformanceRecord) => (
                                 <div key={p.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors">
                                     <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">{p.score}</div>
-                                    <div className="overflow-hidden">
+                                    <div className="overflow-hidden text-right">
                                         <p className="text-xs font-bold text-slate-800 truncate">{p.title}</p>
                                         <p className="text-[10px] text-slate-400">{formatDualDate(p.date)}</p>
                                     </div>
@@ -272,7 +271,7 @@ const StudentAchievements = ({ student, attendance }: { student: Student, attend
     return (
         <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Award className="text-yellow-600" size={28}/> سجل الأوسمة والجوائز</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-right">
                 {medals.map((medal: AttendanceRecord) => (
                     <div key={medal.id} className="bg-white p-6 rounded-[2rem] border-4 border-yellow-100 shadow-sm text-center relative group overflow-hidden">
                         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-100 transition-opacity"><Medal size={80}/></div>
@@ -323,7 +322,7 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
                 </div>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-4 text-right">
                 {days.map((day: string) => {
                     const dayPlans = plans.filter((p: WeeklyPlanItem) => p.day === day).sort((a: WeeklyPlanItem, b: WeeklyPlanItem) => a.period - b.period);
                     return (
@@ -331,9 +330,9 @@ const StudentWeeklyPlan = ({ student }: { student: Student }) => {
                             <div className="bg-slate-50 p-3 border-b border-slate-100 font-bold text-slate-700 flex justify-between items-center">
                                 <span className="flex items-center gap-2"><Calendar size={16}/> {dayNamesAr[day]}</span>
                             </div>
-                            <div className="divide-y divide-slate-100">
+                            <div className="divide-y divide-slate-100 text-right">
                                 {dayPlans.length > 0 ? dayPlans.map((plan: WeeklyPlanItem) => (
-                                    <div key={plan.id} className="p-4 hover:bg-slate-50 transition-colors">
+                                    <div key={plan.id} className="p-4 hover:bg-slate-50 transition-colors text-right">
                                         <div className="flex items-center gap-3">
                                             <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded-lg">حصة {plan.period}</span>
                                             <h4 className="font-bold text-slate-800 text-base">{plan.subjectName}</h4>
@@ -356,12 +355,12 @@ const StudentEvaluationView = ({ student, performance, terms }: { student: Stude
     const [selectedTermId, setSelectedTermId] = useState('');
     
     useEffect(() => {
-        const current = terms.find((t: AcademicTerm) => t.isCurrent);
+        const current = terms.find((t:any) => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (terms.length > 0) setSelectedTermId(terms[0].id);
     }, [terms]);
 
-    const activeTerm = terms.find((t: AcademicTerm) => t.id === selectedTermId);
+    const activeTerm = terms.find((t:any) => t.id === selectedTermId);
     
     const filteredPerf = useMemo(() => {
         if (!activeTerm) return performance.filter((p: PerformanceRecord) => p.studentId === student.id);
@@ -382,7 +381,7 @@ const StudentEvaluationView = ({ student, performance, terms }: { student: Stude
                 </select>
             </div>
 
-            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden text-right">
                 <table className="w-full text-right text-sm">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-100">
                         <tr>
@@ -400,7 +399,7 @@ const StudentEvaluationView = ({ student, performance, terms }: { student: Stude
                                 <td className="p-4 text-slate-500">{p.subject}</td>
                                 <td className="p-4 text-center">
                                     <span className="text-lg font-black text-indigo-600">{p.score}</span>
-                                    <span className="text-xs text-slate-400 font-normal"> / {p.maxScore}</span>
+                                    <span className="text-xs text-gray-400 font-normal"> / {p.maxScore}</span>
                                 </td>
                             </tr>
                         ))}
@@ -426,9 +425,9 @@ const StudentExamsView = ({ student }: { student: Student }) => {
     if (activeExam) return <ExamPlayer exam={activeExam} student={student} onComplete={() => setActiveExam(null)} />;
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in text-right">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><FileQuestion className="text-indigo-600" size={28}/> الاختبارات المتاحة</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
                 {exams.map((exam: Exam) => {
                     const res = results.find((r: ExamResult) => r.examId === exam.id);
                     return (
@@ -456,9 +455,9 @@ const StudentExamsView = ({ student }: { student: Student }) => {
 };
 
 const StudentAttendanceView = ({ student, attendance }: { student: Student, attendance: AttendanceRecord[] }) => {
-    const myAtt = attendance.filter((a: AttendanceRecord) => a.studentId === student.id).sort((a: AttendanceRecord, b: AttendanceRecord) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const myAtt = attendance.filter(a => a.studentId === student.id).sort((a: AttendanceRecord, b: AttendanceRecord) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in text-right">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Calendar className="text-indigo-600" size={28}/> سجل الحضور</h2>
             <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                 <table className="w-full text-right text-sm">
@@ -473,7 +472,7 @@ const StudentAttendanceView = ({ student, attendance }: { student: Student, atte
                         {myAtt.map((a: AttendanceRecord) => (
                             <tr key={a.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="p-4 text-slate-400 font-mono text-xs">{a.date}</td>
-                                <td className="p-4">
+                                <td className="p-4 text-right">
                                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${a.status === 'PRESENT' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                                         {a.status === 'PRESENT' ? 'حاضر' : 'غائب'}
                                     </span>
@@ -496,7 +495,7 @@ const StudentLibrary = ({ student }: { student: Student }) => {
     }, [student]);
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in text-right">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Library className="text-indigo-600" size={28}/> المكتبة الرقمية</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {links.map((link: LessonLink) => (
@@ -504,7 +503,7 @@ const StudentLibrary = ({ student }: { student: Student }) => {
                         <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                             {link.url.includes('youtube') ? <Video size={24}/> : <LinkIcon size={24}/>}
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 text-right">
                             <h4 className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{link.title}</h4>
                             <p className="text-[10px] text-slate-400 mt-1">{formatDualDate(link.createdAt)}</p>
                         </div>
@@ -517,15 +516,15 @@ const StudentLibrary = ({ student }: { student: Student }) => {
 
 const StudentPortfolio = ({ student, performance }: { student: Student, performance: PerformanceRecord[] }) => {
     const galleryItems = useMemo(() => {
-        return performance.filter((p: PerformanceRecord) => p.studentId === student.id && (p.url || p.notes?.includes('http')));
+        return performance.filter(p => p.studentId === student.id && (p.url || p.notes?.includes('http')));
     }, [student, performance]);
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in text-right">
             <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><FolderHeart className="text-rose-500" size={28}/> معرض إنجازاتي</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {galleryItems.map((item: PerformanceRecord) => (
-                    <div key={item.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-all group">
+                    <div key={item.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-all group text-right">
                         <div className="aspect-video bg-slate-100 relative overflow-hidden flex items-center justify-center">
                             {item.url ? (
                                 <img src={item.url} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -545,11 +544,11 @@ const StudentPortfolio = ({ student, performance }: { student: Student, performa
 };
 
 const StudentMessages = ({ messages }: { messages: MessageLog[] }) => (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in text-right">
         <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Bell className="text-indigo-600" size={28}/> البريد الوارد</h2>
         <div className="space-y-4">
             {messages.map((msg: MessageLog) => (
-                <div key={msg.id} className="bg-white p-6 rounded-3xl border border-slate-200 relative overflow-hidden group">
+                <div key={msg.id} className="bg-white p-6 rounded-3xl border border-slate-200 relative overflow-hidden group text-right">
                     <div className="absolute top-0 right-0 w-2 h-full bg-indigo-600"></div>
                     <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
@@ -569,7 +568,7 @@ const StudentMessages = ({ messages }: { messages: MessageLog[] }) => (
 );
 
 const StudentProfile = ({ student }: { student: Student }) => (
-    <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
+    <div className="space-y-6 animate-fade-in max-w-2xl mx-auto text-right">
         <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3"><User className="text-indigo-600" size={28}/> ملفي الشخصي</h2>
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-6 text-center">
             <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center text-white text-4xl font-black shadow-xl mb-4 mx-auto">
@@ -579,11 +578,11 @@ const StudentProfile = ({ student }: { student: Student }) => (
             <p className="text-slate-400 text-sm">{student.gradeLevel} - {student.className}</p>
             <div className="grid grid-cols-2 gap-4 mt-6 text-right">
                 <div className="p-4 bg-slate-50 rounded-2xl">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">رقم الهوية</label>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">رقم الهوية</label>
                     <div className="font-mono font-bold text-slate-700">{student.nationalId}</div>
                 </div>
                 <div className="p-4 bg-slate-50 rounded-2xl">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">رقم الجوال</label>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">رقم الجوال</label>
                     <div className="font-mono font-bold text-slate-700">{student.phone || '-'}</div>
                 </div>
             </div>
@@ -639,7 +638,7 @@ const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Studen
         <div className="fixed inset-0 bg-slate-900 z-[200] flex flex-col p-4 md:p-10 text-white" dir="rtl">
             <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
                 <div className="flex justify-between items-center mb-10">
-                    <div>
+                    <div className="text-right">
                         <h2 className="text-2xl font-bold">{exam.title}</h2>
                         <p className="text-slate-400 text-sm">سؤال {currentIndex + 1} من {exam.questions.length}</p>
                     </div>
@@ -649,7 +648,7 @@ const ExamPlayer = ({ exam, student, onComplete }: { exam: Exam, student: Studen
                     </div>
                 </div>
 
-                <div className="flex-1 bg-white/5 rounded-[2.5rem] border border-white/10 p-8 md:p-12 animate-fade-in">
+                <div className="flex-1 bg-white/5 rounded-[2.5rem] border border-white/10 p-8 md:p-12 animate-fade-in text-right">
                     <h3 className="text-xl md:text-3xl font-bold mb-10 leading-relaxed text-right">{q.text}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {q.options.map((opt: string) => (

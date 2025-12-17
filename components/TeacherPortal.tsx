@@ -9,7 +9,6 @@ import {
     LogOut, Menu, X, FileText, CreditCard, Inbox 
 } from 'lucide-react';
 
-// Imports from existing components
 import Dashboard from './Dashboard';
 import Students from './Students';
 import AttendanceComponent from './Attendance';
@@ -18,11 +17,9 @@ import WorksTracking from './WorksTracking';
 import StudentFollowUp from './StudentFollowUp';
 import ClassroomScreen from './ClassroomScreen';
 import ClassroomManager from './ClassroomManager';
-import AdminDashboard from './AdminDashboard';
 import CustomTablesView from './CustomTablesView';
 import MessageCenter from './MessageCenter';
 import AITools from './AITools';
-import TeacherSubscription from './TeacherSubscription';
 import LessonPlanning from './LessonPlanning';
 import ReportsCenter from './ReportsCenter'; 
 import ExamsManager from './ExamsManager';
@@ -31,9 +28,8 @@ import AutoGrading from './AutoGrading';
 import CurriculumManager from './CurriculumManager';
 import ResourcesView from './ResourcesView';
 import ScheduleView from './ScheduleView';
-import FlexibleTrackingSheet from './FlexibleTrackingSheet';
-import CertificatesCenter from './CertificatesCenter';
 import TeacherInbox from './TeacherInbox';
+import BottomNavigation from './BottomNavigation';
 import { SchoolManagement as SchoolManagementComponent } from './SchoolManagement';
 
 interface TeacherPortalProps {
@@ -44,8 +40,6 @@ interface TeacherPortalProps {
     syncStatus: string;
     aiStatus: string;
     onLogout: () => void;
-    
-    // Actions passed from App
     addStudent: (s: Student) => void;
     updateStudent: (s: Student) => void;
     deleteStudent: (id: string) => void;
@@ -59,12 +53,10 @@ interface TeacherPortalProps {
 }
 
 const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
-    const { currentUser, onLogout, syncStatus } = props;
+    const { currentUser } = props;
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
-    
-    const isManager = currentUser.role === 'SCHOOL_MANAGER' || currentUser.role === 'SUPER_ADMIN';
 
     const NavItem = ({ path, label, icon: Icon }: any) => (
         <button 
@@ -82,8 +74,8 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
 
     return (
         <div className="flex h-screen overflow-hidden text-right font-sans bg-gray-100" dir="rtl">
-            {/* Sidebar */}
-            <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            {/* Sidebar Desktop */}
+            <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-[60] transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
@@ -94,35 +86,32 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                                 <p className="text-sm font-bold text-gray-800 truncate w-32">{currentUser.name}</p>
                             </div>
                         </div>
-                        <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500"><X/></button>
+                        <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500 p-1"><X/></button>
                     </div>
                 </div>
                 
-                <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-220px)]">
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-100px)]">
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} />
                     <NavItem path="/inbox" label="بريد الطلبات" icon={Inbox} />
-                    
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">الإدارة</label></div>
+                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">الإدارة</label></div>
                     <NavItem path="/students" label="الطلاب" icon={Users} />
                     <NavItem path="/attendance" label="الحضور" icon={CheckSquare} />
                     <NavItem path="/classroom" label="إدارة الفصل" icon={MonitorPlay} />
                     <NavItem path="/works" label="سجل الرصد" icon={Table} />
-                    
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">التخطيط</label></div>
+                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">أدوات</label></div>
                     <NavItem path="/schedule" label="الجدول" icon={Calendar} />
                     <NavItem path="/planning" label="التحضير" icon={PenTool} />
-                    
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2">أدوات</label></div>
                     <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} />
                     <NavItem path="/ai-tools" label="أدوات AI" icon={BrainCircuit} />
                     <NavItem path="/reports" label="التقارير" icon={Printer} />
                     <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} />
+                    <button onClick={props.onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 mt-4 font-bold"><LogOut size={20}/> تسجيل خروج</button>
                 </nav>
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative">
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+            <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative overflow-hidden">
+                <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 md:pb-0">
                     <Routes>
                         <Route path="/" element={<Dashboard students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser} onNavigate={()=>{}} />} />
                         <Route path="/inbox" element={<TeacherInbox currentUser={currentUser} />} />
@@ -140,6 +129,9 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
                 </div>
+                
+                {/* Mobile Bottom Nav */}
+                <BottomNavigation role={currentUser.role as any} onMenuClick={() => setIsSidebarOpen(true)} />
             </main>
         </div>
     );
