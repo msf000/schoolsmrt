@@ -207,14 +207,14 @@ export const bulkAddPerformance = (records: PerformanceRecord[]) => {
 
 // --- Teachers ---
 export const getTeachers = (): Teacher[] => get<Teacher>(KEYS.TEACHERS);
-export const addTeacher = (t: Teacher) => {
+export const addTeacher = async (t: Teacher) => {
     const list = getTeachers();
     list.push(t);
     save(KEYS.TEACHERS, list);
     // Also add to system users if not exists
     const users = getSystemUsers();
     if (!users.find(u => u.email === t.email)) {
-        addSystemUser({
+        await addSystemUser({
             id: t.id,
             name: t.name,
             email: t.email || '',
@@ -259,7 +259,7 @@ export const deleteSchool = (id: string) => {
 
 // --- System Users ---
 export const getSystemUsers = (): SystemUser[] => get<SystemUser>(KEYS.SYSTEM_USERS);
-export const addSystemUser = (u: SystemUser) => {
+export const addSystemUser = async (u: SystemUser) => {
     const list = getSystemUsers();
     list.push(u);
     save(KEYS.SYSTEM_USERS, list);
@@ -313,8 +313,15 @@ export const authenticateUser = async (identifier: string, pass: string): Promis
             
             if (data && !error) {
                 // User found in cloud! Cache it locally and return
-                addSystemUser(data as SystemUser);
-                return data as SystemUser;
+                // IMPORTANT: Don't call addSystemUser here to avoid saving back to cloud loop in some cases,
+                // but since we just fetched it, it's safe to update local cache.
+                const user: SystemUser = data as SystemUser;
+                const list = getSystemUsers();
+                if (!list.find(u => u.id === user.id)) {
+                    list.push(user);
+                    localStorage.setItem(KEYS.SYSTEM_USERS, JSON.stringify(list));
+                }
+                return user;
             }
         } catch (e) {
             console.error("Cloud auth failed", e);
@@ -352,16 +359,30 @@ export const authenticateStudent = async (identifier: string, pass: string): Pro
 
             if (data && !error) {
                 // Student found in cloud! Cache locally
-                addStudent(data as Student);
-                return {
+                const std: Student = {
                     id: data.id,
                     name: data.name,
-                    role: 'STUDENT',
-                    email: data.email,
                     nationalId: data.national_id || data.nationalId,
                     schoolId: data.school_id || data.schoolId,
                     className: data.class_name || data.className,
-                    gradeLevel: data.grade_level || data.gradeLevel
+                    gradeLevel: data.grade_level || data.gradeLevel,
+                    email: data.email,
+                    phone: data.phone,
+                    parentName: data.parent_name || data.parentName,
+                    parentPhone: data.parent_phone || data.parentPhone,
+                    parentEmail: data.parent_email || data.parentEmail,
+                    createdById: data.created_by_id || data.createdById
+                };
+                
+                const list = getStudents();
+                if (!list.find(s => s.id === std.id)) {
+                    list.push(std);
+                    localStorage.setItem(KEYS.STUDENTS, JSON.stringify(list));
+                }
+
+                return {
+                    ...std,
+                    role: 'STUDENT'
                 };
             }
         } catch (e) {
@@ -754,11 +775,12 @@ export const downloadFromSupabase = async () => {
     try {
         const promises = Object.entries(DB_MAP).map(async ([localKey, tableName]) => {
             const { data, error } = await supabase.from(tableName).select('*');
-            if (data) save(localKey, data);
+            if (data) localStorage.setItem(localKey, JSON.stringify(data)); // update local without triggering upload
             if (error) console.error(`Error downloading ${tableName}:`, error);
         });
 
         await Promise.all(promises);
+        notifySubscribers();
         notifySync('ONLINE');
     } catch (e) {
         console.error(e);
@@ -823,10 +845,79 @@ export const initAutoSync = async () => {
     return false;
 };
 
+// --- REALTIME SYNC IMPLEMENTATION ---
+let realtimeChannel: any = null;
+
 export const initRealtimeSync = () => {
-    // Placeholder for realtime subscriptions if needed in future
+    if (!isSupabaseConfigured() || realtimeChannel) return;
+
+    realtimeChannel = supabase.channel('db-changes')
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public' },
+            (payload) => {
+                console.log('Realtime change received:', payload);
+                const table = payload.table;
+                const localKey = Object.keys(DB_MAP).find(k => DB_MAP[k] === table);
+                
+                if (localKey) {
+                    handleRealtimeDelta(localKey, payload);
+                }
+            }
+        )
+        .subscribe();
 };
-export const stopRealtimeSync = () => {};
+
+const handleRealtimeDelta = async (localKey: string, payload: any) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    const currentData = get<any>(localKey);
+    let updatedData = [...currentData];
+    
+    if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        const idx = updatedData.findIndex((item: any) => item.id === newRecord.id);
+        if (idx !== -1) {
+            updatedData[idx] = newRecord;
+        } else {
+            updatedData.push(newRecord);
+        }
+    } else if (eventType === 'DELETE') {
+        updatedData = updatedData.filter((item: any) => item.id !== oldRecord.id);
+    }
+    
+    // Save to local storage WITHOUT triggering upload again (avoid loop)
+    // We use localStorage.setItem directly to bypass the 'save' wrapper which calls uploadToSupabase
+    localStorage.setItem(localKey, JSON.stringify(updatedData));
+    notifySubscribers();
+};
+
+export const stopRealtimeSync = () => {
+    if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+    }
+};
+
+// --- FILE UPLOAD (Storage) ---
+export const uploadFile = async (file: File, bucket: string = 'uploads'): Promise<string | null> => {
+    if (!isSupabaseConfigured()) return null;
+    try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file);
+        if (uploadError) {
+            console.error('Storage upload error:', uploadError);
+            return null;
+        }
+
+        const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+        return data.publicUrl;
+    } catch (e) {
+        console.error('Upload failed:', e);
+        return null;
+    }
+};
 
 export const getTableDisplayName = (table: string) => {
     const reverseMap = Object.entries(DB_MAP).find(([k, v]) => v === table);
@@ -857,241 +948,33 @@ export const getTableDisplayName = (table: string) => {
 };
 
 export const getDatabaseSchemaSQL = () => `
-CREATE TABLE IF NOT EXISTS schools (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    ministry_code TEXT,
-    manager_name TEXT,
-    manager_national_id TEXT,
-    type TEXT,
-    phone TEXT,
-    student_count INTEGER,
-    education_administration TEXT
-);
-
-CREATE TABLE IF NOT EXISTS system_users (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT,
-    national_id TEXT,
-    password TEXT,
-    role TEXT,
-    school_id TEXT,
-    status TEXT,
-    phone TEXT
-);
-
-CREATE TABLE IF NOT EXISTS teachers (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    national_id TEXT,
-    email TEXT,
-    phone TEXT,
-    subject_specialty TEXT,
-    school_id TEXT,
-    manager_id TEXT,
-    subscription_status TEXT,
-    subscription_end_date TEXT
-);
-
-CREATE TABLE IF NOT EXISTS students (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    national_id TEXT,
-    class_id TEXT,
-    school_id TEXT,
-    created_by_id TEXT,
-    grade_level TEXT,
-    class_name TEXT,
-    email TEXT,
-    phone TEXT,
-    parent_name TEXT,
-    parent_phone TEXT,
-    parent_email TEXT,
-    password TEXT,
-    seat_index INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS attendance (
-    id TEXT PRIMARY KEY,
-    student_id TEXT NOT NULL,
-    date TEXT NOT NULL,
-    status TEXT NOT NULL,
-    subject TEXT,
-    period INTEGER,
-    behavior_status TEXT,
-    behavior_note TEXT,
-    excuse_note TEXT,
-    excuse_file TEXT,
-    created_by_id TEXT
-);
-
-CREATE TABLE IF NOT EXISTS performance (
-    id TEXT PRIMARY KEY,
-    student_id TEXT NOT NULL,
-    subject TEXT,
-    title TEXT,
-    category TEXT,
-    score NUMERIC,
-    max_score NUMERIC,
-    date TEXT,
-    notes TEXT,
-    created_by_id TEXT
-);
-
--- Extended Tables
-CREATE TABLE IF NOT EXISTS exams (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    subject TEXT,
-    grade_level TEXT,
-    duration_minutes INTEGER,
-    questions JSONB,
-    is_active BOOLEAN,
-    created_at TEXT,
-    teacher_id TEXT,
-    date TEXT
-);
-
-CREATE TABLE IF NOT EXISTS question_bank (
-    id TEXT PRIMARY KEY,
-    text TEXT,
-    type TEXT,
-    options JSONB,
-    correct_answer TEXT,
-    points INTEGER,
-    subject TEXT,
-    grade_level TEXT,
-    topic TEXT,
-    difficulty TEXT,
-    teacher_id TEXT
-);
-
-CREATE TABLE IF NOT EXISTS exam_results (
-    id TEXT PRIMARY KEY,
-    exam_id TEXT,
-    student_id TEXT,
-    student_name TEXT,
-    score NUMERIC,
-    total_score NUMERIC,
-    date TEXT,
-    answers JSONB
-);
-
-CREATE TABLE IF NOT EXISTS assignments (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    category TEXT,
-    max_score NUMERIC,
-    url TEXT,
-    is_visible BOOLEAN,
-    order_index INTEGER,
-    source_metadata TEXT,
-    teacher_id TEXT,
-    term_id TEXT,
-    period_id TEXT,
-    class_id TEXT
-);
-
-CREATE TABLE IF NOT EXISTS weekly_plans (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    class_id TEXT,
-    subject_name TEXT,
-    day TEXT,
-    period INTEGER,
-    week_start_date TEXT,
-    lesson_topic TEXT,
-    homework TEXT
-);
-
-CREATE TABLE IF NOT EXISTS lesson_plans (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    lesson_id TEXT,
-    subject TEXT,
-    topic TEXT,
-    content_json TEXT,
-    resources JSONB,
-    created_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS academic_terms (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    start_date TEXT,
-    end_date TEXT,
-    is_current BOOLEAN,
-    teacher_id TEXT,
-    periods JSONB
-);
-
-CREATE TABLE IF NOT EXISTS messages (
-    id TEXT PRIMARY KEY,
-    student_id TEXT,
-    student_name TEXT,
-    parent_phone TEXT,
-    type TEXT,
-    content TEXT,
-    status TEXT,
-    date TEXT,
-    sent_by TEXT,
-    teacher_id TEXT
-);
-
-CREATE TABLE IF NOT EXISTS schedules (
-    id TEXT PRIMARY KEY,
-    class_id TEXT,
-    day TEXT,
-    period INTEGER,
-    subject_name TEXT,
-    teacher_id TEXT
-);
-
--- NEW TABLES FOR CURRICULUM AND CUSTOM RECORDS
-CREATE TABLE IF NOT EXISTS curriculum_units (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    subject TEXT,
-    grade_level TEXT,
-    title TEXT,
-    order_index INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS curriculum_lessons (
-    id TEXT PRIMARY KEY,
-    unit_id TEXT,
-    title TEXT,
-    order_index INTEGER,
-    learning_standards JSONB,
-    micro_concept_ids JSONB
-);
-
-CREATE TABLE IF NOT EXISTS micro_concepts (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    subject TEXT,
-    name TEXT
-);
-
-CREATE TABLE IF NOT EXISTS custom_tables (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    created_at TEXT,
-    columns JSONB,
-    rows JSONB,
-    source_url TEXT,
-    last_updated TEXT,
-    teacher_id TEXT
-);
+-- Full Schema
+CREATE TABLE IF NOT EXISTS schools (id TEXT PRIMARY KEY, name TEXT NOT NULL, ministry_code TEXT, manager_name TEXT, manager_national_id TEXT, type TEXT, phone TEXT, student_count INTEGER, education_administration TEXT);
+CREATE TABLE IF NOT EXISTS system_users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT, national_id TEXT, password TEXT, role TEXT, school_id TEXT, status TEXT, phone TEXT);
+CREATE TABLE IF NOT EXISTS teachers (id TEXT PRIMARY KEY, name TEXT NOT NULL, national_id TEXT, email TEXT, phone TEXT, subject_specialty TEXT, school_id TEXT, manager_id TEXT, subscription_status TEXT, subscription_end_date TEXT);
+CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, name TEXT NOT NULL, national_id TEXT, class_id TEXT, school_id TEXT, created_by_id TEXT, grade_level TEXT, class_name TEXT, email TEXT, phone TEXT, parent_name TEXT, parent_phone TEXT, parent_email TEXT, password TEXT, seat_index INTEGER);
+CREATE TABLE IF NOT EXISTS attendance (id TEXT PRIMARY KEY, student_id TEXT NOT NULL, date TEXT NOT NULL, status TEXT NOT NULL, subject TEXT, period INTEGER, behavior_status TEXT, behavior_note TEXT, excuse_note TEXT, excuse_file TEXT, created_by_id TEXT);
+CREATE TABLE IF NOT EXISTS performance (id TEXT PRIMARY KEY, student_id TEXT NOT NULL, subject TEXT, title TEXT, category TEXT, score NUMERIC, max_score NUMERIC, date TEXT, notes TEXT, created_by_id TEXT);
+CREATE TABLE IF NOT EXISTS exams (id TEXT PRIMARY KEY, title TEXT, subject TEXT, grade_level TEXT, duration_minutes INTEGER, questions JSONB, is_active BOOLEAN, created_at TEXT, teacher_id TEXT, date TEXT);
+CREATE TABLE IF NOT EXISTS question_bank (id TEXT PRIMARY KEY, text TEXT, type TEXT, options JSONB, correct_answer TEXT, points INTEGER, subject TEXT, grade_level TEXT, topic TEXT, difficulty TEXT, teacher_id TEXT);
+CREATE TABLE IF NOT EXISTS exam_results (id TEXT PRIMARY KEY, exam_id TEXT, student_id TEXT, student_name TEXT, score NUMERIC, total_score NUMERIC, date TEXT, answers JSONB);
+CREATE TABLE IF NOT EXISTS assignments (id TEXT PRIMARY KEY, title TEXT, category TEXT, max_score NUMERIC, url TEXT, is_visible BOOLEAN, order_index INTEGER, source_metadata TEXT, teacher_id TEXT, term_id TEXT, period_id TEXT, class_id TEXT);
+CREATE TABLE IF NOT EXISTS weekly_plans (id TEXT PRIMARY KEY, teacher_id TEXT, class_id TEXT, subject_name TEXT, day TEXT, period INTEGER, week_start_date TEXT, lesson_topic TEXT, homework TEXT);
+CREATE TABLE IF NOT EXISTS lesson_plans (id TEXT PRIMARY KEY, teacher_id TEXT, lesson_id TEXT, subject TEXT, topic TEXT, content_json TEXT, resources JSONB, created_at TEXT);
+CREATE TABLE IF NOT EXISTS academic_terms (id TEXT PRIMARY KEY, name TEXT, start_date TEXT, end_date TEXT, is_current BOOLEAN, teacher_id TEXT, periods JSONB);
+CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, student_id TEXT, student_name TEXT, parent_phone TEXT, type TEXT, content TEXT, status TEXT, date TEXT, sent_by TEXT, teacher_id TEXT);
+CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, class_id TEXT, day TEXT, period INTEGER, subject_name TEXT, teacher_id TEXT);
+CREATE TABLE IF NOT EXISTS curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INTEGER);
+CREATE TABLE IF NOT EXISTS curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INTEGER, learning_standards JSONB, micro_concept_ids JSONB);
+CREATE TABLE IF NOT EXISTS micro_concepts (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, name TEXT);
+CREATE TABLE IF NOT EXISTS custom_tables (id TEXT PRIMARY KEY, name TEXT, created_at TEXT, columns JSONB, rows JSONB, source_url TEXT, last_updated TEXT, teacher_id TEXT);
+-- Storage Bucket Policy needs to be set manually in Supabase Dashboard for 'uploads' bucket to be public.
 `;
 
 export const getDatabaseUpdateSQL = () => `
 -- Run this if you are updating from an older version
 ALTER TABLE students ADD COLUMN IF NOT EXISTS seat_index INTEGER;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_file TEXT;
-
--- Create new tables if missing
 CREATE TABLE IF NOT EXISTS curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INTEGER);
 CREATE TABLE IF NOT EXISTS curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INTEGER, learning_standards JSONB, micro_concept_ids JSONB);
 CREATE TABLE IF NOT EXISTS micro_concepts (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, name TEXT);
