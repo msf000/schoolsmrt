@@ -1,206 +1,40 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, TrackingSheet, TrackingColumn, SystemUser, Subject, AcademicTerm } from '../types';
-import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents, getSubjects, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
-import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Search, Filter, Clipboard, Zap, Calculator, FileText } from 'lucide-react';
+import { Student, TrackingSheet, TrackingColumn, SystemUser } from '../types';
+import { getTrackingSheets, saveTrackingSheet, deleteTrackingSheet, getStudents } from '../services/storageService';
+import { Plus, Trash2, Save, Printer, ArrowLeft, LayoutGrid, Star, Table, Download, Calculator } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
-import { useNavigate } from 'react-router-dom';
 
-interface FlexibleTrackingSheetProps {
-    currentUser: SystemUser;
-}
-
-const PRESET_TEMPLATES = [
-    { 
-        id: 'QURAN', label: 'متابعة القرآن الكريم', icon: FileText,
-        columns: [
-            { id: 'c1', title: 'التلاوة (5)', type: 'NUMBER', maxScore: 5 },
-            { id: 'c2', title: 'الحفظ (10)', type: 'NUMBER', maxScore: 10 },
-            { id: 'c3', title: 'التجويد (5)', type: 'NUMBER', maxScore: 5 },
-            { id: 'c4', title: 'ملاحظات', type: 'TEXT' }
-        ]
-    },
-    { 
-        id: 'PROJECT', label: 'تقييم المشاريع', icon: LayoutGrid,
-        columns: [
-            { id: 'c1', title: 'فكرة المشروع (5)', type: 'NUMBER', maxScore: 5 },
-            { id: 'c2', title: 'التنفيذ (10)', type: 'NUMBER', maxScore: 10 },
-            { id: 'c3', title: 'العرض (5)', type: 'NUMBER', maxScore: 5 },
-            { id: 'c4', title: 'تسليم في الموعد', type: 'CHECKBOX' }
-        ]
-    },
-    { 
-        id: 'DAILY', label: 'متابعة يومية', icon: Table,
-        columns: [
-            { id: 'c1', title: 'واجب', type: 'CHECKBOX' },
-            { id: 'c2', title: 'مشاركة', type: 'RATING' },
-            { id: 'c3', title: 'سلوك', type: 'CHECKBOX' }
-        ]
-    }
-];
-
-const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUser }) => {
-    const navigate = useNavigate();
+const FlexibleTrackingSheet: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => {
     const [view, setView] = useState<'LIST' | 'EDITOR'>('LIST');
     const [sheets, setSheets] = useState<TrackingSheet[]>([]);
-    const [students, setStudents] = useState<Student[]>([]);
-    const [subjects, setSubjects] = useState<Subject[]>([]);
-    
-    // Terms State
-    const [terms, setTerms] = useState<AcademicTerm[]>([]);
-    const [selectedTermId, setSelectedTermId] = useState('');
-
-    // Editor State
     const [activeSheet, setActiveSheet] = useState<TrackingSheet | null>(null);
-    const [tempTitle, setTempTitle] = useState('');
-    const [tempClass, setTempClass] = useState('');
-    const [tempSubject, setTempSubject] = useState('');
-    const [searchTerm, setSearchTerm] = useState('');
+    const [students, setStudents] = useState<Student[]>([]);
+    const [selectedClass, setSelectedClass] = useState('');
 
     useEffect(() => {
-        if(currentUser?.id) {
-            setSheets(getTrackingSheets(currentUser.id));
-            setStudents(getStudents().filter(s => s.schoolId === currentUser.schoolId || s.createdById === currentUser.id));
-            setSubjects(getSubjects(currentUser.id));
-            
-            const loadedTerms = getAcademicTerms(currentUser.id);
-            setTerms(loadedTerms);
-            const current = loadedTerms.find(t => t.isCurrent);
-            if (current) setSelectedTermId(current.id);
-            else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
-        }
+        setSheets(getTrackingSheets(currentUser.id));
+        setStudents(getStudents());
     }, [currentUser]);
 
-    const uniqueClasses = useMemo<string[]>(() => {
-        const classes = new Set<string>();
-        students.forEach(s => {
-            if (s.className) classes.add(s.className);
-        });
-        // Add manual classes
-        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
-        manualClasses.forEach(c => classes.add(c));
-        return Array.from(classes).sort();
-    }, [students, currentUser]);
+    const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
 
-    // Filter Sheets by Term
-    const filteredSheets = useMemo(() => {
-        const activeTerm = terms.find(t => t.id === selectedTermId);
-        if (!activeTerm) return sheets;
-        
-        return sheets.filter(s => {
-            const date = s.createdAt.split('T')[0];
-            return date >= activeTerm.startDate && date <= activeTerm.endDate;
-        });
-    }, [sheets, selectedTermId, terms]);
-
-    const createNewSheet = (templateId?: string) => {
-        const defaultClass = uniqueClasses.length > 0 ? (uniqueClasses[0] || '') : '';
-        const template = PRESET_TEMPLATES.find(t => t.id === templateId);
-        
+    const createNew = () => {
         const newSheet: TrackingSheet = {
             id: Date.now().toString(),
-            title: template ? template.label : 'سجل جديد',
-            subject: subjects.length > 0 ? subjects[0].name : '',
-            className: defaultClass,
+            title: 'سجل رصد جديد',
+            subject: 'عام',
+            className: uniqueClasses[0] || '',
             teacherId: currentUser.id,
             createdAt: new Date().toISOString(),
-            columns: template ? template.columns.map(c => ({...c, id: `col_${Date.now()}_${Math.random()}`})) as any : [
-                { id: `col_${Date.now()}_1`, title: 'مشاركة 1', type: 'NUMBER', maxScore: 5 },
-                { id: `col_${Date.now()}_2`, title: 'واجب', type: 'CHECKBOX' }
-            ],
+            columns: [{ id: '1', title: 'المشاركة', type: 'RATING' }, { id: '2', title: 'ملاحظة', type: 'TEXT' }],
             scores: {}
         };
-        setActiveSheet(newSheet);
-        setTempTitle(newSheet.title);
-        setTempClass(newSheet.className);
-        setTempSubject(newSheet.subject);
-        setSearchTerm('');
-        setView('EDITOR');
+        setActiveSheet(newSheet); setSelectedClass(newSheet.className); setView('EDITOR');
     };
 
-    const handleEditSheet = (sheet: TrackingSheet) => {
-        setActiveSheet(sheet);
-        setTempTitle(sheet.title);
-        setTempClass(sheet.className);
-        setTempSubject(sheet.subject);
-        setSearchTerm('');
-        setView('EDITOR');
-    };
-
-    const handleDeleteSheet = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (confirm('حذف هذا السجل نهائياً؟')) {
-            deleteTrackingSheet(id);
-            setSheets(getTrackingSheets(currentUser.id));
-        }
-    };
-
-    const handleSaveSheet = () => {
-        if (!activeSheet) return;
-        const updated = {
-            ...activeSheet,
-            title: tempTitle,
-            className: tempClass,
-            subject: tempSubject
-        };
-        saveTrackingSheet(updated);
-        setSheets(getTrackingSheets(currentUser.id));
-        setView('LIST');
-        setActiveSheet(null);
-    };
-
-    const handleExportExcel = () => {
-        if (!activeSheet) return;
-        
-        const rows = filteredStudents.map((student, index) => {
-            const rowData: any = {
-                '#': index + 1,
-                'اسم الطالب': student.name,
-            };
-            
-            let total = 0;
-            activeSheet.columns.forEach(col => {
-                let val = activeSheet.scores[student.id]?.[col.id];
-                if (col.type === 'NUMBER') total += Number(val || 0);
-                
-                if (col.type === 'CHECKBOX') val = val ? '✓' : '';
-                else if (col.type === 'NUMBER' && val) val = `${val}/${col.maxScore || 10}`;
-                rowData[col.title] = val || '';
-            });
-            rowData['المجموع'] = total;
-            return rowData;
-        });
-
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Sijil");
-        XLSX.writeFile(wb, `${tempTitle || 'Tracking_Sheet'}.xlsx`);
-    };
-
-    const addColumn = () => {
-        if (!activeSheet) return;
-        const newCol: TrackingColumn = {
-            id: 'col_' + Date.now(),
-            title: 'عمود جديد',
-            type: 'NUMBER',
-            maxScore: 10
-        };
-        setActiveSheet({ ...activeSheet, columns: [...activeSheet.columns, newCol] });
-    };
-
-    const updateColumn = (id: string, updates: Partial<TrackingColumn>) => {
-        if (!activeSheet) return;
-        const newCols = activeSheet.columns.map(c => c.id === id ? { ...c, ...updates } : c);
-        setActiveSheet({ ...activeSheet, columns: newCols });
-    };
-
-    const deleteColumn = (id: string) => {
-        if (!activeSheet || !confirm('حذف العمود؟')) return;
-        setActiveSheet({ ...activeSheet, columns: activeSheet.columns.filter(c => c.id !== id) });
-    };
-
-    const updateScore = (studentId: string, colId: string, val: any) => {
+    const handleUpdateScore = (studentId: string, colId: string, val: any) => {
         if (!activeSheet) return;
         const newScores = { ...activeSheet.scores };
         if (!newScores[studentId]) newScores[studentId] = {};
@@ -208,257 +42,71 @@ const FlexibleTrackingSheet: React.FC<FlexibleTrackingSheetProps> = ({ currentUs
         setActiveSheet({ ...activeSheet, scores: newScores });
     };
 
-    // --- New Features: Paste & Fill ---
-    const handlePaste = (e: React.ClipboardEvent, startStudentIdx: number, colId: string) => {
-        e.preventDefault();
-        if (!activeSheet) return;
-        const clipboardData = e.clipboardData.getData('text');
-        const rows = clipboardData.split(/\r\n|\n|\r/).filter(val => val.trim() !== '');
-        
-        const newScores = { ...activeSheet.scores };
-        
-        rows.forEach((val, i) => {
-            const targetStudentIdx = startStudentIdx + i;
-            if (targetStudentIdx < filteredStudents.length) {
-                const studentId = filteredStudents[targetStudentIdx].id;
-                if (!newScores[studentId]) newScores[studentId] = {};
-                
-                // Parse based on column type? For now just raw value for Text/Number
-                // You might want to validate number
-                newScores[studentId][colId] = val;
-            }
-        });
-        setActiveSheet({ ...activeSheet, scores: newScores });
+    const handleSave = () => {
+        if (activeSheet) { saveTrackingSheet(activeSheet); setSheets(getTrackingSheets(currentUser.id)); setView('LIST'); }
     };
 
-    const handleFillColumn = (colId: string) => {
-        if (!activeSheet) return;
-        const val = prompt('أدخل القيمة لتعميمها على جميع الطلاب:');
-        if (val === null) return;
-
-        const newScores = { ...activeSheet.scores };
-        filteredStudents.forEach(s => {
-            if (!newScores[s.id]) newScores[s.id] = {};
-            newScores[s.id][colId] = val;
-        });
-        setActiveSheet({ ...activeSheet, scores: newScores });
-    };
-
-    const navigateToStudent = (studentId: string) => {
-        navigate('/followup', { state: { studentId } });
-    };
-
-    const filteredStudents = useMemo(() => {
-        let filtered = students.filter(s => s.className === tempClass);
-        if (searchTerm) {
-            filtered = filtered.filter(s => s.name.includes(searchTerm));
-        }
-        return filtered.sort((a,b) => a.name.localeCompare(b.name));
-    }, [students, tempClass, searchTerm]);
-
-    const renderRatingStars = (studentId: string, colId: string, currentVal: number) => {
-        return (
-            <div className="flex justify-center items-center gap-1">
-                {[1, 2, 3, 4, 5].map(star => (
-                    <button 
-                        key={star} 
-                        onClick={() => updateScore(studentId, colId, star === currentVal ? 0 : star)}
-                        className={`transition-transform hover:scale-110 ${star <= (currentVal || 0) ? 'text-yellow-400' : 'text-gray-200'}`}
-                    >
-                        <Star size={16} fill={star <= (currentVal || 0) ? "currentColor" : "none"} />
-                    </button>
-                ))}
-            </div>
-        );
-    };
+    const filteredStudents = useMemo(() => students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name)), [students, selectedClass]);
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
-            {view === 'LIST' && (
+            {view === 'LIST' ? (
                 <>
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                                <Table className="text-purple-600"/> سجلات الرصد المرنة
-                            </h2>
-                            <p className="text-sm text-gray-500">سجلات خاصة منفصلة عن النظام الرئيسي (مثل: سجل القرآن، متابعة المشاريع...)</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <div className="flex items-center bg-white border rounded-lg px-3 py-2 shadow-sm">
-                                <Filter size={16} className="text-gray-400 ml-1"/>
-                                <select 
-                                    className="bg-transparent text-sm font-bold text-gray-700 outline-none min-w-[120px]"
-                                    value={selectedTermId}
-                                    onChange={(e) => setSelectedTermId(e.target.value)}
-                                >
-                                    <option value="">كل الفترات</option>
-                                    {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                </select>
-                            </div>
-                            {/* Templates Dropdown */}
-                            <div className="group relative">
-                                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 flex items-center gap-2 shadow-md">
-                                    <Plus size={18}/> سجل جديد
-                                </button>
-                                <div className="absolute left-0 mt-1 w-48 bg-white border rounded-lg shadow-xl hidden group-hover:block z-50">
-                                    <button onClick={() => createNewSheet()} className="block w-full text-right px-4 py-2 hover:bg-gray-50 text-sm font-bold border-b">سجل فارغ</button>
-                                    {PRESET_TEMPLATES.map(t => (
-                                        <button key={t.id} onClick={() => createNewSheet(t.id)} className="block w-full text-right px-4 py-2 hover:bg-gray-50 text-sm">{t.label}</button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
+                    <div className="flex justify-between items-center mb-8">
+                        <div><h2 className="text-2xl font-bold text-gray-800">السجلات المرنة</h2><p className="text-sm text-gray-500">صمم سجلات رصد مخصصة للمتابعة اليومية</p></div>
+                        <button onClick={createNew} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg"><Plus/> سجل جديد</button>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
-                        {filteredSheets.map(sheet => (
-                            <div key={sheet.id} onClick={() => handleEditSheet(sheet)} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group relative">
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="bg-purple-50 p-2 rounded-lg text-purple-600">
-                                        <LayoutGrid size={24}/>
-                                    </div>
-                                    <button onClick={(e) => handleDeleteSheet(sheet.id, e)} className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Trash2 size={18}/>
-                                    </button>
-                                </div>
-                                <h3 className="font-bold text-lg text-gray-800 mb-1">{sheet.title}</h3>
-                                <div className="text-xs text-gray-500 space-y-1">
-                                    <p>المادة: <span className="font-bold text-purple-700">{sheet.subject}</span></p>
-                                    <p>الفصل: <span className="font-bold">{sheet.className}</span></p>
-                                    <p>تاريخ الإنشاء: {formatDualDate(sheet.createdAt)}</p>
-                                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {sheets.map(sheet => (
+                            <div key={sheet.id} onClick={() => { setActiveSheet(sheet); setSelectedClass(sheet.className); setView('EDITOR'); }} className="bg-white p-6 rounded-2xl border shadow-sm cursor-pointer hover:border-purple-500 transition-all group">
+                                <div className="flex justify-between mb-4"><div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Table size={20}/></div><button onClick={(e) => { e.stopPropagation(); deleteTrackingSheet(sheet.id); setSheets(getTrackingSheets(currentUser.id)); }} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button></div>
+                                <h3 className="font-bold text-gray-800 mb-1">{sheet.title}</h3>
+                                <p className="text-xs text-gray-400">{sheet.className} • {formatDualDate(sheet.createdAt)}</p>
                             </div>
                         ))}
-                        {filteredSheets.length === 0 && (
-                            <div className="col-span-full py-20 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-                                <p>لا توجد سجلات خاصة لهذه الفترة. ابدأ بإنشاء واحد.</p>
-                            </div>
-                        )}
                     </div>
                 </>
-            )}
-
-            {view === 'EDITOR' && activeSheet && (
-                <div className="flex flex-col h-full">
-                    <div className="bg-white p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm z-10">
-                        <div className="flex items-center gap-3 w-full md:w-auto">
-                            <button onClick={() => setView('LIST')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
-                            <input className="font-bold text-lg text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-purple-500 outline-none w-48 md:w-64" value={tempTitle} onChange={e => setTempTitle(e.target.value)} />
+            ) : activeSheet && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-white rounded-2xl border shadow-sm">
+                    <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setView('LIST')} className="p-2 hover:bg-white rounded-full"><ArrowLeft/></button>
+                            <input className="font-bold text-lg bg-transparent border-b border-transparent focus:border-purple-500 outline-none" value={activeSheet.title} onChange={e => setActiveSheet({...activeSheet, title: e.target.value})} />
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <div className="relative">
-                                <Search size={14} className="absolute top-2.5 right-2 text-gray-400"/>
-                                <input 
-                                    className="w-32 pl-2 pr-7 py-2 border rounded text-xs focus:w-48 transition-all outline-none"
-                                    placeholder="بحث عن طالب..."
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                            <div className="h-6 w-[1px] bg-gray-300 mx-1"></div>
-                            <select className="p-2 border rounded text-sm bg-gray-50" value={tempSubject} onChange={e => setTempSubject(e.target.value)}>
-                                <option value="">المادة...</option>
-                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                            </select>
-                            <select className="p-2 border rounded text-sm bg-gray-50" value={tempClass} onChange={e => setTempClass(e.target.value)}>
-                                <option value="">الفصل...</option>
-                                {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                            <div className="h-6 w-[1px] bg-gray-300 mx-2"></div>
-                            <button onClick={addColumn} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-100 flex items-center gap-1"><Plus size={14}/> عمود</button>
-                            <button onClick={handleExportExcel} className="bg-green-50 text-green-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-green-100 flex items-center gap-1"><Download size={14}/> إكسل</button>
-                            <button onClick={() => window.print()} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-200 flex items-center gap-1"><Printer size={14}/> طباعة</button>
-                            <button onClick={handleSaveSheet} className="bg-green-600 text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-green-700 flex items-center gap-1 shadow"><Save size={14}/> حفظ</button>
+                        <div className="flex gap-2">
+                            <select className="p-2 border rounded-lg text-sm bg-white font-bold" value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setActiveSheet({...activeSheet, className: e.target.value})}}>{uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                            <button onClick={handleSave} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Save size={18}/> حفظ</button>
                         </div>
                     </div>
-
-                    <div className="flex-1 overflow-auto bg-white shadow-inner custom-scrollbar relative">
-                        <table className="w-full text-right border-collapse text-sm min-w-[800px]">
-                            <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-20 shadow-sm">
+                    <div className="flex-1 overflow-auto">
+                        <table className="w-full text-right text-sm border-collapse">
+                            <thead className="bg-gray-100 font-bold sticky top-0 z-10 shadow-sm">
                                 <tr>
                                     <th className="p-3 border w-12 text-center bg-gray-100">#</th>
-                                    <th className="p-3 border w-48 bg-gray-100 sticky right-0 z-30 shadow-md">اسم الطالب</th>
-                                    {activeSheet.columns.map((col, idx) => (
-                                        <th key={col.id} className="p-2 border min-w-[150px] relative group bg-gray-50">
-                                            <div className="flex flex-col gap-1 items-center">
-                                                <div className="flex items-center gap-1 w-full">
-                                                    <input className="bg-transparent font-bold outline-none w-full text-center" value={col.title} onChange={e => updateColumn(col.id, { title: e.target.value })} />
-                                                    <button onClick={() => handleFillColumn(col.id)} className="text-gray-400 hover:text-green-600" title="تعبئة تلقائية"><Zap size={12}/></button>
-                                                </div>
-                                                <div className="flex justify-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                                                    <select className="text-[10px] bg-white border rounded" value={col.type} onChange={e => updateColumn(col.id, { type: e.target.value as any })}>
-                                                        <option value="NUMBER">رقم</option>
-                                                        <option value="TEXT">نص</option>
-                                                        <option value="CHECKBOX">صح/خطأ</option>
-                                                        <option value="RATING">تقييم (نجوم)</option>
-                                                    </select>
-                                                    {col.type === 'NUMBER' && (
-                                                        <input className="w-8 text-[10px] text-center border rounded" value={col.maxScore} onChange={e => updateColumn(col.id, { maxScore: Number(e.target.value) })} placeholder="Max"/>
-                                                    )}
-                                                    <button onClick={() => deleteColumn(col.id)} className="text-red-500 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
-                                                </div>
-                                            </div>
-                                        </th>
-                                    ))}
-                                    <th className="p-3 border w-24 bg-gray-100 text-center"><Calculator size={14} className="inline mr-1"/> المجموع</th>
+                                    <th className="p-3 border min-w-[200px] sticky right-0 bg-gray-100">الطالب</th>
+                                    {activeSheet.columns.map(col => <th key={col.id} className="p-3 border text-center min-w-[120px]">{col.title}</th>)}
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredStudents.map((student, i) => {
-                                    let rowTotal = 0;
-                                    return (
-                                        <tr key={student.id} className="hover:bg-blue-50/30 transition-colors border-b group">
-                                            <td className="p-3 border text-center text-gray-500 bg-gray-50">{i + 1}</td>
-                                            <td 
-                                                className="p-3 border font-bold text-gray-800 bg-white sticky right-0 z-10 shadow-sm cursor-pointer hover:text-purple-600 hover:underline"
-                                                onClick={() => navigateToStudent(student.id)}
-                                            >
-                                                {student.name}
+                                {filteredStudents.map((s, i) => (
+                                    <tr key={s.id} className="hover:bg-gray-50 border-b">
+                                        <td className="p-3 border text-center text-gray-400">{i+1}</td>
+                                        <td className="p-3 border font-bold text-gray-800 sticky right-0 bg-white">{s.name}</td>
+                                        {activeSheet.columns.map(col => (
+                                            <td key={col.id} className="p-2 border text-center">
+                                                {col.type === 'RATING' ? (
+                                                    <div className="flex justify-center gap-1">
+                                                        {[1,2,3,4,5].map(v => <Star key={v} size={14} className={`cursor-pointer ${v <= (activeSheet.scores[s.id]?.[col.id] || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} onClick={() => handleUpdateScore(s.id, col.id, v)}/>)}
+                                                    </div>
+                                                ) : col.type === 'CHECKBOX' ? (
+                                                    <input type="checkbox" className="w-5 h-5 accent-purple-600" checked={!!activeSheet.scores[s.id]?.[col.id]} onChange={e => handleUpdateScore(s.id, col.id, e.target.checked)}/>
+                                                ) : (
+                                                    <input className="w-full bg-transparent text-center outline-none" value={activeSheet.scores[s.id]?.[col.id] || ''} onChange={e => handleUpdateScore(s.id, col.id, e.target.value)} placeholder="..."/>
+                                                )}
                                             </td>
-                                            {activeSheet.columns.map(col => {
-                                                const val = activeSheet.scores[student.id]?.[col.id];
-                                                if (col.type === 'NUMBER') rowTotal += Number(val || 0);
-                                                
-                                                return (
-                                                    <td key={col.id} className="p-0 border relative">
-                                                        {col.type === 'CHECKBOX' ? (
-                                                            <div className="flex justify-center items-center h-full py-2">
-                                                                <input 
-                                                                    type="checkbox" 
-                                                                    className="w-5 h-5 cursor-pointer accent-purple-600"
-                                                                    checked={!!val} 
-                                                                    onChange={e => updateScore(student.id, col.id, e.target.checked)} 
-                                                                />
-                                                            </div>
-                                                        ) : col.type === 'RATING' ? (
-                                                            <div className="h-full py-2">
-                                                                {renderRatingStars(student.id, col.id, val)}
-                                                            </div>
-                                                        ) : col.type === 'NUMBER' ? (
-                                                            <input 
-                                                                type="number" 
-                                                                className="w-full h-full p-2 text-center outline-none bg-transparent focus:bg-blue-50 font-mono font-bold text-purple-700" 
-                                                                value={val || ''} 
-                                                                onChange={e => updateScore(student.id, col.id, e.target.value)}
-                                                                onPaste={(e) => handlePaste(e, i, col.id)}
-                                                                placeholder={`/${col.maxScore || 10}`}
-                                                            />
-                                                        ) : (
-                                                            <input 
-                                                                className="w-full h-full p-2 text-right outline-none bg-transparent focus:bg-blue-50" 
-                                                                value={val || ''} 
-                                                                onChange={e => updateScore(student.id, col.id, e.target.value)}
-                                                                onPaste={(e) => handlePaste(e, i, col.id)}
-                                                            />
-                                                        )}
-                                                    </td>
-                                                );
-                                            })}
-                                            <td className="p-3 border bg-gray-50 text-center font-black text-gray-800">{rowTotal}</td>
-                                        </tr>
-                                    );
-                                })}
-                                {filteredStudents.length === 0 && <tr><td colSpan={activeSheet.columns.length + 3} className="p-10 text-center text-gray-400">اختر فصلاً لعرض الطلاب</td></tr>}
+                                        ))}
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>

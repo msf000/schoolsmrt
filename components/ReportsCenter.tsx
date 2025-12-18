@@ -9,7 +9,6 @@ import CertificatesCenter from './CertificatesCenter';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 
-// Fix: Defined missing ReportsCenterProps interface
 interface ReportsCenterProps {
   students: Student[];
   attendance: AttendanceRecord[];
@@ -95,7 +94,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                             <button onClick={()=>window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2"><Printer size={16}/> طباعة</button>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-auto">
+                    <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-right text-sm">
                             <thead className="bg-gray-50 sticky top-0 font-bold">
                                 <tr>
@@ -125,7 +124,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
             )}
 
             {activeTab === 'AT_RISK' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar">
                     {comprehensiveData.filter(s => s.stats.gradeAvg < 60 || s.stats.attRate < 80).map(s => (
                         <div key={s.id} className="bg-white p-6 rounded-2xl border-2 border-red-100 shadow-sm relative overflow-hidden group">
                             <div className="absolute top-0 right-0 w-2 h-full bg-red-500"></div>

@@ -15,13 +15,6 @@ interface ClassroomScreenProps {
     currentUser?: SystemUser | null;
 }
 
-const EXIT_QUESTIONS = [
-    "ما هو أهم شيء تعلمته اليوم؟",
-    "شيء واحد لم تفهمه تماماً وتود مراجعته؟",
-    "كيف يمكنك تطبيق درس اليوم في حياتك؟",
-    "لخص درس اليوم في جملة واحدة."
-];
-
 const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance, onSaveAttendance, currentUser }) => {
     const [selectedClass, setSelectedClass] = useState('');
     const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS' | 'SEATING'>('PRESENTATION');
@@ -36,7 +29,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
 
     useEffect(() => {
         if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
-    }, [uniqueClasses]);
+    }, [uniqueClasses, selectedClass]);
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -95,7 +88,6 @@ const TabBtn = ({ icon, label, active, onClick }: any) => (
     </button>
 );
 
-// --- Presentation Board Sub-component (The Core) ---
 const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
     const [pages, setPages] = useState<any[]>([{ id: '1', type: 'NONE', contentUrl: '', textContent: '', drawingData: null }]);
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -110,7 +102,6 @@ const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Drawing Logic
     const startDrawing = (e: any) => {
         if (activeTool !== 'PEN' || !canvasRef.current) return;
         setIsDrawing(true);
@@ -120,7 +111,7 @@ const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
         const x = (e.clientX || e.touches[0].clientX) - rect.left;
         const y = (e.clientY || e.touches[0].clientY) - rect.top;
         ctx.beginPath(); ctx.moveTo(x, y);
-        ctx.strokeStyle = isEraser ? 'rgba(0,0,0,1)' : penColor;
+        ctx.strokeStyle = isEraser ? 'white' : penColor;
         ctx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
         ctx.lineWidth = isEraser ? 30 : 4;
         ctx.lineCap = 'round';
@@ -136,17 +127,7 @@ const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
         ctx.lineTo(x, y); ctx.stroke();
     };
 
-    const stopDrawing = () => {
-        if (isDrawing && canvasRef.current) {
-            setIsDrawing(false);
-            const data = canvasRef.current.toDataURL();
-            setPages(prev => {
-                const newPages = [...prev];
-                newPages[currentPageIndex].drawingData = data;
-                return newPages;
-            });
-        }
-    };
+    const stopDrawing = () => { if (isDrawing) setIsDrawing(false); };
 
     const clearCanvas = () => {
         const ctx = canvasRef.current?.getContext('2d');
@@ -167,22 +148,13 @@ const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
 
     const handleAiQuiz = async () => {
         setIsGenerating(true);
-        const content = pages[currentPageIndex].textContent || "درس اليوم";
-        const questions = await generateSlideQuestions(content);
+        const questions = await generateSlideQuestions("محتوى الدرس");
         setAiResult(questions);
-        setIsGenerating(false);
-    };
-
-    const handlePanic = async () => {
-        setIsGenerating(true);
-        const suggestion = await suggestQuickActivity("تشتت الطلاب", "General");
-        setAiResult(suggestion);
         setIsGenerating(false);
     };
 
     return (
         <div className="w-full h-full flex flex-col relative bg-white rounded-2xl overflow-hidden shadow-2xl">
-            {/* Slide View */}
             <div className="flex-1 relative group" ref={containerRef}>
                 <div className="absolute inset-0 z-0 flex items-center justify-center">
                     {pages[currentPageIndex].type === 'IMAGE' ? (
@@ -196,8 +168,6 @@ const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
                         </div>
                     )}
                 </div>
-                
-                {/* Drawing Layer */}
                 <canvas 
                     ref={canvasRef} 
                     className={`absolute inset-0 z-10 touch-none ${activeTool === 'PEN' ? 'cursor-crosshair' : 'pointer-events-none'}`}
@@ -207,66 +177,44 @@ const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
                 />
             </div>
 
-            {/* Bottom Controls */}
             <div className="h-20 bg-slate-900 border-t border-white/10 flex items-center justify-between px-6 z-30">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setPages([...pages, { id: Date.now().toString(), type: 'NONE' }])} className="p-2 bg-white/10 rounded-lg"><Plus/></button>
+                    <button onClick={() => setPages([...pages, { id: Date.now().toString(), type: 'NONE' }])} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"><Plus size={18}/></button>
                     <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10">
-                        <button onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex-1))} className="p-2"><ChevronRight/></button>
+                        <button onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex-1))} className="p-2 hover:bg-white/10 rounded"><ChevronRight/></button>
                         <span className="px-4 font-mono font-bold text-yellow-400">{currentPageIndex+1} / {pages.length}</span>
-                        <button onClick={() => setCurrentPageIndex(Math.min(pages.length-1, currentPageIndex+1))} className="p-2"><ChevronLeft/></button>
+                        <button onClick={() => setCurrentPageIndex(Math.min(pages.length-1, currentPageIndex+1))} className="p-2 hover:bg-white/10 rounded"><ChevronLeft/></button>
                     </div>
                 </div>
-
                 <div className="flex items-center gap-2">
-                    <ToolIcon icon={<PenTool/>} active={activeTool==='PEN'} onClick={()=>setActiveTool(activeTool==='PEN'?'NONE':'PEN')} />
-                    <ToolIcon icon={<Eraser/>} active={isEraser} onClick={()=>setIsEraser(!isEraser)} />
-                    <ToolIcon icon={<BrainCircuit/>} active={activeTool==='AI_QUIZ'} onClick={()=>{setActiveTool('AI_QUIZ'); handleAiQuiz();}} />
-                    <ToolIcon icon={<Siren/>} active={activeTool==='PANIC'} color="red" onClick={()=>{setActiveTool('PANIC'); handlePanic();}} />
-                    <ToolIcon icon={<AlertCircle/>} active={activeTool==='TRAFFIC'} onClick={()=>setActiveTool(activeTool==='TRAFFIC'?'NONE':'TRAFFIC')} />
+                    <ToolIcon icon={<PenTool size={20}/>} active={activeTool==='PEN'} onClick={()=>setActiveTool(activeTool==='PEN'?'NONE':'PEN')} />
+                    <ToolIcon icon={<Eraser size={20}/>} active={isEraser} onClick={()=>setIsEraser(!isEraser)} />
+                    <ToolIcon icon={<BrainCircuit size={20}/>} active={activeTool==='AI_QUIZ'} onClick={()=>{setActiveTool('AI_QUIZ'); handleAiQuiz();}} />
+                    <ToolIcon icon={<Siren size={20}/>} active={activeTool==='PANIC'} color="red" onClick={()=>{setActiveTool('PANIC'); }} />
                     <div className="w-[1px] h-8 bg-white/10 mx-2"></div>
-                    <button onClick={clearCanvas} className="p-2.5 text-red-400 hover:bg-red-400/10 rounded-lg"><Trash2/></button>
+                    <button onClick={clearCanvas} className="p-2.5 text-red-400 hover:bg-red-400/10 rounded-lg"><Trash2 size={20}/></button>
                 </div>
             </div>
 
-            {/* Floating AI Panel */}
             {activeTool !== 'NONE' && activeTool !== 'PEN' && (
                 <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-40 bg-slate-800 border border-white/20 p-6 rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up">
                     <div className="flex justify-between items-center mb-4">
                         <h4 className="font-bold flex items-center gap-2">
                             {activeTool==='AI_QUIZ' && <><BrainCircuit className="text-purple-400"/> اختبار سريع بالذكاء</>}
                             {activeTool==='PANIC' && <><Siren className="text-red-400"/> نشاط لكسر الجمود</>}
-                            {activeTool==='TRAFFIC' && <><AlertCircle className="text-yellow-400"/> إشارة مرور الفصل</>}
                         </h4>
                         <button onClick={()=>setActiveTool('NONE')}><X size={20}/></button>
                     </div>
-                    
                     <div className="text-sm leading-relaxed">
-                        {isGenerating ? (
-                            <div className="flex flex-col items-center py-8 gap-3">
-                                <Loader2 className="animate-spin text-indigo-400" size={40}/>
-                                <p>جاري التفكير بالذكاء الاصطناعي...</p>
-                            </div>
-                        ) : (
-                            <div className="max-h-60 overflow-y-auto">
-                                {activeTool === 'AI_QUIZ' && Array.isArray(aiResult) && aiResult.map((q: any, i: number) => (
-                                    <div key={i} className="mb-4 p-3 bg-white/5 rounded-xl border border-white/10">
-                                        <p className="font-bold text-indigo-300 mb-2">{q.question}</p>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {q.options.map((opt: any) => <div key={opt} className="p-2 bg-white/5 rounded border text-xs">{opt}</div>)}
-                                        </div>
-                                    </div>
-                                ))}
-                                {activeTool === 'PANIC' && <div className="p-4 bg-red-400/10 border border-red-400/20 rounded-xl text-red-100 font-bold whitespace-pre-wrap">{aiResult}</div>}
-                                {activeTool === 'TRAFFIC' && (
-                                    <div className="flex justify-center gap-8 py-4">
-                                        <TrafficLight color="RED" active={traffic==='RED'} onClick={()=>setTraffic('RED')}/>
-                                        <TrafficLight color="YELLOW" active={traffic==='YELLOW'} onClick={()=>setTraffic('YELLOW')}/>
-                                        <TrafficLight color="GREEN" active={traffic==='GREEN'} onClick={()=>setTraffic('GREEN')}/>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        {isGenerating ? <div className="flex flex-col items-center py-8 gap-3"><Loader2 className="animate-spin text-indigo-400" size={40}/><p>جاري التفكير بالذكاء الاصطناعي...</p></div> : 
+                        <div className="max-h-60 overflow-y-auto">
+                            {activeTool === 'AI_QUIZ' && Array.isArray(aiResult) && aiResult.map((q: any, i: number) => (
+                                <div key={i} className="mb-4 p-3 bg-white/5 rounded-xl border border-white/10">
+                                    <p className="font-bold text-indigo-300 mb-2">{q.question}</p>
+                                    <div className="grid grid-cols-2 gap-2">{q.options.map((opt: any) => <div key={opt} className="p-2 bg-white/5 rounded border text-xs">{opt}</div>)}</div>
+                                </div>
+                            ))}
+                        </div>}
                     </div>
                 </div>
             )}
@@ -275,17 +223,9 @@ const PresentationBoard = ({ students, currentClass, currentUser }: any) => {
 };
 
 const ToolIcon = ({ icon, active, onClick, color }: any) => (
-    <button onClick={onClick} className={`p-2.5 rounded-xl transition-all ${active ? (color==='red' ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30') : 'text-slate-400 hover:text-white hover:bg-white/10'}`}>
-        {icon}
-    </button>
+    <button onClick={onClick} className={`p-2.5 rounded-xl transition-all ${active ? (color==='red' ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white shadow-lg') : 'text-slate-400 hover:text-white hover:bg-white/10'}`}>{icon}</button>
 );
 
-const TrafficLight = ({ color, active, onClick }: any) => {
-    const bg = color==='RED' ? 'bg-red-600' : color==='YELLOW' ? 'bg-yellow-500' : 'bg-green-600';
-    return <div onClick={onClick} className={`w-16 h-16 rounded-full cursor-pointer transition-all ${active ? `${bg} ring-4 ring-white shadow-2xl scale-125` : 'bg-slate-700 opacity-30 hover:opacity-50'}`}></div>;
-}
-
-// ... (Sub-components: RandomPicker, ClassroomTimer, GroupGenerator, RewardsView, SeatingView - Simplified Version provided here for completeness) ...
 const RandomPicker = ({ students }: any) => {
     const [name, setName] = useState('؟؟؟');
     const [rolling, setRolling] = useState(false);
@@ -302,7 +242,7 @@ const RandomPicker = ({ students }: any) => {
             <div className={`w-full aspect-video bg-white/5 rounded-3xl border-4 border-dashed border-white/20 flex items-center justify-center mb-8 px-10 transition-all ${rolling ? 'scale-110 border-indigo-500' : ''}`}>
                 <h1 className="text-6xl font-black">{name}</h1>
             </div>
-            <button onClick={start} disabled={rolling || students.length===0} className="bg-yellow-500 text-black px-12 py-4 rounded-full font-black text-2xl shadow-xl flex items-center gap-3 mx-auto hover:bg-yellow-400">
+            <button onClick={start} disabled={rolling || students.length===0} className="bg-yellow-500 text-black px-12 py-4 rounded-full font-black text-2xl shadow-xl flex items-center gap-3 mx-auto hover:bg-yellow-400 active:scale-95 transition-all">
                 <Shuffle size={32}/> {rolling ? 'جاري السحب...' : 'سحب عشوائي'}
             </button>
         </div>
@@ -322,11 +262,8 @@ const ClassroomTimer = () => {
         <div className="text-center">
             <div className={`text-9xl font-black font-mono mb-8 ${sec < 60 ? 'text-red-500 animate-pulse' : 'text-white'}`}>{format(sec)}</div>
             <div className="flex gap-4 justify-center">
-                <button onClick={()=>setActive(!active)} className={`p-6 rounded-full ${active ? 'bg-red-600' : 'bg-green-600'}`}>{active ? <Pause size={40}/> : <Play size={40}/>}</button>
-                <button onClick={()=>{setActive(false); setSec(300);}} className="p-6 bg-white/10 rounded-full"><RefreshCw size={40}/></button>
-            </div>
-            <div className="flex gap-2 mt-8">
-                {[1, 2, 5, 10, 15].map(m => <button key={m} onClick={()=>setSec(m*60)} className="px-6 py-2 bg-white/5 rounded-lg font-bold border border-white/10 hover:bg-white/10">{m}د</button>)}
+                <button onClick={()=>setActive(!active)} className={`p-6 rounded-full transition-all active:scale-90 ${active ? 'bg-red-600' : 'bg-green-600'}`}>{active ? <Pause size={40}/> : <Play size={40}/>}</button>
+                <button onClick={()=>{setActive(false); setSec(300);}} className="p-6 bg-white/10 rounded-full hover:bg-white/20"><RefreshCw size={40}/></button>
             </div>
         </div>
     );
@@ -345,16 +282,14 @@ const GroupGenerator = ({ students }: any) => {
         <div className="w-full max-w-6xl h-full flex flex-col items-center">
             <div className="flex gap-4 mb-8 items-center bg-white/10 p-4 rounded-2xl border border-white/10">
                 <span className="font-bold">عدد المجموعات:</span>
-                <input type="number" min="2" max="10" value={num} onChange={e=>setNum(Number(e.target.value))} className="bg-black/40 w-20 text-center p-2 rounded-lg font-bold"/>
-                <button onClick={gen} className="bg-indigo-600 px-8 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2"><Grid size={20}/> تقسيم المجموعات</button>
+                <input type="number" min="2" max="10" value={num} onChange={e=>setNum(Number(e.target.value))} className="bg-black/40 w-20 text-center p-2 rounded-lg font-bold outline-none border border-white/10"/>
+                <button onClick={gen} className="bg-indigo-600 px-8 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2 hover:bg-indigo-700">تقسيم</button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full overflow-y-auto custom-scrollbar">
                 {groups.map((group, i) => (
-                    <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4 animate-zoom-in">
                         <h4 className="text-yellow-400 font-bold mb-3 border-b border-white/10 pb-2">المجموعة {i+1}</h4>
-                        <div className="space-y-1">
-                            {group.map(s => <div key={s.id} className="text-sm flex items-center gap-2"><div className="w-2 h-2 bg-indigo-500 rounded-full"></div>{s.name}</div>)}
-                        </div>
+                        <div className="space-y-1">{group.map(s => <div key={s.id} className="text-sm flex items-center gap-2">{s.name}</div>)}</div>
                     </div>
                 ))}
             </div>
@@ -367,11 +302,11 @@ const RewardsView = ({ students, attendance, onSaveAttendance, currentUser }: an
         if(onSaveAttendance) onSaveAttendance([{ id: Date.now().toString(), studentId, date: new Date().toISOString().split('T')[0], status: AttendanceStatus.PRESENT, behaviorStatus: BehaviorStatus.POSITIVE, behaviorNote: 'تميز في الحصة', createdById: currentUser?.id }]);
     };
     return (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full h-full overflow-y-auto p-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full h-full overflow-y-auto p-4 custom-scrollbar">
             {students.map((s: any) => (
                 <div key={s.id} onClick={()=>handlePoint(s.id)} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-yellow-500/20 hover:border-yellow-500 transition-all active:scale-95 group">
                     <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center text-2xl font-bold mb-2 group-hover:bg-yellow-500 group-hover:text-black transition-colors">{s.name.charAt(0)}</div>
-                    <span className="text-sm font-bold text-center">{s.name}</span>
+                    <span className="text-sm font-bold text-center line-clamp-1">{s.name}</span>
                 </div>
             ))}
         </div>
@@ -381,7 +316,7 @@ const RewardsView = ({ students, attendance, onSaveAttendance, currentUser }: an
 const SeatingView = ({ students }: any) => (
     <div className="w-full max-w-4xl mx-auto grid grid-cols-4 md:grid-cols-6 gap-6" style={{ direction: 'rtl' }}>
         {students.map((s: any) => (
-            <div key={s.id} className="aspect-square bg-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center p-2 backdrop-blur-sm">
+            <div key={s.id} className="aspect-square bg-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center p-2 backdrop-blur-sm group hover:border-indigo-500 transition-all">
                 <div className="w-10 h-10 bg-indigo-500/30 rounded-full flex items-center justify-center font-bold mb-2">{s.name.charAt(0)}</div>
                 <span className="text-[10px] font-bold text-center line-clamp-2">{s.name}</span>
             </div>
