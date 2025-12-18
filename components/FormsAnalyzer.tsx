@@ -6,7 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { 
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
-    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark, FileText, EyeOff, X, LifeBuoy
+    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark, FileText, EyeOff, X, LifeBuoy, Calendar, Settings2
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
@@ -33,6 +33,17 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [history, setHistory] = useState<FormsDetailedResult[]>([]);
     const [reportClassFilter, setReportClassFilter] = useState('');
     const headerConfig = useMemo(() => getReportHeaderConfig(currentUserId), [currentUserId]);
+
+    // بيانات المتابعة القابلة للتعديل
+    const [followUpMeta, setFollowUpMeta] = useState({
+        week: 'الخامس',
+        day: 'الثلاثاء',
+        date: new Date().toLocaleDateString('ar-SA'),
+        enrichMechanism: '• عرض مرئي ومسموع لتعميق المفاهيم\n• تفعيل التعلم الذاتي عبر منصات إثرائية',
+        remedialMechanism: '• مهمة أدائية علاجية مركزة\n• تطبيق استراتيجية تعلم الأقران',
+        notes: '',
+        recommendations: ''
+    });
 
     useEffect(() => {
         if (currentUserId) {
@@ -266,12 +277,48 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <button onClick={()=>window.print()} className="bg-gray-800 text-white px-6 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg"><Printer size={16}/> طباعة</button>
                             </div>
                         </div>
+
+                        {/* لوحة تعديل بيانات المتابعة تظهر فقط في تبويب المتابعة */}
+                        {historyViewTab === 'FOLLOWUP' && (
+                            <div className="bg-white p-5 rounded-2xl border shadow-sm print:hidden grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
+                                <div className="col-span-full flex items-center gap-2 border-b pb-2 mb-2 text-indigo-600 font-black text-xs uppercase tracking-widest"><Settings2 size={14}/> تخصيص بيانات المتابعة لهذه المهارة</div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400">الأسبوع</label>
+                                    <input className="w-full p-2 border rounded-lg text-xs font-bold" value={followUpMeta.week} onChange={e=>setFollowUpMeta({...followUpMeta, week: e.target.value})}/>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400">اليوم</label>
+                                    <input className="w-full p-2 border rounded-lg text-xs font-bold" value={followUpMeta.day} onChange={e=>setFollowUpMeta({...followUpMeta, day: e.target.value})}/>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400">التاريخ</label>
+                                    <input className="w-full p-2 border rounded-lg text-xs font-bold" value={followUpMeta.date} onChange={e=>setFollowUpMeta({...followUpMeta, date: e.target.value})}/>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400">آلية الإثراء</label>
+                                    <textarea className="w-full p-2 border rounded-lg text-[10px] h-10" value={followUpMeta.enrichMechanism} onChange={e=>setFollowUpMeta({...followUpMeta, enrichMechanism: e.target.value})}/>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400">آلية المعالجة</label>
+                                    <textarea className="w-full p-2 border rounded-lg text-[10px] h-10" value={followUpMeta.remedialMechanism} onChange={e=>setFollowUpMeta({...followUpMeta, remedialMechanism: e.target.value})}/>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400">الملاحظات</label>
+                                    <textarea className="w-full p-2 border rounded-lg text-[10px] h-10" value={followUpMeta.notes} onChange={e=>setFollowUpMeta({...followUpMeta, notes: e.target.value})}/>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400">التوصيات</label>
+                                    <textarea className="w-full p-2 border rounded-lg text-[10px] h-10" value={followUpMeta.recommendations} onChange={e=>setFollowUpMeta({...followUpMeta, recommendations: e.target.value})}/>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
                             {historyViewTab === 'KASHF' && <KashfReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                             {historyViewTab === 'ANALYSIS' && <DiagnosticAnalysis record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                             {historyViewTab === 'CLASSIFICATION' && <ClassificationReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                             {historyViewTab === 'SKILLS' && <LearningOutcomesReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
-                            {historyViewTab === 'FOLLOWUP' && <FollowUpRecordReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} skillIndex={activeSkillIdx} />}
+                            {historyViewTab === 'FOLLOWUP' && <FollowUpRecordReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} skillIndex={activeSkillIdx} meta={followUpMeta} />}
                         </div>
                     </div>
                 )
@@ -355,7 +402,7 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
     );
 };
 
-const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }: any) => {
+const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex, meta }: any) => {
     const skill = record.questions[skillIndex];
     const skillStat = data.skillStats[skillIndex];
     const enrichmentStudents = data.studentsList.filter((s: any) => !s.isAbsent && s.answers[skill.id] === '✔');
@@ -403,8 +450,8 @@ const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }:
                                     </tr>
                                     <tr className="border-b border-black h-24">
                                         <td className="p-2 border-l border-black">آلية إثراء المهارة للمتعلمين</td>
-                                        <td className="p-2 text-right text-[9px] leading-relaxed">
-                                            • عرض مرئي ومسموع لتعميق المفاهيم <br/> • تفعيل التعلم الذاتي عبر منصات إثرائية
+                                        <td className="p-2 text-right text-[9px] leading-relaxed whitespace-pre-wrap">
+                                            {meta.enrichMechanism}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -412,7 +459,9 @@ const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }:
                             <div className="bg-[#002e4d] text-white p-2 text-center text-[10px] font-black">بيانات التنفيذ</div>
                             <table className="w-full text-[10px] text-center border-b border-black">
                                 <tbody>
-                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">الأسبوع</td><td className="p-2">الخامس</td></tr>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">الأسبوع</td><td className="p-2">{meta.week}</td></tr>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">اليوم</td><td className="p-2">{meta.day}</td></tr>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">التاريخ</td><td className="p-2">{meta.date}</td></tr>
                                     <tr><td className="p-2 border-l border-black">عدد المستفيدين من البرنامج الإثرائي</td><td className="p-2">{enrichmentStudents.length}</td></tr>
                                 </tbody>
                             </table>
@@ -452,8 +501,8 @@ const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }:
                                     </tr>
                                     <tr className="border-b border-black h-24">
                                         <td className="p-2 border-l border-black">آلية معالجة الفاقد التعليمي</td>
-                                        <td className="p-2 text-right text-[9px] leading-relaxed">
-                                            • مهمة أدائية علاجية مركزة <br/> • تطبيق استراتيجية تعلم الأقران
+                                        <td className="p-2 text-right text-[9px] leading-relaxed whitespace-pre-wrap">
+                                            {meta.remedialMechanism}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -461,7 +510,9 @@ const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }:
                             <div className="bg-[#002e4d] text-white p-2 text-center text-[10px] font-black">بيانات التنفيذ</div>
                             <table className="w-full text-[10px] text-center border-b border-black">
                                 <tbody>
-                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">الأسبوع</td><td className="p-2">الخامس</td></tr>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">الأسبوع</td><td className="p-2">{meta.week}</td></tr>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">اليوم</td><td className="p-2">{meta.day}</td></tr>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">التاريخ</td><td className="p-2">{meta.date}</td></tr>
                                     <tr><td className="p-2 border-l border-black">عدد المستفيدين من البرنامج العلاجي</td><td className="p-2">{remedialStudents.length}</td></tr>
                                 </tbody>
                             </table>
@@ -510,20 +561,18 @@ const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }:
                         <thead>
                             <tr className="bg-gray-100 font-black text-[10px] h-10 border-b border-black">
                                 <th className="border-l border-black w-1/4">الأسبوع</th>
-                                <th className="border-l border-black w-1/4">الخميس</th>
                                 <th className="border-l border-black w-1/4">اليوم</th>
-                                <th className="w-1/4">الثلاثاء</th>
+                                <th className="border-l border-black w-1/2">أبرز الشواهد (رقمية / ورقية)</th>
                             </tr>
                         </thead>
                         <tbody className="text-[11px] font-bold">
                             <tr className="h-12 border-b border-black">
-                                <td className="border-l border-black">الخامس</td>
-                                <td className="border-l border-black">تفعيل التعلم الذاتي عبر منصة مدرستي</td>
-                                <td className="border-l border-black">الثلاثاء</td>
-                                <td>عرض مرئي ومسموع</td>
+                                <td className="border-l border-black">{meta.week}</td>
+                                <td className="border-l border-black">{meta.day}</td>
+                                <td className="text-right px-4 whitespace-pre-wrap">{meta.enrichMechanism}</td>
                             </tr>
                             <tr className="h-40 border-b border-black">
-                                <td className="border-l border-black"></td><td className="border-l border-black"></td><td className="border-l border-black"></td><td></td>
+                                <td className="border-l border-black"></td><td className="border-l border-black"></td><td></td>
                             </tr>
                         </tbody>
                     </table>
@@ -533,31 +582,29 @@ const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }:
                         <thead>
                             <tr className="bg-gray-100 font-black text-[10px] h-10 border-b border-black">
                                 <th className="border-l border-black w-1/4">الأسبوع</th>
-                                <th className="border-l border-black w-1/4">الخميس</th>
                                 <th className="border-l border-black w-1/4">اليوم</th>
-                                <th className="w-1/4">الثلاثاء</th>
+                                <th className="border-l border-black w-1/2">أبرز الشواهد (رقمية / ورقية)</th>
                             </tr>
                         </thead>
                         <tbody className="text-[11px] font-bold">
                             <tr className="h-12 border-b border-black">
-                                <td className="border-l border-black">الخامس</td>
-                                <td className="border-l border-black">تطبيق استراتيجية تعلم الأقران</td>
-                                <td className="border-l border-black">الثلاثاء</td>
-                                <td>مهمة أدائية علاجية</td>
+                                <td className="border-l border-black">{meta.week}</td>
+                                <td className="border-l border-black">{meta.day}</td>
+                                <td className="text-right px-4 whitespace-pre-wrap">{meta.remedialMechanism}</td>
                             </tr>
                             <tr className="h-40 border-b border-black">
-                                <td className="border-l border-black"></td><td className="border-l border-black"></td><td className="border-l border-black"></td><td></td>
+                                <td className="border-l border-black"></td><td className="border-l border-black"></td><td></td>
                             </tr>
                         </tbody>
                     </table>
 
                     <div className="flex-1 min-h-[100px] border-t-2 border-black flex">
                         <div className="w-48 bg-yellow-50 font-black text-xs flex items-center justify-center border-l-2 border-black">الملاحظات</div>
-                        <div className="flex-1 p-4"></div>
+                        <div className="flex-1 p-4 text-right text-xs font-bold whitespace-pre-wrap">{meta.notes}</div>
                     </div>
                     <div className="min-h-[100px] border-t border-black flex">
                         <div className="w-48 bg-yellow-50 font-black text-xs flex items-center justify-center border-l-2 border-black">التوصيات</div>
-                        <div className="flex-1 p-4"></div>
+                        <div className="flex-1 p-4 text-right text-xs font-bold whitespace-pre-wrap">{meta.recommendations}</div>
                     </div>
 
                     <div className="bg-[#002e4d] text-white p-6 grid grid-cols-2 text-center text-xs font-black">
@@ -672,7 +719,7 @@ const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => {
                     </div>
                     <div className="flex h-12">
                         <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-l border-black flex items-center justify-center">مؤشر المهارات الغير متقنة</div>
-                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative"><div className="w-full h-8 bg-red-50 rounded-full border border-red-200 overflow-hidden flex items-center"><div className="h-full bg-[#ef4444] transition-all" style={{ width: `${nonMasteredPct}%` }}></div><span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span></div></div>
+                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative"><div className="w-full h-8 bg-red-50 rounded-full border border-green-200 overflow-hidden flex items-center"><div className="h-full bg-[#ef4444] transition-all" style={{ width: `${nonMasteredPct}%` }}></div><span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span></div></div>
                     </div>
                 </div>
                 <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black"><div>معلم المادة / أ. {header?.teacherName}</div><div>مدير المدرسة / أ. {header?.schoolManager}</div></div>
