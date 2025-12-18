@@ -6,7 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { 
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
-    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight
+    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
@@ -19,7 +19,7 @@ interface Props {
 const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [mainTab, setMainTab] = useState<'NEW' | 'HISTORY' | 'COMPARE'>('HISTORY');
     const [selectedRecord, setSelectedRecord] = useState<FormsDetailedResult | null>(null);
-    const [historyViewTab, setHistoryViewTab] = useState<'KASHF' | 'ANALYSIS'>('KASHF');
+    const [historyViewTab, setHistoryViewTab] = useState<'KASHF' | 'ANALYSIS' | 'CLASSIFICATION'>('KASHF');
     const [comparisonTab, setComparisonTab] = useState<'STUDENTS' | 'SKILLS'>('STUDENTS');
     const [compareId1, setCompareId1] = useState('');
     const [compareId2, setCompareId2] = useState('');
@@ -40,14 +40,14 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         }
     }, [currentUserId, isSaving, mainTab]);
 
-    // دالة محسنة لجلب الأسئلة - تستبعد فقط المجاميع النهائية
+    // دالة محسنة جداً لجلب كافة الأسئلة (النقاط) دون استثناء أي كلمة
     const getQuestionHeaders = (allHeaders: string[]) => {
         return allHeaders.filter(h => {
             const hTrim = h.trim();
             const isPointCol = hTrim.startsWith('النقاط -') || hTrim.startsWith('Points -');
-            const isTotal = hTrim.includes('إجمالي') || hTrim.includes('Total');
-            // نبقي على كل الأعمدة التي تبدأ بـ "النقاط" لأنها تمثل الأسئلة في Forms
-            return isPointCol && !isTotal;
+            const isGrandTotal = hTrim === 'إجمالي النقاط' || hTrim === 'Total Points';
+            // نستبعد فقط الإجمالي الكلي النهائي للنموذج
+            return isPointCol && !isGrandTotal;
         });
     };
 
@@ -145,6 +145,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             let masteredCount = 0;
             let unmasteredCount = 0;
 
+            let levelDesc = "";
+            let program = "";
             if (res) {
                 totalStudentsAttended++;
                 totalPossibleSkills += record.questions.length;
@@ -154,11 +156,26 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                     if (val === '✔') masteredCount++;
                     else unmasteredCount++;
                 });
+
+                if (pct >= 90) {
+                    levelDesc = "أداء المتعلم متقدم وحلوله إبداعية للمسائل";
+                    program = "ENRICHMENT";
+                } else if (pct >= 75) {
+                    levelDesc = "لدى المتعلم تميز نسبي في حل المسائل متوسطة المستوى";
+                    program = "ENRICHMENT";
+                } else if (pct >= 50) {
+                    levelDesc = "لدى المتعلم خلل في نواتج التعلم وضعف في التأسيس";
+                    program = "REMEDIAL";
+                } else {
+                    levelDesc = "يحتاج المتعلم إلى تحسين كبير";
+                    program = "REMEDIAL";
+                }
             }
 
             return { 
                 sid: s.id, name: s.name, score: res?.score || 0, pct, color, isAbsent: !res,
-                answers: res?.answers || {}, masteredCount, unmasteredCount
+                answers: res?.answers || {}, masteredCount, unmasteredCount,
+                levelDesc, program
             };
         });
 
@@ -219,7 +236,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col xl:flex-row gap-8 overflow-hidden">
                             <div className="flex-1 flex flex-col overflow-hidden">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة: {getQuestionHeaders(headers).length})</h3>
+                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة المكتشفة: {getQuestionHeaders(headers).length})</h3>
                                     <button onClick={handleAutoGenerateSkills} disabled={isAiProcessing} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-purple-700">
                                         {isAiProcessing ? <Loader2 className="animate-spin" size={14}/> : <Wand2 size={14}/>} استخراج المهارات ذكياً ✨
                                     </button>
@@ -267,6 +284,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <button onClick={() => setSelectedRecord(null)} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
                                 <div className="flex bg-gray-100 p-1 rounded-xl">
                                     <button onClick={()=>setHistoryViewTab('KASHF')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='KASHF' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>كشف الرصد</button>
+                                    <button onClick={()=>setHistoryViewTab('CLASSIFICATION')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='CLASSIFICATION' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>تصنيف المتعلمين</button>
                                     <button onClick={()=>setHistoryViewTab('ANALYSIS')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='ANALYSIS' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>تحليل النتائج</button>
                                 </div>
                             </div>
@@ -279,7 +297,9 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
-                            {historyViewTab === 'KASHF' ? <KashfReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} /> : <DiagnosticAnalysis record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
+                            {historyViewTab === 'KASHF' && <KashfReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
+                            {historyViewTab === 'ANALYSIS' && <DiagnosticAnalysis record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
+                            {historyViewTab === 'CLASSIFICATION' && <ClassificationReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                         </div>
                     </div>
                 )
@@ -411,6 +431,80 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
                 </table>
                 
                 <div className="bg-[#002e4d] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black">
+                    <div>معلم المادة / أ. {header?.teacherName}</div>
+                    <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ClassificationReport = ({ record, data, header, classFilter }: any) => {
+    return (
+        <div className="bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
+            <div className="min-w-[1000px] border-2 border-[#002e4d]">
+                {/* Header Section */}
+                <div className="p-4 border-b-2 border-[#002e4d]">
+                    <div className="bg-[#002e4d] text-white py-2 px-6 rounded-full w-fit mx-auto font-black text-lg mb-4">مدرسة {header?.schoolName}</div>
+                    <div className="flex justify-between items-center px-4 font-black text-[#002e4d] text-sm">
+                        <div className="flex-1 text-right">كشف تصنيف المتعلمين وفق احتياجاتهم</div>
+                        <div className="flex-1 text-center">المادة/ علوم الأرض والفضاء</div>
+                        <div className="flex-1 text-center">الصف/ {data.gradeName} {classFilter || record.className}</div>
+                        <div className="flex-1 text-left">الفصل الدراسي / {header?.term} {header?.academicYear}</div>
+                    </div>
+                </div>
+
+                <table className="w-full border-collapse text-center table-fixed">
+                    <thead>
+                        <tr className="bg-[#004d4d] text-white font-black text-xs h-12">
+                            <th className="border border-white w-10">م</th>
+                            <th className="border border-white w-48 text-right pr-4">اسم الطالب</th>
+                            <th className="border border-white w-24">الدرجة العظمى</th>
+                            <th className="border border-white w-24">النسبة المكتسبة</th>
+                            <th className="border border-white w-72">تحليل مستوى المتعلم وفق الاختبار القبلي</th>
+                            <th colSpan={2} className="border border-white bg-[#004d4d]">احتياجات المتعلم التعليمية</th>
+                        </tr>
+                        <tr className="bg-[#004d4d] text-white font-black text-[10px] h-10">
+                            <th colSpan={2} className="border border-white bg-white"></th>
+                            <th className="border border-white bg-[#004d4d]">{record.questions.length}</th>
+                            <th className="border border-white bg-[#004d4d]">100%</th>
+                            <th className="border border-white bg-[#004d4d]"></th>
+                            <th className="border border-white w-24">برنامج إثرائي</th>
+                            <th className="border border-white w-24">برنامج علاجي</th>
+                        </tr>
+                    </thead>
+                    <tbody className="font-bold text-[11px]">
+                        {data.studentsList.map((s: any, idx: number) => (
+                            <tr key={s.sid} className={`h-10 hover:bg-gray-50 border-b border-[#002e4d] ${s.isAbsent ? 'bg-gray-100 opacity-60' : ''}`}>
+                                <td className="border-x border-[#002e4d] bg-gray-50">{idx + 1}</td>
+                                <td className="border-x border-[#002e4d] text-right pr-3 font-black text-gray-800">{s.name}</td>
+                                <td className="border-x border-[#002e4d] font-black">{s.isAbsent ? '-' : s.score}</td>
+                                <td className={`border-x border-[#002e4d] font-black ${s.isAbsent ? 'text-gray-400' : (s.pct < 50 ? 'text-red-600' : (s.pct >= 90 ? 'text-green-600' : 'text-blue-600'))}`}>
+                                    {s.isAbsent ? 'غائب' : `${Math.round(s.pct * 100) / 100}%`}
+                                </td>
+                                <td className={`border-x border-[#002e4d] text-right px-3 ${s.pct >= 90 ? 'text-green-600' : s.pct >= 75 ? 'text-blue-600' : s.pct >= 50 ? 'text-orange-500' : 'text-red-600'}`}>
+                                    {s.isAbsent ? '-' : s.levelDesc}
+                                </td>
+                                <td className="border-x border-[#002e4d] text-center">
+                                    {!s.isAbsent && s.program === 'ENRICHMENT' && <CheckCircle className="mx-auto text-green-600" size={16}/>}
+                                </td>
+                                <td className="border-x border-[#002e4d] text-center">
+                                    {!s.isAbsent && s.program === 'REMEDIAL' && <CheckCircle className="mx-auto text-green-600" size={16}/>}
+                                </td>
+                            </tr>
+                        ))}
+                        {/* Empty placeholder rows like the image */}
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <tr key={`empty-${i}`} className="h-10 border-b border-[#002e4d]">
+                                <td className="border-x border-[#002e4d] bg-gray-50">{data.studentsList.length + i + 1}</td>
+                                <td className="border-x border-[#002e4d]"></td><td className="border-x border-[#002e4d]"></td>
+                                <td className="border-x border-[#002e4d]"></td><td className="border-x border-[#002e4d]"></td>
+                                <td className="border-x border-[#002e4d]"></td><td className="border-x border-[#002e4d]"></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <div className="bg-[#002e4d] text-white p-5 grid grid-cols-2 text-center text-xs font-black">
                     <div>معلم المادة / أ. {header?.teacherName}</div>
                     <div>مدير المدرسة / أ. {header?.schoolManager}</div>
                 </div>
