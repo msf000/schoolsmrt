@@ -7,7 +7,7 @@ import {
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, AcademicTerm } from '../types';
 import { getAcademicTerms } from '../services/storageService';
 import { generateDailyBriefing } from '../services/geminiService';
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, PieChart as PieIcon, ArrowRight, GraduationCap, Sparkles, Bot, Loader2 } from 'lucide-react';
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, PieChart as PieIcon, ArrowRight, Sparkles, Bot, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -20,17 +20,10 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
-  const [terms, setTerms] = useState<AcademicTerm[]>([]);
-  const [selectedTermId, setSelectedTermId] = useState<string>('');
   const [aiBrief, setAiBrief] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   useEffect(() => {
-    const loadedTerms = getAcademicTerms(currentUser?.id);
-    setTerms(loadedTerms);
-    const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
-    if (active) setSelectedTermId(active.id);
-    
     if (students.length > 0) {
         loadAiBrief();
     }
@@ -74,7 +67,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24">
-      {/* Welcome & AI Briefing Banner */}
+      {/* AI Briefing Banner */}
       <div className="bg-indigo-900 rounded-[2rem] p-6 text-white shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
@@ -98,7 +91,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="إجمالي الطلاب" value={stats.totalStudents} icon={<Users size={24}/>} color="bg-blue-50 text-blue-600" />
         <StatCard label="نسبة حضور اليوم" value={stats.attRate + '%'} icon={<CheckCircle size={24}/>} color="bg-green-50 text-green-600" />
@@ -110,7 +102,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                <Activity size={18} className="text-indigo-600"/> اتجاه الحضور (آخر 30 سجل)
+                <Activity size={18} className="text-indigo-600"/> اتجاه الحضور
             </h3>
           </div>
           <div className="h-[300px]">
@@ -134,7 +126,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <PieIcon size={18} className="text-red-500"/> توزيع الحضور اليوم
+            <PieIcon size={18} className="text-red-500"/> الحضور اليوم
           </h3>
           <div className="h-[300px] flex items-center justify-center">
             {stats.attendanceData.length > 0 ? (
@@ -158,9 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-center text-gray-300 italic text-sm">
-                لم يتم رصد حضور اليوم بعد
-              </div>
+              <div className="text-center text-gray-300 italic text-sm">لم يتم رصد حضور اليوم</div>
             )}
           </div>
         </div>
