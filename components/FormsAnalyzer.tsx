@@ -365,37 +365,65 @@ const KashfReport = ({ record, data, header, classFilter }: any) => (
     </div>
 );
 
-const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => (
-    <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
-        <div className="border-2 border-black">
-            <div className="bg-[#003366] text-white p-4 flex justify-between items-center border-b-2 border-black">
-                <div className="text-right text-[11px] font-bold space-y-1"><p>منطقة {header?.educationAdmin}</p><p>مدرسة {header?.schoolName}</p></div>
-                <div className="text-center"><h2 className="text-xl font-black mb-1 uppercase tracking-tighter">تحليل نتائج المتعلمين - {record.examTitle}</h2><p className="text-xs font-bold opacity-80">تحليل المهارات ونسب التحصيل</p></div>
-                <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
-            </div>
-            <div className="bg-blue-50 border-b-2 border-black grid grid-cols-5 text-[10px] font-black p-3 text-[#003366] text-center uppercase">
-                <div className="border-l border-black/20">المادة: علوم الأرض</div><div className="border-l border-black/20">الصف: {record.className}</div><div className="border-l border-black/20">الفصل: {classFilter || 'الكل'}</div><div className="border-l border-black/20">الفصل: {header?.term}</div><div>العام: {header?.academicYear}</div>
-            </div>
-            <div className="p-4 space-y-8 bg-white">
-                <div className="border border-black/10 rounded-xl overflow-hidden shadow-sm">
-                    <div className="bg-[#003366] text-white p-2 text-center text-xs font-black">الرسم البياني للتحصيل الدراسي حسب المتعلمين</div>
-                    <div className="h-64 p-4"><ResponsiveContainer width="100%" height="100%"><ReBarChart data={data.studentsList} layout="horizontal"><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis domain={[0, 100]} unit="%"/><Tooltip/><ReBar dataKey="pct" barSize={10} radius={[2, 2, 0, 0]}>{data.studentsList.map((e:any, i:number) => (<Cell key={i} fill={e.color}/>))}</ReBar></ReBarChart></ResponsiveContainer></div>
+const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => {
+    const masteredPct = data.totalPossibleSkills > 0 ? Math.round((data.totalMasteredSkills / data.totalPossibleSkills) * 100) : 0;
+    const nonMasteredPct = 100 - masteredPct;
+
+    return (
+        <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
+            <div className="border-2 border-black">
+                <div className="bg-[#003366] text-white p-4 flex justify-between items-center border-b-2 border-black">
+                    <div className="text-right text-[11px] font-bold space-y-1"><p>منطقة {header?.educationAdmin}</p><p>مدرسة {header?.schoolName}</p></div>
+                    <div className="text-center"><h2 className="text-xl font-black mb-1 uppercase tracking-tighter">تحليل نتائج المتعلمين - {record.examTitle}</h2><p className="text-xs font-bold opacity-80">تحليل المهارات ونسب التحصيل</p></div>
+                    <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
                 </div>
-                <div className="border border-black/10 rounded-xl overflow-hidden shadow-sm">
-                    <div className="bg-[#003366] text-white p-2 text-center text-xs font-black">الرسم البياني للتحصيل الدراسي وفق المهارات</div>
-                    <div className="h-64 p-4"><ResponsiveContainer width="100%" height="100%"><ReBarChart data={data.skillStats} margin={{top:20}}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis domain={[0, 100]} unit="%"/><Tooltip/><ReBar dataKey="masteredPct" barSize={25} fill="#3b82f6" radius={[4, 4, 0, 0]}/></ReBarChart></ResponsiveContainer></div>
+                <div className="bg-blue-50 border-b-2 border-black grid grid-cols-5 text-[10px] font-black p-3 text-[#003366] text-center uppercase">
+                    <div className="border-l border-black/20">المادة: علوم الأرض</div><div className="border-l border-black/20">الصف: {record.className}</div><div className="border-l border-black/20">الفصل: {classFilter || 'الكل'}</div><div className="border-l border-black/20">الفصل: {header?.term}</div><div>العام: {header?.academicYear}</div>
                 </div>
+                <div className="p-4 space-y-8 bg-white">
+                    <div className="border border-black/10 rounded-xl overflow-hidden shadow-sm">
+                        <div className="bg-[#003366] text-white p-2 text-center text-xs font-black">الرسم البياني للتحصيل الدراسي حسب المتعلمين</div>
+                        <div className="h-64 p-4"><ResponsiveContainer width="100%" height="100%"><ReBarChart data={data.studentsList} layout="horizontal"><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis domain={[0, 100]} unit="%"/><Tooltip/><ReBar dataKey="pct" barSize={10} radius={[2, 2, 0, 0]}>{data.studentsList.map((e:any, i:number) => (<Cell key={i} fill={e.color}/>))}</ReBar></ReBarChart></ResponsiveContainer></div>
+                    </div>
+                    <div className="border border-black/10 rounded-xl overflow-hidden shadow-sm">
+                        <div className="bg-[#003366] text-white p-2 text-center text-xs font-black">الرسم البياني للتحصيل الدراسي وفق المهارات</div>
+                        <div className="h-64 p-4"><ResponsiveContainer width="100%" height="100%"><ReBarChart data={data.skillStats} margin={{top:20}}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis domain={[0, 100]} unit="%"/><Tooltip/><ReBar dataKey="masteredPct" barSize={25} fill="#3b82f6" radius={[4, 4, 0, 0]}/></ReBarChart></ResponsiveContainer></div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-4 border-t-2 border-black text-center text-[10px] font-black uppercase">
+                    <div className="border-l-2 border-black p-3 bg-blue-50/50">عدد المتعلمين <div className="text-xl mt-1">{data.totalStudents}</div></div>
+                    <div className="border-l-2 border-black p-3 bg-blue-50/50">مجموع المهارات <div className="text-xl mt-1">{data.totalPossibleSkills}</div></div>
+                    <div className="border-l-2 border-black p-3 bg-green-50">المهارات المتقنة <div className="text-xl text-green-700 mt-1">{data.totalMasteredSkills}</div></div>
+                    <div className="p-3 bg-red-50">المهارات غير المتقنة <div className="text-xl text-red-600 mt-1">{data.totalPossibleSkills - data.totalMasteredSkills}</div></div>
+                </div>
+                
+                {/* قسم المؤشرات البيانية (المتقنة وغير المتقنة) */}
+                <div className="border-t-2 border-black bg-white overflow-hidden">
+                    <div className="flex border-b border-black">
+                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative">
+                            <div className="w-full h-8 bg-green-100 rounded-full border border-green-200 overflow-hidden flex items-center">
+                                <div className="h-full bg-green-600 transition-all" style={{ width: `${masteredPct}%` }}></div>
+                                <span className="absolute inset-0 flex items-center justify-center font-black text-sm text-green-900" style={{ textShadow: '0 0 2px white' }}>{masteredPct}%</span>
+                            </div>
+                        </div>
+                        <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-r border-black flex items-center justify-center">مؤشر المهارات المتقنة</div>
+                    </div>
+                    <div className="flex">
+                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative">
+                            <div className="w-full h-8 bg-red-100 rounded-full border border-red-200 overflow-hidden flex items-center">
+                                <div className="h-full bg-red-600 transition-all" style={{ width: `${nonMasteredPct}%` }}></div>
+                                <span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span>
+                            </div>
+                        </div>
+                        <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-r border-black flex items-center justify-center">مؤشر المهارات الغير متقنة</div>
+                    </div>
+                </div>
+
+                <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black"><div>معلم المادة / أ. {header?.teacherName}</div><div>مدير المدرسة / أ. {header?.schoolManager}</div></div>
             </div>
-            <div className="grid grid-cols-4 border-t-2 border-black text-center text-[10px] font-black uppercase">
-                <div className="border-l-2 border-black p-3 bg-blue-50/50">عدد المتعلمين <div className="text-xl mt-1">{data.totalStudents}</div></div>
-                <div className="border-l-2 border-black p-3 bg-blue-50/50">مجموع المهارات <div className="text-xl mt-1">{data.totalPossibleSkills}</div></div>
-                <div className="border-l-2 border-black p-3 bg-green-50">المهارات المتقنة <div className="text-xl text-green-700 mt-1">{data.totalMasteredSkills}</div></div>
-                <div className="p-3 bg-red-50">المهارات غير المتقنة <div className="text-xl text-red-600 mt-1">{data.totalPossibleSkills - data.totalMasteredSkills}</div></div>
-            </div>
-            <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black"><div>معلم المادة / أ. {header?.teacherName}</div><div>مدير المدرسة / أ. {header?.schoolManager}</div></div>
         </div>
-    </div>
-);
+    );
+};
 
 const FullComparisonView = ({ rec1, rec2, students, tab, header }: any) => {
     const studentList = students.filter((s:any) => s.className === rec1.className || s.className === rec2.className).sort((a:any, b:any) => a.name.localeCompare(b.name, 'ar'));
