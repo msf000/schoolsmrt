@@ -26,10 +26,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [history, setHistory] = useState<FormsDetailedResult[]>([]);
     const [outcomesMapping, setOutcomesMapping] = useState<Record<string, string>>({});
 
-    // تحديث السجل عند التحميل أو الحفظ
     useEffect(() => {
         if (currentUserId) {
-            // التحقق من الصلاحيات: جلب فقط ما يخص المعلم الحالي
             setHistory(getFormsDetailedResults(currentUserId));
         }
     }, [currentUserId, isSaving, viewMode]);
@@ -75,21 +73,29 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const itemAnalysis = useMemo(() => {
         if (fileData.length === 0) return [];
         
-        // استخراج نصوص الأسئلة فقط من أعمدة "النقاط"
-        const pointHeaders = headers.filter(h => 
-            h.startsWith('النقاط -') || 
-            h.startsWith('Points -') ||
-            h.includes('نقاط -')
-        );
+        // الكلمات التي يتم استبعاد الأسئلة بناءً عليها (مثل الاسم والفصل)
+        const blacklist = ['اسمك', 'الاسم', 'فصلك', 'الفصل', 'الرباعي', 'الكامل', 'الهوية', 'الرقم', 'name', 'class', 'identity'];
+
+        // استخراج نصوص الأسئلة فقط من أعمدة "النقاط" مع استثناء البلاك لست
+        const pointHeaders = headers.filter(h => {
+            const isPointCol = h.startsWith('النقاط -') || h.startsWith('Points -') || h.includes('نقاط -');
+            if (!isPointCol) return false;
+
+            const cleanText = h.replace(/^النقاط - /, '').replace(/^Points - /, '').replace(/^نقاط - /, '').trim();
+            const isInfo = blacklist.some(word => cleanText.toLowerCase().includes(word));
+            return !isInfo;
+        });
 
         return pointHeaders.map(pointCol => {
-            const questionTitle = pointCol
+            let questionTitle = pointCol
                 .replace(/^النقاط - /, '')
                 .replace(/^Points - /, '')
                 .replace(/^نقاط - /, '')
                 .trim();
+            
+            // إزالة السوابق مثل س1: س2: 
+            questionTitle = questionTitle.replace(/^س\d+[:\s]*/, '').trim();
 
-            // عمود الإجابة النصية عادة يكون بنفس اسم السؤال المنظف
             const answerCol = headers.find(h => h === questionTitle) || headers[headers.indexOf(pointCol) - 1];
 
             let correctCount = 0;
@@ -133,7 +139,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 if (res.matchedStudent) {
                     const answers: Record<string, string> = {};
                     itemAnalysis.forEach(q => {
-                        // حفظ الإجابة النصية للطالب
                         answers[q.question] = String(res.row[q.answerColumn] || '-');
                     });
                     studentResponses[res.matchedStudent.id] = {
@@ -163,10 +168,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 studentResponses
             };
 
-            // حفظ التحليل المفصل
             saveFormsDetailedResult(record);
 
-            // رصد الدرجات في السجل العام
             const perfRecords = Object.entries(studentResponses).map(([sid, data]) => ({
                 id: `p_forms_${record.id}_${sid}`,
                 studentId: sid,
@@ -211,7 +214,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                     <div className="flex-1 flex flex-col items-center justify-center border-4 border-dashed border-gray-200 rounded-[3rem] bg-white p-10 text-center">
                         <Upload size={48} className="text-green-600 mb-4"/>
                         <h3 className="text-xl font-black text-gray-800 mb-2">ارفع ملف استجابات Forms</h3>
-                        <p className="text-gray-400 max-w-sm mb-8 text-sm">يقوم النظام تلقائياً باستخراج الأسئلة من أعمدة "النقاط" لتحديد نواتج التعلم.</p>
+                        <p className="text-gray-400 max-w-sm mb-8 text-sm">يقوم النظام تلقائياً باستخراج الأسئلة الأكاديمية فقط وتجاهل البيانات التعريفية (الاسم، الفصل).</p>
                         <input type="file" id="f-up" className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
                         <label htmlFor="f-up" className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl cursor-pointer hover:bg-green-700 transition-all">
                             {loading ? 'جاري التحليل...' : 'اختيار ملف الاستجابات'}
@@ -225,9 +228,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                         </div>
 
                         <div className="flex-1 grid grid-cols-1 xl:grid-cols-2 gap-6 overflow-hidden">
-                            {/* تحليل الفقرات ونواتج التعلم */}
                             <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col overflow-hidden">
-                                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><ListFilter size={18} className="text-orange-500"/> الأسئلة المستخرجة ونواتج التعلم</h3>
+                                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><ListFilter size={18} className="text-orange-500"/> الأسئلة المستخرجة (الأكاديمية)</h3>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
                                     {itemAnalysis.map((item, idx) => (
                                         <div key={idx} className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
@@ -241,7 +243,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                                         <BrainCircuit size={12} className="text-purple-500"/>
                                                         <input 
                                                             className="text-[10px] bg-transparent outline-none w-full font-bold text-purple-700" 
-                                                            placeholder="أدخل ناتج التعلم المرتبط (مثلاً: التحليل، الاستنتاج...)"
+                                                            placeholder="أدخل ناتج التعلم المرتبط..."
                                                             value={outcomesMapping[item.id] || ''}
                                                             onChange={e => {
                                                                 e.stopPropagation();
@@ -262,7 +264,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                                             <span className="font-black text-red-600">{count} طلاب</span>
                                                         </div>
                                                     ))}
-                                                    {item.commonErrors.length === 0 && <p className="text-green-600 font-bold">لا توجد أخطاء متكررة.</p>}
                                                 </div>
                                             )}
                                         </div>
@@ -270,13 +271,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 </div>
                             </div>
 
-                            {/* الطلاب والمطابقة */}
                             <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col overflow-hidden">
                                 <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><UserCheck size={18} className="text-blue-500"/> مراجعة مطابقة الطلاب</h3>
                                 <div className="flex-1 overflow-y-auto border rounded-2xl bg-gray-50">
                                     <table className="w-full text-right text-xs">
                                         <thead className="bg-gray-100 sticky top-0 font-bold z-10">
-                                            <tr><th className="p-3">الطالب (في Forms)</th><th className="p-3 text-center">الدرجة</th></tr>
+                                            <tr><th className="p-3">الطالب</th><th className="p-3 text-center">الدرجة</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
                                             {processedResults.map((r, i) => (
@@ -288,7 +288,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                                             </div>
                                                         ) : (
                                                             <div className="flex items-center gap-1 text-red-400">
-                                                                <AlertCircle size={10}/> {r.studentName} (غير مطابق)
+                                                                <AlertCircle size={10}/> {r.studentName}
                                                             </div>
                                                         )}
                                                     </td>
@@ -311,7 +311,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                     </div>
                 )
             ) : (
-                /* واجهة السجل والتاريخ */
                 <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar">
                     {history.length === 0 ? (
                         <div className="text-center py-20 text-gray-300 italic flex flex-col items-center">
