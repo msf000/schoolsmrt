@@ -5,7 +5,8 @@ import { getWorkbookStructure, getSheetHeadersAndData } from '../services/excelS
 import { 
     FileSpreadsheet, Loader2, CheckCircle, AlertCircle, BarChart, 
     Info, ArrowRight, UserCheck, Calculator, TrendingUp, 
-    Upload, Search, Mail, FileText, ChevronDown, ChevronUp
+    Upload, Search, Mail, FileText, ChevronDown, ChevronUp,
+    ListFilter, Target, HelpCircle
 } from 'lucide-react';
 import { Student } from '../types';
 
@@ -20,6 +21,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [headers, setHeaders] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [showItemAnalysis, setShowItemAnalysis] = useState(true);
+    const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
 
     // 1. معالجة رفع الملف
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,70 +45,76 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const processedResults = useMemo(() => {
         if (fileData.length === 0) return [];
 
-        // محاولة اكتشاف الأعمدة
         const emailCol = headers.find(h => h.toLowerCase().includes('email') || h.includes('البريد'));
         const nameCol = headers.find(h => h.toLowerCase().includes('name') || h.includes('الاسم'));
         const scoreCol = headers.find(h => h.toLowerCase().includes('total points') || h.includes('إجمالي النقاط'));
 
         return fileData.map((row) => {
-            const rowEmail = emailCol ? String(row[emailCol]).trim().toLowerCase() : '';
-            const rowName = nameCol ? String(row[nameCol]).trim() : '';
+            const rowEmail = emailCol ? String(row[emailCol] || '').trim().toLowerCase() : '';
+            const rowName = nameCol ? String(row[nameCol] || '').trim() : '';
             const score = scoreCol ? Number(row[scoreCol]) : 0;
-            const maxScore = 0; // سيتم حسابه لاحقاً أو استخراجه
 
-            // البحث عن الطالب: إيميل أولاً، ثم اسم
             const matchedStudent = students.find(s => 
                 (s.email && s.email.toLowerCase() === rowEmail) ||
                 (s.name === rowName || s.name.includes(rowName) || rowName.includes(s.name))
             );
 
-            return {
-                row,
-                studentName: rowName,
-                email: rowEmail,
-                score,
-                matchedStudent
-            };
+            return { row, studentName: rowName, email: rowEmail, score, matchedStudent };
         });
     }, [fileData, headers, students]);
 
-    // 3. تحليل الفقرات (بدون ذكاء اصطناعي - إحصائي)
+    // 3. استخراج الفقرات والأسئلة (تصفية أعمدة "النقاط - ")
     const itemAnalysis = useMemo(() => {
         if (fileData.length === 0) return [];
 
-        // استخراج أعمدة الأسئلة (عادة تبدأ بعد الأعمدة التعريفية في Forms)
-        // في إكسل Forms، الأسئلة تبدأ غالباً بعد العمود الخامس وتكون متبوعة بعمود النقاط الخاص بكل سؤال
-        const questionHeaders = headers.filter((h, idx) => {
-            const isIdentity = ['id', 'start time', 'completion time', 'email', 'name', 'total points', 'quiz feedback'].some(term => h.toLowerCase().includes(term));
-            const isPointCol = h.toLowerCase().includes('points -');
-            return !isIdentity && !isPointCol;
-        });
+        // البحث عن الأعمدة التي تبدأ بـ "النقاط" أو "Points"
+        const pointHeaders = headers.filter(h => 
+            h.startsWith('النقاط -') || 
+            h.startsWith('Points -') ||
+            h.includes('نقاط -')
+        );
 
-        return questionHeaders.map(q => {
-            const pointCol = headers.find(h => h.toLowerCase() === `points - ${q.toLowerCase()}` || h.includes(`نقاط - ${q}`));
-            
-            let totalPointsObtained = 0;
+        return pointHeaders.map(pointCol => {
+            // استخراج نص السؤال (حذف البادئة "النقاط - ")
+            const questionTitle = pointCol
+                .replace(/^النقاط - /, '')
+                .replace(/^Points - /, '')
+                .replace(/^نقاط - /, '')
+                .trim();
+
+            // العثور على العمود المقابل الذي يحتوي على "الإجابة النصية" للطالب
+            // عادة في ملف Forms يكون عمود الإجابة قبل عمود النقاط مباشرة أو بنفس الاسم بدون كلمة نقاط
+            const answerCol = headers.find(h => h === questionTitle) || headers[headers.indexOf(pointCol) - 1];
+
             let correctCount = 0;
             let responsesCount = 0;
+            const errorPatterns: Record<string, number> = {};
 
             fileData.forEach(row => {
-                if (row[q] !== undefined) {
-                    responsesCount++;
-                    if (pointCol) {
-                        const pts = Number(row[pointCol]);
-                        totalPointsObtained += pts;
-                        if (pts > 0) correctCount++;
-                    }
+                const pts = Number(row[pointCol]);
+                const ans = String(row[answerCol] || 'لم يجب');
+                
+                responsesCount++;
+                if (pts > 0) {
+                    correctCount++;
+                } else {
+                    errorPatterns[ans] = (errorPatterns[ans] || 0) + 1;
                 }
             });
 
             const successRate = responsesCount > 0 ? Math.round((correctCount / responsesCount) * 100) : 0;
 
             return {
-                question: q,
+                id: pointCol,
+                question: questionTitle,
                 successRate,
                 responsesCount,
-                difficulty: successRate < 50 ? 'صعب' : successRate < 80 ? 'متوسط' : 'سهل'
+                correctCount,
+                wrongCount: responsesCount - correctCount,
+                difficulty: successRate < 50 ? 'صعب جداً' : successRate < 75 ? 'متوسط' : 'سهل',
+                commonErrors: Object.entries(errorPatterns)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
             };
         });
     }, [fileData, headers]);
@@ -128,7 +136,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 subject: 'عام',
                 title: 'اختبار Microsoft Forms',
                 score: res.score,
-                maxScore: itemAnalysis.length, // افتراضياً عدد الأسئلة
+                maxScore: itemAnalysis.reduce((acc, q) => acc + 1, 0), // عدد الأسئلة المستخرجة
                 date: new Date().toISOString().split('T')[0],
                 createdById: currentUserId,
                 category: 'PLATFORM_EXAM'
@@ -150,12 +158,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             <div className="mb-6 flex justify-between items-end">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <FileSpreadsheet className="text-green-600"/> مستورد Microsoft Forms المتطور
+                        <FileSpreadsheet className="text-green-600"/> مستورد نتائج Microsoft Forms
                     </h2>
-                    <p className="text-sm text-gray-500 mt-1">قم برفع ملف Excel المستخرج من Forms للتحليل والرصد الفوري.</p>
+                    <p className="text-sm text-gray-500 mt-1">يتم استخراج الأسئلة تلقائياً من أعمدة "النقاط" وتحليل صعوبتها.</p>
                 </div>
                 {fileData.length > 0 && (
-                    <button onClick={() => setFileData([])} className="text-xs font-bold text-red-500 hover:underline">إلغاء وتحميل ملف آخر</button>
+                    <button onClick={() => setFileData([])} className="text-xs font-bold text-red-500 hover:underline">بدء تحليل ملف جديد</button>
                 )}
             </div>
 
@@ -164,42 +172,91 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                     <div className="w-24 h-24 bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-6">
                         <Upload size={48}/>
                     </div>
-                    <h3 className="text-xl font-black text-gray-800 mb-2">ارفع ملف النتائج (Excel)</h3>
-                    <p className="text-gray-400 max-w-sm mb-8 leading-relaxed">
-                        افتح اختبارك في Microsoft Forms، اختر "الاستجابات"، ثم "فتح في Excel"، وارفع الملف هنا.
+                    <h3 className="text-xl font-black text-gray-800 mb-2">ارفع ملف الاستجابات (Excel)</h3>
+                    <p className="text-gray-400 max-w-sm mb-8 leading-relaxed text-sm">
+                        النظام سيقوم بقراءة الأعمدة مثل "<b>النقاط - ما هي عاصمة السعودية؟</b>" لتحليل أداء الطلاب في كل فقرة.
                     </p>
-                    <input 
-                        type="file" 
-                        id="forms-upload" 
-                        className="hidden" 
-                        accept=".xlsx, .xls" 
-                        onChange={handleFileUpload}
-                    />
-                    <label 
-                        htmlFor="forms-upload"
-                        className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl shadow-green-100 hover:bg-green-700 cursor-pointer transition-all active:scale-95"
-                    >
-                        {loading ? 'جاري القراءة...' : 'اختيار ملف Excel'}
+                    <input type="file" id="forms-upload" className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                    <label htmlFor="forms-upload" className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl shadow-green-100 hover:bg-green-700 cursor-pointer transition-all active:scale-95">
+                        {loading ? 'جاري التحليل...' : 'اختيار ملف الاستجابات'}
                     </label>
                 </div>
             ) : (
                 <div className="flex-1 overflow-hidden flex flex-col gap-6">
-                    {/* إحصائيات عامة */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0">
-                        <StatBox icon={<Calculator className="text-green-600"/>} label="متوسط الدرجات" value={stats?.avg} color="bg-green-50" />
+                        <StatBox icon={<Target className="text-green-600"/>} label="متوسط أداء الفصل" value={`${stats?.avg} نقطة`} color="bg-green-50" />
                         <StatBox icon={<UserCheck className="text-blue-600"/>} label="طلاب تم مطابقتهم" value={`${stats?.matched} من ${stats?.total}`} color="bg-blue-50" />
-                        <StatBox icon={<FileText className="text-purple-600"/>} label="عدد الأسئلة" value={itemAnalysis.length} color="bg-purple-50" />
+                        <StatBox icon={<ListFilter className="text-purple-600"/>} label="عدد الأسئلة المكتشفة" value={itemAnalysis.length} color="bg-purple-50" />
                     </div>
 
                     <div className="flex-1 grid grid-cols-1 xl:grid-cols-2 gap-6 overflow-hidden">
-                        {/* جدول الطلاب */}
+                        {/* تحليل الفقرات التفصيلي */}
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col overflow-hidden">
-                            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><UserCheck size={18}/> حالة مطابقة الطلاب</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                    <TrendingUp size={18} className="text-orange-500"/> 
+                                    تحليل الفقرات (Item Analysis)
+                                </h3>
+                                <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-1 rounded font-bold">إحصائي فقط</span>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
+                                {itemAnalysis.map((item, idx) => (
+                                    <div key={idx} className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden group hover:border-orange-200 transition-all">
+                                        <div 
+                                            className="p-4 cursor-pointer flex justify-between items-start gap-4"
+                                            onClick={() => setExpandedQuestion(expandedQuestion === item.id ? null : item.id)}
+                                        >
+                                            <div className="flex-1">
+                                                <p className="text-xs font-bold text-gray-700 leading-relaxed line-clamp-2">
+                                                    <span className="text-orange-500 ml-1">{idx+1}.</span> {item.question}
+                                                </p>
+                                                <div className="flex items-center gap-3 mt-2">
+                                                    <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div className={`h-full transition-all duration-1000 ${item.successRate < 50 ? 'bg-red-500' : item.successRate < 80 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${item.successRate}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-gray-500">{item.successRate}% إتقان</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className={`text-[9px] px-2 py-0.5 rounded-lg font-black uppercase tracking-tighter ${item.difficulty === 'صعب جداً' ? 'bg-red-100 text-red-600' : item.difficulty === 'متوسط' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                                                    {item.difficulty}
+                                                </span>
+                                                {expandedQuestion === item.id ? <ChevronUp size={14} className="text-gray-400"/> : <ChevronDown size={14} className="text-gray-400"/>}
+                                            </div>
+                                        </div>
+
+                                        {expandedQuestion === item.id && (
+                                            <div className="px-4 pb-4 pt-2 border-t border-dashed border-gray-200 bg-white/50 animate-fade-in">
+                                                <h5 className="text-[10px] font-black text-gray-400 mb-2 flex items-center gap-1 uppercase tracking-widest">أكثر الإجابات الخاطئة تكراراً:</h5>
+                                                <div className="space-y-1.5">
+                                                    {item.commonErrors.map(([ans, count], i) => (
+                                                        <div key={i} className="flex justify-between items-center text-xs p-2 bg-white rounded-lg border border-gray-100">
+                                                            <span className="text-gray-600 font-medium">{ans}</span>
+                                                            <span className="text-[10px] font-bold bg-red-50 text-red-500 px-2 rounded-full">{count} طلاب</span>
+                                                        </div>
+                                                    ))}
+                                                    {item.commonErrors.length === 0 && <p className="text-xs text-green-600 font-bold">لا توجد إجابات خاطئة!</p>}
+                                                </div>
+                                                <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold">
+                                                    <div className="text-green-600">إجابة صحيحة: {item.correctCount}</div>
+                                                    <div className="text-red-500">إجابة خاطئة: {item.wrongCount}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* مطابقة الطلاب والرصد */}
+                        <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col overflow-hidden">
+                            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><UserCheck size={18}/> معاينة الطلاب والمطابقة</h3>
                             <div className="flex-1 overflow-y-auto custom-scrollbar border rounded-2xl">
                                 <table className="w-full text-right text-xs">
                                     <thead className="bg-gray-50 font-bold sticky top-0 border-b">
                                         <tr>
-                                            <th className="p-3">الاسم / البريد في Forms</th>
+                                            <th className="p-3">الطالب في Forms</th>
                                             <th className="p-3">المطابق في السجل</th>
                                             <th className="p-3 text-center">الدرجة</th>
                                         </tr>
@@ -208,8 +265,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         {processedResults.map((r, i) => (
                                             <tr key={i} className="hover:bg-gray-50">
                                                 <td className="p-3">
-                                                    <div className="font-bold text-gray-800">{r.studentName || 'بدون اسم'}</div>
-                                                    <div className="text-[10px] text-gray-400">{r.email}</div>
+                                                    <div className="font-bold text-gray-800 line-clamp-1">{r.studentName || 'بدون اسم'}</div>
+                                                    <div className="text-[9px] text-gray-400 font-mono">{r.email}</div>
                                                 </td>
                                                 <td className="p-3">
                                                     {r.matchedStudent ? (
@@ -227,58 +284,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             <button 
                                 onClick={handleSyncGrades}
                                 disabled={isSaving || stats?.matched === 0}
-                                className="mt-4 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                                className="mt-4 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95"
                             >
                                 {isSaving ? <Loader2 className="animate-spin"/> : <BarChart size={18}/>}
                                 رصد الدرجات لـ ({stats?.matched}) طالب
                             </button>
-                        </div>
-
-                        {/* تحليل الفقرات */}
-                        <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col overflow-hidden">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><TrendingUp size={18} className="text-orange-500"/> تحليل فقرات الاختبار</h3>
-                                <button onClick={() => setShowItemAnalysis(!showItemAnalysis)} className="text-gray-400">
-                                    {showItemAnalysis ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
-                                </button>
-                            </div>
-                            
-                            {showItemAnalysis && (
-                                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
-                                    {itemAnalysis.map((item, idx) => (
-                                        <div key={idx} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 group hover:border-orange-200 transition-all">
-                                            <div className="flex justify-between items-start gap-4 mb-3">
-                                                <p className="text-xs font-bold text-gray-700 leading-relaxed flex-1">
-                                                    <span className="text-orange-500 ml-1">{idx+1}.</span> {item.question}
-                                                </p>
-                                                <span className={`text-[10px] px-2 py-1 rounded-lg font-black uppercase tracking-tighter ${
-                                                    item.difficulty === 'صعب' ? 'bg-red-100 text-red-600' : 
-                                                    item.difficulty === 'متوسط' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'
-                                                }`}>
-                                                    {item.difficulty}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className={`h-full transition-all duration-1000 ${
-                                                            item.successRate < 50 ? 'bg-red-500' : item.successRate < 80 ? 'bg-orange-500' : 'bg-green-500'
-                                                        }`}
-                                                        style={{ width: `${item.successRate}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-xs font-black text-gray-600">{item.successRate}% إتقان</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            
-                            {!showItemAnalysis && (
-                                <div className="flex-1 flex items-center justify-center text-gray-300 italic text-sm">
-                                    انقر على السهم لعرض تحليل الأسئلة
-                                </div>
-                            )}
+                            <p className="text-[9px] text-gray-400 font-bold mt-2 text-center">رصد الدرجات سيتم للطلاب المطابقين فقط.</p>
                         </div>
                     </div>
                 </div>
@@ -291,7 +302,7 @@ const StatBox = ({ icon, label, value, color }: any) => (
     <div className={`${color} p-6 rounded-3xl border border-white flex items-center justify-between shadow-sm`}>
         <div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-            <h4 className="text-3xl font-black text-gray-800">{value}</h4>
+            <h4 className="text-2xl font-black text-gray-800">{value}</h4>
         </div>
         <div className="p-4 bg-white/50 rounded-2xl">{icon}</div>
     </div>
