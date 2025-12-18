@@ -7,7 +7,7 @@ import {
     FileSpreadsheet, Loader2, CheckCircle, AlertCircle, BarChart, 
     ArrowRight, UserCheck, TrendingUp, 
     Upload, ChevronDown, ChevronUp,
-    ListFilter, Target, History, BrainCircuit, Save, X, Search, Database, LayoutPanelLeft, ArrowLeft, Users, FileText, Trash2, Edit2, BarChart2, CheckSquare, Sparkles, Printer, FileDown, Layers, Layout
+    ListFilter, Target, History, BrainCircuit, Save, X, Search, Database, LayoutPanelLeft, ArrowLeft, Users, FileText, Trash2, Edit2, BarChart2, CheckSquare, Sparkles, Printer, FileDown, Layers, Layout, PieChart as PieIcon
 } from 'lucide-react';
 import { Student, FormsDetailedResult, FormsQuestionAnalysis, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, LineChart, Line } from 'recharts';
@@ -20,7 +20,7 @@ interface Props {
 const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [viewMode, setViewMode] = useState<'IMPORT' | 'HISTORY'>('IMPORT');
     const [selectedRecord, setSelectedRecord] = useState<FormsDetailedResult | null>(null);
-    const [detailTab, setDetailTab] = useState<'QUESTIONS' | 'OFFICIAL_REPORT' | 'KASHF'>('KASHF');
+    const [detailTab, setDetailTab] = useState<'QUESTIONS' | 'OFFICIAL_REPORT' | 'KASHF'>('OFFICIAL_REPORT');
     const [loading, setLoading] = useState(false);
     const [fileData, setFileData] = useState<any[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
@@ -55,7 +55,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         } catch (error) { alert('فشل التحميل.'); } finally { setLoading(false); }
     };
 
-    // فلتر استبعاد بيانات الهوية (الاسم الرباعي، الرقم، الخ)
     const blacklist = ['اسم', 'الرباعي', 'الكامل', 'هوية', 'سجل', 'رقم', 'مدني', 'فصل', 'شعبة', 'بريد', 'name', 'id', 'email', 'class', 'identity', 'start', 'completion', 'time', 'س1:'];
 
     const itemAnalysis = useMemo(() => {
@@ -64,7 +63,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             const isPointCol = h.includes('النقاط -') || h.includes('Points -');
             if (!isPointCol) return false;
             const cleanText = h.replace(/^(النقاط - |Points - )/, '').trim();
-            // تأكد من استبعاد "س1: اسمك الرباعي" أو ما يشبهها
             return !blacklist.some(word => cleanText.includes(word));
         });
         
@@ -121,11 +119,13 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 
                 if (matchedStudent) {
                     const answers: Record<string, string> = {};
+                    let studentPoints = 0;
                     itemAnalysis.forEach(q => { 
                         const pts = Number(row[q.id]);
+                        if(pts > 0) studentPoints++;
                         answers[q.question] = pts > 0 ? '✔' : '✘'; 
                     });
-                    studentResponses[matchedStudent.id] = { score: 0, total: itemAnalysis.length, answers };
+                    studentResponses[matchedStudent.id] = { score: studentPoints, total: itemAnalysis.length, answers };
                 }
             });
 
@@ -146,37 +146,35 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         } catch (e) { alert('خطأ.'); } finally { setIsSaving(false); }
     };
 
-    // دمج الاختبارات المحددة في سجل واحد
-    const mergedRecord = useMemo(() => {
-        if (!isMergedView || selectedForCompare.size === 0) return null;
-        const selected = history.filter(r => selectedForCompare.has(r.id));
-        const allQuestions: FormsQuestionAnalysis[] = [];
-        const allStudentResponses: Record<string, any> = {};
+    const activeRecord = selectedRecord;
 
-        selected.forEach(rec => {
-            rec.questions.forEach(q => allQuestions.push({ ...q, id: `${rec.id}_${q.id}`, text: `[${rec.examTitle}] ${q.text}` }));
-            Object.entries(rec.studentResponses).forEach(([sid, res]) => {
-                if (!allStudentResponses[sid]) allStudentResponses[sid] = { score: 0, total: 0, answers: {} };
-                Object.entries(res.answers).forEach(([qText, val]) => {
-                    allStudentResponses[sid].answers[`[${rec.examTitle}] ${qText}`] = val;
-                });
-            });
+    // --- إحصائيات التقرير الرسمي (النموذج الأزرق الجديد) ---
+    const reportStats = useMemo(() => {
+        if (!activeRecord) return null;
+        
+        const studentsData = Object.entries(activeRecord.studentResponses).map(([sid, res], idx) => {
+            const pct = Math.round((res.score / res.total) * 100);
+            let level = 'التهيئة';
+            let color = '#ef4444';
+            if (pct >= 90) { level = 'التميز'; color = '#10b981'; }
+            else if (pct >= 75) { level = 'التقدم'; color = '#3b82f6'; }
+            else if (pct >= 50) { level = 'الانطلاق'; color = '#f59e0b'; }
+            
+            return { name: (idx + 1).toString(), full_name: students.find(s=>s.id===sid)?.name || 'طالب', score_pct: pct, level, color };
         });
 
-        return {
-            id: 'merged',
-            examTitle: 'السجل التراكمي الموحد',
-            className: selected[0]?.className || 'متعدد',
-            date: new Date().toISOString(),
-            teacherId: currentUserId!,
-            questions: allQuestions,
-            studentResponses: allStudentResponses
-        } as FormsDetailedResult;
-    }, [isMergedView, selectedForCompare, history]);
+        const skillsData = activeRecord.questions.map((q, idx) => ({
+            name: (idx + 1).toString(),
+            skill: q.learningOutcome,
+            rate: q.successRate
+        }));
 
-    const activeRecord = isMergedView ? mergedRecord : selectedRecord;
+        const totalMasteredSkills = activeRecord.questions.filter(q => q.successRate >= 50).length;
+        const totalUnmasteredSkills = activeRecord.questions.length - totalMasteredSkills;
 
-    // حساب إحصائيات التذييل للكشف
+        return { studentsData, skillsData, totalMasteredSkills, totalUnmasteredSkills };
+    }, [activeRecord, students]);
+
     const kashfStats = useMemo(() => {
         if (!activeRecord) return [];
         return activeRecord.questions.map(q => {
@@ -209,26 +207,146 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             </div>
 
             {activeRecord ? (
-                /* --- واجهة الكشف والتقارير --- */
                 <div className="flex-1 overflow-hidden flex flex-col gap-4 animate-slide-up">
                     <div className="bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center print:hidden">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => { setSelectedRecord(null); setIsMergedView(false); }} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
+                            <button onClick={() => setSelectedRecord(null)} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
                             <div><h3 className="font-bold">{activeRecord.examTitle}</h3><p className="text-xs text-gray-500">{activeRecord.className}</p></div>
                         </div>
                         <div className="flex bg-gray-100 p-1 rounded-xl">
-                            <button onClick={()=>setDetailTab('KASHF')} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${detailTab==='KASHF'?'bg-white shadow text-green-700':'text-gray-500'}`}>كشف رصد أخضر</button>
-                            <button onClick={()=>setDetailTab('OFFICIAL_REPORT')} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${detailTab==='OFFICIAL_REPORT'?'bg-white shadow text-indigo-600':'text-gray-500'}`}>النموذج الرسمي</button>
+                            <button onClick={()=>setDetailTab('OFFICIAL_REPORT')} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${detailTab==='OFFICIAL_REPORT'?'bg-white shadow text-indigo-900':'text-gray-500'}`}>تحليل النتائج (أزرق)</button>
+                            <button onClick={()=>setDetailTab('KASHF')} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${detailTab==='KASHF'?'bg-white shadow text-green-700':'text-gray-500'}`}>كشف رصد (أخضر)</button>
                             <button onClick={()=>setDetailTab('QUESTIONS')} className={`px-4 py-1.5 rounded-lg text-xs font-bold ${detailTab==='QUESTIONS'?'bg-white shadow text-indigo-600':'text-gray-500'}`}>تحليل الفقرات</button>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        {detailTab === 'KASHF' ? (
-                            /* --- كشف الرصد الملون (مطابق للصورة) --- */
+                        {detailTab === 'OFFICIAL_REPORT' && reportStats ? (
+                            /* --- واجهة تحليل نتائج المتعلمين (النموذج الأزرق المرفق في الصورة) --- */
+                            <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl border border-gray-200 print:shadow-none print:border-none">
+                                {/* ترويسة رسمية */}
+                                <div className="flex justify-between items-start mb-4 border-b-2 border-indigo-900 pb-4">
+                                    <div className="text-right text-[10px] font-bold space-y-1">
+                                        <p className="text-indigo-900">الإدارة العامة للتعليم بمنطقة</p>
+                                        <p>{headerConfig?.educationAdmin}</p>
+                                        <div className="mt-2 bg-indigo-900 text-white px-4 py-0.5 rounded-full text-center">مدرسة {headerConfig?.schoolName}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-14 mb-1" alt="logo"/>
+                                    </div>
+                                </div>
+
+                                <div className="bg-indigo-900 text-white p-2 text-center font-black text-sm mb-4">تحليل نتائج المتعلمين وفق {activeRecord.examTitle}</div>
+
+                                {/* معلومات الجدول العلوي */}
+                                <table className="w-full border-collapse border-2 border-indigo-900 text-[10px] mb-6 text-center font-bold">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="border-2 border-indigo-900 p-1">المادة</th>
+                                            <th className="border-2 border-indigo-900 p-1">الصف</th>
+                                            <th className="border-2 border-indigo-900 p-1">الفصل</th>
+                                            <th className="border-2 border-indigo-900 p-1">الفصل الدراسي</th>
+                                            <th className="border-2 border-indigo-900 p-1">العام الدراسي</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className="border-2 border-indigo-900 p-1">علوم الأرض والفضاء</td>
+                                            <td className="border-2 border-indigo-900 p-1">{activeRecord.className.split(' ')[0]}</td>
+                                            <td className="border-2 border-indigo-900 p-1">{activeRecord.className.split(' ').pop()}</td>
+                                            <td className="border-2 border-indigo-900 p-1">{headerConfig?.term}</td>
+                                            <td className="border-2 border-indigo-900 p-1">{headerConfig?.academicYear}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                {/* الرسم البياني الأول: حسب المتعلمين */}
+                                <div className="mb-6 border-2 border-indigo-900">
+                                    <div className="bg-indigo-50 p-1 text-center font-black text-[10px] border-b-2 border-indigo-900">الرسم البياني للتحصيل الدراسي حسب المتعلمين</div>
+                                    <div className="h-[200px] p-4 bg-white">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <ReBarChart data={reportStats.studentsData}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" tick={{fontSize: 8}} />
+                                                <YAxis domain={[0, 100]} tick={{fontSize: 8}} unit="%" />
+                                                <Tooltip />
+                                                <ReBar dataKey="score_pct" radius={[4, 4, 0, 0]} barSize={12}>
+                                                    {reportStats.studentsData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                                                </ReBar>
+                                            </ReBarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="flex justify-center gap-6 p-2 bg-gray-50 border-t-2 border-indigo-900 text-[8px] font-bold">
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-[#10b981]"></div> التميز</div>
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-[#3b82f6]"></div> التقدم</div>
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-[#f59e0b]"></div> الانطلاق</div>
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-[#ef4444]"></div> التهيئة</div>
+                                    </div>
+                                </div>
+
+                                {/* الرسم البياني الثاني: وفق المهارات */}
+                                <div className="mb-6 border-2 border-indigo-900">
+                                    <div className="bg-indigo-50 p-1 text-center font-black text-[10px] border-b-2 border-indigo-900">الرسم البياني للتحصيل الدراسي وفق المهارات المستهدفة</div>
+                                    <div className="h-[200px] p-4 bg-white">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <ReBarChart data={reportStats.skillsData}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" tick={{fontSize: 8}} />
+                                                <YAxis domain={[0, 100]} tick={{fontSize: 8}} />
+                                                <Tooltip />
+                                                <ReBar dataKey="rate" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20} />
+                                            </ReBarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                {/* جدول الإحصائيات النهائي */}
+                                <table className="w-full border-collapse border-2 border-indigo-900 text-[10px] text-center font-bold">
+                                    <thead className="bg-indigo-50">
+                                        <tr>
+                                            <th className="border-2 border-indigo-900 p-2">عدد المتعلمين الكلي</th>
+                                            <th className="border-2 border-indigo-900 p-2">مجموع المهارات حسب المتعلمين</th>
+                                            <th className="border-2 border-indigo-900 p-2">عدد المهارات المتقنة</th>
+                                            <th className="border-2 border-indigo-900 p-2 text-red-600">عدد المهارات غير المتقنة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className="border-2 border-indigo-900 p-2">{Object.keys(activeRecord.studentResponses).length}</td>
+                                            <td className="border-2 border-indigo-900 p-2">{activeRecord.questions.length}</td>
+                                            <td className="border-2 border-indigo-900 p-2">{reportStats.totalMasteredSkills}</td>
+                                            <td className="border-2 border-indigo-900 p-2">{reportStats.totalUnmasteredSkills}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                {/* خانات المؤشرات والتواقيع في الأسفل */}
+                                <div className="mt-4 border-2 border-indigo-900">
+                                    <div className="flex border-b-2 border-indigo-900">
+                                        <div className="flex-1 p-2 text-center font-black">
+                                            {Math.round((reportStats.totalMasteredSkills / activeRecord.questions.length) * 100)}%
+                                        </div>
+                                        <div className="w-48 bg-indigo-900 text-white p-2 text-center text-[10px] font-bold border-l-2 border-indigo-900">مؤشر المهارات المتقنة</div>
+                                    </div>
+                                    <div className="flex">
+                                        <div className="flex-1 p-2 text-center font-black">
+                                            {Math.round((reportStats.totalUnmasteredSkills / activeRecord.questions.length) * 100)}%
+                                        </div>
+                                        <div className="w-48 bg-indigo-900 text-white p-2 text-center text-[10px] font-bold border-l-2 border-indigo-900">مؤشر المهارات غير المتقنة</div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 flex justify-between px-10 text-[10px] font-black text-indigo-900">
+                                    <div className="text-center">معلم المادة / أ. {headerConfig?.teacherName}</div>
+                                    <div className="text-center">مدير المدرسة / أ. {headerConfig?.schoolManager}</div>
+                                </div>
+
+                                <button onClick={()=>window.print()} className="mt-8 w-full py-4 bg-indigo-900 text-white rounded-xl font-black flex items-center justify-center gap-2 print:hidden shadow-lg hover:bg-indigo-800"><Printer/> طباعة تقرير تحليل النتائج</button>
+                            </div>
+                        ) : detailTab === 'KASHF' ? (
+                            /* --- كشف الرصد الملون (النموذج الأخضر) --- */
                             <div className="w-full bg-white p-4 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
                                 <div className="min-w-[1200px]">
-                                    {/* ترويسة الكشف */}
                                     <div className="bg-teal-900 text-white p-4 flex justify-between items-center mb-0 border-x-2 border-t-2 border-black">
                                         <div className="text-right text-[10px] font-bold">
                                             <p>الإدارة العامة للتعليم بمنطقة {headerConfig?.educationAdmin}</p>
@@ -238,7 +356,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
                                     </div>
 
-                                    {/* معلومات الصف */}
                                     <div className="bg-teal-50 border-x-2 border-y-2 border-black grid grid-cols-4 text-xs font-black p-2 text-teal-900 text-center">
                                         <div>العام الدراسي: {headerConfig?.academicYear}</div>
                                         <div>الفصل الدراسي: {headerConfig?.term}</div>
@@ -246,7 +363,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         <div>المادة: علوم الأرض والفضاء</div>
                                     </div>
 
-                                    {/* الجدول الرئيسي */}
                                     <table className="w-full border-collapse border-2 border-black text-[10px] text-center">
                                         <thead className="bg-orange-100 font-black">
                                             <tr>
@@ -280,8 +396,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                                     </tr>
                                                 );
                                             })}
-                                            
-                                            {/* إحصائيات التذييل الملونة */}
                                             <tr className="bg-green-50 font-black h-10">
                                                 <td colSpan={2} className="border-2 border-black text-green-800">عدد الطلبة المتقنين للمهارة</td>
                                                 {kashfStats.map((s, i) => <td key={i} className="border-2 border-black text-green-600">{s.mastered}</td>)}
@@ -297,7 +411,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                                 <td colSpan={2} rowSpan={2} className="border-2 border-black bg-white">
                                                     <div className="flex flex-col items-center justify-center h-full">
                                                         <div className="w-12 h-12 rounded-full border-4 border-green-500 flex items-center justify-center text-xs">
-                                                            {Math.round(kashfStats.reduce((a,b)=>a+b.masteredPct,0)/kashfStats.length)}%
+                                                            {kashfStats.length ? Math.round(kashfStats.reduce((a,b)=>a+b.masteredPct,0)/kashfStats.length) : 0}%
                                                         </div>
                                                     </div>
                                                 </td>
@@ -309,34 +423,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         </tbody>
                                     </table>
 
-                                    {/* التواقيع */}
                                     <div className="mt-0 bg-teal-900 text-white p-4 grid grid-cols-2 text-center text-xs font-bold border-x-2 border-b-2 border-black">
                                         <div>معلم المادة / أ. {headerConfig?.teacherName}</div>
                                         <div>مدير المدرسة / أ. {headerConfig?.schoolManager}</div>
                                     </div>
                                     <button onClick={()=>window.print()} className="mt-8 w-full py-4 bg-gray-900 text-white rounded-xl font-black flex items-center justify-center gap-2 print:hidden"><Printer/> طباعة الكشف الرسمي</button>
                                 </div>
-                            </div>
-                        ) : detailTab === 'OFFICIAL_REPORT' ? (
-                            /* --- نفس النموذج السابق (الأزرق) --- */
-                            <div className="max-w-[210mm] mx-auto bg-white p-10 shadow-xl border-t-[12px] border-indigo-900 print:shadow-none">
-                                <div className="flex justify-between border-b-2 border-indigo-900 pb-6 mb-8">
-                                    <div className="text-right text-xs font-bold">
-                                        <p className="text-indigo-900">الإدارة العامة للتعليم</p>
-                                        <div className="mt-4 bg-indigo-900 text-white px-4 py-1 rounded-full">{headerConfig?.schoolName}</div>
-                                    </div>
-                                    <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-16" alt="logo"/>
-                                </div>
-                                <table className="w-full border-2 border-indigo-900 text-xs text-center font-bold">
-                                    <thead className="bg-indigo-50">
-                                        <tr><th className="border border-indigo-900 p-2">م</th><th className="border border-indigo-900 p-2 text-right">المهارة المستهدفة</th><th className="border border-indigo-900 p-2">إتقان</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        {activeRecord.questions.map((q, i) => (
-                                            <tr key={i}><td className="border border-indigo-900 p-2">{i+1}</td><td className="border border-indigo-900 p-2 text-right">{q.learningOutcome}</td><td className="border border-indigo-900 p-2 text-green-600">✔</td></tr>
-                                        ))}
-                                    </tbody>
-                                </table>
                             </div>
                         ) : (
                             /* --- تحليل الفقرات --- */
@@ -419,37 +511,30 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                     </div>
                 )
             ) : (
-                /* --- واجهة الأرشيف والمقارنة --- */
-                <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-                    {selectedForCompare.size > 0 && (
-                        <div className="bg-indigo-900 text-white p-4 rounded-2xl shadow-xl animate-fade-in flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                                <Layers size={24}/>
-                                <div><h3 className="font-bold">دمج السجلات ({selectedForCompare.size})</h3><p className="text-[10px] text-indigo-200">سيتم إنشاء سجل كامل يجمع كل مهارات الاختبارات المحددة.</p></div>
+                /* --- واجهة الأرشيف --- */
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar pr-1 pb-10">
+                    {history.map(record => (
+                        <div key={record.id} onClick={() => setSelectedRecord(record)} className="bg-white p-6 rounded-[2.5rem] border shadow-sm hover:shadow-md transition-all cursor-pointer relative group">
+                            <div className="absolute top-0 right-0 w-2 h-full bg-indigo-500"></div>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shadow-inner"><BarChart2 size={24}/></div>
+                                <button onClick={(e)=>{e.stopPropagation(); if(confirm('حذف؟')){deleteFormsDetailedResult(record.id); setHistory(getFormsDetailedResults(currentUserId));}}} className="p-2 bg-red-50 text-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                             </div>
-                            <button onClick={() => { setIsMergedView(true); setDetailTab('KASHF'); }} className="bg-yellow-400 text-black px-6 py-2 rounded-xl font-black shadow-lg hover:bg-yellow-500 transition-all flex items-center gap-2"><Layout size={18}/> عرض السجل المدمج</button>
+                            <h3 className="font-bold text-lg text-gray-800 mb-1">{record.examTitle}</h3>
+                            <p className="text-xs text-gray-500 mb-4">{record.className} • {Object.keys(record.studentResponses).length} طالب</p>
+                            <div className="flex gap-2">
+                                <button onClick={()=>{setSelectedRecord(record); setDetailTab('OFFICIAL_REPORT');}} className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black shadow-md hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">تحليل النتائج <ArrowRight size={12}/></button>
+                                <button onClick={()=>{setSelectedRecord(record); setDetailTab('KASHF');}} className="flex-1 py-2 bg-green-50 text-green-700 border border-green-200 rounded-xl text-[10px] font-black hover:bg-green-100 transition-all flex items-center justify-center gap-2">كشف الرصد</button>
+                            </div>
                         </div>
-                    )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar pr-1 pb-10">
-                        {history.map(record => (
-                            <div key={record.id} onClick={() => setSelectedRecord(record)} className="bg-white p-6 rounded-[2.5rem] border shadow-sm hover:shadow-md transition-all cursor-pointer relative group">
-                                <div className="absolute top-0 right-0 w-2 h-full bg-green-500"></div>
-                                <div className="flex justify-between items-start mb-4">
-                                    <button onClick={(e)=>{e.stopPropagation(); const s=new Set(selectedForCompare); if(s.has(record.id))s.delete(record.id); else s.add(record.id); setSelectedForCompare(s);}} className={`p-2 rounded-lg transition-all ${selectedForCompare.has(record.id)?'bg-indigo-600 text-white shadow-md':'bg-gray-100 text-gray-400 hover:bg-indigo-50'}`}><CheckSquare size={16}/></button>
-                                    <button onClick={(e)=>{e.stopPropagation(); if(confirm('حذف؟')){deleteFormsDetailedResult(record.id); setHistory(getFormsDetailedResults(currentUserId));}}} className="p-2 bg-red-50 text-red-600 rounded-lg opacity-0 group-hover:opacity-100"><Trash2 size={14}/></button>
-                                </div>
-                                <h3 className="font-bold text-lg text-gray-800 mb-1">{record.examTitle}</h3>
-                                <p className="text-xs text-gray-500 mb-4">{record.className} • {Object.keys(record.studentResponses).length} طالب</p>
-                                <button className="w-full py-2 bg-gray-50 text-indigo-600 rounded-xl text-[10px] font-black group-hover:bg-indigo-600 group-hover:text-white transition-all flex items-center justify-center gap-2">فتح التحليل <ArrowRight size={12}/></button>
-                            </div>
-                        ))}
-                    </div>
+                    ))}
+                    {history.length === 0 && <div className="col-span-full py-20 text-center text-gray-400 italic">لا يوجد سجلات سابقة.</div>}
                 </div>
             )}
             <style>{`
                 .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); }
                 @media print {
-                    @page { size: landscape; margin: 0; }
+                    @page { size: landscape; margin: 0.5cm; }
                     body { background: white; }
                     .print\\:hidden { display: none !important; }
                 }
