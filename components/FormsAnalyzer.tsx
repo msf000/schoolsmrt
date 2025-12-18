@@ -86,7 +86,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         });
     }, [fileData, headers]);
 
-    // وظيفة استخراج المهارات ذكياً باستخدام AI
     const handleAutoGenerateSkills = async () => {
         setIsAiProcessing(true);
         try {
@@ -109,11 +108,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 });
                 setOutcomesMapping(newMapping);
             }
-        } catch (e) {
-            alert('فشل استخراج المهارات ذكياً، يرجى إدخالها يدوياً.');
-        } finally {
-            setIsAiProcessing(false);
-        }
+        } catch (e) { alert('فشل استخراج المهارات ذكياً.'); } finally { setIsAiProcessing(false); }
     };
 
     const handleFinalSave = () => {
@@ -152,32 +147,49 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 studentResponses
             };
             saveFormsDetailedResult(record);
-            alert('تم الحفظ بنجاح.'); setFileData([]); setViewMode('HISTORY');
+            alert('تم الحفظ.'); setFileData([]); setViewMode('HISTORY');
         } catch (e) { alert('خطأ أثناء الحفظ.'); } finally { setIsSaving(false); }
     };
 
+    // البيانات الكاملة لجميع طلاب الفصل المختار
     const reportData = useMemo(() => {
         if (!selectedRecord) return null;
-        const filteredStudentResponses: Record<string, any> = {};
-        Object.entries(selectedRecord.studentResponses).forEach(([sid, res]) => {
-            const s = students.find(x => x.id === sid);
-            if (!reportClassFilter || s?.className === reportClassFilter) filteredStudentResponses[sid] = res;
-        });
-
-        const studentsList = Object.entries(filteredStudentResponses).map(([sid, res]) => {
-            const pct = (res.score / selectedRecord.questions.length) * 100;
+        
+        // جلب جميع طلاب الفصل المختار أو جميع طلاب كشف الدرجات لو لم يتم تحديد فصل
+        const targetClass = reportClassFilter || selectedRecord.className;
+        const allInClass = students.filter(s => s.className === targetClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+        
+        const studentsList = allInClass.map(s => {
+            const res = selectedRecord.studentResponses[s.id];
+            const pct = res ? (res.score / selectedRecord.questions.length) * 100 : 0;
             let level = pct >= 85 ? 'HIGH' : pct >= 70 ? 'MEDIUM' : pct >= 50 ? 'LOW' : 'VERY_LOW';
-            return { sid, score: res.score, pct, level, name: students.find(x=>x.id===sid)?.name || 'طالب' };
+            if (!res) level = 'ABSENT'; // علامة للغائب
+
+            return { 
+                sid: s.id, 
+                name: s.name, 
+                score: res?.score || 0, 
+                pct, 
+                level, 
+                isAbsent: !res,
+                answers: res?.answers || {} 
+            };
         });
 
         const skillStats = selectedRecord.questions.map(q => {
             let mastered = 0;
-            studentsList.forEach(s => { if (filteredStudentResponses[s.sid].answers[q.text] === '✔') mastered++; });
-            const masteredPct = studentsList.length > 0 ? Math.round((mastered / studentsList.length) * 100) : 0;
-            return { mastered, masteredPct, failed: studentsList.length - mastered, failedPct: 100 - masteredPct };
+            let count = 0;
+            studentsList.forEach(s => {
+                if (!s.isAbsent) {
+                    count++;
+                    if (s.answers[q.text] === '✔') mastered++;
+                }
+            });
+            const masteredPct = count > 0 ? Math.round((mastered / count) * 100) : 0;
+            return { mastered, masteredPct, failed: count - mastered, failedPct: 100 - masteredPct };
         });
 
-        return { filteredStudentResponses, studentsList, skillStats };
+        return { studentsList, skillStats };
     }, [selectedRecord, reportClassFilter, students]);
 
     const comparisonData = useMemo(() => {
@@ -186,15 +198,17 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         if (!compareTarget) return [];
 
         return reportData.studentsList.map(s => {
-            const res = reportData.filteredStudentResponses[s.sid];
+            const res = selectedRecord.studentResponses[s.sid];
             const baseRes = compareTarget.studentResponses[s.sid];
+            
             const score1 = baseRes ? baseRes.score : 0;
-            const score2 = res.score;
+            const score2 = res ? res.score : 0;
             const diff = score2 - score1;
             const improvementPct = score1 > 0 ? Math.round((diff / score1) * 100) : (score2 > 0 ? 100 : 0);
             const indicator = Math.round((score2 / selectedRecord.questions.length) * 100);
 
-            const getGrade = (pts: number, total: number) => {
+            const getGrade = (pts: number, total: number, isAbsent: boolean) => {
+                if (isAbsent) return { label: 'غائب', color: 'text-gray-400' };
                 const p = (pts / total) * 100;
                 if (p >= 90) return { label: 'ممتاز', color: 'text-green-600' };
                 if (p >= 80) return { label: 'جيد جداً', color: 'text-blue-500' };
@@ -204,11 +218,16 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             };
 
             return {
-                sid: s.sid, name: s.name, baseScore: score1, baseTotal: compareTarget.questions.length,
-                baseGrade: getGrade(score1, compareTarget.questions.length),
-                targetScore: score2, targetTotal: selectedRecord.questions.length,
-                targetGrade: getGrade(score2, selectedRecord.questions.length),
-                diff, improvementPct, indicator
+                sid: s.sid, 
+                name: s.name, 
+                baseScore: baseRes ? baseRes.score : 'غ',
+                baseGrade: getGrade(score1, compareTarget.questions.length, !baseRes),
+                targetScore: res ? res.score : 'غ',
+                targetGrade: getGrade(score2, selectedRecord.questions.length, !res),
+                diff: res && baseRes ? diff : '-',
+                improvementPct, 
+                indicator,
+                isAbsent: !res
             };
         });
     }, [selectedRecord, compareRecordId, history, reportData]);
@@ -225,6 +244,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
+            {/* Header Controls */}
             <div className="mb-6 flex flex-col md:flex-row justify-between items-end gap-4 print:hidden">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2"><FileSpreadsheet className="text-green-600"/> محلل نواتج التعلم المتطور</h2>
                 {!selectedRecord && (
@@ -237,7 +257,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
             {selectedRecord && reportData ? (
                 <div className="flex-1 overflow-hidden flex flex-col gap-4 animate-slide-up">
-                    {/* Navigation inside Record */}
                     <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col gap-4 print:hidden">
                         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                             <div className="flex items-center gap-4">
@@ -245,10 +264,10 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <div><h3 className="font-bold text-gray-800">{selectedRecord.examTitle}</h3><p className="text-xs text-gray-500">{selectedRecord.className}</p></div>
                             </div>
                             <div className="flex bg-gray-100 p-1 rounded-xl overflow-x-auto max-w-full">
-                                <button onClick={()=>setDetailTab('KASHF')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${detailTab==='KASHF'?'bg-white shadow text-teal-800':'text-gray-500'}`}>كشف رصد المهارات</button>
-                                <button onClick={()=>setDetailTab('COMPARISON')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${detailTab==='COMPARISON'?'bg-white shadow text-blue-800':'text-gray-500'}`}>مقارنة الاختبارات</button>
-                                <button onClick={()=>setDetailTab('ANALYSIS')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${detailTab==='ANALYSIS'?'bg-white shadow text-indigo-900':'text-gray-500'}`}>تحليل النتائج</button>
-                                <button onClick={()=>setDetailTab('SUMMARY')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${detailTab==='SUMMARY'?'bg-white shadow text-orange-800':'text-gray-500'}`}>ملخص المستويات</button>
+                                <TabBtn label="كشف رصد المهارات" active={detailTab==='KASHF'} onClick={()=>setDetailTab('KASHF')} />
+                                <TabBtn label="مقارنة الاختبارات" active={detailTab==='COMPARISON'} onClick={()=>setDetailTab('COMPARISON')} />
+                                <TabBtn label="تحليل النتائج" active={detailTab==='ANALYSIS'} onClick={()=>setDetailTab('ANALYSIS')} />
+                                <TabBtn label="ملخص المستويات" active={detailTab==='SUMMARY'} onClick={()=>setDetailTab('SUMMARY')} />
                             </div>
                         </div>
                         <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border">
@@ -280,14 +299,16 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         </thead>
                                         <tbody className="font-bold">
                                             {reportData.studentsList.map((s, idx) => {
-                                                const res = reportData.filteredStudentResponses[s.sid];
-                                                const masteredCount = Object.values(res.answers).filter(v => v === '✔').length;
-                                                const masteryPct = Math.round((masteredCount / selectedRecord.questions.length) * 100);
+                                                const masteredCount = Object.values(s.answers).filter(v => v === '✔').length;
                                                 return (
-                                                    <tr key={s.sid} className="h-9 hover:bg-gray-50 border-b border-black">
+                                                    <tr key={s.sid} className={`h-9 hover:bg-gray-50 border-b border-black ${s.isAbsent ? 'bg-gray-50/50 opacity-60' : ''}`}>
                                                         <td className="border-2 border-black bg-gray-50">{idx + 1}</td><td className="border-2 border-black text-right pr-3 font-black text-gray-800 truncate">{s.name}</td>
-                                                        {selectedRecord.questions.map(q => (<td key={q.id} className={`border-2 border-black font-black text-sm ${res.answers[q.text] === '✔' ? 'text-green-600' : 'text-red-500'}`}>{res.answers[q.text]}</td>))}
-                                                        <td className={`border-2 border-black font-black ${masteryPct < 60 ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>{masteryPct}%</td>
+                                                        {selectedRecord.questions.map(q => (
+                                                            <td key={q.id} className={`border-2 border-black font-black text-sm ${s.isAbsent ? 'text-gray-300' : (s.answers[q.text] === '✔' ? 'text-green-600' : 'text-red-500')}`}>
+                                                                {s.isAbsent ? '-' : (s.answers[q.text] || '✘')}
+                                                            </td>
+                                                        ))}
+                                                        <td className={`border-2 border-black font-black ${s.pct < 60 ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>{s.isAbsent ? 'غائب' : `${s.pct}%`}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -305,9 +326,9 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                     <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-16" alt="logo"/>
                                 </div>
                                 <div className="mb-6 p-4 bg-blue-50 rounded-xl border-2 border-blue-200 print:hidden flex items-center gap-4">
-                                    <label className="text-sm font-bold text-blue-900 flex items-center gap-2"><GitCompare size={18}/> اختر الاختبار للمقارنة معه:</label>
+                                    <label className="text-sm font-bold text-blue-900 flex items-center gap-2"><GitCompare size={18}/> قارن مع اختبار سابق:</label>
                                     <select className="flex-1 p-2 border rounded-lg bg-white font-bold text-sm outline-none" value={compareRecordId} onChange={e => setCompareRecordId(e.target.value)}>
-                                        <option value="">-- اختر اختباراً سابقاً --</option>
+                                        <option value="">-- اختر اختباراً --</option>
                                         {history.filter(h => h.id !== selectedRecord.id).map(h => (<option key={h.id} value={h.id}>{h.examTitle} ({h.date.split('T')[0]})</option>))}
                                     </select>
                                 </div>
@@ -321,18 +342,18 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                             <thead className="bg-gray-100 font-black">
                                                 <tr className="h-10">
                                                     <th rowSpan={2} className="border border-[#003366] w-8">م</th><th rowSpan={2} className="border border-[#003366] w-52">اسم الطالب</th>
-                                                    <th colSpan={2} className="border border-[#003366] bg-gray-200">الاختبار السابق (قبلي)</th><th colSpan={2} className="border border-[#003366] bg-blue-100">الاختبار الحالي (بعدي)</th>
+                                                    <th colSpan={2} className="border border-[#003366] bg-gray-200">الاختبار الأول</th><th colSpan={2} className="border border-[#003366] bg-blue-100">الاختبار الثاني</th>
                                                     <th rowSpan={2} className="border border-[#003366] w-12 bg-white">التغير</th><th rowSpan={2} className="border border-[#003366] w-24 bg-white">مؤشر التحصيل</th>
                                                 </tr>
                                                 <tr className="h-10"><th className="border border-[#003366]">الدرجة</th><th className="border border-[#003366]">التقدير</th><th className="border border-[#003366]">الدرجة</th><th className="border border-[#003366]">التقدير</th></tr>
                                             </thead>
                                             <tbody>
                                                 {comparisonData.map((row, idx) => (
-                                                    <tr key={row.sid} className="h-9 hover:bg-gray-50 border-b border-[#003366]">
+                                                    <tr key={row.sid} className={`h-9 hover:bg-gray-50 border-b border-[#003366] ${row.isAbsent ? 'opacity-60' : ''}`}>
                                                         <td className="border border-[#003366] bg-gray-100/50">{idx + 1}</td><td className="border border-[#003366] text-right pr-2 font-bold truncate">{row.name}</td>
                                                         <td className="border border-[#003366] font-mono">{row.baseScore}</td><td className={`border border-[#003366] font-black ${row.baseGrade.color}`}>{row.baseGrade.label}</td>
                                                         <td className="border border-[#003366] font-mono font-bold text-blue-700 bg-blue-50/30">{row.targetScore}</td><td className={`border border-[#003366] font-black ${row.targetGrade.color} bg-blue-50/30`}>{row.targetGrade.label}</td>
-                                                        <td className={`border border-[#003366] font-black ${row.diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>{row.diff > 0 ? `+${row.diff}` : row.diff}</td>
+                                                        <td className={`border border-[#003366] font-black ${typeof row.diff === 'number' && row.diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>{typeof row.diff === 'number' ? (row.diff > 0 ? `+${row.diff}` : row.diff) : row.diff}</td>
                                                         <td className="border border-[#003366] p-1.5"><div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden border border-black/5"><div className={`h-full ${row.indicator >= 90 ? 'bg-green-500' : row.indicator >= 70 ? 'bg-blue-500' : 'bg-orange-400'}`} style={{width: `${row.indicator}%`}}></div></div></td>
                                                     </tr>
                                                 ))}
@@ -344,12 +365,15 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <button onClick={()=>window.print()} className="mt-8 w-full py-4 bg-[#003366] text-white rounded-2xl font-black flex items-center justify-center gap-2 print:hidden shadow-xl hover:bg-[#002244] transition-all"><Printer/> طباعة تقرير المقارنة</button>
                             </div>
                         ) : (
-                            <div className="p-10 text-center text-gray-400">التبويب قيد التطوير أو اختر المقارنة أعلاه.</div>
+                            <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-4">
+                                <Sparkles size={48} className="opacity-10"/>
+                                <p className="font-bold">يرجى استخدام التبويبات أعلاه لعرض التحليلات.</p>
+                            </div>
                         )}
                     </div>
                 </div>
             ) : viewMode === 'IMPORT' ? (
-                /* --- واجهة الاستيراد (مع استخراج المهارات) --- */
+                /* --- واجهة الاستيراد --- */
                 fileData.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center border-4 border-dashed border-gray-200 rounded-[3rem] bg-white p-10 text-center">
                         <Upload size={48} className="text-green-600 mb-4"/><h3 className="text-xl font-black text-gray-800 mb-2">حلل استجابات Forms جديدة</h3><p className="text-xs text-gray-400 mb-8 max-w-xs">ارفع ملف Excel لتوليد الكشوفات والرسوم البيانية.</p>
@@ -404,5 +428,9 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         </div>
     );
 };
+
+const TabBtn = ({ label, active, onClick }: any) => (
+    <button onClick={onClick} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-white shadow text-indigo-700 font-black' : 'text-gray-500 hover:bg-gray-50'}`}>{label}</button>
+);
 
 export default FormsAnalyzer;
