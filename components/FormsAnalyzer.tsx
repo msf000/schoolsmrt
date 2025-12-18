@@ -47,6 +47,15 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         }
     }, [currentUserId, isSaving, mainTab]);
 
+    // دالة لفلترة أعمدة الأسئلة الحقيقية (تستبعد الاسم والفصل)
+    const getQuestionHeaders = (allHeaders: string[]) => {
+        return allHeaders.filter(h => {
+            const isPointCol = h.includes('النقاط -');
+            const isPersonal = h.includes('اسم') || h.includes('فصل') || h.includes('الهوية') || h.includes('الشعبة');
+            return isPointCol && !isPersonal;
+        });
+    };
+
     // --- منطق الاستيراد ---
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -64,8 +73,9 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const handleAutoGenerateSkills = async () => {
         setIsAiProcessing(true);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-            const itemAnalysis = headers.filter(h => h.includes('النقاط -')).map(h => h.replace(/^(النقاط - )/, '').trim());
+            const apiKey = process.env.API_KEY || '';
+            const ai = new GoogleGenAI({ apiKey });
+            const itemAnalysis = getQuestionHeaders(headers).map(h => h.replace(/^(النقاط - )/, '').trim());
             const prompt = `حلل الأسئلة التالية واستنتج المهارة التعليمية لكل سؤال باختصار (3-5 كلمات). JSON: {"skills": ["مهارة 1", "مهارة 2", ...]}`;
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
@@ -75,7 +85,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             const result = JSON.parse(response.text || "{}");
             if (result.skills) {
                 const newMapping: Record<string, string> = {};
-                headers.filter(h => h.includes('النقاط -')).forEach((h, i) => { newMapping[h] = result.skills[i] || h; });
+                getQuestionHeaders(headers).forEach((h, i) => { newMapping[h] = result.skills[i] || h; });
                 setOutcomesMapping(newMapping);
             }
         } catch (e) { alert('فشل استخراج المهارات.'); } finally { setIsAiProcessing(false); }
@@ -87,13 +97,13 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         try {
             const studentResponses: Record<string, any> = {};
             const emailCol = headers.find(h => h.toLowerCase().includes('email') || h.includes('البريد'));
-            const nameCol = headers.find(h => h.toLowerCase().includes('name') || h.includes('الاسم'));
-            const questionCols = headers.filter(h => h.includes('النقاط -'));
+            const nameCol = headers.find(h => h.toLowerCase().includes('name') || h.includes('الاسم') || h.includes('اسمك'));
+            const questionCols = getQuestionHeaders(headers);
 
             fileData.forEach((row) => {
                 const rowEmail = emailCol ? String(row[emailCol] || '').trim().toLowerCase() : '';
                 const rowName = nameCol ? String(row[nameCol] || '').trim() : '';
-                const matchedStudent = students.find(s => (s.email && s.email.toLowerCase() === rowEmail) || (s.name === rowName || s.name.includes(rowName)));
+                const matchedStudent = students.find(s => (s.email && s.email.toLowerCase() === rowEmail) || (s.name === rowName || s.name.includes(rowName) || rowName.includes(s.name)));
                 
                 if (matchedStudent) {
                     const answers: Record<string, string> = {};
@@ -201,7 +211,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                     </button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
-                                    {headers.filter(h => h.includes('النقاط -')).map((h, idx) => (
+                                    {getQuestionHeaders(headers).map((h, idx) => (
                                         <div key={idx} className="bg-gray-50 rounded-2xl border p-4">
                                             <p className="text-xs font-bold text-gray-500 mb-2">س{idx+1}: {h.replace(/^(النقاط - )/, '')}</p>
                                             <div className="flex items-center gap-2 bg-white border rounded-xl p-2">
@@ -276,7 +286,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 <div className="flex-1 overflow-hidden flex flex-col gap-6 animate-fade-in">
                     <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col md:flex-row items-center gap-6 print:hidden">
                         <div className="flex-1 w-full">
-                            <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-tighter">1. الاختبار القبلي (الأول)</label>
+                            <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-tighter">1. الاختبار الأول</label>
                             <select className="w-full p-4 border-2 border-gray-100 rounded-2xl font-black text-sm text-indigo-600 outline-none focus:border-indigo-500" value={compareId1} onChange={e=>setCompareId1(e.target.value)}>
                                 <option value="">-- اختر اختباراً --</option>
                                 {history.map(h => <option key={h.id} value={h.id}>{h.examTitle}</option>)}
@@ -284,7 +294,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                         </div>
                         <div className="bg-indigo-50 p-4 rounded-full text-indigo-600 animate-pulse"><ArrowRightLeft size={24}/></div>
                         <div className="flex-1 w-full">
-                            <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-tighter">2. الاختبار البعدي (الثاني)</label>
+                            <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-tighter">2. الاختبار الثاني</label>
                             <select className="w-full p-4 border-2 border-gray-100 rounded-2xl font-black text-sm text-green-600 outline-none focus:border-green-500" value={compareId2} onChange={e=>setCompareId2(e.target.value)}>
                                 <option value="">-- اختر اختباراً --</option>
                                 {history.map(h => <option key={h.id} value={h.id}>{h.examTitle}</option>)}
