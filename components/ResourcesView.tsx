@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { LessonLink, SystemUser, Subject } from '../types';
 import { getLessonLinks, saveLessonLink, deleteLessonLink, getSubjects, getTeacherAssignments } from '../services/storageService';
@@ -71,18 +72,21 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
         if (!suggestionTopic) return;
         setIsSuggesting(true);
         try {
-            // Fix: Initialize GoogleGenAI strictly using process.env.API_KEY per guidelines
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            // Fix: Initialize GoogleGenAI correctly using apiKey property from environment
+            const apiKey = process.env.API_KEY;
+            if (!apiKey) return;
+            const ai = new GoogleGenAI({ apiKey });
             const prompt = `Suggest 3 educational YouTube video titles and search queries for: "${suggestionTopic}" for grade: "${newGrade || 'General'}". 
             Format as JSON array: [{"title": "Video Title", "searchQuery": "YouTube Search Query"}].`;
             
+            // Fix: Use ai.models.generateContent and the recommended gemini-3-flash-preview model
             const response = await ai.models.generateContent({
-                // Fix: Updated model name to gemini-3-flash-preview per guidelines
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: { responseMimeType: "application/json" }
             });
             
+            // Fix: Access text property directly (not as a function) per the latest SDK
             const suggestions = JSON.parse(response.text || "[]");
             if (suggestions.length > 0) {
                 // Pick first one to pre-fill
