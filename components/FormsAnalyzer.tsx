@@ -4,7 +4,6 @@ import { saveFormsDetailedResult, getFormsDetailedResults, deleteFormsDetailedRe
 import { getWorkbookStructure, getSheetHeadersAndData } from '../services/excelService';
 import { GoogleGenAI } from "@google/genai";
 import { 
-    // Added ArrowRight to imports to fix the error on line 239
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
     PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight
@@ -186,7 +185,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 fileData.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center border-4 border-dashed border-gray-200 rounded-[3rem] bg-white p-10 text-center">
                         <Upload size={64} className="text-green-600 mb-4 opacity-20"/>
-                        <h3 className="text-2xl font-black text-gray-800 mb-2">حلل استجابات Forms جديدة</h3>
+                        <h3 className="text-2xl font-black text-gray-800 mb-2">تحليل استجابات Forms جديدة</h3>
                         <p className="text-sm text-gray-400 mb-8 max-w-xs">ارفع ملف Excel المصدر من Microsoft Forms وسنقوم بالباقي.</p>
                         <input type="file" id="forms-up" className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
                         <label htmlFor="forms-up" className="bg-green-600 text-white px-12 py-4 rounded-2xl font-black text-lg shadow-xl cursor-pointer hover:bg-green-700 transition-all active:scale-95">اختيار الملف</label>
@@ -249,8 +248,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             <div className="flex items-center gap-4">
                                 <button onClick={() => setSelectedRecord(null)} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
                                 <div className="flex bg-gray-100 p-1 rounded-xl">
-                                    <button onClick={()=>setHistoryViewTab('KASHF')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='KASHF' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>كشف الرصد الأخضر</button>
-                                    <button onClick={()=>setHistoryViewTab('ANALYSIS')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='ANALYSIS' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>التحليل التشخيصي</button>
+                                    <button onClick={()=>setHistoryViewTab('KASHF')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='KASHF' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>كشف الرصد</button>
+                                    <button onClick={()=>setHistoryViewTab('ANALYSIS')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='ANALYSIS' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>تحليل النتائج</button>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -330,7 +329,7 @@ const KashfReport = ({ record, data, header, classFilter }: any) => (
         <div className="min-w-[1200px] border-2 border-black">
             <div className="bg-teal-900 text-white p-4 flex justify-between items-center border-b-2 border-black">
                 <div className="text-right text-[11px] font-bold space-y-1"><p>منطقة {header?.educationAdmin}</p><p>مدرسة {header?.schoolName}</p></div>
-                <div className="text-center"><h2 className="text-xl font-black mb-1">كشف رصد درجات الاختبارات المدرسية</h2><p className="text-xs opacity-80">رصد مهارات المتعلمين / مادة: علوم الأرض والفضاء</p></div>
+                <div className="text-center"><h2 className="text-xl font-black mb-1">كشف رصد درجات الاختبارات المدرسية - {record.examTitle}</h2><p className="text-xs opacity-80 font-bold">رصد مهارات المتعلمين / مادة: علوم الأرض والفضاء</p></div>
                 <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
             </div>
             <div className="bg-teal-50 border-b-2 border-black grid grid-cols-4 text-xs font-black p-3 text-teal-900 text-center">
@@ -361,7 +360,7 @@ const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => (
         <div className="border-2 border-black">
             <div className="bg-[#003366] text-white p-4 flex justify-between items-center border-b-2 border-black">
                 <div className="text-right text-[11px] font-bold space-y-1"><p>منطقة {header?.educationAdmin}</p><p>مدرسة {header?.schoolName}</p></div>
-                <div className="text-center"><h2 className="text-xl font-black mb-1 uppercase tracking-tighter">تحليل نتائج المتعلمين وفق اختبار تشخيصي</h2><p className="text-xs font-bold opacity-80">{record.examTitle}</p></div>
+                <div className="text-center"><h2 className="text-xl font-black mb-1 uppercase tracking-tighter">تحليل نتائج المتعلمين - {record.examTitle}</h2><p className="text-xs font-bold opacity-80">تحليل المهارات ونسب التحصيل</p></div>
                 <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
             </div>
             <div className="bg-blue-50 border-b-2 border-black grid grid-cols-5 text-[10px] font-black p-3 text-[#003366] text-center uppercase">
@@ -402,12 +401,12 @@ const FullComparisonView = ({ rec1, rec2, students, tab, header }: any) => {
     if (tab === 'STUDENTS') {
         return (
             <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl border-2 border-[#003366] print:shadow-none print:p-0">
-                <div className="bg-[#003366] text-white p-3 text-center text-sm font-black uppercase mb-4">كشف مقارنة درجات الطلاب (قبلي / بعدي)</div>
+                <div className="bg-[#003366] text-white p-3 text-center text-sm font-black uppercase mb-4">كشف مقارنة درجات الطلاب - {rec1.examTitle} / {rec2.examTitle}</div>
                 <table className="w-full border-collapse text-[10px] text-center table-fixed border border-[#003366]">
                     <thead className="bg-gray-100 font-black">
                         <tr>
                             <th rowSpan={2} className="border border-[#003366] w-8">م</th><th rowSpan={2} className="border border-[#003366] w-52 text-right pr-4">اسم الطالب</th>
-                            <th colSpan={2} className="border border-[#003366] bg-gray-200">الاختبار الأول (قبلي)</th><th colSpan={2} className="border border-[#003366] bg-blue-100">الاختبار الثاني (بعدي)</th>
+                            <th colSpan={2} className="border border-[#003366] bg-gray-200">الاختبار الأول</th><th colSpan={2} className="border border-[#003366] bg-blue-100">الاختبار الثاني</th>
                             <th rowSpan={2} className="border border-[#003366] w-12 bg-white">التغير</th><th rowSpan={2} className="border border-[#003366] w-20 bg-white">نسبة التحسن</th>
                         </tr>
                         <tr className="bg-gray-50"><th className="border border-[#003366]">الدرجة</th><th className="border border-[#003366]">التقدير</th><th className="border border-[#003366]">الدرجة</th><th className="border border-[#003366]">التقدير</th></tr>
@@ -438,7 +437,7 @@ const FullComparisonView = ({ rec1, rec2, students, tab, header }: any) => {
 
     return (
         <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl border-2 border-black print:shadow-none print:p-0">
-            <div className="bg-teal-900 text-white p-3 text-center text-sm font-black uppercase mb-4">مقارنة نسب إتقان نواتج التعلم (المهارات)</div>
+            <div className="bg-teal-900 text-white p-3 text-center text-sm font-black uppercase mb-4">مقارنة نسب إتقان نواتج التعلم - {rec1.examTitle} / {rec2.examTitle}</div>
             <table className="w-full border-collapse text-[10px] text-center table-fixed border-2 border-black">
                 <thead className="bg-gray-100 font-black">
                     <tr><th className="border-2 border-black w-8">م</th><th className="border-2 border-black w-72 text-right pr-4">المهارة المستهدفة</th><th className="border-2 border-black bg-blue-50">نسبة الإتقان (قبلي)</th><th className="border-2 border-black bg-green-50">نسبة الإتقان (بعدي)</th><th className="border-2 border-black w-16">التغير</th><th className="border-2 border-black w-16">التحسن</th></tr>
