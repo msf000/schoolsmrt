@@ -249,7 +249,8 @@ export const parseRawDataWithAI = async (text: string, type: string, imageBase64
     const prompt = `Extract ${type} data as JSON array from the following input. Use Arabic. 
     Fields needed: nationalId, studentName, gradeLevel, className, score, total, status, date.`;
     
-    let contents: any = { text: prompt + "\n" + text };
+    // Fix: contents should be a string for single prompts in the SDK
+    let contents: any = prompt + "\n" + text;
     if (imageBase64) {
         contents = {
             parts: [
