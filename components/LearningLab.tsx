@@ -2,8 +2,9 @@
 import React, { useState, useMemo } from 'react';
 import { Student, EnvironmentRecord, LearningStyle } from '../types';
 import { updateStudentLearningStyle, saveEnvironmentRecord, getEnvironmentRecords } from '../services/storageService';
-import { diagnoseLearningStyle } from '../services/geminiService';
-import { BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, History, TrendingUp } from 'lucide-react';
+import { diagnoseLearningStyle, chatWithData } from '../services/geminiService';
+import { BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, History, TrendingUp, Lightbulb, Bot, ChevronRight } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface Props {
     students: Student[];
@@ -11,11 +12,13 @@ interface Props {
 }
 
 const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
-    const [activeTab, setActiveTab] = useState<'STYLES' | 'ENVIRONMENT'>('STYLES');
+    const [activeTab, setActiveTab] = useState<'STYLES' | 'ENVIRONMENT' | 'STRATEGY'>('STYLES');
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [observations, setObservations] = useState('');
     const [isDiagnosing, setIsDiagnosing] = useState(false);
     const [diagnosis, setDiagnosis] = useState<any>(null);
+    const [aiStrategy, setAiStrategy] = useState('');
+    const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
 
     // بيئة الصف
     const [env, setEnv] = useState<Partial<EnvironmentRecord>>({
@@ -26,14 +29,39 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
         const s = students.find(x => x.id === selectedStudentId);
         if (!s || !observations) return;
         setIsDiagnosing(true);
-        const result = await diagnoseLearningStyle(s.name, observations);
-        setDiagnosis(result);
-        setIsDiagnosing(false);
+        try {
+            const result = await diagnoseLearningStyle(s.name, observations);
+            setDiagnosis(result);
+        } catch (e) {
+            alert('فشل تشخيص النمط.');
+        } finally {
+            setIsDiagnosing(false);
+        }
+    };
+
+    const handleGenerateStrategy = async () => {
+        setIsGeneratingStrategy(true);
+        const stylesCount = students.reduce((acc: any, s) => {
+            const style = s.learningStyle || 'UNKNOWN';
+            acc[style] = (acc[style] || 0) + 1;
+            return acc;
+        }, {});
+
+        const prompt = `بناءً على توزيع أنماط التعلم في فصلي: ${JSON.stringify(stylesCount)}. اقترح استراتيجية تدريسية مبتكرة ومفصلة لدرس اليوم تراعي كافة الأنماط وترفع التفاعل. استخدم لغة تربوية مشجعة.`;
+        
+        try {
+            const res = await chatWithData(prompt, { students: [], attendance: [], performance: [] });
+            setAiStrategy(res);
+        } catch (e) {
+            setAiStrategy('عذراً، فشل توليد الاستراتيجية.');
+        } finally {
+            setIsGeneratingStrategy(false);
+        }
     };
 
     const saveStyle = () => {
         if (!selectedStudentId || !diagnosis) return;
-        updateStudentLearningStyle(selectedStudentId, diagnosis.style);
+        updateStudentLearningStyle(selectedStudentId, diagnosis.style as LearningStyle);
         alert('تم تحديث نمط تعلم الطالب بنجاح!');
         setDiagnosis(null);
         setObservations('');
@@ -66,11 +94,12 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
                 <div className="flex bg-white rounded-xl border p-1 shadow-sm">
                     <button onClick={() => setActiveTab('STYLES')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'STYLES' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>أنماط الطلاب</button>
                     <button onClick={() => setActiveTab('ENVIRONMENT')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'ENVIRONMENT' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>بيئة الصف</button>
+                    <button onClick={() => setActiveTab('STRATEGY')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'STRATEGY' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>استراتيجية AI</button>
                 </div>
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col">
-                {activeTab === 'STYLES' ? (
+                {activeTab === 'STYLES' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full overflow-hidden">
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col gap-5 overflow-y-auto">
                             <h3 className="font-bold text-gray-800 border-b pb-3">تشخيص نمط التعلم (AI)</h3>
@@ -112,7 +141,9 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
                             )}
                         </div>
                     </div>
-                ) : (
+                )}
+
+                {activeTab === 'ENVIRONMENT' && (
                     <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm max-w-4xl mx-auto w-full animate-fade-in overflow-y-auto">
                         <h3 className="text-xl font-black text-gray-800 mb-8 border-b pb-4 flex items-center gap-3"><History className="text-indigo-600"/> رصد نبض الفصل اليوم</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-10">
@@ -144,6 +175,38 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
                         <button onClick={handleSaveEnv} className="w-full py-5 bg-gray-900 text-white rounded-3xl font-black text-lg shadow-2xl flex items-center justify-center gap-3 hover:bg-black transition-all">
                             <Save/> حفظ حالة البيئة التعليمية
                         </button>
+                    </div>
+                )}
+
+                {activeTab === 'STRATEGY' && (
+                    <div className="max-w-4xl mx-auto w-full h-full flex flex-col gap-6 overflow-hidden animate-fade-in">
+                        <div className="bg-indigo-600 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden shrink-0">
+                            <Bot className="absolute -bottom-4 -right-4 opacity-10" size={120}/>
+                            <div className="relative z-10">
+                                <h3 className="text-2xl font-black mb-2 flex items-center gap-2"><Lightbulb className="text-yellow-300"/> مولد استراتيجيات التدريس الذكي</h3>
+                                <p className="text-indigo-100 text-sm max-w-lg">بناءً على أنماط طلابك الحالية، سأقوم بابتكار خطة لشرح درسك القادم تضمن وصول المعلومة للجميع.</p>
+                                <button 
+                                    onClick={handleGenerateStrategy} 
+                                    disabled={isGeneratingStrategy}
+                                    className="mt-6 bg-white text-indigo-700 px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-lg hover:scale-105 transition-transform disabled:opacity-50"
+                                >
+                                    {isGeneratingStrategy ? <Loader2 className="animate-spin"/> : <Sparkles/>} توليد الاستراتيجية المثالية
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 bg-white rounded-[2.5rem] border shadow-sm overflow-y-auto custom-scrollbar p-10">
+                            {aiStrategy ? (
+                                <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed">
+                                    <ReactMarkdown>{aiStrategy}</ReactMarkdown>
+                                </div>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-40">
+                                    <Bot size={80} className="mb-4"/>
+                                    <p className="text-xl font-bold">اضغط على الزر أعلاه لتحليل الفصل والحصول على اقتراحات</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

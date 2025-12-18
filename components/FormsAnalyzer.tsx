@@ -31,21 +31,22 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
     const matchedResults = useMemo(() => {
         if (!analysis || !analysis.results) return [];
-        return analysis.results.map((res: any) => {
+        return (analysis.results as any[]).map((res: any) => {
             const student = students.find(s => 
-                s.name.trim() === res.studentName.trim() || 
-                s.name.includes(res.studentName) || 
-                res.studentName.includes(s.name)
+                s.name.trim() === res.studentName?.trim() || 
+                s.name.includes(res.studentName || '') || 
+                (res.studentName || '').includes(s.name)
             );
             return { ...res, matchedStudent: student };
         });
     }, [analysis, students]);
 
     const stats = useMemo(() => {
-        if (!analysis || !analysis.results.length) return null;
-        const scores = analysis.results.map((r:any) => r.score / r.total);
-        const avg = Math.round((scores.reduce((a:number,b:number)=>a+b, 0) / scores.length) * 100);
-        const pass = scores.filter((s:number) => s >= 0.5).length;
+        if (!analysis || !analysis.results || analysis.results.length === 0) return null;
+        const results = analysis.results as any[];
+        const scores = results.map((r: any) => (r.score || 0) / (r.total || 10));
+        const avg = Math.round((scores.reduce((a: number, b: number) => a + b, 0) / scores.length) * 100);
+        const pass = scores.filter((s: number) => s >= 0.5).length;
         return { avg, pass, total: scores.length };
     }, [analysis]);
 
@@ -57,8 +58,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 studentId: res.matchedStudent.id,
                 subject: 'عام',
                 title: 'اختبار Microsoft Forms',
-                score: res.score,
-                maxScore: res.total,
+                score: Number(res.score),
+                maxScore: Number(res.total),
                 date: new Date().toISOString().split('T')[0],
                 createdById: currentUserId,
                 category: 'PLATFORM_EXAM'
@@ -68,7 +69,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         
         setIsSaving(true);
         setTimeout(() => {
-            addPerformance(recordsToSave);
+            addPerformance(recordsToSave as any);
             setIsSaving(false);
             alert(`تم رصد درجات ${recordsToSave.length} طالب بنجاح!`);
             setAnalysis(null);
@@ -122,12 +123,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 <div className="flex-1 overflow-hidden flex flex-col gap-6">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0">
                         <StatBox icon={<TrendingUp className="text-green-600"/>} label="المتوسط العام" value={`${stats?.avg}%`} color="bg-green-50" />
-                        <StatBox icon={<UserCheck className="text-blue-600"/>} label="نسبة الاجتياز" value={`${Math.round((stats?.pass! / stats?.total!) * 100)}%`} color="bg-blue-50" />
+                        <StatBox icon={<UserCheck className="text-blue-600"/>} label="نسبة الاجتياز" value={`${stats ? Math.round((stats.pass / stats.total) * 100) : 0}%`} color="bg-blue-50" />
                         <StatBox icon={<Calculator className="text-purple-600"/>} label="عدد الطلاب" value={stats?.total} color="bg-purple-50" />
                     </div>
 
                     <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden">
-                        <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col overflow-hidden">
+                        <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col overflow-hidden">
                             <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><UserCheck size={18}/> معاينة المطابقة والرصد</h3>
                             <div className="flex-1 overflow-y-auto custom-scrollbar border rounded-2xl">
                                 <table className="w-full text-right text-xs">
@@ -139,7 +140,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {matchedResults.map((r, i) => (
+                                        {matchedResults.map((r: any, i: number) => (
                                             <tr key={i} className="hover:bg-gray-50">
                                                 <td className="p-3 text-gray-500">{r.studentName}</td>
                                                 <td className="p-3 font-bold">
@@ -168,7 +169,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             </div>
                         </div>
 
-                        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm overflow-y-auto custom-scrollbar space-y-6">
+                        <div className="bg-white p-8 rounded-2xl border shadow-sm overflow-y-auto custom-scrollbar space-y-6">
                             <div className="bg-green-50 p-6 rounded-3xl border border-green-100">
                                 <h3 className="font-black text-green-800 flex items-center gap-2 mb-3"><Sparkles size={20}/> تحليل الأداء (AI)</h3>
                                 <p className="text-sm text-green-700 leading-relaxed italic">"{analysis.analysis}"</p>
@@ -177,7 +178,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             <div className="space-y-3">
                                 <h4 className="font-bold text-gray-800 flex items-center gap-2 text-sm"><AlertCircle size={16} className="text-red-500"/> مفاهيم تحتاج مراجعة:</h4>
                                 <div className="flex flex-wrap gap-2">
-                                    {analysis.difficultQuestions.map((q: string, i: number) => (
+                                    {(analysis.difficultQuestions as string[] || []).map((q: string, i: number) => (
                                         <span key={i} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-bold border border-red-100">{q}</span>
                                     ))}
                                 </div>

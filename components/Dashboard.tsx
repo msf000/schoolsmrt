@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2 } from 'lucide-react';
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -16,6 +16,14 @@ interface DashboardProps {
   currentUser?: SystemUser | null;
   onNavigate: (view: string) => void;
 }
+
+const STYLE_COLORS = {
+  VISUAL: '#4f46e5',
+  AUDITORY: '#10b981',
+  READ_WRITE: '#f59e0b',
+  KINESTHETIC: '#ef4444',
+  UNKNOWN: '#94a3b8'
+};
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
@@ -54,7 +62,18 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     const presentCount = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
     const attRate = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 100;
 
-    // Class comparison data
+    const styles: Record<string, number> = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0, UNKNOWN: 0 };
+    students.forEach(s => {
+      const style = s.learningStyle || 'UNKNOWN';
+      styles[style]++;
+    });
+
+    const styleData = Object.keys(styles).map(k => ({
+      name: k === 'VISUAL' ? 'بصري' : k === 'AUDITORY' ? 'سمعي' : k === 'READ_WRITE' ? 'قرائي' : k === 'KINESTHETIC' ? 'حركي' : 'غير محدد',
+      value: styles[k],
+      key: k
+    })).filter(d => d.value > 0);
+
     const classes = Array.from(new Set(students.map(s => s.className).filter(Boolean)));
     const classData = classes.map(c => {
         const classStudents = students.filter(s => s.className === c);
@@ -68,13 +87,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         attRate, 
         absentCount: todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length,
         avgPerf: classData.length > 0 ? Math.round(classData.reduce((a,b)=>a+b.performance,0)/classData.length) : 0,
-        classData 
+        classData,
+        styleData
     };
   }, [students, attendance, performance]);
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24">
-      {/* AI Briefing Banner */}
       <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group border border-indigo-700">
           <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
@@ -136,21 +155,34 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-            <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-6"><Award size={48} className="text-yellow-600"/></div>
-            <h3 className="text-xl font-black text-gray-800 mb-2">أفضل الفصول انضباطاً</h3>
-            <p className="text-gray-400 text-sm mb-6">يتم التحديث بناءً على سجل الغياب اليومي</p>
-            <div className="space-y-4 w-full">
-                {stats.classData.slice(0, 3).map((c, i) => (
-                    <div key={c.name} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                        <div className="flex items-center gap-3">
-                            <span className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-black text-indigo-600 shadow-sm">{i+1}</span>
-                            <span className="font-bold text-gray-700">{c.name}</span>
-                        </div>
-                        <span className="text-indigo-600 font-black">{c.performance}%</span>
-                    </div>
-                ))}
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col">
+            <h3 className="text-xl font-black text-gray-800 mb-6 flex items-center gap-2">
+              <BrainCircuit size={24} className="text-purple-600"/> أنماط تعلم الفصل
+            </h3>
+            <div className="flex-1 h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.styleData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {stats.styleData.map((entry: any) => (
+                      <Cell key={entry.key} fill={STYLE_COLORS[entry.key as keyof typeof STYLE_COLORS]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{borderRadius: '12px', border: 'none'}} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
+            <button onClick={() => navigate('/learning-lab')} className="mt-4 w-full py-3 bg-purple-50 text-purple-700 rounded-xl font-bold text-sm hover:bg-purple-100 transition-colors">
+              تحليل الاستراتيجيات التدريسية
+            </button>
         </div>
       </div>
     </div>
