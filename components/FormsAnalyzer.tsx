@@ -97,7 +97,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const questionsList = itemAnalysis.map(q => ({ id: q.id, text: q.question }));
-            const prompt = `استخرج لكل سؤال المهارة المستهدفة بشكل مختصر جداً. البيانات: ${JSON.stringify(questionsList)} أرجع JSON مفتاحه id وقيمته { "skill": "..." }.`;
+            const prompt = `استخرج لكل سؤال المهارة المستهدفة بشكل مختصر جداً (بحد أقصى 5 كلمات). البيانات: ${JSON.stringify(questionsList)} أرجع JSON مفتاحه id وقيمته { "skill": "..." }.`;
             const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt, config: { responseMimeType: "application/json" } });
             const suggested = JSON.parse(response.text || "{}");
             setOutcomesMapping(prev => ({ ...prev, ...suggested }));
@@ -153,10 +153,10 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         
         const studentsData = Object.entries(activeRecord.studentResponses).map(([sid, res], idx) => {
             const pct = Math.round((res.score / res.total) * 100);
-            let color = '#ef4444'; // تهيئة
-            if (pct >= 90) color = '#10b981'; // تميز
-            else if (pct >= 75) color = '#3b82f6'; // تقدم
-            else if (pct >= 50) color = '#f59e0b'; // انطلاق
+            let color = '#ef4444'; // تهيئة (أحمر)
+            if (pct >= 90) color = '#10b981'; // تميز (أخضر)
+            else if (pct >= 75) color = '#3b82f6'; // تقدم (أزرق)
+            else if (pct >= 50) color = '#f59e0b'; // انطلاق (أصفر)
             
             return { 
                 name: (idx + 1).toString(), 
@@ -180,18 +180,16 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             };
         });
 
-        const totalMastered = activeRecord.questions.reduce((acc, q) => {
-            let masteredInClass = 0;
-            Object.values(activeRecord.studentResponses).forEach(res => {
-                if (res.answers[q.text] === '✔') masteredInClass++;
-            });
-            return acc + masteredInClass;
-        }, 0);
+        let totalMasteredPoints = 0;
+        let totalPossiblePoints = activeRecord.questions.length * Object.keys(activeRecord.studentResponses).length;
 
-        const totalSkillsCount = activeRecord.questions.length * Object.keys(activeRecord.studentResponses).length;
-        const totalUnmastered = totalSkillsCount - totalMastered;
+        Object.values(activeRecord.studentResponses).forEach(res => {
+            totalMasteredPoints += res.score;
+        });
 
-        return { studentsData, skillsData, totalMastered, totalUnmastered, totalSkillsCount };
+        const totalUnmasteredPoints = totalPossiblePoints - totalMasteredPoints;
+
+        return { studentsData, skillsData, totalMastered: totalMasteredPoints, totalUnmastered: totalUnmasteredPoints, totalPossible: totalPossiblePoints };
     }, [activeRecord, students]);
 
     const kashfStats = useMemo(() => {
@@ -344,7 +342,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                     <tbody>
                                         <tr className="h-10 text-[12px] font-black">
                                             <td className="border-2 border-[#003366] p-1">{Object.keys(activeRecord.studentResponses).length}</td>
-                                            <td className="border-2 border-[#003366] p-1">{reportStats.totalSkillsCount}</td>
+                                            <td className="border-2 border-[#003366] p-1">{reportStats.totalPossible}</td>
                                             <td className="border-2 border-[#003366] p-1 text-green-700">{reportStats.totalMastered}</td>
                                             <td className="border-2 border-[#003366] p-1 text-red-600">{reportStats.totalUnmastered}</td>
                                         </tr>
@@ -356,18 +354,18 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                     <div className="flex border-b-2 border-[#003366]">
                                         <div className="flex-1 p-1 bg-white relative flex items-center px-4 overflow-hidden">
                                             <div className="absolute inset-y-1.5 right-4 h-5 bg-green-500/20 border border-green-500 rounded-sm overflow-hidden" style={{width: `calc(100% - 32px)`}}>
-                                                <div className="h-full bg-green-500/40" style={{width: `${Math.round((reportStats.totalMastered / reportStats.totalSkillsCount) * 100)}%`}}></div>
+                                                <div className="h-full bg-green-500/40" style={{width: `${Math.round((reportStats.totalMastered / reportStats.totalPossible) * 100)}%`}}></div>
                                             </div>
-                                            <span className="relative z-10 mx-auto font-black text-green-900 text-[11px]">{Math.round((reportStats.totalMastered / reportStats.totalSkillsCount) * 100)}%</span>
+                                            <span className="relative z-10 mx-auto font-black text-green-900 text-[11px]">{Math.round((reportStats.totalMastered / reportStats.totalPossible) * 100)}%</span>
                                         </div>
                                         <div className="w-48 bg-[#003366] text-white p-2 text-center text-[10px] font-black border-l-2 border-[#003366]">مؤشر المهارات المتقنة</div>
                                     </div>
                                     <div className="flex">
                                         <div className="flex-1 p-1 bg-white relative flex items-center px-4 overflow-hidden">
                                             <div className="absolute inset-y-1.5 right-4 h-5 bg-red-500/20 border border-red-500 rounded-sm overflow-hidden" style={{width: `calc(100% - 32px)`}}>
-                                                <div className="h-full bg-red-500/40" style={{width: `${Math.round((reportStats.totalUnmastered / reportStats.totalSkillsCount) * 100)}%`}}></div>
+                                                <div className="h-full bg-red-500/40" style={{width: `${Math.round((reportStats.totalUnmastered / reportStats.totalPossible) * 100)}%`}}></div>
                                             </div>
-                                            <span className="relative z-10 mx-auto font-black text-red-900 text-[11px]">{Math.round((reportStats.totalUnmastered / reportStats.totalSkillsCount) * 100)}%</span>
+                                            <span className="relative z-10 mx-auto font-black text-red-900 text-[11px]">{Math.round((reportStats.totalUnmastered / reportStats.totalPossible) * 100)}%</span>
                                         </div>
                                         <div className="w-48 bg-[#003366] text-white p-2 text-center text-[10px] font-black border-l-2 border-[#003366]">مؤشر المهارات غير المتقنة</div>
                                     </div>
@@ -381,7 +379,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <button onClick={()=>window.print()} className="mt-8 w-full py-4 bg-[#003366] text-white rounded-xl font-black flex items-center justify-center gap-2 print:hidden shadow-lg hover:bg-[#002244] transition-all"><Printer/> طباعة تقرير تحليل النتائج</button>
                             </div>
                         ) : detailTab === 'KASHF' ? (
-                            /* --- كشف الرصد الملون (النموذج الأخضر) --- */
+                            /* --- كشف الرصد الملون (النموذج الأخضر المرفق) --- */
                             <div className="w-full bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
                                 <div className="min-w-[1200px] border-2 border-black">
                                     {/* ترويسة الكشف */}
