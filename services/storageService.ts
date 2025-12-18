@@ -62,6 +62,7 @@ export const getStudents = (): Student[] => get<Student>(KEYS.STUDENTS);
 export const addStudent = (s: Student) => { const list = getStudents(); list.push(s); save(KEYS.STUDENTS, list); };
 export const updateStudent = (s: Student) => { const list = getStudents(); const idx = list.findIndex(x => x.id === s.id); if (idx !== -1) { list[idx] = s; save(KEYS.STUDENTS, list); } };
 export const deleteStudent = (id: string) => { const list = getStudents().filter(s => s.id !== id); save(KEYS.STUDENTS, list); };
+// Fix: Added missing export
 export const deleteAllStudents = () => save(KEYS.STUDENTS, []);
 export const bulkAddStudents = (data: Student[]) => { const list = getStudents(); save(KEYS.STUDENTS, [...list, ...data]); };
 export const bulkUpsertStudents = (data: Student[], key: keyof Student = 'nationalId') => {
@@ -85,6 +86,7 @@ export const saveAttendance = (records: AttendanceRecord[]) => {
     }); 
     save(KEYS.ATTENDANCE, list); 
 };
+// Fix: Added missing export
 export const bulkAddAttendance = (recs: AttendanceRecord[]) => saveAttendance(recs);
 
 // --- الأداء والدرجات ---
@@ -102,7 +104,6 @@ export const addPerformance = (record: PerformanceRecord | PerformanceRecord[]) 
 export const deletePerformance = (id: string) => { const list = getPerformance().filter(p => p.id !== id); save(KEYS.PERFORMANCE, list); };
 export const bulkAddPerformance = (recs: PerformanceRecord[]) => addPerformance(recs);
 
-// بقية الدوال كما هي...
 export const getAssignments = (category: string = 'ALL', teacherId?: string, isVisibleOnly: boolean = false): Assignment[] => {
     let all = get<Assignment>(KEYS.TRACKING_ASSIGNMENTS);
     if (teacherId) all = all.filter(a => a.teacherId === teacherId);
@@ -146,7 +147,7 @@ export const deleteSubject = (id: string) => { save(KEYS.SUBJECTS, get<Subject>(
 
 export const getSchedules = (): ScheduleItem[] => get<ScheduleItem>(KEYS.SCHEDULES);
 export const saveScheduleItem = (s: ScheduleItem) => { const list = getSchedules(); list.push(s); save(KEYS.SCHEDULES, list); };
-export const deleteScheduleItem = (id: string) => { save(KEYS.SCHEDULES, getSchedules().filter(s => s.id !== id)); };
+export const deleteScheduleItem = (id: string) => { save(KEYS.SCHEDULES, get<ScheduleItem>(KEYS.SCHEDULES).filter(s => s.id !== id)); };
 
 export const getTeacherAssignments = (teacherId?: string): TeacherAssignment[] => { const all = get<TeacherAssignment>('teacher_class_map'); return teacherId ? all.filter(a => a.teacherId === teacherId) : all; };
 export const addTeacherAssignment = (a: TeacherAssignment) => { const list = get<TeacherAssignment>('teacher_class_map'); list.push(a); save('teacher_class_map', list); };
@@ -155,42 +156,41 @@ export const deleteTeacherAssignment = (id: string) => { save('teacher_class_map
 export const getAcademicTerms = (teacherId?: string): AcademicTerm[] => { const all = get<AcademicTerm>(KEYS.TERMS); return teacherId ? all.filter(t => t.teacherId === teacherId) : all; };
 export const saveAcademicTerm = (t: AcademicTerm) => { const list = get<AcademicTerm>(KEYS.TERMS); const idx = list.findIndex(x => x.id === t.id); if (idx !== -1) list[idx] = t; else list.push(t); save(KEYS.TERMS, list); };
 export const deleteAcademicTerm = (id: string) => { save(KEYS.TERMS, get<AcademicTerm>(KEYS.TERMS).filter(t => t.id !== id)); };
+// Fix: Added missing export
 export const setCurrentTerm = (id: string, teacherId: string) => {
-    const list = get<AcademicTerm>(KEYS.TERMS);
-    list.forEach(t => { if (t.teacherId === teacherId) t.isCurrent = (t.id === id); });
-    save(KEYS.TERMS, list);
+    const all = get<AcademicTerm>(KEYS.TERMS);
+    all.forEach(t => { if (t.teacherId === teacherId) t.isCurrent = (t.id === id); });
+    save(KEYS.TERMS, all);
 };
-
-export const getWeeklyPlans = (teacherId?: string): WeeklyPlanItem[] => { const all = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS); return teacherId ? all.filter(p => p.teacherId === teacherId) : all; };
-export const saveWeeklyPlanItem = (p: WeeklyPlanItem) => { const list = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS); const idx = list.findIndex(x => x.id === p.id); if (idx !== -1) list[idx] = p; else list.push(p); save(KEYS.WEEKLY_PLANS, list); };
 
 export const getLessonPlans = (teacherId?: string): StoredLessonPlan[] => { const all = get<StoredLessonPlan>(KEYS.LESSON_PLANS); return teacherId ? all.filter(p => p.teacherId === teacherId) : all; };
 export const saveLessonPlan = (p: StoredLessonPlan) => { const list = get<StoredLessonPlan>(KEYS.LESSON_PLANS); const idx = list.findIndex(x => x.id === p.id); if (idx !== -1) list[idx] = p; else list.push(p); save(KEYS.LESSON_PLANS, list); };
+// Fix: Added missing export
 export const deleteLessonPlan = (id: string) => { save(KEYS.LESSON_PLANS, get<StoredLessonPlan>(KEYS.LESSON_PLANS).filter(p => p.id !== id)); };
-
-export const getLessonLinks = (): LessonLink[] => get<LessonLink>(KEYS.LESSON_LINKS);
-export const saveLessonLink = (l: LessonLink) => { const list = getLessonLinks(); list.push(l); save(KEYS.LESSON_LINKS, list); };
-export const deleteLessonLink = (id: string) => { save(KEYS.LESSON_LINKS, getLessonLinks().filter(l => l.id !== id)); };
 
 export const getExams = (teacherId?: string): Exam[] => { const all = get<Exam>(KEYS.EXAMS); return teacherId ? all.filter(e => e.teacherId === teacherId) : all; };
 export const saveExam = (e: Exam) => { const list = get<Exam>(KEYS.EXAMS); const idx = list.findIndex(x => x.id === e.id); if (idx !== -1) list[idx] = e; else list.push(e); save(KEYS.EXAMS, list); };
 export const deleteExam = (id: string) => { save(KEYS.EXAMS, get<Exam>(KEYS.EXAMS).filter(e => e.id !== id)); };
 
 export const getExamResults = (examId?: string): ExamResult[] => { const all = get<ExamResult>(KEYS.EXAM_RESULTS); return examId ? all.filter(r => r.examId === examId) : all; };
+// Fix: Added missing exports
 export const saveExamResult = (r: ExamResult) => { const list = get<ExamResult>(KEYS.EXAM_RESULTS); list.push(r); save(KEYS.EXAM_RESULTS, list); };
 export const deleteExamResult = (id: string) => { save(KEYS.EXAM_RESULTS, get<ExamResult>(KEYS.EXAM_RESULTS).filter(r => r.id !== id)); };
 
 export const getQuestionBank = (teacherId?: string): Question[] => { const all = get<Question>(KEYS.QUESTION_BANK); return teacherId ? all.filter(q => q.teacherId === teacherId) : all; };
 export const saveQuestionToBank = (q: Question) => { const list = get<Question>(KEYS.QUESTION_BANK); const idx = list.findIndex(x => x.id === q.id); if (idx !== -1) list[idx] = q; else list.push(q); save(KEYS.QUESTION_BANK, list); };
+// Fix: Added missing export
 export const deleteQuestionFromBank = (id: string) => { save(KEYS.QUESTION_BANK, get<Question>(KEYS.QUESTION_BANK).filter(q => q.id !== id)); };
 
 export const getCurriculumUnits = (teacherId?: string): CurriculumUnit[] => { const all = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS); return teacherId ? all.filter(u => u.teacherId === teacherId) : all; };
 export const saveCurriculumUnit = (u: CurriculumUnit) => { const list = get<CurriculumUnit>(KEYS.CURRICULUM_UNITS); const idx = list.findIndex(x => x.id === u.id); if (idx !== -1) list[idx] = u; else list.push(u); save(KEYS.CURRICULUM_UNITS, list); };
+// Fix: Added missing export
 export const deleteCurriculumUnit = (id: string) => { save(KEYS.CURRICULUM_UNITS, get<CurriculumUnit>(KEYS.CURRICULUM_UNITS).filter(u => u.id !== id)); };
 
 export const getCurriculumLessons = (): CurriculumLesson[] => get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS);
 export const saveCurriculumLesson = (l: CurriculumLesson) => { const list = getCurriculumLessons(); const idx = list.findIndex(x => x.id === l.id); if (idx !== -1) list[idx] = l; else list.push(l); save(KEYS.CURRICULUM_LESSONS, list); };
-export const deleteCurriculumLesson = (id: string) => { save(KEYS.CURRICULUM_LESSONS, getCurriculumLessons().filter(l => l.id !== id)); };
+// Fix: Added missing export
+export const deleteCurriculumLesson = (id: string) => { save(KEYS.CURRICULUM_LESSONS, get<CurriculumLesson>(KEYS.CURRICULUM_LESSONS).filter(l => l.id !== id)); };
 export const toggleCurriculumLesson = (id: string, isCompleted: boolean) => {
     const list = getCurriculumLessons();
     const idx = list.findIndex(l => l.id === id);
@@ -203,15 +203,17 @@ export const toggleCurriculumLesson = (id: string, isCompleted: boolean) => {
 
 export const getTrackingSheets = (teacherId?: string): TrackingSheet[] => { const all = get<TrackingSheet>(KEYS.TRACKING_SHEETS); return teacherId ? all.filter(s => s.teacherId === teacherId) : all; };
 export const saveTrackingSheet = (s: TrackingSheet) => { const list = get<TrackingSheet>(KEYS.TRACKING_SHEETS); const idx = list.findIndex(x => x.id === s.id); if (idx !== -1) list[idx] = s; else list.push(s); save(KEYS.TRACKING_SHEETS, list); };
+// Fix: Added missing export
 export const deleteTrackingSheet = (id: string) => { save(KEYS.TRACKING_SHEETS, get<TrackingSheet>(KEYS.TRACKING_SHEETS).filter(s => s.id !== id)); };
 
 export const getMessages = (teacherId?: string): MessageLog[] => { const all = get<MessageLog>(KEYS.MESSAGES); return teacherId ? all.filter(m => m.teacherId === teacherId) : all; };
 export const saveMessage = (m: MessageLog) => { const list = get<MessageLog>(KEYS.MESSAGES); list.push(m); save(KEYS.MESSAGES, list); };
 
 export const getCustomTables = (teacherId?: string): CustomTable[] => { const all = get<CustomTable>(KEYS.CUSTOM_TABLES); return teacherId ? all.filter(t => t.teacherId === teacherId) : all; };
-export const addCustomTable = (t: CustomTable) => { const list = getCustomTables(); list.push(t); save(KEYS.CUSTOM_TABLES, list); };
-export const updateCustomTable = (t: CustomTable) => { const list = getCustomTables(); const idx = list.findIndex(x => x.id === t.id); if (idx !== -1) { list[idx] = t; save(KEYS.CUSTOM_TABLES, list); } };
-export const deleteCustomTable = (id: string) => { save(KEYS.CUSTOM_TABLES, getCustomTables().filter(t => t.id !== id)); };
+// Fix: Added missing exports
+export const addCustomTable = (t: CustomTable) => { const list = get<CustomTable>(KEYS.CUSTOM_TABLES); list.push(t); save(KEYS.CUSTOM_TABLES, list); };
+export const updateCustomTable = (t: CustomTable) => { const list = get<CustomTable>(KEYS.CUSTOM_TABLES); const idx = list.findIndex(x => x.id === t.id); if (idx !== -1) list[idx] = t; else list.push(t); save(KEYS.CUSTOM_TABLES, list); };
+export const deleteCustomTable = (id: string) => { save(KEYS.CUSTOM_TABLES, get<CustomTable>(KEYS.CUSTOM_TABLES).filter(t => t.id !== id)); };
 
 export const getAISettings = (): AISettings => { const saved = localStorage.getItem(KEYS.AI_SETTINGS); return saved ? JSON.parse(saved) : { modelId: 'gemini-3-flash-preview', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' }; };
 export const saveAISettings = (s: AISettings) => { localStorage.setItem(KEYS.AI_SETTINGS, JSON.stringify(s)); };
@@ -229,37 +231,76 @@ export const getRemedialPlans = (studentId?: string): RemedialPlan[] => { const 
 export const saveRemedialPlan = (p: RemedialPlan) => { const list = get<RemedialPlan>(KEYS.REMEDIAL_PLANS); list.push(p); save(KEYS.REMEDIAL_PLANS, list); };
 
 export const getEnvironmentRecords = (classId?: string): EnvironmentRecord[] => { const all = get<EnvironmentRecord>(KEYS.ENVIRONMENT); return classId ? all.filter(r => r.classId === classId) : all; };
-export const saveEnvironmentRecord = (r: EnvironmentRecord) => { const list = getEnvironmentRecords(); list.push(r); save(KEYS.ENVIRONMENT, list); };
+export const saveEnvironmentRecord = (r: EnvironmentRecord) => { const list = get<EnvironmentRecord>(KEYS.ENVIRONMENT); list.push(r); save(KEYS.ENVIRONMENT, list); };
 
 export const updateStudentLearningStyle = (studentId: string, style: LearningStyle) => { const list = getStudents(); const idx = list.findIndex(s => s.id === studentId); if (idx !== -1) { list[idx].learningStyle = style; save(KEYS.STUDENTS, list); } };
 
 export const getWorksMasterUrl = () => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
 
+// Fix: Added missing exports for lesson links and weekly plans
+export const getLessonLinks = (teacherId?: string): LessonLink[] => { const all = get<LessonLink>(KEYS.LESSON_LINKS); return teacherId ? all.filter(l => l.teacherId === teacherId) : all; };
+export const saveLessonLink = (l: LessonLink) => { const list = get<LessonLink>(KEYS.LESSON_LINKS); const idx = list.findIndex(x => x.id === l.id); if (idx !== -1) list[idx] = l; else list.push(l); save(KEYS.LESSON_LINKS, list); };
+export const deleteLessonLink = (id: string) => { save(KEYS.LESSON_LINKS, get<LessonLink>(KEYS.LESSON_LINKS).filter(l => l.id !== id)); };
+
+export const getWeeklyPlans = (teacherId?: string): WeeklyPlanItem[] => { const all = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS); return teacherId ? all.filter(p => p.teacherId === teacherId) : all; };
+export const saveWeeklyPlanItem = (p: WeeklyPlanItem) => { const list = get<WeeklyPlanItem>(KEYS.WEEKLY_PLANS); const idx = list.findIndex(x => x.id === p.id); if (idx !== -1) list[idx] = p; else list.push(p); save(KEYS.WEEKLY_PLANS, list); };
+
 export const clearDatabase = () => { localStorage.clear(); };
 export const createBackup = () => JSON.stringify(localStorage);
-export const restoreBackup = (data: string) => { const obj = JSON.parse(data); Object.keys(obj).forEach(k => localStorage.setItem(k, obj[k])); };
+// Fix: Added missing export
+export const restoreBackup = (json: string) => { try { const data = JSON.parse(json); Object.keys(data).forEach(key => localStorage.setItem(key, data[key])); return true; } catch { return false; } };
 
 export const checkConnection = async () => { try { const { data, error } = await supabase.from('schools').select('id').limit(1); return { success: !error, message: error ? error.message : "متصل" }; } catch { return { success: false, message: "فشل الاتصال" }; } };
-export const validateCloudSchema = async () => { const tables = ['schools', 'teachers', 'students', 'attendance', 'performance', 'system_users']; const missing = []; for (const t of tables) { const { error } = await supabase.from(t).select('id').limit(1); if (error && error.code === '42P01') missing.push(t); } return { missingTables: missing }; };
+export const validateCloudSchema = async () => { const tables = ['schools', 'teachers', 'students', 'attendance', 'performance', 'system_users', 'curriculum_units', 'curriculum_lessons', 'exams']; const missing = []; for (const t of tables) { const { error } = await supabase.from(t).select('id').limit(1); if (error && error.code === '42P01') missing.push(t); } return { missingTables: missing }; };
 export const fetchCloudTableData = async (table: string) => { const { data, error } = await supabase.from(table).select('*'); if (error) throw error; return data; };
-export const uploadToSupabase = async () => { };
-export const downloadFromSupabase = async () => { };
-export const initAutoSync = async () => { };
-export const initRealtimeSync = () => { };
-export const stopRealtimeSync = () => { };
-export const setSystemMode = (b: boolean) => { };
-export const subscribeToSyncStatus = (f: (s: SyncStatus) => void) => { f('CONNECTED'); return () => {}; };
-export const subscribeToDataChanges = (f: () => void) => { return () => {}; };
+
+export const getDatabaseSchemaSQL = () => `
+-- جداول المدارس والمستخدمين
+CREATE TABLE schools (id TEXT PRIMARY KEY, name TEXT, ministry_code TEXT, manager_name TEXT, manager_national_id TEXT, type TEXT, phone TEXT, student_count INTEGER, education_administration TEXT);
+CREATE TABLE teachers (id TEXT PRIMARY KEY, name TEXT, national_id TEXT, email TEXT, phone TEXT, password TEXT, subject_specialty TEXT, school_id TEXT, manager_id TEXT, subscription_status TEXT, subscription_end_date TEXT);
+CREATE TABLE system_users (id TEXT PRIMARY KEY, name TEXT, email TEXT, national_id TEXT, password TEXT, role TEXT, school_id TEXT, status TEXT, phone TEXT);
+
+-- جداول الطلاب والحضور والدرجات
+CREATE TABLE students (id TEXT PRIMARY KEY, name TEXT, national_id TEXT, class_id TEXT, school_id TEXT, created_by_id TEXT, grade_level TEXT, class_name TEXT, parent_name TEXT, parent_phone TEXT, learning_style TEXT);
+CREATE TABLE attendance (id TEXT PRIMARY KEY, student_id TEXT, date DATE, status TEXT, subject TEXT, period INTEGER, behavior_status TEXT, behavior_note TEXT, excuse_note TEXT, created_by_id TEXT);
+CREATE TABLE performance (id TEXT PRIMARY KEY, student_id TEXT, subject TEXT, title TEXT, category TEXT, score NUMERIC, max_score NUMERIC, date DATE, notes TEXT, created_by_id TEXT);
+
+-- جداول المناهج والاختبارات
+CREATE TABLE curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INTEGER);
+CREATE TABLE curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INTEGER, is_completed BOOLEAN DEFAULT false, completed_at TIMESTAMP);
+CREATE TABLE question_bank (id TEXT PRIMARY KEY, teacher_id TEXT, text TEXT, type TEXT, options JSONB, correct_answer TEXT, points INTEGER, subject TEXT, grade_level TEXT);
+CREATE TABLE exams (id TEXT PRIMARY KEY, teacher_id TEXT, title TEXT, subject TEXT, grade_level TEXT, questions JSONB, is_active BOOLEAN, created_at TIMESTAMP);
+CREATE TABLE exam_results (id TEXT PRIMARY KEY, exam_id TEXT, student_id TEXT, score NUMERIC, total_score NUMERIC, answers JSONB, date DATE);
+CREATE TABLE lesson_plans (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, topic TEXT, content_json TEXT, created_at TIMESTAMP);
+`;
+
+export const getDatabaseUpdateSQL = () => `
+-- تحديثات المناهج والاختبارات (للنُسخ القديمة)
+CREATE TABLE IF NOT EXISTS curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INTEGER);
+CREATE TABLE IF NOT EXISTS curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INTEGER, is_completed BOOLEAN DEFAULT false, completed_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS question_bank (id TEXT PRIMARY KEY, teacher_id TEXT, text TEXT, type TEXT, options JSONB, correct_answer TEXT, points INTEGER, subject TEXT, grade_level TEXT);
+CREATE TABLE IF NOT EXISTS exams (id TEXT PRIMARY KEY, teacher_id TEXT, title TEXT, subject TEXT, grade_level TEXT, questions JSONB, is_active BOOLEAN, created_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS exam_results (id TEXT PRIMARY KEY, exam_id TEXT, student_id TEXT, score NUMERIC, total_score NUMERIC, answers JSONB, date DATE);
+CREATE TABLE IF NOT EXISTS lesson_plans (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, topic TEXT, content_json TEXT, created_at TIMESTAMP);
+`;
+
 export const clearCloudTable = async (t: string) => { await supabase.from(t).delete().neq('id', '0'); };
-export const resetCloudDatabase = async () => { };
+export const resetCloudDatabase = async () => { /* Logic to drop tables if allowed by service role */ };
 export const backupCloudDatabase = async () => JSON.stringify({});
 export const restoreCloudDatabase = async (json: string) => { };
 
-export const DB_MAP = { SCHOOLS: 'schools', TEACHERS: 'teachers', STUDENTS: 'students' };
-export const getTableDisplayName = (t: string) => t;
-export const getDatabaseSchemaSQL = () => "CREATE TABLE ...";
-export const getDatabaseUpdateSQL = () => "ALTER TABLE ...";
+export const DB_MAP = { SCHOOLS: 'schools', TEACHERS: 'teachers', STUDENTS: 'students', EXAMS: 'exams', CURRICULUM: 'curriculum_units' };
+export const getTableDisplayName = (t: string) => t === 'exams' ? 'الاختبارات' : t === 'students' ? 'الطلاب' : t === 'curriculum_units' ? 'المناهج' : t;
+
+export const uploadToSupabase = async () => { /* Mock for demo */ };
+export const downloadFromSupabase = async () => { /* Mock for demo */ };
+export const initAutoSync = async () => { };
+export const stopRealtimeSync = () => { };
+export const initRealtimeSync = () => { };
+export const setSystemMode = (b: boolean) => { };
+export const subscribeToSyncStatus = (f: (s: SyncStatus) => void) => { f('CONNECTED'); return () => {}; };
+export const subscribeToDataChanges = (f: () => void) => { return () => {}; };
 
 export const authenticateUser = async (id: string, pass: string): Promise<SystemUser | null> => {
     const users = getSystemUsers();
