@@ -40,11 +40,14 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         }
     }, [currentUserId, isSaving, mainTab]);
 
+    // دالة محسنة لجلب الأسئلة - تستبعد فقط المجاميع النهائية
     const getQuestionHeaders = (allHeaders: string[]) => {
         return allHeaders.filter(h => {
-            const isPointCol = h.includes('النقاط -');
-            const isPersonal = h.includes('اسم') || h.includes('فصل') || h.includes('الهوية') || h.includes('الشعبة') || h.includes('الرقم');
-            return isPointCol && !isPersonal;
+            const hTrim = h.trim();
+            const isPointCol = hTrim.startsWith('النقاط -') || hTrim.startsWith('Points -');
+            const isTotal = hTrim.includes('إجمالي') || hTrim.includes('Total');
+            // نبقي على كل الأعمدة التي تبدأ بـ "النقاط" لأنها تمثل الأسئلة في Forms
+            return isPointCol && !isTotal;
         });
     };
 
@@ -216,7 +219,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col xl:flex-row gap-8 overflow-hidden">
                             <div className="flex-1 flex flex-col overflow-hidden">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم</h3>
+                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة: {getQuestionHeaders(headers).length})</h3>
                                     <button onClick={handleAutoGenerateSkills} disabled={isAiProcessing} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-purple-700">
                                         {isAiProcessing ? <Loader2 className="animate-spin" size={14}/> : <Wand2 size={14}/>} استخراج المهارات ذكياً ✨
                                     </button>
@@ -252,7 +255,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                     <button onClick={(e)=>{e.stopPropagation(); if(confirm('حذف؟')){deleteFormsDetailedResult(record.id); setHistory(getFormsDetailedResults(currentUserId));}}} className="p-2 text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
                                 </div>
                                 <h3 className="font-black text-lg text-gray-800 mb-1">{record.examTitle}</h3>
-                                <p className="text-xs text-gray-400 font-bold">{record.className} • {Object.keys(record.studentResponses).length} طالب</p>
+                                <p className="text-xs text-gray-400 font-bold">{record.className} • {Object.keys(record.studentResponses).length} طالب • {record.questions.length} سؤال</p>
                                 <div className="mt-4 flex gap-2"><div className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-2">فتح التقارير <ArrowRight size={12}/></div></div>
                             </div>
                         ))}
