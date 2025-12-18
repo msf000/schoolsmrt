@@ -6,7 +6,7 @@ import {
     LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, 
     Award, Mail, Calendar, FileQuestion, Library, ScanLine, 
     PenTool, Printer, BrainCircuit, List, FolderOpen, Table2, 
-    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen, FileSpreadsheet, FlaskConical
+    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen, FileSpreadsheet, FlaskConical, Shield
 } from 'lucide-react';
 
 import Dashboard from './Dashboard';
@@ -34,6 +34,7 @@ import AIChatBot from './AIChatBot';
 import { SchoolManagement as SchoolManagementComponent } from './SchoolManagement';
 import FormsAnalyzer from './FormsAnalyzer';
 import LearningLab from './LearningLab';
+import AdminDashboard from './AdminDashboard'; // استيراد لوحة تحكم الإدارة
 
 interface TeacherPortalProps {
     currentUser: SystemUser;
@@ -61,6 +62,8 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+
     const NavItem = ({ path, label, icon: Icon, color = 'text-gray-600' }: any) => (
         <button 
             onClick={() => { navigate(path); setIsSidebarOpen(false); }}
@@ -81,11 +84,12 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-md border-2 border-indigo-100">
-                                {currentUser.name.charAt(0)}
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shadow-md border-2 ${isSuperAdmin ? 'bg-red-600 border-red-100' : 'bg-indigo-600 border-indigo-100'} text-white`}>
+                                {isSuperAdmin ? <Shield size={24}/> : currentUser.name.charAt(0)}
                             </div>
                             <div className="overflow-hidden">
                                 <p className="text-sm font-bold text-gray-800 truncate w-32">{currentUser.name}</p>
+                                <p className="text-[10px] font-bold text-gray-400">{isSuperAdmin ? 'مدير النظام' : 'معلم'}</p>
                             </div>
                         </div>
                         <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500 p-1"><X/></button>
@@ -93,6 +97,15 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                 </div>
                 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-100px)]">
+                    {/* إذا كان مديراً، تظهر لوحة التحكم الإدارية أولاً */}
+                    {isSuperAdmin && (
+                        <>
+                            <div className="mb-2"><label className="px-4 text-xs font-bold text-red-500 block mb-2 text-right">الإدارة العليا</label></div>
+                            <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} color="text-red-600" />
+                            <div className="pt-4 mt-4 border-t border-gray-100"></div>
+                        </>
+                    )}
+
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} />
                     
                     <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">تحليل متقدم</label></div>
@@ -119,7 +132,14 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
             <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative overflow-hidden">
                 <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 md:pb-0">
                     <Routes>
-                        <Route path="/" element={<Dashboard students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser} onNavigate={()=>{}} />} />
+                        {/* توجيه الصفحة الرئيسية بناءً على الدور */}
+                        <Route path="/" element={
+                            isSuperAdmin 
+                                ? <AdminDashboard /> 
+                                : <Dashboard students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser} onNavigate={()=>{}} />
+                        } />
+                        
+                        <Route path="/admin" element={isSuperAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
                         <Route path="/forms-analysis" element={<FormsAnalyzer students={props.students} currentUserId={currentUser.id} />} />
                         <Route path="/learning-lab" element={<LearningLab students={props.students} currentUserId={currentUser.id} />} />
                         <Route path="/students" element={<Students students={props.students} attendance={props.attendance} performance={props.performance} onAddStudent={props.addStudent} onUpdateStudent={props.updateStudent} onDeleteStudent={props.deleteStudent} onImportStudents={props.importStudents} currentUser={currentUser} />} />
