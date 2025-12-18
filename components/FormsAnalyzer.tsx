@@ -6,7 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { 
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
-    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark
+    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark, FileText, EyeOff, X
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
@@ -19,10 +19,12 @@ interface Props {
 const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [mainTab, setMainTab] = useState<'NEW' | 'HISTORY' | 'COMPARE'>('HISTORY');
     const [selectedRecord, setSelectedRecord] = useState<FormsDetailedResult | null>(null);
-    const [historyViewTab, setHistoryViewTab] = useState<'KASHF' | 'ANALYSIS' | 'CLASSIFICATION' | 'SKILLS'>('KASHF');
+    const [historyViewTab, setHistoryViewTab] = useState<'KASHF' | 'ANALYSIS' | 'CLASSIFICATION' | 'SKILLS' | 'FOLLOWUP'>('KASHF');
+    const [activeSkillIdx, setActiveSkillIdx] = useState(0);
     const [loading, setLoading] = useState(false);
     const [fileData, setFileData] = useState<any[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
+    const [hiddenHeaders, setHiddenHeaders] = useState<Set<string>>(new Set());
     const [isSaving, setIsSaving] = useState(false);
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [examTitle, setExamTitle] = useState('');
@@ -38,19 +40,19 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         }
     }, [currentUserId, isSaving, mainTab]);
 
-    // دالة محسنة جداً لجلب كافة الأسئلة (النقاط) مع استبعاد أسئلة البيانات والأسماء بدقة
+    // دالة محسنة لاستخراج الأسئلة مع استبعاد أسئلة الهوية فقط
     const getQuestionHeaders = (allHeaders: string[]) => {
         return allHeaders.filter(h => {
             const hTrim = h.trim();
             const isPointCol = hTrim.startsWith('النقاط -') || hTrim.startsWith('Points -');
             const isGrandTotal = hTrim === 'إجمالي النقاط' || hTrim === 'Total Points';
             
-            // استبعاد أسئلة البيانات فقط (التي لا تحوي على مادة علمية)
-            // نستخدم استثناءات محددة لعدم حذف أسئلة مثل "ما اسم المجرة"
-            const dataKeywords = ['اسمك', 'فصلك', 'شعبتك', 'الرقم الأكاديمي', 'الهوية', 'اسم المستخدم'];
-            const isMetadata = dataKeywords.some(key => hTrim.includes(key));
+            // استبعاد فقط الأسئلة التعريفية التي لا تحتوي على نقاط فعلية (مثل الاسم والفصل)
+            // سؤال "المجرة" سيبقى لأنه يحتوي على بادئة "النقاط -" في ملف Forms
+            const identityWords = ['اسم الطالب', 'اسمك', 'الفصل', 'الشعبة', 'الرقم الأكاديمي', 'الهوية'];
+            const isIdentity = identityWords.some(word => hTrim.includes(word) && !isPointCol);
 
-            return isPointCol && !isGrandTotal && !isMetadata;
+            return (isPointCol && !isGrandTotal && !isIdentity) && !hiddenHeaders.has(h);
         });
     };
 
@@ -73,8 +75,11 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             const apiKey = process.env.API_KEY || '';
             const ai = new GoogleGenAI({ apiKey });
             const itemAnalysis = getQuestionHeaders(headers).map(h => h.replace(/^(النقاط - )/, '').trim());
-            const prompt = `حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال باختصار وفق منهج "علوم الأرض والفضاء" السعودي. 
-            أرجع النتيجة بتنسيق JSON: {"items": [{"skill": "...", "unit": "..."}]}`;
+            
+            const prompt = `أنت خبير في المنهج السعودي لمادة "علوم الأرض والفضاء". 
+            حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال بناءً على مفردات المنهج (مثل: نشأة الكون، النجوم والمجرات، الأجهزة الفلكية). 
+            أرجع النتيجة بتنسيق JSON حصراً: {"items": [{"skill": "أن يوضح الطالب...", "unit": "الفصل 1 / نشأة الكون"}]}`;
+            
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt + "\n" + itemAnalysis.join('\n'),
@@ -107,7 +112,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 const rowEmail = emailCol ? String(row[emailCol] || '').trim().toLowerCase() : '';
                 const rowName = nameCol ? String(row[nameCol] || '').trim() : '';
                 const matchedStudent = students.find(s => (s.email && s.email.toLowerCase() === rowEmail) || (s.name === rowName || s.name.includes(rowName) || rowName.includes(s.name)));
-                
                 if (matchedStudent) {
                     const answers: Record<string, string> = {};
                     questionCols.forEach(q => { answers[q] = Number(row[q]) > 0 ? '✔' : '✘'; });
@@ -152,24 +156,43 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
             let masteredCount = 0;
             let unmasteredCount = 0;
-
+            let levelDesc = "";
+            let program = "";
             if (res) {
                 totalStudentsAttended++;
                 totalPossibleSkills += record.questions.length;
                 totalMasteredSkills += res.score;
                 Object.values(res.answers).forEach(val => { if (val === '✔') masteredCount++; else unmasteredCount++; });
+                
+                // منطق تحليل مستوى المتعلم واحتياجاته حسب النسب المئوية
+                if (pct >= 90) { 
+                    levelDesc = "أداء المتعلم متقدم وحلوله إبداعية للمسائل"; 
+                    program = "ENRICHMENT"; 
+                }
+                else if (pct >= 75) { 
+                    levelDesc = "لدى المتعلم تميز نسبي في حل المسائل متوسطة المستوى"; 
+                    program = "ENRICHMENT"; 
+                }
+                else if (pct >= 50) { 
+                    levelDesc = "لدى المتعلم خلل في نواتج التعلم وضعف في التأسيس"; 
+                    program = "REMEDIAL"; 
+                }
+                else { 
+                    levelDesc = "يحتاج المتعلم إلى تحسين كبير ومتابعة مكثفة لنواتج التعلم"; 
+                    program = "REMEDIAL"; 
+                }
             }
-            return { sid: s.id, name: s.name, score: res?.score || 0, pct, color, isAbsent: !res, answers: res?.answers || {}, masteredCount, unmasteredCount };
+            return { sid: s.id, name: s.name, score: res?.score || 0, pct, color, isAbsent: !res, answers: res?.answers || {}, masteredCount, unmasteredCount, levelDesc, program };
         });
 
         const skillStats = record.questions.map(q => {
             let mastered = 0; let attended = 0;
             studentsList.forEach(s => { if (!s.isAbsent) { attended++; if (s.answers[q.id] === '✔') mastered++; } });
-            return { id: q.id, name: q.learningOutcome, unit: q.unitName || 'غير محدد', masteredCount: mastered, nonMasteredCount: attended - mastered, masteredPct: attended > 0 ? (mastered / attended) * 100 : 0 };
+            return { id: q.id, name: q.learningOutcome, unit: q.unitName || 'غير محدد', masteredCount: mastered, nonMasteredCount: attended - mastered, masteredPct: attended > 0 ? (mastered / attended) * 100 : 0, nonMasteredPct: attended > 0 ? ((attended - mastered) / attended) * 100 : 0, totalAttended: attended };
         });
 
         const overallMasteryPct = totalPossibleSkills > 0 ? (totalMasteredSkills / totalPossibleSkills) * 100 : 0;
-        return { studentsList, skillStats, totalPossibleSkills, totalMasteredSkills, totalStudentsAttended, overallMasteryPct, gradeName };
+        return { studentsList, skillStats, totalPossibleSkills, totalMasteredSkills, totalStudents: allInClass.length, totalStudentsAttended, overallMasteryPct, gradeName };
     };
 
     const activeClassesForRecord = (record: FormsDetailedResult) => {
@@ -179,6 +202,13 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             if (s?.className) classes.add(s.className);
         });
         return Array.from(classes).sort();
+    };
+
+    const toggleHideHeader = (h: string) => {
+        const newHidden = new Set(hiddenHeaders);
+        if (newHidden.has(h)) newHidden.delete(h);
+        else newHidden.add(h);
+        setHiddenHeaders(newHidden);
     };
 
     return (
@@ -201,15 +231,22 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col xl:flex-row gap-8 overflow-hidden">
                             <div className="flex-1 flex flex-col overflow-hidden">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة: {getQuestionHeaders(headers).length})</h3>
+                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (العدد المكتشف: {getQuestionHeaders(headers).length})</h3>
                                     <button onClick={handleAutoGenerateSkills} disabled={isAiProcessing} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-purple-700">
                                         {isAiProcessing ? <Loader2 className="animate-spin" size={14}/> : <Wand2 size={14}/>} استخراج المهارات ذكياً ✨
                                     </button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
                                     {getQuestionHeaders(headers).map((h, idx) => (
-                                        <div key={idx} className="bg-gray-50 rounded-2xl border p-4">
-                                            <p className="text-xs font-bold text-gray-500 mb-2">س{idx+1}: {h.replace(/^(النقاط - )/, '')}</p>
+                                        <div key={idx} className="bg-gray-50 rounded-2xl border p-4 relative group">
+                                            <button 
+                                                onClick={() => toggleHideHeader(h)}
+                                                className="absolute top-2 left-2 p-1 text-gray-300 hover:text-red-500 transition-colors"
+                                                title="إخفاء السؤال من التقرير"
+                                            >
+                                                <X size={16}/>
+                                            </button>
+                                            <p className="text-xs font-bold text-gray-500 mb-2 truncate pl-8">س{idx+1}: {h.replace(/^(النقاط - )/, '')}</p>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                 <div className="flex items-center gap-2 bg-white border rounded-xl p-2">
                                                     <Bookmark size={14} className="text-teal-500"/><input className="flex-1 text-xs outline-none font-bold text-teal-900" placeholder="الوحدة / الدرس..." value={unitsMapping[h] || ''} onChange={e => setUnitsMapping({...unitsMapping, [h]: e.target.value})} />
@@ -255,11 +292,17 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <div className="flex bg-gray-100 p-1 rounded-xl whitespace-nowrap">
                                     <TabBtnView label="كشف الرصد" active={historyViewTab==='KASHF'} onClick={()=>setHistoryViewTab('KASHF')}/>
                                     <TabBtnView label="تصنيف المتعلمين" active={historyViewTab==='CLASSIFICATION'} onClick={()=>setHistoryViewTab('CLASSIFICATION')}/>
+                                    <TabBtnView label="سجل المتابعة" active={historyViewTab==='FOLLOWUP'} onClick={()=>setHistoryViewTab('FOLLOWUP')}/>
                                     <TabBtnView label="نواتج التعلم" active={historyViewTab==='SKILLS'} onClick={()=>setHistoryViewTab('SKILLS')}/>
                                     <TabBtnView label="التحليل البياني" active={historyViewTab==='ANALYSIS'} onClick={()=>setHistoryViewTab('ANALYSIS')}/>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
+                                {historyViewTab === 'FOLLOWUP' && (
+                                    <select className="bg-white border p-2 rounded-xl text-xs font-black text-purple-700 outline-none max-w-[200px]" value={activeSkillIdx} onChange={e => setActiveSkillIdx(Number(e.target.value))}>
+                                        {selectedRecord.questions.map((q: any, i: number) => <option key={i} value={i}>المهارة {i+1}</option>)}
+                                    </select>
+                                )}
                                 <select className="bg-white border p-2 rounded-xl text-xs font-black text-indigo-700 outline-none" value={reportClassFilter} onChange={e => setReportClassFilter(e.target.value)}>
                                     <option value="">كل الفصول</option>
                                     {activeClassesForRecord(selectedRecord).map(c => <option key={c} value={c}>{c}</option>)}
@@ -272,11 +315,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             {historyViewTab === 'ANALYSIS' && <DiagnosticAnalysis record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                             {historyViewTab === 'CLASSIFICATION' && <ClassificationReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                             {historyViewTab === 'SKILLS' && <LearningOutcomesReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
+                            {historyViewTab === 'FOLLOWUP' && <FollowUpRecordReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} skillIndex={activeSkillIdx} />}
                         </div>
                     </div>
                 )
             )}
-            <style>{` .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); } @media print { @page { size: landscape; margin: 0.5cm; } body { background: white !important; } .print\\:hidden { display: none !important; } } `}</style>
+            <style>{` .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); } @media print { @page { size: landscape; margin: 0.5cm; } body { background: white !important; } .print\\:hidden { display: none !important; } .break-after { page-break-after: always; } } `}</style>
         </div>
     );
 };
@@ -311,7 +355,7 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
                             <th rowSpan={2} className="border-2 border-black w-56 text-right pr-4">اسم الطالب</th>
                             <th colSpan={2} className="border-2 border-black w-24 bg-[#f0f9ff]">عدد المهارات</th>
                             <th colSpan={record.questions.length} className="border-2 border-black p-2 text-xs uppercase tracking-tighter">رصد المهارات للمتعلمين</th>
-                            <th rowSpan={2} className="border-2 border-black w-20 bg-white">نسبة الإتقان للمهارات 100%</th>
+                            <th rowSpan={2} className="border-2 border-black w-20 bg-white">نسبة الإتقان 100%</th>
                         </tr>
                         <tr className="bg-gray-50 h-40">
                             <th className="border-2 border-black w-12 text-green-700 bg-green-50">المتقنة</th>
@@ -343,11 +387,228 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
                         <tr className="bg-[#f0f9ff] h-10">
                             <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-blue-900">نسبة الطلبة المتقنين للمهارة</td>
                             <td colSpan={2} className="border-2 border-black text-center font-black bg-white"><div className="text-[9px] text-gray-500">النسبة</div><div>{overallMastery}%</div></td>
-                            {data.skillStats.map((st: any, i: number) => (<td key={i} className="border-2 border-black font-black text-blue-700">{Math.round(st.masteredPct * 10) / 10}%</td>))}
+                            {data.skillStats.map((st: any, i: number) => (
+                                <td key={i} className="border-2 border-black font-black text-blue-700">{Math.round(st.masteredPct * 10) / 10}%</td>
+                            ))}
                         </tr>
                     </tbody>
                 </table>
                 <div className="bg-[#002e4d] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black"><div>معلم المادة / أ. {header?.teacherName}</div><div>مدير المدرسة / أ. {header?.schoolManager}</div></div>
+            </div>
+        </div>
+    );
+};
+
+const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex }: any) => {
+    const skill = record.questions[skillIndex];
+    const skillStat = data.skillStats[skillIndex];
+    const enrichmentStudents = data.studentsList.filter((s: any) => !s.isAbsent && s.answers[skill.id] === '✔');
+    const remedialStudents = data.studentsList.filter((s: any) => !s.isAbsent && s.answers[skill.id] === '✘');
+
+    return (
+        <div className="space-y-10">
+            {/* الصفحة الأولى: سجل المتابعة وتصنيف الطلاب */}
+            <div className="bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none break-after">
+                <div className="min-w-[1000px] border-2 border-[#002e4d]">
+                    <div className="p-4 border-b-2 border-black bg-gray-50">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="text-right text-[11px] font-bold space-y-1">
+                                <p>الإدارة العامة للتعليم بمنطقة {header?.educationAdmin}</p>
+                                <p>مدرسة {header?.schoolName}</p>
+                            </div>
+                            <div className="bg-[#002e4d] text-white py-2 px-8 rounded-full font-black text-lg uppercase tracking-tighter">سجل الفاقد والنمو التعليمي</div>
+                            <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-14" alt="moe"/></div>
+                        </div>
+                        <h2 className="text-center text-xl font-black text-[#002e4d] mb-4 uppercase">سجل متابعة مكتسبات المتعلمين والفاقد التعليمي لـ {record.examTitle}</h2>
+                        
+                        <div className="grid grid-cols-2 border-2 border-black font-black text-center text-sm">
+                            <div className="border-l-2 border-black bg-yellow-50 p-2">الوحدة / الدرس <br/> <span className="text-[#002e4d]">{skill.unitName}</span></div>
+                            <div className="bg-yellow-50 p-2">المهارة المستهدفة <br/> <span className="text-[#002e4d]">{skill.learningOutcome}</span></div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2">
+                        {/* تصنيف الإثراء */}
+                        <div className="border-l-2 border-black">
+                            <div className="bg-[#002e4d] text-white p-2 text-center text-xs font-black uppercase tracking-tighter">تصنيف المتعلمين ضمن البرنامج الإثرائي للمهارة المستهدفة</div>
+                            <table className="w-full text-[10px] text-center font-bold">
+                                <tbody>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-l border-black w-2/3">عدد المتعلمين الكلي</td>
+                                        <td className="p-2">{skillStat.totalAttended}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-l border-black">عدد المتقنين للمهارة</td>
+                                        <td className="p-2">{skillStat.masteredCount}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-l border-black bg-green-50 font-black">نسبة المتقنين للمهارة</td>
+                                        <td className="p-2 bg-green-50 text-green-700 font-black">{Math.round(skillStat.masteredPct * 10) / 10}%</td>
+                                    </tr>
+                                    <tr className="border-b border-black h-24">
+                                        <td className="p-2 border-l border-black">آلية إثراء المهارة للمتعلمين</td>
+                                        <td className="p-2 text-right text-[9px] leading-relaxed">
+                                            • عرض مرئي ومسموع لتعميق المفاهيم <br/> • تفعيل التعلم الذاتي عبر منصات إثرائية
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div className="bg-[#002e4d] text-white p-2 text-center text-[10px] font-black">بيانات التنفيذ</div>
+                            <table className="w-full text-[10px] text-center border-b border-black">
+                                <tbody>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">الأسبوع</td><td className="p-2">الخامس</td></tr>
+                                    <tr><td className="p-2 border-l border-black">عدد المستفيدين من البرنامج الإثرائي</td><td className="p-2">{enrichmentStudents.length}</td></tr>
+                                </tbody>
+                            </table>
+                            <div className="bg-[#10b981] text-white p-2 text-center text-[10px] font-black">كشف بأسماء المستفيدين من البرنامج الإثرائي</div>
+                            <div className="h-96 overflow-hidden">
+                                <table className="w-full text-[10px] border-collapse">
+                                    <tbody>
+                                        {enrichmentStudents.map((s: any, idx: number) => (
+                                            <tr key={idx} className="border-b border-black h-7">
+                                                <td className="text-right pr-4 font-bold">{s.name}</td>
+                                            </tr>
+                                        ))}
+                                        {Array.from({ length: Math.max(0, 15 - enrichmentStudents.length) }).map((_, i) => (
+                                            <tr key={`empty-${i}`} className="border-b border-black h-7"><td></td></tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* تصنيف العلاج */}
+                        <div>
+                            <div className="bg-[#002e4d] text-white p-2 text-center text-xs font-black uppercase tracking-tighter">تصنيف المتعلمين ضمن البرنامج العلاجي للمهارة المستهدفة</div>
+                            <table className="w-full text-[10px] text-center font-bold">
+                                <tbody>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-l border-black w-2/3">عدد المتعلمين الكلي</td>
+                                        <td className="p-2">{skillStat.totalAttended}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-l border-black">عدد الغير متقنين للمهارة</td>
+                                        <td className="p-2">{skillStat.nonMasteredCount}</td>
+                                    </tr>
+                                    <tr className="border-b border-black">
+                                        <td className="p-2 border-l border-black bg-orange-50 font-black">نسبة الغير متقنين للمهارة</td>
+                                        <td className="p-2 bg-orange-50 text-orange-700 font-black">{Math.round(skillStat.nonMasteredPct * 10) / 10}%</td>
+                                    </tr>
+                                    <tr className="border-b border-black h-24">
+                                        <td className="p-2 border-l border-black">آلية معالجة الفاقد التعليمي</td>
+                                        <td className="p-2 text-right text-[9px] leading-relaxed">
+                                            • مهمة أدائية علاجية مركزة <br/> • تطبيق استراتيجية تعلم الأقران
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div className="bg-[#002e4d] text-white p-2 text-center text-[10px] font-black">بيانات التنفيذ</div>
+                            <table className="w-full text-[10px] text-center border-b border-black">
+                                <tbody>
+                                    <tr className="border-b border-black"><td className="p-2 border-l border-black w-1/2">الأسبوع</td><td className="p-2">الخامس</td></tr>
+                                    <tr><td className="p-2 border-l border-black">عدد المستفيدين من البرنامج العلاجي</td><td className="p-2">{remedialStudents.length}</td></tr>
+                                </tbody>
+                            </table>
+                            <div className={`bg-orange-600 text-white p-2 text-center text-[10px] font-black`}>كشف بأسماء المستفيدين من البرنامج العلاجي</div>
+                            <div className="h-96 overflow-hidden">
+                                <table className="w-full text-[10px] border-collapse">
+                                    <tbody>
+                                        {remedialStudents.map((s: any, idx: number) => (
+                                            <tr key={idx} className="border-b border-black h-7">
+                                                <td className="text-right pr-4 font-bold">{s.name}</td>
+                                            </tr>
+                                        ))}
+                                        {Array.from({ length: Math.max(0, 15 - remedialStudents.length) }).map((_, i) => (
+                                            <tr key={`empty-${i}`} className="border-b border-black h-7"><td></td></tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-orange-400 p-4 border-t-2 border-black flex justify-between items-center text-black font-black text-xs">
+                        <div className="flex items-center gap-2">عينة من شواهد تطبيق البرامج الإثرائية والعلاجية للمتعلمين <ArrowRight size={14}/></div>
+                        <div className="flex gap-10">
+                            <div>معلم المادة / أ. {header?.teacherName}</div>
+                            <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* الصفحة الثانية: شواهد البرامج الإثرائية والعلاجية */}
+            <div className="bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
+                <div className="min-w-[1000px] border-2 border-[#002e4d] h-full flex flex-col">
+                    <div className="bg-[#002e4d] text-white p-6 text-center border-b-2 border-black">
+                        <h2 className="text-2xl font-black mb-2 uppercase tracking-tighter">شواهد البرامج الإثرائية والعلاجية للمتعلمين وفق المهارة المستهدفة</h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 border-b-2 border-black font-black text-center text-sm">
+                        <div className="border-l-2 border-black bg-yellow-50 p-3 flex flex-col justify-center items-center">الوحدة / الدرس <br/> <span className="text-[#002e4d]">{skill.unitName}</span></div>
+                        <div className="bg-yellow-50 p-3 flex flex-col justify-center items-center">المهارة المستهدفة <br/> <span className="text-[#002e4d]">{skill.learningOutcome}</span></div>
+                    </div>
+
+                    <div className="bg-[#10b981] text-white p-2 text-center text-xs font-black">شواهد البرامج الإثرائية</div>
+                    <table className="w-full border-collapse text-center table-fixed">
+                        <thead>
+                            <tr className="bg-gray-100 font-black text-[10px] h-10 border-b border-black">
+                                <th className="border-l border-black w-1/4">الأسبوع</th>
+                                <th className="border-l border-black w-1/4">الخميس</th>
+                                <th className="border-l border-black w-1/4">اليوم</th>
+                                <th className="w-1/4">الثلاثاء</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-[11px] font-bold">
+                            <tr className="h-12 border-b border-black">
+                                <td className="border-l border-black">الخامس</td>
+                                <td className="border-l border-black">تفعيل التعلم الذاتي عبر منصة مدرستي</td>
+                                <td className="border-l border-black">الثلاثاء</td>
+                                <td>عرض مرئي ومسموع</td>
+                            </tr>
+                            <tr className="h-40 border-b border-black">
+                                <td className="border-l border-black"></td><td className="border-l border-black"></td><td className="border-l border-black"></td><td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div className="bg-orange-700 text-white p-2 text-center text-xs font-black">شواهد البرامج العلاجية</div>
+                    <table className="w-full border-collapse text-center table-fixed">
+                        <thead>
+                            <tr className="bg-gray-100 font-black text-[10px] h-10 border-b border-black">
+                                <th className="border-l border-black w-1/4">الأسبوع</th>
+                                <th className="border-l border-black w-1/4">الخميس</th>
+                                <th className="border-l border-black w-1/4">اليوم</th>
+                                <th className="w-1/4">الثلاثاء</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-[11px] font-bold">
+                            <tr className="h-12 border-b border-black">
+                                <td className="border-l border-black">الخامس</td>
+                                <td className="border-l border-black">تطبيق استراتيجية تعلم الأقران</td>
+                                <td className="border-l border-black">الثلاثاء</td>
+                                <td>مهمة أدائية علاجية</td>
+                            </tr>
+                            <tr className="h-40 border-b border-black">
+                                <td className="border-l border-black"></td><td className="border-l border-black"></td><td className="border-l border-black"></td><td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div className="flex-1 min-h-[100px] border-t-2 border-black flex">
+                        <div className="w-48 bg-yellow-50 font-black text-xs flex items-center justify-center border-l-2 border-black">الملاحظات</div>
+                        <div className="flex-1 p-4"></div>
+                    </div>
+                    <div className="min-h-[100px] border-t border-black flex">
+                        <div className="w-48 bg-yellow-50 font-black text-xs flex items-center justify-center border-l-2 border-black">التوصيات</div>
+                        <div className="flex-1 p-4"></div>
+                    </div>
+
+                    <div className="bg-[#002e4d] text-white p-6 grid grid-cols-2 text-center text-xs font-black">
+                        <div>معلم المادة / أ. {header?.teacherName}</div>
+                        <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -359,7 +620,7 @@ const LearningOutcomesReport = ({ record, data, header, classFilter }: any) => {
             <div className="border-2 border-[#002e4d]">
                 <div className="bg-[#002e4d] text-white p-6 text-center border-b-2 border-black">
                     <h2 className="text-3xl font-black mb-4">نواتج التعلم المستهدفة</h2>
-                    <h3 className="text-xl font-bold opacity-90">وفق الاختبار القبلي</h3>
+                    <h3 className="text-xl font-bold opacity-90">وفق {record.examTitle}</h3>
                 </div>
                 <table className="w-full border-collapse text-center table-fixed">
                     <thead>
@@ -410,7 +671,7 @@ const ClassificationReport = ({ record, data, header, classFilter }: any) => {
                     <tbody className="font-bold text-[11px]">
                         {data.studentsList.map((s: any, idx: number) => (
                             <tr key={s.sid} className={`h-10 hover:bg-gray-50 border-b border-[#002e4d] ${s.isAbsent ? 'bg-gray-100 opacity-60' : ''}`}>
-                                <td className="border-x border-[#002e4d] bg-gray-50">{idx + 1}</td><td className="border-x border-[#002e4d] text-right pr-3 font-black text-gray-800">{s.name}</td><td className="border-x border-[#002e4d] font-black">{s.isAbsent ? '-' : s.score}</td><td className={`border-x border-[#002e4d] font-black ${s.isAbsent ? 'text-gray-400' : (s.pct < 50 ? 'text-red-600' : (s.pct >= 90 ? 'text-green-600' : 'text-blue-600'))}`}>{s.isAbsent ? 'غائب' : `${Math.round(s.pct * 100) / 100}%`}</td><td className={`border-x border-[#002e4d] text-right px-3 ${s.pct >= 90 ? 'text-green-600' : s.pct >= 75 ? 'text-blue-600' : s.pct >= 50 ? 'text-orange-500' : 'text-red-600'}`}>{s.isAbsent ? '-' : s.levelDesc}</td><td className="border-x border-[#002e4d] text-center">{!s.isAbsent && s.program === 'ENRICHMENT' && <CheckCircle className="mx-auto text-green-600" size={16}/>}</td><td className="border-x border-[#002e4d] text-center">{!s.isAbsent && s.program === 'REMEDIAL' && <CheckCircle className="mx-auto text-green-600" size={16}/>}</td>
+                                <td className="border-x border-[#002e4d] bg-gray-50">{idx + 1}</td><td className="border-x border-[#002e4d] text-right pr-3 font-black text-gray-800">{s.name}</td><td className="border-x border-[#002e4d] font-black">{s.isAbsent ? '-' : s.score}</td><td className={`border-x border-[#002e4d] font-black ${s.isAbsent ? 'text-gray-400' : (s.pct < 50 ? 'text-red-600' : (s.pct >= 90 ? 'text-green-600' : (s.pct >= 75 ? 'text-blue-600' : 'text-orange-500')))}`}>{s.isAbsent ? 'غائب' : `${Math.round(s.pct * 100) / 100}%`}</td><td className={`border-x border-[#002e4d] text-right px-3 ${s.pct >= 90 ? 'text-green-600' : s.pct >= 75 ? 'text-blue-600' : s.pct >= 50 ? 'text-orange-500' : 'text-red-600'}`}>{s.isAbsent ? '-' : s.levelDesc}</td><td className="border-x border-[#002e4d] text-center">{!s.isAbsent && s.program === 'ENRICHMENT' && <CheckCircle className="mx-auto text-green-600" size={16}/>}</td><td className="border-x border-[#002e4d] text-center">{!s.isAbsent && s.program === 'REMEDIAL' && <CheckCircle className="mx-auto text-green-600" size={16}/>}</td>
                             </tr>
                         ))}
                     </tbody>
