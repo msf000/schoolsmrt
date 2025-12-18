@@ -7,7 +7,7 @@ import {
     FileSpreadsheet, Loader2, CheckCircle, AlertCircle, BarChart, 
     ArrowRight, UserCheck, TrendingUp, 
     Upload, ChevronDown, ChevronUp,
-    ListFilter, Target, History, BrainCircuit, Save, X, Search, Database, LayoutPanelLeft, ArrowLeft, Users, FileText, Trash2, Edit2, BarChart2, CheckSquare, Sparkles, Printer, FileDown, Layers, Layout, PieChart as PieIcon, Filter
+    ListFilter, Target, History, BrainCircuit, Save, X, Search, Database, LayoutPanelLeft, ArrowLeft, Users, FileText, Trash2, Edit2, BarChart2, CheckSquare, Sparkles, Printer, FileDown, Layers, Layout, PieChart as PieIcon, Filter, Info
 } from 'lucide-react';
 import { Student, FormsDetailedResult, FormsQuestionAnalysis, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, LineChart, Line } from 'recharts';
@@ -20,7 +20,7 @@ interface Props {
 const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [viewMode, setViewMode] = useState<'IMPORT' | 'HISTORY'>('IMPORT');
     const [selectedRecord, setSelectedRecord] = useState<FormsDetailedResult | null>(null);
-    const [detailTab, setDetailTab] = useState<'QUESTIONS' | 'OFFICIAL_REPORT' | 'KASHF'>('OFFICIAL_REPORT');
+    const [detailTab, setDetailTab] = useState<'ANALYSIS' | 'KASHF' | 'SUMMARY'>('KASHF');
     const [loading, setLoading] = useState(false);
     const [fileData, setFileData] = useState<any[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
@@ -91,19 +91,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         });
     }, [fileData, headers]);
 
-    const handleAiAutoFillOutcomes = async () => {
-        if (itemAnalysis.length === 0) return;
-        setIsAiProcessing(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const questionsList = itemAnalysis.map(q => ({ id: q.id, text: q.question }));
-            const prompt = `استخرج لكل سؤال المهارة المستهدفة بشكل مختصر جداً (بحد أقصى 5 كلمات). البيانات: ${JSON.stringify(questionsList)} أرجع JSON مفتاحه id وقيمته { "skill": "..." }.`;
-            const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt, config: { responseMimeType: "application/json" } });
-            const suggested = JSON.parse(response.text || "{}");
-            setOutcomesMapping(prev => ({ ...prev, ...suggested }));
-        } catch (e) { alert('فشل التحليل الذكي.'); } finally { setIsAiProcessing(false); }
-    };
-
     const handleFinalSave = () => {
         if (!examTitle || !currentUserId) return alert('بيانات ناقصة.');
         setIsSaving(true);
@@ -119,13 +106,11 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 
                 if (matchedStudent) {
                     const answers: Record<string, string> = {};
-                    let studentPoints = 0;
                     itemAnalysis.forEach(q => { 
                         const pts = Number(row[q.id]);
-                        if(pts > 0) studentPoints++;
                         answers[q.question] = pts > 0 ? '✔' : '✘'; 
                     });
-                    studentResponses[matchedStudent.id] = { score: studentPoints, total: itemAnalysis.length, answers };
+                    studentResponses[matchedStudent.id] = { score: Number(row['إجمالي النقاط'] || 0), total: itemAnalysis.length, answers };
                 }
             });
 
@@ -136,8 +121,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 date: new Date().toISOString(),
                 teacherId: currentUserId,
                 questions: itemAnalysis.map(q => ({
-                    id: q.id, text: q.question, learningOutcome: outcomesMapping[q.id]?.skill || 'مهارة عامة',
-                    unit: 'غير محدد', successRate: q.successRate, difficulty: q.successRate < 50 ? 'HARD' : 'EASY', commonErrors: q.commonErrors as any
+                    id: q.id, text: q.question, learningOutcome: outcomesMapping[q.id]?.skill || q.question,
+                    unit: 'غير محدد', successRate: q.successRate, difficulty: q.successRate < 50 ? 'HARD' : 'EASY', commonErrors: []
                 })),
                 studentResponses
             };
@@ -148,49 +133,35 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
     const activeRecord = selectedRecord;
 
-    const reportStats = useMemo(() => {
+    const stats = useMemo(() => {
         if (!activeRecord) return null;
         
-        const studentsData = Object.entries(activeRecord.studentResponses).map(([sid, res], idx) => {
-            const pct = Math.round((res.score / res.total) * 100);
-            let color = '#ef4444'; // تهيئة (أحمر)
-            if (pct >= 90) color = '#10b981'; // تميز (أخضر)
-            else if (pct >= 75) color = '#3b82f6'; // تقدم (أزرق)
-            else if (pct >= 50) color = '#f59e0b'; // انطلاق (أصفر)
-            
-            return { 
-                name: (idx + 1).toString(), 
-                fullName: students.find(s => s.id === sid)?.name || 'طالب', 
-                score: pct, 
-                color 
-            };
+        const studentsList = Object.entries(activeRecord.studentResponses).map(([sid, res]) => {
+            const pct = (res.score / activeRecord.questions.length) * 100;
+            let level = 'VERY_LOW';
+            if (pct >= 85) level = 'HIGH';
+            else if (pct >= 70) level = 'MEDIUM';
+            else if (pct >= 50) level = 'LOW';
+            return { sid, score: res.score, pct, level };
         });
 
-        const skillsData = activeRecord.questions.map((q, idx) => {
-            let color = '#ef4444';
-            if (q.successRate >= 90) color = '#10b981';
-            else if (q.successRate >= 75) color = '#3b82f6';
-            else if (q.successRate >= 50) color = '#f59e0b';
+        const levels = {
+            HIGH: studentsList.filter(s => s.level === 'HIGH'),
+            MEDIUM: studentsList.filter(s => s.level === 'MEDIUM'),
+            LOW: studentsList.filter(s => s.level === 'LOW'),
+            VERY_LOW: studentsList.filter(s => s.level === 'VERY_LOW'),
+        };
 
-            return {
-                name: (idx + 1).toString(),
-                skill: q.learningOutcome,
-                rate: q.successRate,
-                color
-            };
+        const totalSkills = activeRecord.questions.length * studentsList.length;
+        let masteredSkills = 0;
+        activeRecord.questions.forEach(q => {
+            studentsList.forEach(s => {
+                if (activeRecord.studentResponses[s.sid].answers[q.text] === '✔') masteredSkills++;
+            });
         });
 
-        let totalMasteredPoints = 0;
-        let totalPossiblePoints = activeRecord.questions.length * Object.keys(activeRecord.studentResponses).length;
-
-        Object.values(activeRecord.studentResponses).forEach(res => {
-            totalMasteredPoints += res.score;
-        });
-
-        const totalUnmasteredPoints = totalPossiblePoints - totalMasteredPoints;
-
-        return { studentsData, skillsData, totalMastered: totalMasteredPoints, totalUnmastered: totalUnmasteredPoints, totalPossible: totalPossiblePoints };
-    }, [activeRecord, students]);
+        return { studentsList, levels, totalSkills, masteredSkills, unmasteredSkills: totalSkills - masteredSkills };
+    }, [activeRecord]);
 
     const kashfStats = useMemo(() => {
         if (!activeRecord) return [];
@@ -214,17 +185,11 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         });
     }, [history, archiveGradeFilter, archiveClassFilter]);
 
-    const archiveClasses = useMemo(() => Array.from(new Set(history.map(h => h.className.split(' ').pop() || ''))).filter(Boolean), [history]);
-
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
             {/* Header Controls */}
             <div className="mb-6 flex flex-col md:flex-row justify-between items-end gap-4 print:hidden">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <FileSpreadsheet className="text-green-600"/> محلل نواتج التعلم المتطور
-                    </h2>
-                </div>
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><FileSpreadsheet className="text-green-600"/> محلل نواتج التعلم المتطور</h2>
                 {!activeRecord && (
                     <div className="flex bg-white p-1 rounded-xl border shadow-sm">
                         <button onClick={() => setViewMode('IMPORT')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'IMPORT' ? 'bg-green-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>تحليل جديد</button>
@@ -233,7 +198,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 )}
             </div>
 
-            {activeRecord ? (
+            {activeRecord && stats ? (
                 <div className="flex-1 overflow-hidden flex flex-col gap-4 animate-slide-up">
                     {/* Navigation inside Record */}
                     <div className="bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center print:hidden">
@@ -242,147 +207,18 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             <div><h3 className="font-bold text-gray-800">{activeRecord.examTitle}</h3><p className="text-xs text-gray-500">{activeRecord.className}</p></div>
                         </div>
                         <div className="flex bg-gray-100 p-1 rounded-xl">
-                            <button onClick={()=>setDetailTab('OFFICIAL_REPORT')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${detailTab==='OFFICIAL_REPORT'?'bg-white shadow text-indigo-900':'text-gray-500'}`}>تحليل النتائج (أزرق)</button>
-                            <button onClick={()=>setDetailTab('KASHF')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${detailTab==='KASHF'?'bg-white shadow text-teal-800':'text-gray-500'}`}>كشف رصد مهارات (أخضر)</button>
+                            <button onClick={()=>setDetailTab('KASHF')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${detailTab==='KASHF'?'bg-white shadow text-teal-800':'text-gray-500'}`}>كشف رصد المهارات</button>
+                            <button onClick={()=>setDetailTab('ANALYSIS')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${detailTab==='ANALYSIS'?'bg-white shadow text-indigo-900':'text-gray-500'}`}>تحليل النتائج</button>
+                            <button onClick={()=>setDetailTab('SUMMARY')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${detailTab==='SUMMARY'?'bg-white shadow text-orange-800':'text-gray-500'}`}>ملخص المستويات</button>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        {detailTab === 'OFFICIAL_REPORT' && reportStats ? (
-                            /* --- واجهة تحليل نتائج المتعلمين (النموذج الأزرق المرفق في الصورة) --- */
-                            <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl border border-gray-200 print:shadow-none print:border-none">
-                                {/* ترويسة رسمية */}
-                                <div className="flex justify-between items-start mb-4 border-b-2 border-[#003366] pb-4">
-                                    <div className="text-right text-[10px] font-bold space-y-1">
-                                        <p className="text-[#003366]">الإدارة العامة للتعليم بمنطقة</p>
-                                        <p className="text-[#003366]">{headerConfig?.educationAdmin}</p>
-                                        <div className="mt-2 bg-[#003366] text-white px-6 py-0.5 rounded-full text-center text-[11px]">مدرسة {headerConfig?.schoolName}</div>
-                                    </div>
-                                    <div className="flex flex-col items-center">
-                                        <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-16 mb-1" alt="logo"/>
-                                    </div>
-                                </div>
-
-                                <div className="bg-[#003366] text-white p-2 text-center font-black text-sm mb-4 tracking-wider">تحليل نتائج المتعلمين وفق {activeRecord.examTitle}</div>
-
-                                {/* معلومات الجدول العلوي */}
-                                <table className="w-full border-collapse border-2 border-[#003366] text-[10px] mb-6 text-center font-bold">
-                                    <thead className="bg-gray-100">
-                                        <tr className="h-8">
-                                            <th className="border-2 border-[#003366] p-1 w-1/5 text-[#003366]">المادة</th>
-                                            <th className="border-2 border-[#003366] p-1 w-1/5 text-[#003366]">الصف</th>
-                                            <th className="border-2 border-[#003366] p-1 w-1/5 text-[#003366]">الفصل</th>
-                                            <th className="border-2 border-[#003366] p-1 w-1/5 text-[#003366]">الفصل الدراسي</th>
-                                            <th className="border-2 border-[#003366] p-1 w-1/5 text-[#003366]">العام الدراسي</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr className="h-8">
-                                            <td className="border-2 border-[#003366] p-1">علوم الأرض والفضاء</td>
-                                            <td className="border-2 border-[#003366] p-1">{activeRecord.className.replace(/\d+/g, '').trim()}</td>
-                                            <td className="border-2 border-[#003366] p-1">{activeRecord.className.split(' ').pop()}</td>
-                                            <td className="border-2 border-[#003366] p-1">{headerConfig?.term}</td>
-                                            <td className="border-2 border-[#003366] p-1 font-mono">{headerConfig?.academicYear}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-
-                                {/* الرسم البياني الأول: حسب المتعلمين */}
-                                <div className="mb-6 border-2 border-[#003366] rounded-sm overflow-hidden">
-                                    <div className="bg-blue-50/50 p-1.5 text-center font-black text-[11px] border-b-2 border-[#003366] text-[#003366]">الرسم البياني للتحصيل الدراسي حسب المتعلمين</div>
-                                    <div className="h-[200px] p-4 bg-white relative">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <ReBarChart data={reportStats.studentsData} margin={{top: 5, right: 0, left: -25, bottom: 5}}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                <XAxis dataKey="name" tick={{fontSize: 8, fontWeight: 'bold'}} interval={0} axisLine={{stroke: '#003366'}} />
-                                                <YAxis domain={[0, 100]} tick={{fontSize: 8, fontWeight: 'bold'}} unit="%" axisLine={{stroke: '#003366'}} />
-                                                <Tooltip contentStyle={{fontSize: '10px', direction: 'rtl'}} cursor={{fill: '#f8fafc'}} />
-                                                <ReBar dataKey="score" radius={[2, 2, 0, 0]} barSize={8}>
-                                                    {reportStats.studentsData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                                                </ReBar>
-                                            </ReBarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                    <div className="flex justify-center gap-8 p-2 bg-gray-50 border-t border-[#003366] text-[9px] font-black">
-                                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-[#10b981] border border-black/10"></div> التميز</div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-[#3b82f6] border border-black/10"></div> التقدم</div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-[#f59e0b] border border-black/10"></div> الانطلاق</div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-[#ef4444] border border-black/10"></div> التهيئة</div>
-                                    </div>
-                                </div>
-
-                                {/* الرسم البياني الثاني: وفق المهارات */}
-                                <div className="mb-6 border-2 border-[#003366] rounded-sm overflow-hidden">
-                                    <div className="bg-blue-50/50 p-1.5 text-center font-black text-[11px] border-b-2 border-[#003366] text-[#003366]">الرسم البياني للتحصيل الدراسي وفق المهارات المستهدفة</div>
-                                    <div className="h-[200px] p-4 bg-white">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <ReBarChart data={reportStats.skillsData} margin={{top: 5, right: 0, left: -25, bottom: 5}}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                <XAxis dataKey="name" tick={{fontSize: 8, fontWeight: 'bold'}} interval={0} axisLine={{stroke: '#003366'}} />
-                                                <YAxis domain={[0, 100]} tick={{fontSize: 8, fontWeight: 'bold'}} axisLine={{stroke: '#003366'}} />
-                                                <Tooltip contentStyle={{fontSize: '10px', direction: 'rtl'}} />
-                                                <ReBar dataKey="rate" radius={[2, 2, 0, 0]} barSize={25}>
-                                                    {reportStats.skillsData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                                                </ReBar>
-                                            </ReBarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-
-                                {/* جدول الإحصائيات النهائي */}
-                                <table className="w-full border-collapse border-2 border-[#003366] text-[10px] text-center font-bold">
-                                    <thead className="bg-blue-50/50">
-                                        <tr className="h-10">
-                                            <th className="border-2 border-[#003366] p-1 w-1/4 text-[#003366]">عدد المتعلمين الكلي</th>
-                                            <th className="border-2 border-[#003366] p-1 w-1/4 text-[#003366]">مجموع المهارات حسب المتعلمين</th>
-                                            <th className="border-2 border-[#003366] p-1 w-1/4 text-[#003366]">عدد المهارات المتقنة</th>
-                                            <th className="border-2 border-[#003366] p-1 w-1/4 text-[#003366]">عدد المهارات غير المتقنة</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr className="h-10 text-[12px] font-black">
-                                            <td className="border-2 border-[#003366] p-1">{Object.keys(activeRecord.studentResponses).length}</td>
-                                            <td className="border-2 border-[#003366] p-1">{reportStats.totalPossible}</td>
-                                            <td className="border-2 border-[#003366] p-1 text-green-700">{reportStats.totalMastered}</td>
-                                            <td className="border-2 border-[#003366] p-1 text-red-600">{reportStats.totalUnmastered}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-
-                                {/* خانات المؤشرات في الأسفل */}
-                                <div className="mt-4 border-2 border-[#003366]">
-                                    <div className="flex border-b-2 border-[#003366]">
-                                        <div className="flex-1 p-1 bg-white relative flex items-center px-4 overflow-hidden">
-                                            <div className="absolute inset-y-1.5 right-4 h-5 bg-green-500/20 border border-green-500 rounded-sm overflow-hidden" style={{width: `calc(100% - 32px)`}}>
-                                                <div className="h-full bg-green-500/40" style={{width: `${Math.round((reportStats.totalMastered / reportStats.totalPossible) * 100)}%`}}></div>
-                                            </div>
-                                            <span className="relative z-10 mx-auto font-black text-green-900 text-[11px]">{Math.round((reportStats.totalMastered / reportStats.totalPossible) * 100)}%</span>
-                                        </div>
-                                        <div className="w-48 bg-[#003366] text-white p-2 text-center text-[10px] font-black border-l-2 border-[#003366]">مؤشر المهارات المتقنة</div>
-                                    </div>
-                                    <div className="flex">
-                                        <div className="flex-1 p-1 bg-white relative flex items-center px-4 overflow-hidden">
-                                            <div className="absolute inset-y-1.5 right-4 h-5 bg-red-500/20 border border-red-500 rounded-sm overflow-hidden" style={{width: `calc(100% - 32px)`}}>
-                                                <div className="h-full bg-red-500/40" style={{width: `${Math.round((reportStats.totalUnmastered / reportStats.totalPossible) * 100)}%`}}></div>
-                                            </div>
-                                            <span className="relative z-10 mx-auto font-black text-red-900 text-[11px]">{Math.round((reportStats.totalUnmastered / reportStats.totalPossible) * 100)}%</span>
-                                        </div>
-                                        <div className="w-48 bg-[#003366] text-white p-2 text-center text-[10px] font-black border-l-2 border-[#003366]">مؤشر المهارات غير المتقنة</div>
-                                    </div>
-                                </div>
-
-                                <div className="mt-8 flex justify-between px-10 text-[11px] font-black text-[#003366]">
-                                    <div className="text-center">معلم المادة / أ. {headerConfig?.teacherName}</div>
-                                    <div className="text-center">مدير المدرسة / أ. {headerConfig?.schoolManager}</div>
-                                </div>
-
-                                <button onClick={()=>window.print()} className="mt-8 w-full py-4 bg-[#003366] text-white rounded-xl font-black flex items-center justify-center gap-2 print:hidden shadow-lg hover:bg-[#002244] transition-all"><Printer/> طباعة تقرير تحليل النتائج</button>
-                            </div>
-                        ) : detailTab === 'KASHF' ? (
-                            /* --- كشف الرصد الملون (النموذج الأخضر المرفق) --- */
-                            <div className="w-full bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
+                        {detailTab === 'KASHF' ? (
+                            /* --- كشف رصد المهارات (التصميم الأخضر) --- */
+                            <div className="w-full bg-white p-6 shadow-2xl overflow-x-auto">
                                 <div className="min-w-[1200px] border-2 border-black">
-                                    {/* ترويسة الكشف */}
+                                    {/* ترويسة رسمية */}
                                     <div className="bg-teal-900 text-white p-4 flex justify-between items-center border-b-2 border-black">
                                         <div className="text-right text-[11px] font-bold space-y-1">
                                             <p>الإدارة العامة للتعليم بمنطقة {headerConfig?.educationAdmin}</p>
@@ -403,7 +239,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         <div>الفصل: {activeRecord.className.split(' ').pop()}</div>
                                     </div>
 
-                                    {/* الجدول الرئيسي */}
                                     <table className="w-full border-collapse text-[11px] text-center table-fixed">
                                         <thead className="bg-orange-100 font-black">
                                             <tr>
@@ -442,7 +277,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                                     </tr>
                                                 );
                                             })}
-                                            
                                             {/* صفوف الإحصائيات في التذييل */}
                                             <tr className="bg-green-100 font-black h-11">
                                                 <td colSpan={2} className="border-2 border-black text-green-800 text-sm">عدد الطلبة المتقنين للمهارة</td>
@@ -456,11 +290,9 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                             <tr className="bg-red-100 font-black h-11">
                                                 <td colSpan={2} className="border-2 border-black text-red-800 text-sm">عدد الطلبة الغير متقنين للمهارة</td>
                                                 {kashfStats.map((s, i) => <td key={i} className="border-2 border-black text-red-600 text-lg">{s.failed}</td>)}
-                                                <td colSpan={2} rowSpan={2} className="border-2 border-black bg-white">
-                                                    <div className="flex flex-col items-center justify-center h-full">
-                                                        <div className="w-14 h-14 rounded-full border-4 border-teal-600 flex items-center justify-center text-xs font-black text-teal-900">
-                                                            {kashfStats.length ? Math.round(kashfStats.reduce((a,b)=>a+b.masteredPct,0)/kashfStats.length) : 0}%
-                                                        </div>
+                                                <td colSpan={2} rowSpan={2} className="border-2 border-black bg-white flex items-center justify-center">
+                                                    <div className="w-14 h-14 rounded-full border-4 border-teal-600 flex items-center justify-center text-xs font-black text-teal-900">
+                                                        {Math.round((stats.masteredSkills / stats.totalSkills) * 100)}%
                                                     </div>
                                                 </td>
                                             </tr>
@@ -470,79 +302,155 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                             </tr>
                                         </tbody>
                                     </table>
-
-                                    {/* حقل التوقيع الرسمي */}
                                     <div className="bg-teal-900 text-white p-5 grid grid-cols-2 text-center text-xs font-black">
                                         <div>معلم المادة / أ. {headerConfig?.teacherName}</div>
                                         <div>مدير المدرسة / أ. {headerConfig?.schoolManager}</div>
                                     </div>
                                 </div>
-                                <button onClick={()=>window.print()} className="mt-8 w-full py-4 bg-gray-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 print:hidden shadow-xl hover:bg-black transition-all"><Printer/> طباعة الكشف الرسمي الأخضر</button>
+                                <button onClick={()=>window.print()} className="mt-6 w-full py-4 bg-teal-800 text-white rounded-2xl font-black flex items-center justify-center gap-2 print:hidden shadow-xl hover:bg-black transition-all"><Printer/> طباعة كشف المهارات</button>
                             </div>
-                        ) : null}
-                    </div>
-                </div>
-            ) : viewMode === 'IMPORT' ? (
-                /* --- واجهة الاستيراد --- */
-                fileData.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center border-4 border-dashed border-gray-200 rounded-[3rem] bg-white p-10 text-center">
-                        <Upload size={48} className="text-green-600 mb-4"/>
-                        <h3 className="text-xl font-black text-gray-800 mb-2">حلل استجابات Forms جديدة</h3>
-                        <p className="text-xs text-gray-400 mb-8 max-w-xs">سيقوم النظام باستخراج المهارات وعرضها بنظام (✔ / ✘) المطابق للكشف الرسمي.</p>
-                        <input type="file" id="f-up" className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
-                        <label htmlFor="f-up" className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl cursor-pointer hover:bg-green-700 transition-all">اختيار الملف</label>
-                    </div>
-                ) : (
-                    <div className="flex-1 overflow-hidden flex flex-col gap-4">
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-4 flex-1 w-full">
-                                <label className="text-sm font-bold text-gray-600">عنوان الاختبار:</label>
-                                <input className="flex-1 p-2 border rounded-lg font-bold text-indigo-600 outline-none" value={examTitle} onChange={e=>setExamTitle(e.target.value)}/>
-                            </div>
-                            <button onClick={handleAiAutoFillOutcomes} disabled={isAiProcessing} className="bg-indigo-50 text-indigo-700 px-6 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-100 border border-indigo-200">
-                                {isAiProcessing ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>} استخراج المهارات ذكياً (AI)
-                            </button>
-                        </div>
-
-                        <div className="flex-1 grid grid-cols-1 xl:grid-cols-2 gap-4 overflow-hidden">
-                            <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col overflow-hidden">
-                                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><ListFilter size={18} className="text-orange-500"/> الأسئلة والمهارات</h3>
-                                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
-                                    {itemAnalysis.map((item, idx) => (
-                                        <div key={idx} className="bg-gray-50 rounded-2xl border border-gray-100 p-4">
-                                            <p className="text-xs font-bold text-gray-700 mb-2 leading-relaxed"><span className="text-green-600">س{idx+1}:</span> {item.question}</p>
-                                            <div className="bg-white border rounded p-1.5 flex items-center gap-2 shadow-sm">
-                                                <BrainCircuit size={14} className="text-purple-500"/>
-                                                <input className="text-xs outline-none w-full font-bold text-purple-700" placeholder="المهارة المستهدفة..." value={outcomesMapping[item.id]?.skill || ''} onChange={e=>setOutcomesMapping({...outcomesMapping, [item.id]: {...(outcomesMapping[item.id]||{unit:''}), skill: e.target.value}})}/>
-                                            </div>
+                        ) : detailTab === 'SUMMARY' ? (
+                            /* --- ملخص تحليل المستويات (التصميم الجديد) --- */
+                            <div className="max-w-[210mm] mx-auto bg-white p-10 shadow-2xl border border-gray-200">
+                                <div className="border-2 border-[#003366] overflow-hidden">
+                                    {/* ترويسة مصغرة */}
+                                    <div className="flex justify-between items-center p-4 border-b-2 border-[#003366]">
+                                        <div className="text-right text-[10px] font-bold text-[#003366]">
+                                            <p>الإدارة العامة للتعليم بمنطقة {headerConfig?.educationAdmin}</p>
+                                            <p>مدرسة {headerConfig?.schoolName}</p>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col overflow-hidden">
-                                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><UserCheck size={18} className="text-blue-500"/> مطابقة الطلاب</h3>
-                                <div className="flex-1 overflow-y-auto border rounded-2xl bg-gray-50">
-                                    <table className="w-full text-right text-xs">
-                                        <thead className="bg-gray-100 sticky top-0 font-bold z-10"><tr><th className="p-3">الطالب</th><th className="p-3 text-center">الحالة</th></tr></thead>
-                                        <tbody className="divide-y">
-                                            {fileData.map((r, i) => (
-                                                <tr key={i} className="hover:bg-white transition-colors">
-                                                    <td className="p-3 font-bold">{r[headers.find(h=>blacklist.some(b=>h.includes(b))) || headers[0]]}</td>
-                                                    <td className="p-3 text-center"><CheckCircle size={14} className="text-green-500 mx-auto"/></td>
+                                        <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-10" alt="moe"/>
+                                    </div>
+                                    
+                                    <div className="bg-[#003366] text-white p-2 text-center font-black text-sm mb-4">ملخص تحليل النتائج والمستويات</div>
+
+                                    {/* جدول المهارات المستهدفة */}
+                                    <table className="w-full border-collapse border-b-2 border-[#003366] text-[10px] text-center font-bold mb-8">
+                                        <thead className="bg-blue-50">
+                                            <tr>
+                                                <th className="border-2 border-[#003366] p-2 w-12">م</th>
+                                                <th className="border-2 border-[#003366] p-2">المهارة المستهدفة</th>
+                                                <th className="border-2 border-[#003366] p-2 w-32">نسبة الإتقان</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {activeRecord.questions.map((q, idx) => (
+                                                <tr key={idx} className="h-8">
+                                                    <td className="border-2 border-[#003366]">{idx + 1}</td>
+                                                    <td className="border-2 border-[#003366] text-right pr-3">{q.learningOutcome}</td>
+                                                    <td className="border-2 border-[#003366] font-black text-blue-800">{q.successRate}%</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
+
+                                    {/* جدول تحليل المستويات */}
+                                    <table className="w-full border-collapse text-[10px] text-center font-bold">
+                                        <thead className="bg-[#003366] text-white">
+                                            <tr>
+                                                <th className="border-2 border-[#003366] p-2 w-24">المستوى</th>
+                                                <th className="border-2 border-[#003366] p-2">تحليل المستوى</th>
+                                                <th className="border-2 border-[#003366] p-2 w-32" colSpan={2}>عدد المتعلمين</th>
+                                            </tr>
+                                            <tr className="bg-blue-50 text-[#003366]">
+                                                <th></th><th></th><th>العدد</th><th>النسبة</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr className="h-10">
+                                                <td className="border-2 border-[#003366] text-green-600">مرتفع</td>
+                                                <td className="border-2 border-[#003366] text-right pr-3">لديهم أداء متقدم وحلول إبداعية للمسائل</td>
+                                                <td className="border-2 border-[#003366]">{stats.levels.HIGH.length}</td>
+                                                <td className="border-2 border-[#003366] text-green-700">{Math.round((stats.levels.HIGH.length / stats.studentsList.length) * 100)}%</td>
+                                            </tr>
+                                            <tr className="h-10">
+                                                <td className="border-2 border-[#003366] text-blue-600">متوسط</td>
+                                                <td className="border-2 border-[#003366] text-right pr-3">لديهم تميز نسبي في حل المسائل متوسطة المستوى</td>
+                                                <td className="border-2 border-[#003366]">{stats.levels.MEDIUM.length}</td>
+                                                <td className="border-2 border-[#003366] text-blue-700">{Math.round((stats.levels.MEDIUM.length / stats.studentsList.length) * 100)}%</td>
+                                            </tr>
+                                            <tr className="h-10">
+                                                <td className="border-2 border-[#003366] text-orange-600">منخفض</td>
+                                                <td className="border-2 border-[#003366] text-right pr-3">لديهم خلل في نواتج التعلم وضعف في التأسيس</td>
+                                                <td className="border-2 border-[#003366]">{stats.levels.LOW.length}</td>
+                                                <td className="border-2 border-[#003366] text-orange-700">{Math.round((stats.levels.LOW.length / stats.studentsList.length) * 100)}%</td>
+                                            </tr>
+                                            <tr className="h-10">
+                                                <td className="border-2 border-[#003366] text-red-600">منخفض جداً</td>
+                                                <td className="border-2 border-[#003366] text-right pr-3">يحتاجون إلى تحسين كبير ومتابعة لصيقة</td>
+                                                <td className="border-2 border-[#003366]">{stats.levels.VERY_LOW.length}</td>
+                                                <td className="border-2 border-[#003366] text-red-700">{Math.round((stats.levels.VERY_LOW.length / stats.studentsList.length) * 100)}%</td>
+                                            </tr>
+                                            <tr className="h-10 bg-gray-100 font-black">
+                                                <td colSpan={2} className="border-2 border-[#003366]">المجموع الكلي</td>
+                                                <td className="border-2 border-[#003366]">{stats.studentsList.length}</td>
+                                                <td className="border-2 border-[#003366]">100%</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-[10px] font-black">
+                                        <div>معلم المادة / أ. {headerConfig?.teacherName}</div>
+                                        <div>مدير المدرسة / أ. {headerConfig?.schoolManager}</div>
+                                    </div>
                                 </div>
-                                <button onClick={handleFinalSave} disabled={isSaving} className="mt-4 w-full py-4 bg-green-600 text-white rounded-2xl font-black shadow-xl hover:bg-green-700 flex items-center justify-center gap-2 transition-all">
-                                    {isSaving ? <Loader2 className="animate-spin"/> : <Save size={18}/>} حفظ التحليل والرصد
-                                </button>
+                                <button onClick={()=>window.print()} className="mt-8 w-full py-4 bg-[#003366] text-white rounded-2xl font-black flex items-center justify-center gap-2 print:hidden shadow-xl hover:bg-black transition-all"><Printer/> طباعة ملخص المستويات</button>
                             </div>
-                        </div>
+                        ) : (
+                            /* --- تحليل النتائج (النموذج الأزرق - الرسوم البيانية) --- */
+                            <div className="max-w-[210mm] mx-auto bg-white p-10 shadow-2xl border border-gray-200">
+                                {/* تم دمج التصميم الأزرق في هذا التبويب لعرض الرسوم البيانية كما في الصورة الأولى */}
+                                <div className="border-2 border-[#003366]">
+                                    <div className="bg-[#003366] text-white p-2 text-center font-black text-sm">تحليل نتائج المتعلمين (إحصائيات الرسوم البيانية)</div>
+                                    <div className="p-6 space-y-10">
+                                        <div className="h-60 border p-2 bg-white">
+                                            <p className="text-[10px] font-black text-center mb-2">الرسم البياني للتحصيل الدراسي حسب المتعلمين</p>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <ReBarChart data={stats.studentsList.map((s,i)=>({name:i+1, score:s.pct, level:s.level}))}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="name" tick={{fontSize:8}} />
+                                                    <YAxis domain={[0, 100]} tick={{fontSize:8}} />
+                                                    <ReBar dataKey="score">
+                                                        {stats.studentsList.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.level === 'HIGH' ? '#10b981' : entry.level === 'MEDIUM' ? '#3b82f6' : entry.level === 'LOW' ? '#f59e0b' : '#ef4444'} />
+                                                        ))}
+                                                    </ReBar>
+                                                </ReBarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div className="h-60 border p-2 bg-white">
+                                            <p className="text-[10px] font-black text-center mb-2">الرسم البياني للتحصيل الدراسي وفق المهارات المستهدفة</p>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <ReBarChart data={activeRecord.questions.map((q,i)=>({name:i+1, rate:q.successRate}))}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="name" tick={{fontSize:8}} />
+                                                    <YAxis domain={[0, 100]} tick={{fontSize:8}} />
+                                                    <ReBar dataKey="rate" fill="#003366" barSize={30} />
+                                                </ReBarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 border-t-2 border-[#003366] text-center font-bold text-[10px] bg-blue-50">
+                                        <div className="border-l-2 border-[#003366] p-2">عدد المتعلمين الكلي: {stats.studentsList.length}</div>
+                                        <div className="border-l-2 border-[#003366] p-2">مجموع المهارات: {stats.totalSkills}</div>
+                                        <div className="border-l-2 border-[#003366] p-2 text-green-700">المهارات المتقنة: {stats.masteredSkills}</div>
+                                        <div className="p-2 text-red-600">غير المتقنة: {stats.unmasteredSkills}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )
+                </div>
+            ) : viewMode === 'IMPORT' ? (
+                /* --- واجهة الاستيراد (تبقى كما هي) --- */
+                <div className="flex-1 flex flex-col items-center justify-center border-4 border-dashed border-gray-200 rounded-[3rem] bg-white p-10 text-center">
+                    <Upload size={48} className="text-green-600 mb-4"/>
+                    <h3 className="text-xl font-black text-gray-800 mb-2">حلل استجابات Forms جديدة</h3>
+                    <p className="text-xs text-gray-400 mb-8 max-w-xs">سيقوم النظام باستخراج المهارات وتصنيف الطلاب آلياً.</p>
+                    <input type="file" id="f-up" className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
+                    <label htmlFor="f-up" className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl cursor-pointer hover:bg-green-700 transition-all">اختيار الملف</label>
+                </div>
             ) : (
-                /* --- واجهة الأرشيف مع التصفية --- */
+                /* --- واجهة الأرشيف مع التصفية بالصف والفصل --- */
                 <div className="flex-1 flex flex-col gap-4 overflow-hidden animate-fade-in">
                     <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-wrap gap-4 items-center">
                         <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border">
@@ -559,12 +467,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             <span className="text-xs font-bold text-gray-500">الفصل:</span>
                             <select className="bg-transparent text-sm font-bold outline-none" value={archiveClassFilter} onChange={e=>setArchiveClassFilter(e.target.value)}>
                                 <option value="">الكل</option>
-                                {archiveClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                {Array.from(new Set(history.map(h => h.className.split(' ').pop()))).map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
                     </div>
 
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar pr-1 pb-10">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar">
                         {filteredHistory.map(record => (
                             <div key={record.id} onClick={() => setSelectedRecord(record)} className="bg-white p-6 rounded-[2.5rem] border shadow-sm hover:shadow-md transition-all cursor-pointer relative group">
                                 <div className="absolute top-0 right-0 w-2 h-full bg-[#003366]"></div>
@@ -574,13 +482,9 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 </div>
                                 <h3 className="font-bold text-lg text-gray-800 mb-1">{record.examTitle}</h3>
                                 <p className="text-xs text-gray-500 mb-4">{record.className} • {Object.keys(record.studentResponses).length} طالب</p>
-                                <div className="flex gap-2">
-                                    <button onClick={()=>{setSelectedRecord(record); setDetailTab('OFFICIAL_REPORT');}} className="flex-1 py-2 bg-[#003366] text-white rounded-xl text-[10px] font-black shadow-md hover:bg-[#002244] transition-all flex items-center justify-center gap-2">تحليل النتائج <ArrowRight size={12}/></button>
-                                    <button onClick={()=>{setSelectedRecord(record); setDetailTab('KASHF');}} className="flex-1 py-2 bg-teal-50 text-teal-700 border border-teal-200 rounded-xl text-[10px] font-black hover:bg-teal-100 transition-all flex items-center justify-center gap-2">كشف الرصد</button>
-                                </div>
+                                <button className="w-full py-2 bg-[#003366] text-white rounded-xl text-[10px] font-black shadow-md hover:bg-[#002244] transition-all flex items-center justify-center gap-2">فتح التقارير الرسمية <ArrowRight size={12}/></button>
                             </div>
                         ))}
-                        {filteredHistory.length === 0 && <div className="col-span-full py-20 text-center text-gray-400 italic">لا يوجد سجلات مطابقة للفلاتر.</div>}
                     </div>
                 </div>
             )}
