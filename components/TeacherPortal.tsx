@@ -6,7 +6,7 @@ import {
     LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, 
     Award, Mail, Calendar, FileQuestion, Library, ScanLine, 
     PenTool, Printer, BrainCircuit, List, FolderOpen, Table2, 
-    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen, FileSpreadsheet, FlaskConical, Shield
+    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen, FileSpreadsheet, FlaskConical, Shield, ShieldCheck
 } from 'lucide-react';
 
 import Dashboard from './Dashboard';
@@ -34,7 +34,7 @@ import AIChatBot from './AIChatBot';
 import { SchoolManagement as SchoolManagementComponent } from './SchoolManagement';
 import FormsAnalyzer from './FormsAnalyzer';
 import LearningLab from './LearningLab';
-import AdminDashboard from './AdminDashboard'; // استيراد لوحة تحكم الإدارة
+import AdminDashboard from './AdminDashboard';
 
 interface TeacherPortalProps {
     currentUser: SystemUser;
@@ -62,34 +62,41 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    const isAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'SCHOOL_MANAGER';
     const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
 
-    const NavItem = ({ path, label, icon: Icon, color = 'text-gray-600' }: any) => (
+    const NavItem = ({ path, label, icon: Icon, color = 'text-gray-600', badge }: any) => (
         <button 
             onClick={() => { navigate(path); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium ${
                 location.pathname === path 
                     ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100' 
                     : `${color} hover:bg-gray-50`
             }`}
         >
-            <Icon size={20} />
-            <span>{label}</span>
+            <div className="flex items-center gap-3">
+                <Icon size={20} />
+                <span>{label}</span>
+            </div>
+            {badge && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{badge}</span>}
         </button>
     );
 
     return (
         <div className="flex h-screen overflow-hidden text-right font-sans bg-gray-100" dir="rtl">
+            {/* Sidebar */}
             <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-[60] transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shadow-md border-2 ${isSuperAdmin ? 'bg-red-600 border-red-100' : 'bg-indigo-600 border-indigo-100'} text-white`}>
-                                {isSuperAdmin ? <Shield size={24}/> : currentUser.name.charAt(0)}
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg shadow-md border-2 ${isSuperAdmin ? 'bg-red-600 border-red-100' : 'bg-indigo-600 border-indigo-100'} text-white`}>
+                                {isSuperAdmin ? <ShieldCheck size={24}/> : currentUser.name.charAt(0)}
                             </div>
                             <div className="overflow-hidden">
                                 <p className="text-sm font-bold text-gray-800 truncate w-32">{currentUser.name}</p>
-                                <p className="text-[10px] font-bold text-gray-400">{isSuperAdmin ? 'مدير النظام' : 'معلم'}</p>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${isSuperAdmin ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                    {isSuperAdmin ? 'مدير النظام' : currentUser.role === 'SCHOOL_MANAGER' ? 'مدير مدرسة' : 'معلم'}
+                                </span>
                             </div>
                         </div>
                         <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-red-500 p-1"><X/></button>
@@ -97,42 +104,47 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                 </div>
                 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-100px)]">
-                    {/* إذا كان مديراً، تظهر لوحة التحكم الإدارية أولاً */}
                     {isSuperAdmin && (
-                        <>
-                            <div className="mb-2"><label className="px-4 text-xs font-bold text-red-500 block mb-2 text-right">الإدارة العليا</label></div>
-                            <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} color="text-red-600" />
-                            <div className="pt-4 mt-4 border-t border-gray-100"></div>
-                        </>
+                        <div className="mb-4">
+                            <label className="px-4 text-[10px] font-black text-red-500 block mb-2 uppercase tracking-widest">إدارة النظام</label>
+                            <NavItem path="/admin" label="لوحة التحكم العليا" icon={Shield} color="text-red-600" />
+                            <div className="h-px bg-gray-100 my-4 mx-2"></div>
+                        </div>
                     )}
 
+                    <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">القائمة الرئيسية</label>
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} />
                     
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">تحليل متقدم</label></div>
-                    <NavItem path="/forms-analysis" label="محلل Microsoft Forms" icon={FileSpreadsheet} color="text-green-600" />
-                    <NavItem path="/learning-lab" label="مختبر التعلم" icon={FlaskConical} color="text-indigo-600" />
-                    
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">إدارة الفصل</label></div>
-                    <NavItem path="/students" label="سجل الطلاب" icon={Users} />
-                    <NavItem path="/attendance" label="تحضير الطلاب" icon={CheckSquare} />
-                    <NavItem path="/classroom" label="إدارة الحصة" icon={MonitorPlay} />
-                    <NavItem path="/works" label="سجل الرصد" icon={Table} />
-                    
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">أدوات ذكية</label></div>
-                    <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} />
-                    <NavItem path="/planning" label="تحضير الدروس" icon={PenTool} />
-                    <NavItem path="/ai-tools" label="مساعد الذكاء AI" icon={BrainCircuit} color="text-purple-600" />
-                    <NavItem path="/reports" label="التقارير" icon={Printer} />
-                    <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} />
+                    <div className="pt-4 mt-4 border-t border-gray-100">
+                        <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">أدوات تعليمية</label>
+                        <NavItem path="/students" label="سجل الطلاب" icon={Users} />
+                        <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} />
+                        <NavItem path="/works" label="سجل الرصد" icon={Table} />
+                        <NavItem path="/forms-analysis" label="محلل Forms" icon={FileSpreadsheet} color="text-green-600" />
+                    </div>
 
-                    <button onClick={props.onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 mt-4 font-bold"><LogOut size={20}/> تسجيل خروج</button>
+                    <div className="pt-4 mt-4 border-t border-gray-100">
+                        <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">أدوات ذكية (AI)</label>
+                        <NavItem path="/learning-lab" label="مختبر التعلم" icon={FlaskConical} color="text-indigo-600" />
+                        <NavItem path="/planning" label="التحضير الذكي" icon={PenTool} />
+                        <NavItem path="/ai-tools" label="مساعد المعلم" icon={BrainCircuit} color="text-purple-600" />
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-gray-100">
+                        <NavItem path="/reports" label="التقارير والشهادات" icon={Printer} />
+                        <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} />
+                    </div>
+
+                    <button onClick={props.onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 mt-6 font-bold transition-colors">
+                        <LogOut size={20}/> تسجيل خروج
+                    </button>
                 </nav>
             </aside>
 
+            {/* Main View */}
             <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative overflow-hidden">
                 <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 md:pb-0">
                     <Routes>
-                        {/* توجيه الصفحة الرئيسية بناءً على الدور */}
                         <Route path="/" element={
                             isSuperAdmin 
                                 ? <AdminDashboard /> 

@@ -64,16 +64,26 @@ const App: React.FC = () => {
 
     const refreshData = () => {
         try {
+            const userJson = localStorage.getItem('current_user');
+            const activeUser = userJson ? JSON.parse(userJson) : currentUser;
+            
             let allStudents = getStudents();
             let allAttendance = getAttendance();
             let allPerformance = getPerformance();
             
-            // Apply filtering logic if user is teacher
-            if (currentUser && currentUser.role === 'TEACHER') {
-                allStudents = allStudents.filter(s => 
-                    (currentUser.schoolId && s.schoolId === currentUser.schoolId) || 
-                    s.createdById === currentUser.id || !s.createdById
-                );
+            // Apply STRICT Role Filtering
+            if (activeUser) {
+                if (activeUser.role === 'TEACHER') {
+                    // المعلم يرى فقط الطلاب التابعين لمدرسته أو الذين قام بإنشائهم
+                    allStudents = allStudents.filter(s => 
+                        (activeUser.schoolId && s.schoolId === activeUser.schoolId) || 
+                        s.createdById === activeUser.id || !s.createdById
+                    );
+                } else if (activeUser.role === 'SCHOOL_MANAGER') {
+                    // مدير المدرسة يرى فقط طلاب مدرسته
+                    allStudents = allStudents.filter(s => s.schoolId === activeUser.schoolId);
+                }
+                // SUPER_ADMIN sees everything (no filter)
             }
 
             setStudents(allStudents);
@@ -89,14 +99,12 @@ const App: React.FC = () => {
         const bootApp = async () => {
             setIsAppLoading(true);
             try {
-                // Load user first
                 const saved = localStorage.getItem('current_user');
                 if (saved && saved !== "undefined") {
                     const parsed = JSON.parse(saved);
                     if (parsed && parsed.id) setCurrentUser(parsed);
                 }
 
-                // Sync from cloud if configured
                 if (isSupabaseConfigured()) {
                     await initAutoSync();
                     initRealtimeSync();
@@ -107,7 +115,6 @@ const App: React.FC = () => {
             } catch (err) {
                 console.error("App boot sequence failed", err);
             } finally {
-                // Ensure small delay for smoother transition
                 setTimeout(() => setIsAppLoading(false), 800);
             }
         };
@@ -152,8 +159,8 @@ const App: React.FC = () => {
                     </div>
                 </div>
                 <Loader2 size={32} className="animate-spin mb-4" />
-                <h2 className="text-xl font-bold text-gray-800 animate-pulse">جاري تحضير المكتب الذكي...</h2>
-                <p className="text-sm text-gray-400 mt-2 font-medium">نظام المدرس المتكامل v2.1</p>
+                <h2 className="text-xl font-bold text-gray-800 animate-pulse">جاري التحقق من الصلاحيات...</h2>
+                <p className="text-sm text-gray-400 mt-2 font-medium">Smart School Engine v2.5</p>
             </div>
         );
     }
