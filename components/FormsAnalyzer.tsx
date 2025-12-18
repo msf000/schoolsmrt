@@ -6,7 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { 
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
-    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users
+    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
@@ -19,7 +19,7 @@ interface Props {
 const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [mainTab, setMainTab] = useState<'NEW' | 'HISTORY' | 'COMPARE'>('HISTORY');
     const [selectedRecord, setSelectedRecord] = useState<FormsDetailedResult | null>(null);
-    const [historyViewTab, setHistoryViewTab] = useState<'KASHF' | 'ANALYSIS' | 'CLASSIFICATION'>('KASHF');
+    const [historyViewTab, setHistoryViewTab] = useState<'KASHF' | 'ANALYSIS' | 'CLASSIFICATION' | 'SKILLS'>('KASHF');
     const [comparisonTab, setComparisonTab] = useState<'STUDENTS' | 'SKILLS'>('STUDENTS');
     const [compareId1, setCompareId1] = useState('');
     const [compareId2, setCompareId2] = useState('');
@@ -30,6 +30,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [examTitle, setExamTitle] = useState('');
     const [outcomesMapping, setOutcomesMapping] = useState<Record<string, string>>({});
+    const [unitsMapping, setUnitsMapping] = useState<Record<string, string>>({});
     const [history, setHistory] = useState<FormsDetailedResult[]>([]);
     const [reportClassFilter, setReportClassFilter] = useState('');
     const headerConfig = useMemo(() => getReportHeaderConfig(currentUserId), [currentUserId]);
@@ -40,14 +41,17 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         }
     }, [currentUserId, isSaving, mainTab]);
 
-    // دالة محسنة جداً لجلب كافة الأسئلة (النقاط) دون استثناء أي كلمة
+    // دالة محسنة جداً لجلب كافة الأسئلة (النقاط) مع استبعاد أسئلة البيانات والأسماء
     const getQuestionHeaders = (allHeaders: string[]) => {
         return allHeaders.filter(h => {
             const hTrim = h.trim();
             const isPointCol = hTrim.startsWith('النقاط -') || hTrim.startsWith('Points -');
             const isGrandTotal = hTrim === 'إجمالي النقاط' || hTrim === 'Total Points';
-            // نستبعد فقط الإجمالي الكلي النهائي للنموذج
-            return isPointCol && !isGrandTotal;
+            
+            // التأكد من استبعاد أسئلة الاسم والفصل بشكل صريح
+            const isMetadata = hTrim.includes('اسم') || hTrim.includes('فصل') || hTrim.includes('الرقم') || hTrim.includes('الهوية');
+
+            return isPointCol && !isGrandTotal && !isMetadata;
         });
     };
 
@@ -70,17 +74,23 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             const apiKey = process.env.API_KEY || '';
             const ai = new GoogleGenAI({ apiKey });
             const itemAnalysis = getQuestionHeaders(headers).map(h => h.replace(/^(النقاط - )/, '').trim());
-            const prompt = `حلل الأسئلة التالية واستنتج المهارة التعليمية لكل سؤال باختصار (3-5 كلمات). JSON: {"skills": ["مهارة 1", "مهارة 2", ...]}`;
+            const prompt = `حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال باختصار. 
+            أرجع النتيجة بتنسيق JSON: {"items": [{"skill": "...", "unit": "..."}]}`;
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt + "\n" + itemAnalysis.join('\n'),
                 config: { responseMimeType: "application/json" }
             });
             const result = JSON.parse(response.text || "{}");
-            if (result.skills) {
-                const newMapping: Record<string, string> = {};
-                getQuestionHeaders(headers).forEach((h, i) => { newMapping[h] = result.skills[i] || h; });
-                setOutcomesMapping(newMapping);
+            if (result.items) {
+                const newOutcomes: Record<string, string> = {};
+                const newUnits: Record<string, string> = {};
+                getQuestionHeaders(headers).forEach((h, i) => { 
+                    newOutcomes[h] = result.items[i]?.skill || h; 
+                    newUnits[h] = result.items[i]?.unit || 'الوحدة الأولى';
+                });
+                setOutcomesMapping(newOutcomes);
+                setUnitsMapping(newUnits);
             }
         } catch (e) { alert('فشل استخراج المهارات.'); } finally { setIsAiProcessing(false); }
     };
@@ -114,6 +124,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 teacherId: currentUserId,
                 questions: questionCols.map(q => ({
                     id: q, text: q, learningOutcome: outcomesMapping[q] || q,
+                    unitName: unitsMapping[q] || 'الوحدة الأولى',
                     successRate: 0, difficulty: 'EASY', commonErrors: []
                 })),
                 studentResponses
@@ -186,6 +197,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             return { 
                 id: q.id, 
                 name: q.learningOutcome, 
+                unit: q.unitName || 'غير محدد',
                 masteredCount: mastered,
                 nonMasteredCount: attended - mastered,
                 masteredPct: attended > 0 ? (mastered / attended) * 100 : 0,
@@ -236,7 +248,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col xl:flex-row gap-8 overflow-hidden">
                             <div className="flex-1 flex flex-col overflow-hidden">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة المكتشفة: {getQuestionHeaders(headers).length})</h3>
+                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة: {getQuestionHeaders(headers).length})</h3>
                                     <button onClick={handleAutoGenerateSkills} disabled={isAiProcessing} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-purple-700">
                                         {isAiProcessing ? <Loader2 className="animate-spin" size={14}/> : <Wand2 size={14}/>} استخراج المهارات ذكياً ✨
                                     </button>
@@ -245,8 +257,13 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                     {getQuestionHeaders(headers).map((h, idx) => (
                                         <div key={idx} className="bg-gray-50 rounded-2xl border p-4">
                                             <p className="text-xs font-bold text-gray-500 mb-2">س{idx+1}: {h.replace(/^(النقاط - )/, '')}</p>
-                                            <div className="flex items-center gap-2 bg-white border rounded-xl p-2">
-                                                <Target size={14} className="text-indigo-500"/><input className="flex-1 text-sm outline-none font-bold text-indigo-900" placeholder="المهارة المستهدفة..." value={outcomesMapping[h] || ''} onChange={e => setOutcomesMapping({...outcomesMapping, [h]: e.target.value})} />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                <div className="flex items-center gap-2 bg-white border rounded-xl p-2">
+                                                    <Bookmark size={14} className="text-teal-500"/><input className="flex-1 text-xs outline-none font-bold text-teal-900" placeholder="الوحدة / الدرس..." value={unitsMapping[h] || ''} onChange={e => setUnitsMapping({...unitsMapping, [h]: e.target.value})} />
+                                                </div>
+                                                <div className="flex items-center gap-2 bg-white border rounded-xl p-2">
+                                                    <Target size={14} className="text-indigo-500"/><input className="flex-1 text-xs outline-none font-bold text-indigo-900" placeholder="المهارة المستهدفة..." value={outcomesMapping[h] || ''} onChange={e => setOutcomesMapping({...outcomesMapping, [h]: e.target.value})} />
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -279,16 +296,17 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                     </div>
                 ) : (
                     <div className="flex-1 overflow-hidden flex flex-col gap-4 animate-slide-up">
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 print:hidden">
-                            <div className="flex items-center gap-4">
+                        <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 print:hidden overflow-x-auto">
+                            <div className="flex items-center gap-4 shrink-0">
                                 <button onClick={() => setSelectedRecord(null)} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft/></button>
-                                <div className="flex bg-gray-100 p-1 rounded-xl">
-                                    <button onClick={()=>setHistoryViewTab('KASHF')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='KASHF' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>كشف الرصد</button>
-                                    <button onClick={()=>setHistoryViewTab('CLASSIFICATION')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='CLASSIFICATION' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>تصنيف المتعلمين</button>
-                                    <button onClick={()=>setHistoryViewTab('ANALYSIS')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${historyViewTab==='ANALYSIS' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>تحليل النتائج</button>
+                                <div className="flex bg-gray-100 p-1 rounded-xl whitespace-nowrap">
+                                    <TabBtnView label="كشف الرصد" active={historyViewTab==='KASHF'} onClick={()=>setHistoryViewTab('KASHF')}/>
+                                    <TabBtnView label="تصنيف المتعلمين" active={historyViewTab==='CLASSIFICATION'} onClick={()=>setHistoryViewTab('CLASSIFICATION')}/>
+                                    <TabBtnView label="نواتج التعلم" active={historyViewTab==='SKILLS'} onClick={()=>setHistoryViewTab('SKILLS')}/>
+                                    <TabBtnView label="تحليل النتائج" active={historyViewTab==='ANALYSIS'} onClick={()=>setHistoryViewTab('ANALYSIS')}/>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 shrink-0">
                                 <select className="bg-white border p-2 rounded-xl text-xs font-black text-indigo-700 outline-none" value={reportClassFilter} onChange={e => setReportClassFilter(e.target.value)}>
                                     <option value="">كل الفصول</option>
                                     {activeClassesForRecord(selectedRecord).map(c => <option key={c} value={c}>{c}</option>)}
@@ -300,6 +318,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             {historyViewTab === 'KASHF' && <KashfReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                             {historyViewTab === 'ANALYSIS' && <DiagnosticAnalysis record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                             {historyViewTab === 'CLASSIFICATION' && <ClassificationReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
+                            {historyViewTab === 'SKILLS' && <LearningOutcomesReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                         </div>
                     </div>
                 )
@@ -308,6 +327,10 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         </div>
     );
 };
+
+const TabBtnView = ({ label, active, onClick }: any) => (
+    <button onClick={onClick} className={`px-4 py-2 rounded-lg text-[11px] font-black transition-all ${active ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>{label}</button>
+);
 
 const KashfReport = ({ record, data, header, classFilter }: any) => {
     const totalMasteredCount = data.studentsList.reduce((acc: number, s: any) => acc + (s.isAbsent ? 0 : s.masteredCount), 0);
@@ -324,13 +347,13 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
                     </div>
                     <div className="text-center">
                         <h2 className="text-xl font-black mb-1 uppercase">كشف رصد درجات {record.examTitle}</h2>
-                        <p className="text-xs opacity-80 font-bold">رصد مهارات المتعلمين المادة/ علوم الأرض والفضاء</p>
+                        <p className="text-xs opacity-80 font-bold">رصد مهارات المتعلمين المادة/ {header?.subjectSpecialty || 'علوم الأرض والفضاء'}</p>
                     </div>
                     <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
                 </div>
                 
                 <div className="bg-gray-50 border-b-2 border-black grid grid-cols-5 text-xs font-black p-3 text-gray-900 text-center uppercase">
-                    <div className="border-l border-black/10 font-bold">المادة / علوم الأرض والفضاء</div>
+                    <div className="border-l border-black/10 font-bold">المادة / {header?.subjectSpecialty || 'علوم الأرض والفضاء'}</div>
                     <div className="border-l border-black/10 font-bold">الصف / {data.gradeName}</div>
                     <div className="border-l border-black/10 font-bold">الفصل / {classFilter || record.className}</div>
                     <div className="border-l border-black/10 font-bold">الفصل الدراسي / {header?.term}</div>
@@ -343,7 +366,7 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
                             <th rowSpan={2} className="border-2 border-black w-10">م</th>
                             <th rowSpan={2} className="border-2 border-black w-56 text-right pr-4">اسم الطالب</th>
                             <th colSpan={2} className="border-2 border-black w-24 bg-[#f0f9ff]">عدد المهارات</th>
-                            <th colSpan={record.questions.length} className="border-2 border-black p-2 text-xs uppercase tracking-tighter">رصد المهارات للمتعلمين المادة/ علوم الأرض والفضاء</th>
+                            <th colSpan={record.questions.length} className="border-2 border-black p-2 text-xs uppercase tracking-tighter">رصد المهارات للمتعلمين</th>
                             <th rowSpan={2} className="border-2 border-black w-20 bg-white">نسبة الإتقان للمهارات 100%</th>
                         </tr>
                         <tr className="bg-gray-50 h-40">
@@ -439,6 +462,67 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
     );
 };
 
+const LearningOutcomesReport = ({ record, data, header, classFilter }: any) => {
+    return (
+        <div className="bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none max-w-4xl mx-auto">
+            <div className="border-2 border-[#002e4d]">
+                <div className="bg-[#002e4d] text-white p-6 text-center border-b-2 border-black">
+                    <h2 className="text-3xl font-black mb-4">نواتج التعلم المستهدفة</h2>
+                    <h3 className="text-xl font-bold opacity-90">وفق {record.examTitle}</h3>
+                </div>
+
+                <table className="w-full border-collapse text-center table-fixed">
+                    <thead>
+                        <tr className="bg-[#00c897] text-white font-black text-sm h-12">
+                            <th className="border-2 border-[#002e4d] w-12">م</th>
+                            <th className="border-2 border-[#002e4d] w-48">الوحدة / الدرس</th>
+                            <th className="border-2 border-[#002e4d]">المهارة المستهدفة</th>
+                        </tr>
+                    </thead>
+                    <tbody className="font-bold text-sm">
+                        {record.questions.map((q: any, idx: number) => (
+                            <tr key={idx} className="h-11 border-b-2 border-[#002e4d] hover:bg-gray-50 transition-colors">
+                                <td className="border-l-2 border-r-2 border-[#002e4d] bg-[#00c897] text-white font-black">{idx + 1}</td>
+                                <td className="border-l-2 border-r-2 border-[#002e4d] text-gray-700 px-2 truncate">{q.unitName || 'الوحدة الأولى'}</td>
+                                <td className="border-l-2 border-r-2 border-[#002e4d] text-right px-4 text-gray-900">{q.learningOutcome}</td>
+                            </tr>
+                        ))}
+                        {/* صفوف فارغة لتكملة الشكل الجمالي إذا لزم الأمر */}
+                        {record.questions.length < 5 && Array.from({length: 5 - record.questions.length}).map((_, i) => (
+                             <tr key={`empty-${i}`} className="h-11 border-b-2 border-[#002e4d]">
+                                <td className="border-l-2 border-r-2 border-[#002e4d] bg-[#00c897]"></td>
+                                <td className="border-l-2 border-r-2 border-[#002e4d]"></td>
+                                <td className="border-l-2 border-r-2 border-[#002e4d]"></td>
+                             </tr>
+                        ))}
+                    </tbody>
+                </table>
+
+                {/* تذييل الإحصائية العامة */}
+                <div className="bg-[#ffc107] p-4 text-center border-t-2 border-[#002e4d] font-black text-lg text-black">
+                    الإحصائية العامة لجميع المهارات
+                </div>
+                
+                <div className="grid grid-cols-2 text-center font-black">
+                    <div className="border-l-2 border-[#002e4d] bg-[#dcfce7] p-6">
+                        <div className="text-[#166534] mb-2 text-xl">نسبة المهارات المكتسبة</div>
+                        <div className="text-3xl text-green-700">{data.overallMasteryPct.toFixed(2)}%</div>
+                    </div>
+                    <div className="bg-[#ffedd5] p-6">
+                        <div className="text-[#9a3412] mb-2 text-xl">نسبة المهارات المفقودة</div>
+                        <div className="text-3xl text-orange-700">{(100 - data.overallMasteryPct).toFixed(2)}%</div>
+                    </div>
+                </div>
+
+                <div className="bg-[#002e4d] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-[#002e4d]">
+                    <div>معلم المادة / أ. {header?.teacherName}</div>
+                    <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const ClassificationReport = ({ record, data, header, classFilter }: any) => {
     return (
         <div className="bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
@@ -448,7 +532,7 @@ const ClassificationReport = ({ record, data, header, classFilter }: any) => {
                     <div className="bg-[#002e4d] text-white py-2 px-6 rounded-full w-fit mx-auto font-black text-lg mb-4">مدرسة {header?.schoolName}</div>
                     <div className="flex justify-between items-center px-4 font-black text-[#002e4d] text-sm">
                         <div className="flex-1 text-right">كشف تصنيف المتعلمين وفق احتياجاتهم</div>
-                        <div className="flex-1 text-center">المادة/ علوم الأرض والفضاء</div>
+                        <div className="flex-1 text-center">المادة/ {header?.subjectSpecialty || 'علوم الأرض والفضاء'}</div>
                         <div className="flex-1 text-center">الصف/ {data.gradeName} {classFilter || record.className}</div>
                         <div className="flex-1 text-left">الفصل الدراسي / {header?.term} {header?.academicYear}</div>
                     </div>
@@ -493,18 +577,9 @@ const ClassificationReport = ({ record, data, header, classFilter }: any) => {
                                 </td>
                             </tr>
                         ))}
-                        {/* Empty placeholder rows like the image */}
-                        {Array.from({ length: 5 }).map((_, i) => (
-                            <tr key={`empty-${i}`} className="h-10 border-b border-[#002e4d]">
-                                <td className="border-x border-[#002e4d] bg-gray-50">{data.studentsList.length + i + 1}</td>
-                                <td className="border-x border-[#002e4d]"></td><td className="border-x border-[#002e4d]"></td>
-                                <td className="border-x border-[#002e4d]"></td><td className="border-x border-[#002e4d]"></td>
-                                <td className="border-x border-[#002e4d]"></td><td className="border-x border-[#002e4d]"></td>
-                            </tr>
-                        ))}
                     </tbody>
                 </table>
-                <div className="bg-[#002e4d] text-white p-5 grid grid-cols-2 text-center text-xs font-black">
+                <div className="bg-[#002e4d] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black">
                     <div>معلم المادة / أ. {header?.teacherName}</div>
                     <div>مدير المدرسة / أ. {header?.schoolManager}</div>
                 </div>
@@ -532,7 +607,7 @@ const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => {
                     <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
                 </div>
                 <div className="bg-gray-50 border-b-2 border-black grid grid-cols-5 text-[10px] font-black p-3 text-[#003366] text-center uppercase">
-                    <div className="border-l border-black/20">المادة: علوم الأرض والفضاء</div>
+                    <div className="border-l border-black/20">المادة: {header?.subjectSpecialty || 'المادة الدراسية'}</div>
                     <div className="border-l border-black/20">الصف: {data.gradeName}</div>
                     <div className="border-l border-black/20">الفصل: {classFilter || record.className}</div>
                     <div className="border-l border-black/20">الفصل الدراسي: {header?.term}</div>

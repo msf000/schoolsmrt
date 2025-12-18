@@ -26,6 +26,7 @@ export interface FormsQuestionAnalysis {
     id: string;
     text: string;
     learningOutcome: string; // ناتج التعلم المرتبط بالسؤال
+    unitName?: string; // مسمى الوحدة أو الدرس
     successRate: number;
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
     commonErrors: [string, number][]; // [الإجابة الخاطئة، عدد الطلاب]
