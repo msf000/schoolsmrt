@@ -43,7 +43,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const getQuestionHeaders = (allHeaders: string[]) => {
         return allHeaders.filter(h => {
             const isPointCol = h.includes('النقاط -');
-            const isPersonal = h.includes('اسم') || h.includes('فصل') || h.includes('الهوية') || h.includes('الشعبة');
+            const isPersonal = h.includes('اسم') || h.includes('فصل') || h.includes('الهوية') || h.includes('الشعبة') || h.includes('الرقم');
             return isPointCol && !isPersonal;
         });
     };
@@ -124,6 +124,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         const targetClass = classFilter || record.className;
         const allInClass = students.filter(s => s.className === targetClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
         
+        const gradeName = allInClass.length > 0 ? (allInClass[0].gradeLevel || 'غير محدد') : (record.className || 'غير محدد');
+
         let totalPossibleSkills = 0;
         let totalMasteredSkills = 0;
         let totalStudentsAttended = 0;
@@ -166,12 +168,12 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 name: q.learningOutcome, 
                 masteredCount: mastered,
                 nonMasteredCount: attended - mastered,
-                masteredPct: attended > 0 ? Math.round((mastered / attended) * 100) : 0,
-                nonMasteredPct: attended > 0 ? 100 - Math.round((mastered / attended) * 100) : 0
+                masteredPct: attended > 0 ? (mastered / attended) * 100 : 0,
+                nonMasteredPct: attended > 0 ? ((attended - mastered) / attended) * 100 : 0
             };
         });
 
-        const overallMasteryPct = totalPossibleSkills > 0 ? Math.round((totalMasteredSkills / totalPossibleSkills) * 100) : 0;
+        const overallMasteryPct = totalPossibleSkills > 0 ? (totalMasteredSkills / totalPossibleSkills) * 100 : 0;
 
         return { 
             studentsList, 
@@ -180,7 +182,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             totalMasteredSkills, 
             totalStudents: allInClass.length,
             totalStudentsAttended,
-            overallMasteryPct
+            overallMasteryPct,
+            gradeName
         };
     };
 
@@ -193,24 +196,18 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         return Array.from(classes).sort();
     };
 
-    const MainTabs = () => (
-        <div className="flex bg-white p-1 rounded-2xl border shadow-sm mb-6 print:hidden">
-            <button onClick={() => {setMainTab('NEW'); setSelectedRecord(null);}} className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${mainTab === 'NEW' ? 'bg-green-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}><PlusCircle size={18}/> تحليل جديد</button>
-            <button onClick={() => {setMainTab('HISTORY'); setSelectedRecord(null);}} className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${mainTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}><History size={18}/> سجل النتائج</button>
-            <button onClick={() => {setMainTab('COMPARE'); setSelectedRecord(null);}} className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${mainTab === 'COMPARE' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}><GitCompare size={18}/> مقارنة اختبارين</button>
-        </div>
-    );
-
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
-            <MainTabs />
+            <div className="flex bg-white p-1 rounded-2xl border shadow-sm mb-6 print:hidden">
+                <button onClick={() => setMainTab('NEW')} className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${mainTab === 'NEW' ? 'bg-green-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}><PlusCircle size={18}/> تحليل جديد</button>
+                <button onClick={() => setMainTab('HISTORY')} className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${mainTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}><History size={18}/> سجل النتائج</button>
+            </div>
 
             {mainTab === 'NEW' && (
                 fileData.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center border-4 border-dashed border-gray-200 rounded-[3rem] bg-white p-10 text-center">
                         <Upload size={64} className="text-green-600 mb-4 opacity-20"/>
                         <h3 className="text-2xl font-black text-gray-800 mb-2">تحليل استجابات Forms جديدة</h3>
-                        <p className="text-sm text-gray-400 mb-8 max-w-xs">ارفع ملف Excel المصدر من Microsoft Forms وسنقوم بالباقي.</p>
                         <input type="file" id="forms-up" className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
                         <label htmlFor="forms-up" className="bg-green-600 text-white px-12 py-4 rounded-2xl font-black text-lg shadow-xl cursor-pointer hover:bg-green-700 transition-all active:scale-95">اختيار الملف</label>
                     </div>
@@ -237,10 +234,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             </div>
                             <div className="w-full xl:w-96 flex flex-col border-r pr-8">
                                 <h3 className="font-bold text-gray-800 mb-6">بيانات الحفظ</h3>
-                                <div className="space-y-6 flex-1">
-                                    <div><label className="text-xs font-bold text-gray-400 mb-1 block">عنوان الكشف</label><input className="w-full p-3 border rounded-xl font-bold text-indigo-600" value={examTitle} onChange={e=>setExamTitle(e.target.value)}/></div>
-                                    <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-xs text-blue-700 font-bold leading-relaxed">سيتم مطابقة الطلاب تلقائياً مع السجلات الحالية. الطلاب غير المسجلين لن يظهروا في كشوفات الرصد الورقية.</div>
-                                </div>
+                                <input className="w-full p-3 border rounded-xl font-bold text-indigo-600 mb-6" value={examTitle} onChange={e=>setExamTitle(e.target.value)} placeholder="عنوان الكشف"/>
                                 <button onClick={handleFinalSave} disabled={isSaving} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 flex items-center justify-center gap-2 mt-6">{isSaving ? <Loader2 className="animate-spin"/> : <Save size={18}/>} حفظ وتحليل النتائج</button>
                             </div>
                         </div>
@@ -258,11 +252,10 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                     <button onClick={(e)=>{e.stopPropagation(); if(confirm('حذف؟')){deleteFormsDetailedResult(record.id); setHistory(getFormsDetailedResults(currentUserId));}}} className="p-2 text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
                                 </div>
                                 <h3 className="font-black text-lg text-gray-800 mb-1">{record.examTitle}</h3>
-                                <p className="text-xs text-gray-400 font-bold">{record.className} • {Object.keys(record.studentResponses).length} طالب مرصود</p>
+                                <p className="text-xs text-gray-400 font-bold">{record.className} • {Object.keys(record.studentResponses).length} طالب</p>
                                 <div className="mt-4 flex gap-2"><div className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-2">فتح التقارير <ArrowRight size={12}/></div></div>
                             </div>
                         ))}
-                        {history.length === 0 && <div className="col-span-full py-20 text-center text-gray-400">لا توجد اختبارات مؤرشفة حالياً.</div>}
                     </div>
                 ) : (
                     <div className="flex-1 overflow-hidden flex flex-col gap-4 animate-slide-up">
@@ -275,111 +268,64 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border">
-                                    <Filter size={16} className="text-indigo-600"/><span className="text-xs font-bold text-gray-400">الفصل:</span>
-                                    <select className="bg-transparent text-xs font-black text-indigo-700 outline-none" value={reportClassFilter} onChange={e => setReportClassFilter(e.target.value)}>
-                                        <option value="">تلقائي</option>
-                                        {activeClassesForRecord(selectedRecord).map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
+                                <select className="bg-white border p-2 rounded-xl text-xs font-black text-indigo-700 outline-none" value={reportClassFilter} onChange={e => setReportClassFilter(e.target.value)}>
+                                    <option value="">كل الفصول</option>
+                                    {activeClassesForRecord(selectedRecord).map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
                                 <button onClick={()=>window.print()} className="bg-gray-800 text-white px-6 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg"><Printer size={16}/> طباعة</button>
                             </div>
                         </div>
-                        
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
                             {historyViewTab === 'KASHF' ? <KashfReport record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} /> : <DiagnosticAnalysis record={selectedRecord} data={getReportData(selectedRecord, reportClassFilter)} header={headerConfig} classFilter={reportClassFilter} />}
                         </div>
                     </div>
                 )
             )}
-
-            {mainTab === 'COMPARE' && (
-                <div className="flex-1 overflow-hidden flex flex-col gap-6 animate-fade-in">
-                    <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col md:flex-row items-center gap-6 print:hidden">
-                        <div className="flex-1 w-full">
-                            <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-tighter">1. الاختبار الأول</label>
-                            <select className="w-full p-4 border-2 border-gray-100 rounded-2xl font-black text-sm text-indigo-600 outline-none focus:border-indigo-500" value={compareId1} onChange={e=>setCompareId1(e.target.value)}>
-                                <option value="">-- اختر اختباراً --</option>
-                                {history.map(h => <option key={h.id} value={h.id}>{h.examTitle}</option>)}
-                            </select>
-                        </div>
-                        <div className="bg-indigo-50 p-4 rounded-full text-indigo-600 animate-pulse"><ArrowRightLeft size={24}/></div>
-                        <div className="flex-1 w-full">
-                            <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-tighter">2. الاختبار الثاني</label>
-                            <select className="w-full p-4 border-2 border-gray-100 rounded-2xl font-black text-sm text-green-600 outline-none focus:border-green-500" value={compareId2} onChange={e=>setCompareId2(e.target.value)}>
-                                <option value="">-- اختر اختباراً --</option>
-                                {history.map(h => <option key={h.id} value={h.id}>{h.examTitle}</option>)}
-                            </select>
-                        </div>
-                    </div>
-
-                    {compareId1 && compareId2 ? (
-                        <div className="flex-1 overflow-hidden flex flex-col gap-4 animate-slide-up">
-                            <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm print:hidden">
-                                <div className="flex bg-gray-100 p-1 rounded-xl">
-                                    <button onClick={()=>setComparisonTab('STUDENTS')} className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${comparisonTab==='STUDENTS' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>مقارنة الطلاب</button>
-                                    <button onClick={()=>setComparisonTab('SKILLS')} className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${comparisonTab==='SKILLS' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>مقارنة المهارات</button>
-                                </div>
-                                <button onClick={()=>window.print()} className="bg-blue-600 text-white px-8 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg"><Printer size={16}/> طباعة تقرير المقارنة</button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar">
-                                <FullComparisonView 
-                                    rec1={history.find(h=>h.id===compareId1)!} 
-                                    rec2={history.find(h=>h.id===compareId2)!} 
-                                    students={students}
-                                    tab={comparisonTab}
-                                    header={headerConfig}
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30"><GitCompare size={100} className="mb-4"/><p className="text-2xl font-black">اختر اختبارين من القائمة للمقارنة بينهما</p></div>
-                    )}
-                </div>
-            )}
-
             <style>{` .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); } @media print { @page { size: landscape; margin: 0.5cm; } body { background: white !important; } .print\\:hidden { display: none !important; } } `}</style>
         </div>
     );
 };
 
-// --- المكونات الفرعية للتقارير ---
-
 const KashfReport = ({ record, data, header, classFilter }: any) => {
     const totalMasteredCount = data.studentsList.reduce((acc: number, s: any) => acc + (s.isAbsent ? 0 : s.masteredCount), 0);
     const totalNonMasteredCount = data.studentsList.reduce((acc: number, s: any) => acc + (s.isAbsent ? 0 : s.unmasteredCount), 0);
+    const overallMastery = Math.round(data.overallMasteryPct * 10) / 10;
 
     return (
         <div className="bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
             <div className="min-w-[1300px] border-2 border-black">
-                {/* Header Section */}
-                <div className="bg-teal-900 text-white p-4 flex justify-between items-center border-b-2 border-black">
-                    <div className="text-right text-[11px] font-bold space-y-1"><p>منطقة {header?.educationAdmin}</p><p>مدرسة {header?.schoolName}</p></div>
-                    <div className="text-center"><h2 className="text-xl font-black mb-1">كشف رصد درجات الاختبارات المدرسية - {record.examTitle}</h2><p className="text-xs opacity-80 font-bold">رصد مهارات المتعلمين / مادة: علوم الأرض والفضاء</p></div>
+                <div className="bg-[#002e4d] text-white p-4 flex justify-between items-center border-b-2 border-black">
+                    <div className="text-right text-[11px] font-bold space-y-1">
+                        <p>الإدارة العامة للتعليم بمنطقة {header?.educationAdmin}</p>
+                        <p>مدرسة {header?.schoolName}</p>
+                    </div>
+                    <div className="text-center">
+                        <h2 className="text-xl font-black mb-1 uppercase">كشف رصد درجات {record.examTitle}</h2>
+                        <p className="text-xs opacity-80 font-bold">رصد مهارات المتعلمين المادة/ علوم الأرض والفضاء</p>
+                    </div>
                     <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
                 </div>
                 
-                {/* Info Bar */}
-                <div className="bg-teal-50 border-b-2 border-black grid grid-cols-5 text-xs font-black p-3 text-teal-900 text-center uppercase">
-                    <div className="border-l border-black/10">العام: {header?.academicYear}</div>
-                    <div className="border-l border-black/10">الفصل: {header?.term}</div>
-                    <div className="border-l border-black/10">الصف: {record.className}</div>
-                    <div className="border-l border-black/10">الفصل: {classFilter || 'الكل'}</div>
-                    <div>نسبة الإتقان للمهارات: {data.overallMasteryPct}%</div>
+                <div className="bg-gray-50 border-b-2 border-black grid grid-cols-5 text-xs font-black p-3 text-gray-900 text-center uppercase">
+                    <div className="border-l border-black/10 font-bold">المادة / علوم الأرض والفضاء</div>
+                    <div className="border-l border-black/10 font-bold">الصف / {data.gradeName}</div>
+                    <div className="border-l border-black/10 font-bold">الفصل / {classFilter || record.className}</div>
+                    <div className="border-l border-black/10 font-bold">الفصل الدراسي / {header?.term}</div>
+                    <div className="font-bold">العام الدراسي / {header?.academicYear}</div>
                 </div>
 
                 <table className="w-full border-collapse text-[11px] text-center table-fixed">
-                    <thead className="bg-orange-100 font-black">
+                    <thead className="bg-[#e6f3ff] font-black">
                         <tr>
                             <th rowSpan={2} className="border-2 border-black w-10">م</th>
                             <th rowSpan={2} className="border-2 border-black w-56 text-right pr-4">اسم الطالب</th>
-                            <th colSpan={2} className="border-2 border-black w-24 bg-blue-50">عدد المهارات</th>
-                            <th colSpan={record.questions.length} className="border-2 border-black p-2 text-xs uppercase tracking-tighter">رصد المهارات للمتعلمين</th>
-                            <th rowSpan={2} className="border-2 border-black w-20 bg-white">نسبة الإتقان</th>
+                            <th colSpan={2} className="border-2 border-black w-24 bg-[#f0f9ff]">عدد المهارات</th>
+                            <th colSpan={record.questions.length} className="border-2 border-black p-2 text-xs uppercase tracking-tighter">رصد المهارات للمتعلمين المادة/ علوم الأرض والفضاء</th>
+                            <th rowSpan={2} className="border-2 border-black w-20 bg-white">نسبة الإتقان للمهارات 100%</th>
                         </tr>
-                        <tr className="bg-orange-50 h-40">
-                            <th className="border-2 border-black w-12 bg-green-50 text-green-700">المتقنة</th>
-                            <th className="border-2 border-black w-12 bg-red-50 text-red-700">الغير متقنة</th>
+                        <tr className="bg-gray-50 h-40">
+                            <th className="border-2 border-black w-12 text-green-700 bg-green-50">المتقنة</th>
+                            <th className="border-2 border-black w-12 text-orange-700 bg-orange-50">الغير متقنة</th>
                             {record.questions.map((q: any, i: number) => (
                                 <th key={i} className="border-2 border-black w-10 p-0 relative">
                                     <div className="vertical-text absolute inset-0 flex items-center justify-center font-bold px-1 text-[9px] leading-tight">{q.learningOutcome}</div>
@@ -392,99 +338,76 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
                             <tr key={s.sid} className={`h-9 hover:bg-gray-50 border-b border-black ${s.isAbsent ? 'bg-gray-100 opacity-60' : ''}`}>
                                 <td className="border-2 border-black bg-gray-50">{idx + 1}</td>
                                 <td className="border-2 border-black text-right pr-3 font-black text-gray-800 truncate">{s.name}</td>
-                                <td className="border-2 border-black bg-green-50/20 text-green-700">{s.isAbsent ? '-' : s.masteredCount}</td>
-                                <td className="border-2 border-black bg-red-50/20 text-red-700">{s.isAbsent ? '-' : s.unmasteredCount}</td>
+                                <td className="border-2 border-black text-green-700 bg-green-50/10">{s.isAbsent ? '-' : s.masteredCount}</td>
+                                <td className="border-2 border-black text-orange-700 bg-orange-50/10">{s.isAbsent ? '-' : s.unmasteredCount}</td>
                                 {record.questions.map((q: any) => (
                                     <td key={q.id} className={`border-2 border-black font-black text-sm ${s.isAbsent ? 'text-gray-300' : (s.answers[q.id] === '✔' ? 'text-green-600' : 'text-red-500')}`}>
                                         {s.isAbsent ? '-' : (s.answers[q.id] || '✘')}
                                     </td>
                                 ))}
-                                <td className={`border-2 border-black font-black ${s.isAbsent ? 'text-gray-400' : (s.pct < 60 ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50')}`}>
+                                <td className={`border-2 border-black font-black ${s.isAbsent ? 'text-gray-400' : (s.pct < 60 ? 'text-red-600 bg-red-50' : 'text-blue-700 bg-blue-50')}`}>
                                     {s.isAbsent ? 'غائب' : `${Math.round(s.pct)}%`}
                                 </td>
                             </tr>
                         ))}
                         
-                        {/* Footer Summary Row 1: Counts */}
-                        <tr className="bg-green-50 h-10">
-                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-green-900 uppercase">عدد الطلبة المتقنين للمهارة</td>
-                            <td className="border-2 border-black bg-green-100">{totalMasteredCount}</td>
-                            <td className="border-2 border-black bg-red-100">{totalNonMasteredCount}</td>
+                        {/* تذييل الجدول الإحصائي */}
+                        <tr className="bg-[#f0fdf4] h-10">
+                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-green-900">عدد الطلبة المتقنين للمهارة</td>
+                            <td colSpan={2} className="border-2 border-black text-center font-black bg-white">
+                                <div className="text-[9px] text-gray-500">المجموع</div>
+                                <div>{totalMasteredCount}</div>
+                            </td>
                             {data.skillStats.map((st: any, i: number) => (
                                 <td key={i} className="border-2 border-black font-black text-green-700">{st.masteredCount}</td>
                             ))}
                             <td rowSpan={2} className="border-2 border-black bg-white">
-                                <div className="text-[10px] font-bold text-gray-400">المجموع</div>
-                                <div className="text-sm font-black">{totalMasteredCount + totalNonMasteredCount}</div>
+                                <div className="text-[10px] font-bold text-gray-400 uppercase">مؤشر نسبة</div>
+                                <div className="text-[10px] font-bold text-gray-400 uppercase">الإتقان</div>
+                                <div className="text-sm font-black text-blue-700">{overallMastery}%</div>
                             </td>
                         </tr>
                         
-                        {/* Footer Summary Row 2: Percents */}
-                        <tr className="bg-blue-50 h-10">
-                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-blue-900 uppercase">نسبة الطلبة المتقنين للمهارة</td>
-                            <td className="border-2 border-black bg-blue-100" colSpan={2}>
-                                {data.overallMasteryPct}%
+                        <tr className="bg-[#f0f9ff] h-10">
+                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-blue-900">نسبة الطلبة المتقنين للمهارة</td>
+                            <td colSpan={2} className="border-2 border-black text-center font-black bg-white">
+                                <div className="text-[9px] text-gray-500">النسبة</div>
+                                <div>{overallMastery}%</div>
                             </td>
                             {data.skillStats.map((st: any, i: number) => (
-                                <td key={i} className="border-2 border-black font-black text-blue-700">{st.masteredPct}%</td>
+                                <td key={i} className="border-2 border-black font-black text-blue-700">{Math.round(st.masteredPct * 10) / 10}%</td>
                             ))}
                         </tr>
 
-                        {/* Footer Summary Row 3: Non-Mastered Counts */}
-                        <tr className="bg-red-50/30 h-10">
-                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-red-900 uppercase">عدد الطلبة الغير متقنين للمهارة</td>
-                            <td className="border-2 border-black" colSpan={2}>-</td>
+                        <tr className="bg-[#fff7ed] h-10">
+                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-orange-900">عدد الطلبة الغير متقنين للمهارة</td>
+                            <td colSpan={2} className="border-2 border-black text-center font-black bg-white">
+                                <div className="text-[9px] text-gray-500">المجموع</div>
+                                <div>{totalNonMasteredCount}</div>
+                            </td>
                             {data.skillStats.map((st: any, i: number) => (
-                                <td key={i} className="border-2 border-black font-black text-red-700">{st.nonMasteredCount}</td>
+                                <td key={i} className="border-2 border-black font-black text-orange-700">{st.nonMasteredCount}</td>
                             ))}
                             <td rowSpan={2} className="border-2 border-black bg-white">
-                                <div className="text-[10px] font-bold text-gray-400">النسبة</div>
-                                <div className="text-sm font-black text-green-700">{data.overallMasteryPct}%</div>
+                                <div className="text-[10px] font-bold text-gray-400 uppercase">النسبة</div>
+                                <div className="text-sm font-black text-orange-600">{Math.round((100 - overallMastery) * 10) / 10}%</div>
                             </td>
                         </tr>
 
-                        {/* Footer Summary Row 4: Non-Mastered Percents */}
-                        <tr className="bg-red-50/50 h-10">
-                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-red-900 uppercase">نسبة الطلبة الغير متقنين للمهارة</td>
-                            <td className="border-2 border-black" colSpan={2}>-</td>
+                        <tr className="bg-[#fff7ed] h-10">
+                            <td colSpan={2} className="border-2 border-black font-black text-right pr-4 text-orange-900">نسبة الطلبة الغير متقنين للمهارة</td>
+                            <td colSpan={2} className="border-2 border-black text-center font-black bg-white">
+                                <div className="text-[9px] text-gray-500">النسبة</div>
+                                <div>{Math.round((100 - overallMastery) * 10) / 10}%</div>
+                            </td>
                             {data.skillStats.map((st: any, i: number) => (
-                                <td key={i} className="border-2 border-black font-black text-red-700">{st.nonMasteredPct}%</td>
+                                <td key={i} className="border-2 border-black font-black text-orange-700">{Math.round(st.nonMasteredPct * 10) / 10}%</td>
                             ))}
                         </tr>
                     </tbody>
                 </table>
                 
-                {/* Visual Mastery Indicators at the bottom left area */}
-                <div className="border-t-2 border-black bg-white grid grid-cols-12">
-                    <div className="col-span-8 p-4">
-                        <div className="flex gap-4 mb-4">
-                            <div className="flex-1">
-                                <div className="flex justify-between mb-1">
-                                    <span className="text-[10px] font-black text-green-700">مؤشر المهارات المتقنة</span>
-                                    <span className="text-[10px] font-black text-green-700">{data.overallMasteryPct}%</span>
-                                </div>
-                                <div className="w-full h-4 bg-green-100 rounded-full border border-green-200 overflow-hidden">
-                                    <div className="h-full bg-green-600" style={{ width: `${data.overallMasteryPct}%` }}></div>
-                                </div>
-                            </div>
-                            <div className="flex-1">
-                                <div className="flex justify-between mb-1">
-                                    <span className="text-[10px] font-black text-red-700">مؤشر المهارات الغير متقنة</span>
-                                    <span className="text-[10px] font-black text-red-700">{100 - data.overallMasteryPct}%</span>
-                                </div>
-                                <div className="w-full h-4 bg-red-100 rounded-full border border-red-200 overflow-hidden">
-                                    <div className="h-full bg-red-600" style={{ width: `${100 - data.overallMasteryPct}%` }}></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="col-span-4 bg-teal-900 text-white p-4 flex flex-col items-center justify-center border-r-2 border-black">
-                        <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">مؤشر نسبة الإتقان</div>
-                        <div className="text-4xl font-black">{data.overallMasteryPct}%</div>
-                    </div>
-                </div>
-
-                <div className="bg-teal-900 text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black uppercase tracking-tight">
+                <div className="bg-[#002e4d] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black">
                     <div>معلم المادة / أ. {header?.teacherName}</div>
                     <div>مدير المدرسة / أ. {header?.schoolManager}</div>
                 </div>
@@ -494,142 +417,73 @@ const KashfReport = ({ record, data, header, classFilter }: any) => {
 };
 
 const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => {
-    const masteredPct = data.overallMasteryPct;
-    const nonMasteredPct = 100 - masteredPct;
+    const masteredPct = Math.round(data.overallMasteryPct * 10) / 10;
+    const nonMasteredPct = Math.round((100 - data.overallMasteryPct) * 10) / 10;
 
     return (
         <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl overflow-x-auto print:p-0 print:shadow-none">
             <div className="border-2 border-black">
                 <div className="bg-[#003366] text-white p-4 flex justify-between items-center border-b-2 border-black">
-                    <div className="text-right text-[11px] font-bold space-y-1"><p>منطقة {header?.educationAdmin}</p><p>مدرسة {header?.schoolName}</p></div>
-                    <div className="text-center"><h2 className="text-xl font-black mb-1 uppercase tracking-tighter">تحليل نتائج المتعلمين - {record.examTitle}</h2><p className="text-xs font-bold opacity-80">تحليل المهارات ونسب التحصيل</p></div>
+                    <div className="text-right text-[11px] font-bold space-y-1">
+                        <p>الإدارة العامة للتعليم بمنطقة {header?.educationAdmin}</p>
+                        <p>مدرسة {header?.schoolName}</p>
+                    </div>
+                    <div className="text-center">
+                        <h2 className="text-xl font-black mb-1 uppercase tracking-tighter">تحليل نتائج المتعلمين - {record.examTitle}</h2>
+                        <p className="text-xs font-bold opacity-80">تحليل المهارات ونسب التحصيل</p>
+                    </div>
                     <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 brightness-0 invert" alt="moe"/></div>
                 </div>
-                <div className="bg-blue-50 border-b-2 border-black grid grid-cols-5 text-[10px] font-black p-3 text-[#003366] text-center uppercase">
-                    <div className="border-l border-black/20">المادة: علوم الأرض</div><div className="border-l border-black/20">الصف: {record.className}</div><div className="border-l border-black/20">الفصل: {classFilter || 'الكل'}</div><div className="border-l border-black/20">الفصل: {header?.term}</div><div>العام: {header?.academicYear}</div>
+                <div className="bg-gray-50 border-b-2 border-black grid grid-cols-5 text-[10px] font-black p-3 text-[#003366] text-center uppercase">
+                    <div className="border-l border-black/20">المادة: علوم الأرض والفضاء</div>
+                    <div className="border-l border-black/20">الصف: {data.gradeName}</div>
+                    <div className="border-l border-black/20">الفصل: {classFilter || record.className}</div>
+                    <div className="border-l border-black/20">الفصل الدراسي: {header?.term}</div>
+                    <div>العام الدراسي: {header?.academicYear}</div>
                 </div>
                 <div className="p-4 space-y-8 bg-white">
                     <div className="border border-black/10 rounded-xl overflow-hidden shadow-sm">
-                        <div className="bg-[#003366] text-white p-2 text-center text-xs font-black">الرسم البياني للتحصيل الدراسي حسب المتعلمين</div>
+                        <div className="bg-[#003366] text-white p-2 text-center text-xs font-black uppercase">الرسم البياني للتحصيل الدراسي حسب المتعلمين</div>
                         <div className="h-64 p-4"><ResponsiveContainer width="100%" height="100%"><ReBarChart data={data.studentsList} layout="horizontal"><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis domain={[0, 100]} unit="%"/><Tooltip/><ReBar dataKey="pct" barSize={10} radius={[2, 2, 0, 0]}>{data.studentsList.map((e:any, i:number) => (<Cell key={i} fill={e.color}/>))}</ReBar></ReBarChart></ResponsiveContainer></div>
                     </div>
                     <div className="border border-black/10 rounded-xl overflow-hidden shadow-sm">
-                        <div className="bg-[#003366] text-white p-2 text-center text-xs font-black">الرسم البياني للتحصيل الدراسي وفق المهارات</div>
-                        <div className="h-64 p-4"><ResponsiveContainer width="100%" height="100%"><ReBarChart data={data.skillStats} margin={{top:20}}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis domain={[0, 100]} unit="%"/><Tooltip/><ReBar dataKey="masteredPct" barSize={25} fill="#3b82f6" radius={[4, 4, 0, 0]}/></ReBarChart></ResponsiveContainer></div>
+                        <div className="bg-[#003366] text-white p-2 text-center text-xs font-black uppercase">الرسم البياني للتحصيل الدراسي وفق المهارات المستهدفة</div>
+                        <div className="h-64 p-4"><ResponsiveContainer width="100%" height="100%"><ReBarChart data={data.skillStats} margin={{top:20}}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" hide/><YAxis domain={[0, 100]} unit="%"/><Tooltip/><ReBar dataKey="masteredPct" barSize={25} fill="#f59e0b" radius={[4, 4, 0, 0]}/></ReBarChart></ResponsiveContainer></div>
                     </div>
                 </div>
                 <div className="grid grid-cols-4 border-t-2 border-black text-center text-[10px] font-black uppercase">
-                    <div className="border-l-2 border-black p-3 bg-blue-50/50">عدد المتعلمين <div className="text-xl mt-1">{data.totalStudentsAttended}</div></div>
-                    <div className="border-l-2 border-black p-3 bg-blue-50/50">مجموع المهارات <div className="text-xl mt-1">{data.totalPossibleSkills}</div></div>
-                    <div className="border-l-2 border-black p-3 bg-green-50">المهارات المتقنة <div className="text-xl text-green-700 mt-1">{data.totalMasteredSkills}</div></div>
-                    <div className="p-3 bg-red-50">المهارات غير المتقنة <div className="text-xl text-red-600 mt-1">{data.totalPossibleSkills - data.totalMasteredSkills}</div></div>
+                    <div className="border-l-2 border-black p-3 bg-blue-50/50">عدد المتعلمين الكلي <div className="text-xl mt-1">{data.totalStudentsAttended}</div></div>
+                    <div className="border-l-2 border-black p-3 bg-blue-50/50">مجموع المهارات حسب المتعلمين <div className="text-xl mt-1">{data.totalPossibleSkills}</div></div>
+                    <div className="border-l-2 border-black p-3 bg-green-50">عدد المهارات المتقنة <div className="text-xl text-green-700 mt-1">{data.totalMasteredSkills}</div></div>
+                    <div className="p-3 bg-red-50">عدد المهارات الغير متقنة <div className="text-xl text-red-600 mt-1">{data.totalPossibleSkills - data.totalMasteredSkills}</div></div>
                 </div>
                 
                 <div className="border-t-2 border-black bg-white overflow-hidden">
-                    <div className="flex border-b border-black">
+                    <div className="flex border-b border-black h-12">
+                        <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-l border-black flex items-center justify-center">مؤشر المهارات المتقنة</div>
                         <div className="w-3/4 p-2 bg-white flex items-center justify-center relative">
-                            <div className="w-full h-8 bg-green-100 rounded-full border border-green-200 overflow-hidden flex items-center">
-                                <div className="h-full bg-green-600 transition-all" style={{ width: `${masteredPct}%` }}></div>
+                            <div className="w-full h-8 bg-green-50 rounded-full border border-green-200 overflow-hidden flex items-center">
+                                <div className="h-full bg-[#10b981] transition-all" style={{ width: `${masteredPct}%` }}></div>
                                 <span className="absolute inset-0 flex items-center justify-center font-black text-sm text-green-900" style={{ textShadow: '0 0 2px white' }}>{masteredPct}%</span>
                             </div>
                         </div>
-                        <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-r border-black flex items-center justify-center">مؤشر المهارات المتقنة</div>
                     </div>
-                    <div className="flex">
+                    <div className="flex h-12">
+                        <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-l border-black flex items-center justify-center">مؤشر المهارات الغير متقنة</div>
                         <div className="w-3/4 p-2 bg-white flex items-center justify-center relative">
-                            <div className="w-full h-8 bg-red-100 rounded-full border border-red-200 overflow-hidden flex items-center">
-                                <div className="h-full bg-red-600 transition-all" style={{ width: `${nonMasteredPct}%` }}></div>
+                            <div className="w-full h-8 bg-red-50 rounded-full border border-red-200 overflow-hidden flex items-center">
+                                <div className="h-full bg-[#ef4444] transition-all" style={{ width: `${nonMasteredPct}%` }}></div>
                                 <span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span>
                             </div>
                         </div>
-                        <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-r border-black flex items-center justify-center">مؤشر المهارات الغير متقنة</div>
                     </div>
                 </div>
 
-                <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black"><div>معلم المادة / أ. {header?.teacherName}</div><div>مدير المدرسة / أ. {header?.schoolManager}</div></div>
+                <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black">
+                    <div>معلم المادة / أ. {header?.teacherName}</div>
+                    <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                </div>
             </div>
-        </div>
-    );
-};
-
-const FullComparisonView = ({ rec1, rec2, students, tab, header }: any) => {
-    const studentList = students.filter((s:any) => s.className === rec1.className || s.className === rec2.className).sort((a:any, b:any) => a.name.localeCompare(b.name, 'ar'));
-
-    const getLvl = (pct: number, abs: boolean) => {
-        if (abs) return { l: 'غائب', c: 'text-gray-400' };
-        if (pct >= 90) return { l: 'ممتاز', c: 'text-green-600' };
-        if (pct >= 75) return { l: 'جيد جداً', c: 'text-blue-500' };
-        if (pct >= 50) return { l: 'مقبول', c: 'text-orange-500' };
-        return { l: 'ضعيف', c: 'text-red-500' };
-    };
-
-    if (tab === 'STUDENTS') {
-        return (
-            <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl border-2 border-[#003366] print:shadow-none print:p-0">
-                <div className="bg-[#003366] text-white p-3 text-center text-sm font-black uppercase mb-4">كشف مقارنة درجات الطلاب - {rec1.examTitle} / {rec2.examTitle}</div>
-                <table className="w-full border-collapse text-[10px] text-center table-fixed border border-[#003366]">
-                    <thead className="bg-gray-100 font-black">
-                        <tr>
-                            <th rowSpan={2} className="border border-[#003366] w-8">م</th><th rowSpan={2} className="border border-[#003366] w-52 text-right pr-4">اسم الطالب</th>
-                            <th colSpan={2} className="border border-[#003366] bg-gray-200">الاختبار الأول</th><th colSpan={2} className="border border-[#003366] bg-blue-100">الاختبار الثاني</th>
-                            <th rowSpan={2} className="border border-[#003366] w-12 bg-white">التغير</th><th rowSpan={2} className="border border-[#003366] w-20 bg-white">نسبة التحسن</th>
-                        </tr>
-                        <tr className="bg-gray-50"><th className="border border-[#003366]">الدرجة</th><th className="border border-[#003366]">التقدير</th><th className="border border-[#003366]">الدرجة</th><th className="border border-[#003366]">التقدير</th></tr>
-                    </thead>
-                    <tbody className="font-bold">
-                        {studentList.map((s:any, idx:number) => {
-                            const r1 = rec1.studentResponses[s.id];
-                            const r2 = rec2.studentResponses[s.id];
-                            const p1 = r1 ? (r1.score/rec1.questions.length)*100 : 0;
-                            const p2 = r2 ? (r2.score/rec2.questions.length)*100 : 0;
-                            const diff = r2 && r1 ? r2.score - r1.score : '-';
-                            const imp = r1 && r2 && r1.score > 0 ? Math.round(((r2.score - r1.score)/r1.score)*100) : (r2 ? 100 : 0);
-                            return (
-                                <tr key={s.id} className={`h-9 hover:bg-gray-50 border-b border-[#003366] ${!r2 ? 'opacity-50' : ''}`}>
-                                    <td className="border border-[#003366] bg-gray-50">{idx+1}</td><td className="border border-[#003366] text-right pr-3 font-black text-gray-800 truncate">{s.name}</td>
-                                    <td className="border border-[#003366] font-mono">{r1 ? r1.score : '-'}</td><td className={`border border-[#003366] font-black ${getLvl(p1, !r1).c}`}>{getLvl(p1, !r1).l}</td>
-                                    <td className="border border-[#003366] font-mono font-bold text-blue-700 bg-blue-50/30">{r2 ? r2.score : '-'}</td><td className={`border border-[#003366] font-black ${getLvl(p2, !r2).c} bg-blue-50/30`}>{getLvl(p2, !r2).l}</td>
-                                    <td className={`border border-[#003366] font-black ${typeof diff === 'number' && diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>{diff}</td>
-                                    <td className={`border border-[#003366] font-black ${typeof imp === 'number' && imp >= 0 ? 'text-green-600' : 'text-red-500'}`}>{imp}%</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        );
-    }
-
-    return (
-        <div className="max-w-[210mm] mx-auto bg-white p-6 shadow-2xl border-2 border-black print:shadow-none print:p-0">
-            <div className="bg-teal-900 text-white p-3 text-center text-sm font-black uppercase mb-4">مقارنة نسب إتقان نواتج التعلم - {rec1.examTitle} / {rec2.examTitle}</div>
-            <table className="w-full border-collapse text-[10px] text-center table-fixed border-2 border-black">
-                <thead className="bg-gray-100 font-black">
-                    <tr><th className="border-2 border-black w-8">م</th><th className="border-2 border-black w-72 text-right pr-4">المهارة المستهدفة</th><th className="border-2 border-black bg-blue-50">نسبة الإتقان (قبلي)</th><th className="border-2 border-black bg-green-50">نسبة الإتقان (بعدي)</th><th className="border-2 border-black w-16">التغير</th><th className="border-2 border-black w-16">التحسن</th></tr>
-                </thead>
-                <tbody className="font-bold">
-                    {rec2.questions.map((q: any, i: number) => {
-                        const q1 = rec1.questions[i];
-                        // احتساب النسب
-                        let m1 = 0, c1 = 0;
-                        Object.values(rec1.studentResponses).forEach((res:any) => { c1++; if(res.answers[q1?.text] === '✔') m1++; });
-                        let m2 = 0, c2 = 0;
-                        Object.values(rec2.studentResponses).forEach((res:any) => { c2++; if(res.answers[q.text] === '✔') m2++; });
-                        const p1 = c1 > 0 ? Math.round((m1/c1)*100) : 0;
-                        const p2 = c2 > 0 ? Math.round((m2/c2)*100) : 0;
-                        const diff = p2 - p1;
-                        const imp = p1 > 0 ? Math.round((diff/p1)*100) : (p2 > 0 ? 100 : 0);
-                        return (
-                            <tr key={i} className="h-10 hover:bg-gray-50 border-b border-black">
-                                <td className="border-2 border-black bg-gray-50">{i + 1}</td><td className="border-2 border-black text-right pr-4 font-black truncate">{q.learningOutcome}</td>
-                                <td className="border-2 border-black font-mono">{p1}%</td><td className="border-2 border-black font-mono text-green-700 bg-green-50/30">{p2}%</td>
-                                <td className={`border-2 border-black font-black ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>{diff > 0 ? `+${diff}%` : `${diff}%`}</td>
-                                <td className={`border-2 border-black font-black ${imp >= 0 ? 'text-green-600' : 'text-red-500'}`}>{imp > 0 ? `+${imp}%` : `${imp}%`}</td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
         </div>
     );
 };
