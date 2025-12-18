@@ -6,7 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { 
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
-    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark, FileText, EyeOff, X
+    PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark, FileText, EyeOff, X, LifeBuoy
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
@@ -40,18 +40,13 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         }
     }, [currentUserId, isSaving, mainTab]);
 
-    // دالة محسنة لاستخراج الأسئلة مع استبعاد أسئلة الهوية فقط
     const getQuestionHeaders = (allHeaders: string[]) => {
         return allHeaders.filter(h => {
             const hTrim = h.trim();
             const isPointCol = hTrim.startsWith('النقاط -') || hTrim.startsWith('Points -');
             const isGrandTotal = hTrim === 'إجمالي النقاط' || hTrim === 'Total Points';
-            
-            // استبعاد فقط الأسئلة التعريفية التي لا تحتوي على نقاط فعلية (مثل الاسم والفصل)
-            // سؤال "المجرة" سيبقى لأنه يحتوي على بادئة "النقاط -" في ملف Forms
             const identityWords = ['اسم الطالب', 'اسمك', 'الفصل', 'الشعبة', 'الرقم الأكاديمي', 'الهوية'];
             const isIdentity = identityWords.some(word => hTrim.includes(word) && !isPointCol);
-
             return (isPointCol && !isGrandTotal && !isIdentity) && !hiddenHeaders.has(h);
         });
     };
@@ -75,11 +70,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             const apiKey = process.env.API_KEY || '';
             const ai = new GoogleGenAI({ apiKey });
             const itemAnalysis = getQuestionHeaders(headers).map(h => h.replace(/^(النقاط - )/, '').trim());
-            
-            const prompt = `أنت خبير في المنهج السعودي لمادة "علوم الأرض والفضاء". 
-            حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال بناءً على مفردات المنهج (مثل: نشأة الكون، النجوم والمجرات، الأجهزة الفلكية). 
-            أرجع النتيجة بتنسيق JSON حصراً: {"items": [{"skill": "أن يوضح الطالب...", "unit": "الفصل 1 / نشأة الكون"}]}`;
-            
+            const prompt = `أنت خبير في المنهج السعودي لمادة "علوم الأرض والفضاء". حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال. أرجع JSON حصراً: {"items": [{"skill": "أن يوضح الطالب...", "unit": "الفصل 1 / نشأة الكون"}]}`;
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt + "\n" + itemAnalysis.join('\n'),
@@ -107,7 +98,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             const emailCol = headers.find(h => h.toLowerCase().includes('email') || h.includes('البريد'));
             const nameCol = headers.find(h => h.toLowerCase().includes('name') || h.includes('الاسم') || h.includes('اسمك'));
             const questionCols = getQuestionHeaders(headers);
-
             fileData.forEach((row) => {
                 const rowEmail = emailCol ? String(row[emailCol] || '').trim().toLowerCase() : '';
                 const rowName = nameCol ? String(row[nameCol] || '').trim() : '';
@@ -118,13 +108,10 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                     studentResponses[matchedStudent.id] = { score: Number(row['إجمالي النقاط'] || 0), total: questionCols.length, answers };
                 }
             });
-
             const record: FormsDetailedResult = {
-                id: `forms_${Date.now()}`,
-                examTitle,
+                id: `forms_${Date.now()}`, examTitle,
                 className: students.find(s => Object.keys(studentResponses).includes(s.id))?.className || 'عام',
-                date: new Date().toISOString(),
-                teacherId: currentUserId,
+                date: new Date().toISOString(), teacherId: currentUserId,
                 questions: questionCols.map(q => ({
                     id: q, text: q, learningOutcome: outcomesMapping[q] || q,
                     unitName: unitsMapping[q] || 'الوحدة الأولى',
@@ -141,56 +128,32 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         const targetClass = classFilter || record.className;
         const allInClass = students.filter(s => s.className === targetClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
         const gradeName = allInClass.length > 0 ? (allInClass[0].gradeLevel || 'غير محدد') : (record.className || 'غير محدد');
-
-        let totalPossibleSkills = 0;
-        let totalMasteredSkills = 0;
-        let totalStudentsAttended = 0;
-
+        let totalPossibleSkills = 0; let totalMasteredSkills = 0; let totalStudentsAttended = 0;
         const studentsList = allInClass.map(s => {
             const res = record.studentResponses[s.id];
             const pct = res ? (res.score / record.questions.length) * 100 : 0;
             let color = '#ef4444';
-            if (pct >= 90) color = '#10b981';
-            else if (pct >= 75) color = '#3b82f6';
-            else if (pct >= 50) color = '#f59e0b';
-
-            let masteredCount = 0;
-            let unmasteredCount = 0;
-            let levelDesc = "";
-            let program = "";
+            if (pct >= 90) color = '#10b981'; else if (pct >= 75) color = '#3b82f6'; else if (pct >= 50) color = '#f59e0b';
+            let masteredCount = 0; let unmasteredCount = 0; let levelDesc = ""; let program = "";
             if (res) {
-                totalStudentsAttended++;
-                totalPossibleSkills += record.questions.length;
-                totalMasteredSkills += res.score;
+                totalStudentsAttended++; totalPossibleSkills += record.questions.length; totalMasteredSkills += res.score;
                 Object.values(res.answers).forEach(val => { if (val === '✔') masteredCount++; else unmasteredCount++; });
-                
-                // منطق تحليل مستوى المتعلم واحتياجاته حسب النسب المئوية
-                if (pct >= 90) { 
-                    levelDesc = "أداء المتعلم متقدم وحلوله إبداعية للمسائل"; 
-                    program = "ENRICHMENT"; 
-                }
-                else if (pct >= 75) { 
-                    levelDesc = "لدى المتعلم تميز نسبي في حل المسائل متوسطة المستوى"; 
-                    program = "ENRICHMENT"; 
-                }
-                else if (pct >= 50) { 
-                    levelDesc = "لدى المتعلم خلل في نواتج التعلم وضعف في التأسيس"; 
-                    program = "REMEDIAL"; 
-                }
-                else { 
-                    levelDesc = "يحتاج المتعلم إلى تحسين كبير ومتابعة مكثفة لنواتج التعلم"; 
-                    program = "REMEDIAL"; 
-                }
+                if (pct >= 90) { levelDesc = "أداء المتعلم متقدم وحلوله إبداعية للمسائل"; program = "ENRICHMENT"; }
+                else if (pct >= 75) { levelDesc = "لدى المتعلم تميز نسبي في حل المسائل متوسطة المستوى"; program = "ENRICHMENT"; }
+                else if (pct >= 50) { levelDesc = "لدى المتعلم خلل في نواتج التعلم وضعف في التأسيس"; program = "REMEDIAL"; }
+                else { levelDesc = "يحتاج المتعلم إلى تحسين كبير ومتابعة مكثفة لنواتج التعلم"; program = "REMEDIAL"; }
             }
             return { sid: s.id, name: s.name, score: res?.score || 0, pct, color, isAbsent: !res, answers: res?.answers || {}, masteredCount, unmasteredCount, levelDesc, program };
         });
-
         const skillStats = record.questions.map(q => {
             let mastered = 0; let attended = 0;
             studentsList.forEach(s => { if (!s.isAbsent) { attended++; if (s.answers[q.id] === '✔') mastered++; } });
-            return { id: q.id, name: q.learningOutcome, unit: q.unitName || 'غير محدد', masteredCount: mastered, nonMasteredCount: attended - mastered, masteredPct: attended > 0 ? (mastered / attended) * 100 : 0, nonMasteredPct: attended > 0 ? ((attended - mastered) / attended) * 100 : 0, totalAttended: attended };
+            return { 
+                id: q.id, name: q.learningOutcome, unit: q.unitName || 'غير محدد', masteredCount: mastered, 
+                nonMasteredCount: attended - mastered, masteredPct: attended > 0 ? (mastered / attended) * 100 : 0, 
+                nonMasteredPct: attended > 0 ? ((attended - mastered) / attended) * 100 : 0, totalAttended: attended 
+            };
         });
-
         const overallMasteryPct = totalPossibleSkills > 0 ? (totalMasteredSkills / totalPossibleSkills) * 100 : 0;
         return { studentsList, skillStats, totalPossibleSkills, totalMasteredSkills, totalStudents: allInClass.length, totalStudentsAttended, overallMasteryPct, gradeName };
     };
@@ -206,8 +169,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
     const toggleHideHeader = (h: string) => {
         const newHidden = new Set(hiddenHeaders);
-        if (newHidden.has(h)) newHidden.delete(h);
-        else newHidden.add(h);
+        if (newHidden.has(h)) newHidden.delete(h); else newHidden.add(h);
         setHiddenHeaders(newHidden);
     };
 
@@ -239,13 +201,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
                                     {getQuestionHeaders(headers).map((h, idx) => (
                                         <div key={idx} className="bg-gray-50 rounded-2xl border p-4 relative group">
-                                            <button 
-                                                onClick={() => toggleHideHeader(h)}
-                                                className="absolute top-2 left-2 p-1 text-gray-300 hover:text-red-500 transition-colors"
-                                                title="إخفاء السؤال من التقرير"
-                                            >
-                                                <X size={16}/>
-                                            </button>
+                                            <button onClick={() => toggleHideHeader(h)} className="absolute top-2 left-2 p-1 text-gray-300 hover:text-red-500 transition-colors" title="إخفاء السؤال من التقرير"><X size={16}/></button>
                                             <p className="text-xs font-bold text-gray-500 mb-2 truncate pl-8">س{idx+1}: {h.replace(/^(النقاط - )/, '')}</p>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                 <div className="flex items-center gap-2 bg-white border rounded-xl p-2">
