@@ -2,12 +2,14 @@
 import React, { useState } from 'react';
 import { Student, PerformanceRecord } from '../types';
 import { generateRemedialPlan, generateLessonPlan, generateParentMessage, generateQuiz } from '../services/geminiService';
-import { BrainCircuit, Sparkles, Loader2, Copy, FileText, User, PenTool, MessageSquare, Printer, ArrowRight } from 'lucide-react';
+import { saveRemedialPlan } from '../services/storageService';
+import { BrainCircuit, Sparkles, Loader2, Copy, FileText, User, PenTool, MessageSquare, Printer, Save, CheckCircle } from 'lucide-react';
 
 const AITools: React.FC<{ students: Student[], performance: PerformanceRecord[] }> = ({ students, performance }) => {
     const [activeTool, setActiveTool] = useState<'PLAN' | 'REMEDIAL' | 'MESSAGE' | 'QUIZ'>('PLAN');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState('');
+    const [saved, setSaved] = useState(false);
     
     // Inputs
     const [topic, setTopic] = useState('');
@@ -16,7 +18,7 @@ const AITools: React.FC<{ students: Student[], performance: PerformanceRecord[] 
     const [tone, setTone] = useState('OFFICIAL');
 
     const handleRun = async () => {
-        setLoading(true); setResult('');
+        setLoading(true); setResult(''); setSaved(false);
         try {
             let res = '';
             if (activeTool === 'PLAN') res = await generateLessonPlan(subject, topic, 'عام', '45');
@@ -33,6 +35,21 @@ const AITools: React.FC<{ students: Student[], performance: PerformanceRecord[] 
         } catch (e) { alert('حدث خطأ'); } finally { setLoading(false); }
     };
 
+    const handleSaveToProfile = () => {
+        if (!selectedStudentId || !result || activeTool !== 'REMEDIAL') return;
+        saveRemedialPlan({
+            id: Date.now().toString(),
+            studentId: selectedStudentId,
+            teacherId: 'current', // Logic usually gets it from props
+            subject,
+            topic,
+            content: result,
+            date: new Date().toISOString()
+        });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+    };
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
             <div className="mb-8">
@@ -41,10 +58,10 @@ const AITools: React.FC<{ students: Student[], performance: PerformanceRecord[] 
             </div>
 
             <div className="flex gap-4 mb-8 overflow-x-auto pb-2 no-scrollbar">
-                <ToolTab icon={<PenTool/>} label="تحضير درس" active={activeTool==='PLAN'} onClick={()=>setActiveTool('PLAN')}/>
-                <ToolTab icon={<Sparkles/>} label="خطة علاجية" active={activeTool==='REMEDIAL'} onClick={()=>setActiveTool('REMEDIAL')}/>
-                <ToolTab icon={<MessageSquare/>} label="رسالة لولي الأمر" active={activeTool==='MESSAGE'} onClick={()=>setActiveTool('MESSAGE')}/>
-                <ToolTab icon={<FileText/>} label="اختبار سريع" active={activeTool==='QUIZ'} onClick={()=>setActiveTool('QUIZ')}/>
+                <ToolTab icon={<PenTool size={18}/>} label="تحضير درس" active={activeTool==='PLAN'} onClick={()=>setActiveTool('PLAN')}/>
+                <ToolTab icon={<Sparkles size={18}/>} label="خطة علاجية" active={activeTool==='REMEDIAL'} onClick={()=>setActiveTool('REMEDIAL')}/>
+                <ToolTab icon={<MessageSquare size={18}/>} label="رسالة لولي الأمر" active={activeTool==='MESSAGE'} onClick={()=>setActiveTool('MESSAGE')}/>
+                <ToolTab icon={<FileText size={18}/>} label="اختبار سريع" active={activeTool==='QUIZ'} onClick={()=>setActiveTool('QUIZ')}/>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-hidden">
@@ -61,9 +78,9 @@ const AITools: React.FC<{ students: Student[], performance: PerformanceRecord[] 
                     )}
                     <div>
                         <label className="block text-xs font-bold text-gray-500 mb-2">الموضوع / التفاصيل</label>
-                        <textarea className="w-full p-3 border rounded-xl bg-gray-50 h-32 focus:bg-white transition-all outline-none" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="مثال: تحضير درس الضرب، أو الطالب لديه مشكلة في الحفظ..."/>
+                        <textarea className="w-full p-3 border rounded-xl bg-gray-50 h-32 outline-none" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="مثال: تحضير درس الضرب، أو الطالب لديه مشكلة في الحفظ..."/>
                     </div>
-                    <button onClick={handleRun} disabled={loading || !topic} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold shadow-lg hover:bg-purple-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                    <button onClick={handleRun} disabled={loading || !topic} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
                         {loading ? <Loader2 className="animate-spin"/> : <Sparkles/>} {loading ? 'جاري التفكير...' : 'تنفيذ المهمة'}
                     </button>
                 </div>
@@ -73,20 +90,17 @@ const AITools: React.FC<{ students: Student[], performance: PerformanceRecord[] 
                         <span className="font-bold text-gray-700">المخرجات الذكية</span>
                         {result && (
                             <div className="flex gap-2">
-                                <button onClick={()=>window.print()} className="p-2 hover:bg-white rounded-lg text-gray-600"><Printer size={18}/></button>
+                                {activeTool === 'REMEDIAL' && (
+                                    <button onClick={handleSaveToProfile} className={`px-4 py-1.5 rounded-lg font-bold text-xs flex items-center gap-2 transition-all ${saved ? 'bg-green-100 text-green-700' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
+                                        {saved ? <CheckCircle size={14}/> : <Save size={14}/>} {saved ? 'تم الحفظ' : 'حفظ في ملف الطالب'}
+                                    </button>
+                                )}
                                 <button onClick={()=>{navigator.clipboard.writeText(result); alert('تم النسخ!');}} className="p-2 hover:bg-white rounded-lg text-gray-600"><Copy size={18}/></button>
                             </div>
                         )}
                     </div>
                     <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                        {result ? (
-                            <div className="prose prose-purple max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap">{result}</div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-300">
-                                <BrainCircuit size={80} className="opacity-10 mb-4"/>
-                                <p className="font-bold">النتيجة ستظهر هنا...</p>
-                            </div>
-                        )}
+                        {result ? <div className="prose prose-purple max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap">{result}</div> : <div className="h-full flex flex-col items-center justify-center text-gray-300"><BrainCircuit size={80} className="opacity-10 mb-4"/><p className="font-bold">النتيجة ستظهر هنا...</p></div>}
                     </div>
                 </div>
             </div>
@@ -95,9 +109,7 @@ const AITools: React.FC<{ students: Student[], performance: PerformanceRecord[] 
 };
 
 const ToolTab = ({ icon, label, active, onClick }: any) => (
-    <button onClick={onClick} className={`px-6 py-4 rounded-2xl border-2 flex items-center gap-3 transition-all font-bold whitespace-nowrap ${active ? 'bg-purple-600 text-white border-purple-600 shadow-lg scale-105' : 'bg-white text-gray-500 border-transparent hover:border-purple-200'}`}>
-        {icon} <span>{label}</span>
-    </button>
+    <button onClick={onClick} className={`px-6 py-4 rounded-2xl border-2 flex items-center gap-3 transition-all font-bold whitespace-nowrap ${active ? 'bg-purple-600 text-white border-purple-600 shadow-lg scale-105' : 'bg-white text-gray-500 border-transparent hover:border-purple-200'}`}>{icon} <span>{label}</span></button>
 );
 
 export default AITools;

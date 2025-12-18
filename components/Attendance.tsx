@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone } from 'lucide-react';
 
 interface AttendanceProps {
   students: Student[];
@@ -55,6 +55,14 @@ const Attendance: React.FC<AttendanceProps> = ({
     };
     onSaveAttendance([record]);
     setActiveStudentMenu(null);
+  };
+
+  const handleWhatsApp = (student: Student) => {
+      if (!student.parentPhone) return alert('لا يوجد رقم جوال مسجل لولي الأمر');
+      const msg = `السلام عليكم، نود إشعاركم بأن الطالب ${student.name} متغيب اليوم (${selectedDate}). نرجو تزويدنا بالمبرر.`;
+      const phone = student.parentPhone.replace(/\D/g, '');
+      const formatted = phone.startsWith('966') ? phone : `966${phone.startsWith('0') ? phone.slice(1) : phone}`;
+      window.open(`https://wa.me/${formatted}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const markAllPresent = () => {
@@ -154,6 +162,7 @@ const Attendance: React.FC<AttendanceProps> = ({
                             <div className="flex flex-col gap-1">
                                 {bStatus === BehaviorStatus.POSITIVE && <div className="p-1 bg-green-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsUp size={12}/></div>}
                                 {bStatus === BehaviorStatus.NEGATIVE && <div className="p-1 bg-red-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsDown size={12}/></div>}
+                                {status === AttendanceStatus.ABSENT && <div className="p-1 bg-white text-green-600 rounded-lg shadow-sm border border-green-100" onClick={(e)=>{e.stopPropagation(); handleWhatsApp(student);}}><Smartphone size={12}/></div>}
                             </div>
                         </div>
 
@@ -163,37 +172,22 @@ const Attendance: React.FC<AttendanceProps> = ({
                                 {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'متأخر' : 'حاضر'}
                             </p>
                         </div>
-                        
-                        <div className="absolute -bottom-4 -left-4 opacity-[0.03] pointer-events-none group-hover:scale-110 transition-transform">
-                            {status === AttendanceStatus.ABSENT ? <XCircle size={100}/> : <CheckCircle size={100}/>}
-                        </div>
                     </div>
 
-                    {/* Quick Action Overlay Menu */}
                     {isMenuOpen && (
                         <div className="absolute inset-0 z-20 bg-white/95 backdrop-blur-sm rounded-2xl p-3 shadow-2xl border border-indigo-100 flex flex-col gap-2 animate-zoom-in">
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-[10px] font-black text-indigo-600">إجراء سريع</span>
                                 <button onClick={() => setActiveStudentMenu(null)} className="p-1 text-gray-400 hover:text-red-500"><X size={14}/></button>
                             </div>
-                            
-                            <div className="flex gap-1 mb-2">
+                            <div className="flex gap-1 mb-1">
                                 <button onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.PRESENT?'bg-green-600 text-white':'bg-green-50 text-green-700'}`}>حاضر</button>
                                 <button onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.ABSENT?'bg-red-600 text-white':'bg-red-50 text-red-700'}`}>غائب</button>
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.LATE)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.LATE?'bg-yellow-600 text-white':'bg-yellow-50 text-yellow-700'}`}>تأخر</button>
                             </div>
-
-                            <div className="h-[1px] bg-gray-100 mb-1"></div>
-
-                            <div className="grid grid-cols-1 gap-1 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                            <div className="grid grid-cols-1 gap-1 flex-1 overflow-y-auto">
+                                <button onClick={() => handleWhatsApp(student)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[9px] font-bold bg-green-50 text-green-700 border border-green-100"><Smartphone size={12}/> مراسلة ولي الأمر</button>
                                 {QUICK_BEHAVIORS.map(b => (
-                                    <button 
-                                      key={b.label}
-                                      onClick={() => handleUpdate(student.id, status, b.status, b.label)}
-                                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[9px] font-bold transition-all hover:scale-105 ${b.color}`}
-                                    >
-                                        {b.icon} {b.label}
-                                    </button>
+                                    <button key={b.label} onClick={() => handleUpdate(student.id, status, b.status, b.label)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[9px] font-bold transition-all ${b.color}`}>{b.icon} {b.label}</button>
                                 ))}
                             </div>
                         </div>

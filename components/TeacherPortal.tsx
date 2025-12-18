@@ -6,7 +6,7 @@ import {
     LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, 
     Award, Mail, Calendar, FileQuestion, Library, ScanLine, 
     PenTool, Printer, BrainCircuit, List, FolderOpen, Table2, 
-    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen
+    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen, FileSpreadsheet, FlaskConical
 } from 'lucide-react';
 
 import Dashboard from './Dashboard';
@@ -30,7 +30,10 @@ import ResourcesView from './ResourcesView';
 import ScheduleView from './ScheduleView';
 import TeacherInbox from './TeacherInbox';
 import BottomNavigation from './BottomNavigation';
+import AIChatBot from './AIChatBot';
 import { SchoolManagement as SchoolManagementComponent } from './SchoolManagement';
+import FormsAnalyzer from './FormsAnalyzer';
+import LearningLab from './LearningLab';
 
 interface TeacherPortalProps {
     currentUser: SystemUser;
@@ -74,7 +77,6 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
 
     return (
         <div className="flex h-screen overflow-hidden text-right font-sans bg-gray-100" dir="rtl">
-            {/* Sidebar */}
             <aside className={`fixed inset-y-0 right-0 w-64 bg-white border-l border-gray-200 shadow-xl z-[60] transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-5 border-b bg-gradient-to-b from-gray-50 to-white flex flex-col gap-4">
                     <div className="flex justify-between items-start">
@@ -92,22 +94,19 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-100px)]">
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} />
-                    <NavItem path="/inbox" label="بريد الطلبات" icon={Inbox} />
+                    
+                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">تحليل متقدم</label></div>
+                    <NavItem path="/forms-analysis" label="محلل Microsoft Forms" icon={FileSpreadsheet} color="text-green-600" />
+                    <NavItem path="/learning-lab" label="مختبر التعلم" icon={FlaskConical} color="text-indigo-600" />
                     
                     <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">إدارة الفصل</label></div>
                     <NavItem path="/students" label="سجل الطلاب" icon={Users} />
                     <NavItem path="/attendance" label="تحضير الطلاب" icon={CheckSquare} />
                     <NavItem path="/classroom" label="إدارة الحصة" icon={MonitorPlay} />
                     <NavItem path="/works" label="سجل الرصد" icon={Table} />
-                    <NavItem path="/curriculum" label="توزيع المنهج" icon={List} />
-
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">التقييم والاختبارات</label></div>
+                    
+                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">أدوات ذكية</label></div>
                     <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} />
-                    <NavItem path="/question-bank" label="بنك الأسئلة" icon={Library} />
-                    <NavItem path="/auto-grading" label="التصحيح الآلي" icon={ScanLine} />
-
-                    <div className="pt-4 mt-4 border-t border-gray-100"><label className="px-4 text-xs font-bold text-gray-400 block mb-2 text-right">أدوات إبداعية</label></div>
-                    <NavItem path="/schedule" label="الجدول والخطة" icon={Calendar} />
                     <NavItem path="/planning" label="تحضير الدروس" icon={PenTool} />
                     <NavItem path="/ai-tools" label="مساعد الذكاء AI" icon={BrainCircuit} color="text-purple-600" />
                     <NavItem path="/reports" label="التقارير" icon={Printer} />
@@ -117,21 +116,16 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                 </nav>
             </aside>
 
-            {/* Main Content Area */}
             <main className="flex-1 flex flex-col min-w-0 bg-gray-100 relative overflow-hidden">
                 <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 md:pb-0">
                     <Routes>
                         <Route path="/" element={<Dashboard students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser} onNavigate={()=>{}} />} />
-                        <Route path="/inbox" element={<TeacherInbox currentUser={currentUser} />} />
+                        <Route path="/forms-analysis" element={<FormsAnalyzer students={props.students} currentUserId={currentUser.id} />} />
+                        <Route path="/learning-lab" element={<LearningLab students={props.students} currentUserId={currentUser.id} />} />
                         <Route path="/students" element={<Students students={props.students} attendance={props.attendance} performance={props.performance} onAddStudent={props.addStudent} onUpdateStudent={props.updateStudent} onDeleteStudent={props.deleteStudent} onImportStudents={props.importStudents} currentUser={currentUser} />} />
                         <Route path="/attendance" element={<AttendanceComponent students={props.students} attendanceHistory={props.attendance} onSaveAttendance={props.saveAttendance} currentUser={currentUser} />} />
                         <Route path="/classroom" element={<ClassroomManager students={props.students} attendance={props.attendance} performance={props.performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={props.saveAttendance} onImportAttendance={props.importAttendance} currentUser={currentUser} />} />
                         <Route path="/works" element={<WorksTracking students={props.students} performance={props.performance} attendance={props.attendance} onAddPerformance={props.addPerformance} currentUser={currentUser}/>} />
-                        <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser} />} />
-                        <Route path="/exams" element={<ExamsManager currentUser={currentUser} />} />
-                        <Route path="/question-bank" element={<QuestionBank currentUser={currentUser} />} />
-                        <Route path="/auto-grading" element={<AutoGrading currentUser={currentUser} />} />
-                        <Route path="/schedule" element={<ScheduleView currentUser={currentUser} onNavigateToLesson={() => navigate('/planning')} onNavigateToAttendance={() => navigate('/attendance')} />} />
                         <Route path="/planning" element={<LessonPlanning currentUser={currentUser} />} />
                         <Route path="/ai-tools" element={<AITools students={props.students} performance={props.performance} />} />
                         <Route path="/reports" element={<ReportsCenter students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser}/>} />
@@ -141,7 +135,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                     </Routes>
                 </div>
                 
-                {/* Mobile Bottom Nav */}
+                <AIChatBot students={props.students} attendance={props.attendance} performance={props.performance} />
                 <BottomNavigation role={currentUser.role as any} onMenuClick={() => setIsSidebarOpen(true)} />
             </main>
         </div>
