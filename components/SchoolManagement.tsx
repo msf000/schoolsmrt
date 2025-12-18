@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     getSchools, getTeachers, updateTeacher,
     getSubjects, addSubject, deleteSubject,
@@ -410,7 +410,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                     <div className="p-4 border-t bg-white animate-slide-up">
                                         <h5 className="font-bold text-xs text-gray-500 mb-3 flex items-center gap-1"><List size={14}/> الفترات (Periods)</h5>
                                         <div className="space-y-2 mb-4">
-                                            {term.periods?.sort((a,b) => {
+                                            {(term.periods || []).sort((a: any, b: any) => {
                                                 if (a.startDate && b.startDate && a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
                                                 return a.name.localeCompare(b.name, 'ar');
                                             }).map(p => (
@@ -582,9 +582,9 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                 </div>
             )}
         </div>
-        </div>
-    );
+    </div>
+  );
 };
 
-export const SchoolManagementComponent = SchoolManagement; // Alias export for consistency
+export const SchoolManagementComponent = SchoolManagement; 
 export default SchoolManagement;
