@@ -21,13 +21,14 @@ export interface Student {
   learningStyle?: LearningStyle;
 }
 
-// واجهة تحليل اختبار Forms التفصيلي
+// واجهة تحليل سؤال مفصلة
 export interface FormsQuestionAnalysis {
     id: string;
     text: string;
     learningOutcome: string; // ناتج التعلم المرتبط بالسؤال
     successRate: number;
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    commonErrors: [string, number][]; // [الإجابة الخاطئة، عدد الطلاب]
 }
 
 export interface FormsDetailedResult {
@@ -40,7 +41,7 @@ export interface FormsDetailedResult {
     studentResponses: Record<string, { // studentId
         score: number;
         total: number;
-        answers: Record<string, string>; // questionText -> answer
+        answers: Record<string, string>; // نص السؤال -> إجابة الطالب
     }>;
 }
 
@@ -79,7 +80,6 @@ export enum AttendanceStatus { PRESENT = 'PRESENT', ABSENT = 'ABSENT', LATE = 'L
 export enum BehaviorStatus { POSITIVE = 'POSITIVE', NEGATIVE = 'NEGATIVE', NEUTRAL = 'NEUTRAL' }
 export interface AttendanceRecord { id: string; studentId: string; date: string; status: AttendanceStatus; subject?: string; period?: number; behaviorStatus?: BehaviorStatus; behaviorNote?: string; excuseNote?: string; excuseFile?: string; createdById?: string; }
 
-// Fix: Added TermPeriod interface which was missing and causing compilation errors in SchoolManagement.tsx
 export interface TermPeriod {
   id: string;
   name: string;
@@ -87,7 +87,6 @@ export interface TermPeriod {
   endDate: string;
 }
 
-// Fix: Updated AcademicTerm to use TermPeriod[] instead of any[] for better type safety
 export interface AcademicTerm { id: string; name: string; startDate: string; endDate: string; isCurrent: boolean; teacherId?: string; periods?: TermPeriod[]; }
 export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
 export interface Assignment { id: string; title: string; category: PerformanceCategory; maxScore: number; url?: string; isVisible: boolean; orderIndex?: number; sourceMetadata?: string; teacherId?: string; termId?: string; periodId?: string; classId?: string; }
