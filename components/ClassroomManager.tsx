@@ -1,18 +1,20 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, SystemUser, PerformanceRecord } from '../types';
+import { Student, AttendanceRecord, SystemUser, PerformanceRecord, EnvironmentRecord } from '../types';
 import { 
-    MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle
+    MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History
 } from 'lucide-react';
-import { getTeacherAssignments, updateStudent } from '../services/storageService';
+import { getTeacherAssignments, updateStudent, getEnvironmentRecords } from '../services/storageService';
 import { suggestSeatingPlan } from '../services/geminiService';
 import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 interface ClassroomManagerProps {
     students: Student[];
     attendance: AttendanceRecord[];
     performance?: PerformanceRecord[];
     onLaunchScreen: () => void;
+    onNavigateToAttendance: () => void;
     onSaveAttendance: (records: AttendanceRecord[]) => void;
     onImportAttendance: (records: AttendanceRecord[]) => void;
     currentUser?: SystemUser | null;
@@ -21,13 +23,15 @@ interface ClassroomManagerProps {
 const ClassroomManager: React.FC<ClassroomManagerProps> = ({ 
     students = [], 
     onLaunchScreen, 
+    onNavigateToAttendance,
     currentUser,
     performance = []
 }) => {
-    const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'BEHAVIOR'>('TOOLS');
+    const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'ENVIRONMENT'>('TOOLS');
     const [selectedClass, setSelectedClass] = useState('');
     const [isAiArranging, setIsAiArranging] = useState(false);
     const [aiCriterion, setAiCriterion] = useState('مزج المستويات (متفوق بجانب ضعيف)');
+    const [envHistory, setEnvHistory] = useState<EnvironmentRecord[]>([]);
     const navigate = useNavigate();
 
     const uniqueClasses = useMemo(() => {
@@ -38,7 +42,10 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
     useEffect(() => {
         if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
-    }, [uniqueClasses, selectedClass]);
+        if (selectedClass) {
+            setEnvHistory(getEnvironmentRecords(selectedClass));
+        }
+    }, [uniqueClasses, selectedClass, activeTab]);
 
     const filteredStudents = useMemo(() => 
         students.filter(s => s.className === selectedClass).sort((a,b) => (a.seatIndex || 0) - (b.seatIndex || 0)),
@@ -48,7 +55,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         if (filteredStudents.length === 0) return;
         setIsAiArranging(true);
         try {
-            // إرسال الطلاب مع بيانات أدائهم لـ AI
             const studentStats = filteredStudents.map(s => {
                 const sPerf = performance.filter(p => p.studentId === s.id);
                 const avg = sPerf.length > 0 ? sPerf.reduce((a,b)=>a+(b.score/b.maxScore),0)/sPerf.length*100 : 0;
@@ -57,7 +63,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
             const result = await suggestSeatingPlan(studentStats, aiCriterion);
             if (result && result.seating) {
-                // تحديث ترتيب المقاعد محلياً
                 result.seating.forEach((item: any) => {
                     const s = students.find(x => x.id === item.studentId);
                     if (s) updateStudent({ ...s, seatIndex: (item.row * 10) + item.col });
@@ -71,6 +76,15 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         }
     };
 
+    const envChartData = useMemo(() => {
+        return envHistory.slice(-10).map(r => ({
+            date: r.date.split('T')[0].slice(5),
+            mood: r.mood === 'HAPPY' ? 5 : r.mood === 'FOCUSED' ? 4 : r.mood === 'TIRED' ? 2 : 1,
+            noise: r.noiseLevel,
+            lighting: r.lighting
+        }));
+    }, [envHistory]);
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
@@ -81,13 +95,14 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-white font-bold text-sm outline-none">
+                    <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-white font-bold text-sm outline-none shadow-sm">
                         {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
 
                     <div className="bg-white p-1 rounded-xl border flex gap-1 shadow-sm">
                         <button onClick={() => setActiveTab('TOOLS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'TOOLS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>الأدوات</button>
                         <button onClick={() => setActiveTab('SEATING')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'SEATING' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>المقاعد</button>
+                        <button onClick={() => setActiveTab('ENVIRONMENT')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'ENVIRONMENT' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>بيئة التعلم</button>
                     </div>
 
                     <button onClick={onLaunchScreen} className="bg-gray-900 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-black shadow-lg">
@@ -139,13 +154,42 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                                             </div>
                                         </div>
                                     ))}
-                                    {Array.from({ length: Math.max(0, 12 - filteredStudents.length) }).map((_, i) => (
-                                        <div key={i} className="aspect-square border-4 border-dotted border-gray-100 rounded-[2rem] flex items-center justify-center opacity-30">
-                                            <Plus className="text-gray-300" size={32}/>
-                                        </div>
-                                    ))}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'ENVIRONMENT' && (
+                    <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar bg-slate-50/50">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <EnvStat label="متوسط الإضاءة" icon={<Sun className="text-orange-500"/>} value={envHistory.length ? Math.round(envHistory.reduce((a,b)=>a+b.lighting,0)/envHistory.length) : '-'} max={5}/>
+                            <EnvStat label="مستوى الضجيج" icon={<Volume2 className="text-blue-500"/>} value={envHistory.length ? Math.round(envHistory.reduce((a,b)=>a+b.noiseLevel,0)/envHistory.length) : '-'} max={5} inverse/>
+                            <EnvStat label="المزاج العام" icon={<History className="text-green-500"/>} value={envHistory.length ? envHistory[envHistory.length-1].mood : '-'} textOnly/>
+                        </div>
+                        
+                        <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm h-96">
+                            <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><History size={20} className="text-indigo-600"/> اتجاه بيئة الفصل</h3>
+                            <div className="h-full pb-10">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={envChartData}>
+                                        <defs>
+                                            <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
+                                                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="date" tick={{fontSize:12}} axisLine={false} />
+                                        <YAxis domain={[0, 5]} hide />
+                                        <Tooltip contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                        <Area type="monotone" dataKey="mood" stroke="#4f46e5" fillOpacity={1} fill="url(#colorMood)" strokeWidth={3} />
+                                        <Area type="monotone" dataKey="noise" stroke="#ef4444" fill="transparent" strokeWidth={2} strokeDasharray="5 5" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-center">
+                            <button onClick={() => navigate('/learning-lab')} className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700">فتح مختبر التعلم الكامل</button>
                         </div>
                     </div>
                 )}
@@ -156,12 +200,35 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                             <h3 className="text-2xl font-black text-gray-800 mb-2">أدوات العرض التفاعلية</h3>
                             <p className="text-gray-500 max-w-md mx-auto leading-relaxed">استخدم ميزة "شاشة العرض" لتفعيل السحب العشوائي، المؤقت، وتقسيم المجموعات أمام الطلاب.</p>
                         </div>
-                        <button onClick={onLaunchScreen} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl hover:scale-105 transition-all">فتح شاشة الفصل الآن</button>
+                        <div className="flex gap-4">
+                            <button onClick={onLaunchScreen} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl hover:scale-105 transition-all">فتح شاشة الفصل</button>
+                            <button onClick={onNavigateToAttendance} className="bg-white border-2 border-indigo-100 text-indigo-600 px-10 py-4 rounded-2xl font-black text-lg shadow-sm hover:bg-indigo-50 transition-all">سجل التحضير</button>
+                        </div>
                     </div>
                 )}
             </div>
         </div>
     );
 };
+
+const EnvStat = ({ label, icon, value, max, inverse, textOnly }: any) => (
+    <div className="bg-white p-6 rounded-2xl border shadow-sm flex flex-col items-center text-center">
+        <div className="mb-2 p-3 bg-gray-50 rounded-full">{icon}</div>
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</span>
+        {textOnly ? (
+            <span className="text-xl font-black text-gray-800">{value === 'HAPPY' ? 'حيوية 😊' : value === 'FOCUSED' ? 'تركيز 🧐' : value === 'TIRED' ? 'إرهاق 😴' : 'هدوء 😑'}</span>
+        ) : (
+            <div className="flex items-center gap-2">
+                <span className="text-2xl font-black text-gray-800">{value}</span>
+                <span className="text-xs text-gray-400">/ {max}</span>
+            </div>
+        )}
+        {!textOnly && (
+            <div className="w-full h-1.5 bg-gray-100 rounded-full mt-3 overflow-hidden">
+                <div className={`h-full ${inverse ? (value > 3 ? 'bg-red-500' : 'bg-green-500') : (value > 3 ? 'bg-green-500' : 'bg-orange-500')}`} style={{width: `${(value/max)*100}%`}}></div>
+            </div>
+        )}
+    </div>
+);
 
 export default ClassroomManager;

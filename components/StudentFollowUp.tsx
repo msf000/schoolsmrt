@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment, MessageLog } from '../types';
-import { getAssignments, getAcademicTerms, getReportHeaderConfig, saveAttendance, getMessages, getRemedialPlans, RemedialPlan } from '../services/storageService';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment, MessageLog, RemedialPlan } from '../types';
+import { getAssignments, getAcademicTerms, getReportHeaderConfig, saveAttendance, getMessages, getRemedialPlans } from '../services/storageService';
 import { generateStudentAnalysis } from '../services/geminiService';
 import { 
     FileText, Printer, Search, PieChart as PieChartIcon, Users, MapPin, Phone, 
@@ -138,12 +138,23 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
             {student && stats ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="bg-white rounded-3xl p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6">
-                        <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center text-3xl font-black text-white shadow-lg">{student.name.charAt(0)}</div>
-                            <div><h1 className="text-xl font-black text-gray-800">{student.name}</h1><span className="text-xs font-bold text-gray-400">{student.className} • {student.gradeLevel}</span></div>
+                    <div className="bg-white rounded-3xl p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><Sparkles size={100}/></div>
+                        <div className="flex items-center gap-4 relative z-10">
+                            <div className="w-20 h-20 rounded-[2rem] bg-indigo-600 flex items-center justify-center text-4xl font-black text-white shadow-xl">{student.name.charAt(0)}</div>
+                            <div>
+                                <h1 className="text-2xl font-black text-gray-800">{student.name}</h1>
+                                <div className="flex gap-2 mt-1">
+                                    <span className="text-[10px] font-black bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100">{student.className}</span>
+                                    {student.learningStyle && (
+                                        <span className="text-[10px] font-black bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full border border-purple-100 flex items-center gap-1">
+                                            <BrainCircuit size={10}/> نمط: {student.learningStyle}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex gap-4 relative z-10">
                             <MedalItem icon={<Medal className="text-yellow-500"/>} count={stats.medals.gold} label="ذهبي" />
                             <MedalItem icon={<Medal className="text-gray-400"/>} count={stats.medals.silver} label="فضي" />
                             <MedalItem icon={<Medal className="text-orange-400"/>} count={stats.medals.bronze} label="برونزي" />
@@ -159,30 +170,61 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
                         {activeTab === 'SUMMARY' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
-                                <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-96 flex flex-col">
-                                    <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><RadarIcon size={20} className="text-indigo-600"/> رادار المهارات</h3>
-                                    <div className="flex-1">
-                                        <ResponsiveContainer><RadarChart data={stats.radarData}><PolarGrid/><PolarAngleAxis dataKey="subject" tick={{fontSize:10, fontWeight:'bold'}}/><Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.4}/></RadarChart></ResponsiveContainer>
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-96 flex flex-col">
+                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><RadarIcon size={20} className="text-indigo-600"/> رادار المهارات</h3>
+                                        <div className="flex-1">
+                                            <ResponsiveContainer><RadarChart data={stats.radarData}><PolarGrid/><PolarAngleAxis dataKey="subject" tick={{fontSize:10, fontWeight:'bold'}}/><Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.4}/></RadarChart></ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-96 flex flex-col">
+                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><LineChartIcon size={20} className="text-teal-600"/> اتجاه التحصيل الدراسي</h3>
+                                        <div className="flex-1">
+                                            <ResponsiveContainer>
+                                                <LineChart data={stats.growthData}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
+                                                    <XAxis dataKey="date" tick={{fontSize:10}} axisLine={false}/>
+                                                    <YAxis domain={[0, 100]} hide/>
+                                                    <Tooltip contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 15px -3px rgb(0 0 0 / 0.1)'}}/>
+                                                    <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={4} dot={{r:6, fill:'#10b981'}} activeDot={{r:8}}/>
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-96 flex flex-col">
-                                    <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><LineChartIcon size={20} className="text-teal-600"/> اتجاه التحصيل الدراسي</h3>
-                                    <div className="flex-1">
-                                        <ResponsiveContainer>
-                                            <LineChart data={stats.growthData}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                                <XAxis dataKey="date" tick={{fontSize:10}} axisLine={false}/>
-                                                <YAxis domain={[0, 100]} hide/>
-                                                <Tooltip contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 15px -3px rgb(0 0 0 / 0.1)'}}/>
-                                                <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={4} dot={{r:6, fill:'#10b981'}} activeDot={{r:8}}/>
-                                            </LineChart>
-                                        </ResponsiveContainer>
+                                
+                                <div className="bg-white p-8 rounded-[3rem] border shadow-sm">
+                                    <h3 className="font-black text-gray-800 mb-6">سجل التقييمات الأخير</h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-right text-sm">
+                                            <thead className="bg-gray-50 font-bold border-b">
+                                                <tr>
+                                                    <th className="p-4">التاريخ</th>
+                                                    <th className="p-4">المهمة</th>
+                                                    <th className="p-4 text-center">الدرجة</th>
+                                                    <th className="p-4 text-center">النسبة</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {stats.sPerf.slice().reverse().map(p => (
+                                                    <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="p-4 text-gray-500 font-mono text-xs">{p.date}</td>
+                                                        <td className="p-4 font-bold text-gray-700">{p.title}</td>
+                                                        <td className="p-4 text-center font-black">{p.score} / {p.maxScore}</td>
+                                                        <td className="p-4 text-center">
+                                                            <span className={`px-2 py-1 rounded-lg font-bold text-xs ${p.score/p.maxScore >= 0.9 ? 'bg-green-100 text-green-700' : p.score/p.maxScore >= 0.6 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                                                                {Math.round(p.score/p.maxScore*100)}%
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
                         )}
-                        {/* Tab content REMEDIAL, BEHAVIOR, AI remain with same polished UI logic */}
                         {activeTab === 'AI' && (
                             <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-fade-in flex flex-col min-h-[400px]">
                                 <div className="flex justify-between items-center mb-8 border-b pb-6">
