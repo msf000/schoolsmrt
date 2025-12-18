@@ -74,7 +74,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
             const apiKey = process.env.API_KEY || '';
             const ai = new GoogleGenAI({ apiKey });
             const itemAnalysis = getQuestionHeaders(headers).map(h => h.replace(/^(النقاط - )/, '').trim());
-            const prompt = `حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال باختصار. 
+            const prompt = `حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال باختصار وفق منهج "علوم الأرض والفضاء" السعودي. 
             أرجع النتيجة بتنسيق JSON: {"items": [{"skill": "...", "unit": "..."}]}`;
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
@@ -248,7 +248,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col xl:flex-row gap-8 overflow-hidden">
                             <div className="flex-1 flex flex-col overflow-hidden">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة: {getQuestionHeaders(headers).length})</h3>
+                                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><ListFilter className="text-orange-500"/> ربط الأسئلة بنواتج التعلم (عدد الأسئلة المكتشفة: {getQuestionHeaders(headers).length})</h3>
                                     <button onClick={handleAutoGenerateSkills} disabled={isAiProcessing} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-purple-700">
                                         {isAiProcessing ? <Loader2 className="animate-spin" size={14}/> : <Wand2 size={14}/>} استخراج المهارات ذكياً ✨
                                     </button>
