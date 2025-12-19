@@ -6,7 +6,7 @@ import {
     Search, PieChart as PieChartIcon, 
     TrendingUp, Loader2, Award, Activity, Sparkles, Calendar, Bot, 
     ArrowRight, XCircle, Star, Radar as RadarIcon, LineChart as LineChartIcon,
-    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit
+    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info
 } from 'lucide-react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -30,7 +30,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const navigate = useNavigate();
     const location = useLocation();
     
-    // --- الاستعادة من التخزين المحلي لضمان البقاء في نفس المكان عند التحديث ---
     const [selectedStudentId, setSelectedStudentId] = useState<string>(() => {
         const saved = localStorage.getItem('sf_selected_student');
         if (location.state && (location.state as any).studentId) return (location.state as any).studentId;
@@ -55,7 +54,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const [aiReport, setAiReport] = useState<string>('');
     const [isAiLoading, setIsAiLoading] = useState(false);
 
-    // --- حفظ التغييرات فور حدوثها ---
     useEffect(() => {
         localStorage.setItem('sf_selected_student', selectedStudentId);
         localStorage.setItem('sf_active_tab', activeTab);
@@ -77,23 +75,22 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const activePeriods = useMemo(() => activeTerm?.periods || [], [activeTerm]);
     const activePeriod = useMemo(() => activePeriods.find(p => p.id === selectedPeriodId), [activePeriods, selectedPeriodId]);
 
-    // حساب البيانات بناءً على الفترة المختارة (فلترة زمنية دقيقة)
+    // نطاق التاريخ الفعلي للتصفية
+    const dateRange = useMemo(() => {
+        if (activePeriod) return { start: activePeriod.startDate, end: activePeriod.endDate, label: activePeriod.name };
+        if (activeTerm) return { start: activeTerm.startDate, end: activeTerm.endDate, label: activeTerm.name };
+        return { start: '', end: '', label: 'جميع الأعمال' };
+    }, [activeTerm, activePeriod]);
+
     const stats = useMemo(() => {
         if (!student) return null;
         
-        let startDate = activeTerm?.startDate;
-        let endDate = activeTerm?.endDate;
-
-        if (activePeriod) {
-            startDate = activePeriod.startDate;
-            endDate = activePeriod.endDate;
-        }
-
         const filterByDate = (list: any[]) => {
-            if (!startDate || !endDate) return list;
-            return list.filter(item => item.date >= startDate && item.date <= endDate);
+            if (!dateRange.start || !dateRange.end) return list;
+            return list.filter(item => item.date >= dateRange.start && item.date <= dateRange.end);
         };
 
+        // تصفية الحضور والدرجات بناءً على الفترة المختارة
         const sAtt = filterByDate(attendance.filter(a => a.studentId === student.id));
         const sPerf = filterByDate(performance.filter(p => p.studentId === student.id)).sort((a,b)=>a.date.localeCompare(b.date));
 
@@ -132,7 +129,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             actAvg: calcAvg(activities),
             examAvg: calcAvg(exams)
         };
-    }, [student, attendance, performance, activeTerm, activePeriod]);
+    }, [student, attendance, performance, dateRange]);
 
     const handleGenerateAI = async () => {
         if (!student || !stats) return;
@@ -166,7 +163,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                     value={selectedPeriodId}
                                     onChange={e => setSelectedPeriodId(e.target.value)}
                                 >
-                                    <option value="">كل الفترات</option>
+                                    <option value="">كل فترات {activeTerm?.name}</option>
                                     {activePeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                 </select>
                             )}
@@ -193,6 +190,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
             {student && stats ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
+                    {/* Visual Range Indicator */}
+                    <div className="mb-4 flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 w-fit">
+                        <Info size={14}/>
+                        <span>عرض بيانات: {dateRange.label} </span>
+                        <span className="opacity-50 font-mono">({dateRange.start || '...'} إلى {dateRange.end || '...'})</span>
+                    </div>
+
                     {/* Student Info Bar */}
                     <div className="bg-white rounded-3xl p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
                         <div className="flex items-center gap-4 relative z-10">
@@ -203,7 +207,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         </div>
                         <div className="flex gap-6 relative z-10">
-                            <StatMini label="المعدل للفترة" value={`${stats.gradeAvg}%`} color="text-indigo-600" />
+                            <StatMini label="المعدل المختار" value={`${stats.gradeAvg}%`} color="text-indigo-600" />
                             <StatMini label="الانضباط" value={`${stats.attRate}%`} color="text-green-600" />
                             <StatMini label="أيام الغياب" value={stats.absent} color="text-red-500" />
                         </div>
@@ -227,13 +231,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             <div className="space-y-6 animate-fade-in">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="bg-white p-6 rounded-[2rem] border shadow-sm h-80">
-                                        <h3 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-indigo-600"/> رادار المهارات لهذه الفترة</h3>
+                                        <h3 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-indigo-600"/> رادار المهارات للفترة الحالية</h3>
                                         <div className="h-full pb-8">
                                             <ResponsiveContainer><RadarChart data={stats.radarData}><PolarGrid/><PolarAngleAxis dataKey="subject" tick={{fontSize:10, fontWeight:'bold'}}/><Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.4}/></RadarChart></ResponsiveContainer>
                                         </div>
                                     </div>
                                     <div className="bg-white p-6 rounded-[2rem] border shadow-sm h-80">
-                                        <h3 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-sm"><LineChartIcon size={18} className="text-teal-600"/> منحنى النمو الدراسي</h3>
+                                        <h3 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-sm"><LineChartIcon size={18} className="text-teal-600"/> منحنى النمو (حسب التواريخ المختارة)</h3>
                                         <div className="h-full pb-8">
                                             <ResponsiveContainer>
                                                 <LineChart data={stats.growthData}>
@@ -265,20 +269,23 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                         icon={<Activity className="text-blue-600"/>} 
                                     />
                                     <MetricCard 
-                                        label="أعلى درجة محققة" 
+                                        label="أعلى درجة للفترة" 
                                         value={Math.max(0, ...(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).map(p=>p.score))} 
                                         icon={<Award className="text-yellow-600"/>} 
                                     />
                                 </div>
 
                                 <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
+                                    <div className="p-4 bg-gray-50 border-b flex justify-between items-center px-8">
+                                        <h4 className="font-bold text-gray-700">قائمة السجلات ({dateRange.label})</h4>
+                                    </div>
                                     <table className="w-full text-right text-sm">
-                                        <thead className="bg-gray-50 font-bold border-b text-gray-600">
+                                        <thead className="bg-white font-bold border-b text-gray-400 uppercase text-[10px] tracking-widest">
                                             <tr>
                                                 <th className="p-4">التاريخ</th>
                                                 <th className="p-4">اسم المهمة</th>
                                                 <th className="p-4 text-center">الدرجة</th>
-                                                <th className="p-4 text-center">النسبة المئوية</th>
+                                                <th className="p-4 text-center">الإتقان</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
@@ -295,7 +302,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                                 </tr>
                                             ))}
                                             {(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length === 0 && (
-                                                <tr><td colSpan={4} className="p-20 text-center text-gray-300 font-bold">لا توجد بيانات مسجلة في هذه الفترة</td></tr>
+                                                <tr><td colSpan={4} className="p-20 text-center text-gray-300 font-bold">لا توجد أعمال مرصودة في {dateRange.label}</td></tr>
                                             )}
                                         </tbody>
                                     </table>
@@ -323,7 +330,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                     </div>
                                 ))}
                                 {stats.sAtt.filter(a => a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL).length === 0 && (
-                                    <div className="p-20 text-center text-gray-300 font-bold bg-white rounded-3xl border">لا توجد ملاحظات سلوكية للفترة المحددة.</div>
+                                    <div className="p-20 text-center text-gray-300 font-bold bg-white rounded-3xl border">لا توجد ملاحظات سلوكية مسجلة في {dateRange.label}</div>
                                 )}
                             </div>
                         )}
@@ -334,13 +341,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                 <div className="flex justify-between items-center mb-8 border-b pb-6">
                                     <div className="flex items-center gap-4">
                                         <div className="p-4 bg-purple-100 rounded-2xl text-purple-600"><Bot size={32}/></div>
-                                        <div><h3 className="text-xl font-black text-gray-800">التشخيص التربوي الذكي</h3><p className="text-xs text-gray-400">تحليل معزز بالذكاء الاصطناعي لهذه الفترة الدراسية</p></div>
+                                        <div><h3 className="text-xl font-black text-gray-800">التشخيص التربوي الذكي</h3><p className="text-xs text-gray-400">تحليل مخصص لفترة: {dateRange.label}</p></div>
                                     </div>
                                     <button onClick={handleGenerateAI} disabled={isAiLoading} className="bg-purple-600 text-white px-8 py-3 rounded-2xl font-black shadow-xl hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
                                         {isAiLoading ? <Loader2 className="animate-spin" size={20}/> : <Sparkles size={20}/>} تحديث التحليل
                                     </button>
                                 </div>
-                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50 p-8 rounded-3xl border"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30"><BrainCircuit size={80} className="mb-4"/><p className="text-xl font-bold">اضغط على الزر أعلاه للحصول على تشخيص AI شامل</p></div>}
+                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50 p-8 rounded-3xl border"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30"><BrainCircuit size={80} className="mb-4"/><p className="text-xl font-bold">اضغط للحصول على تشخيص AI للفترة الحالية</p></div>}
                             </div>
                         )}
                     </div>
