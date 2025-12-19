@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone, MessageCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone, MessageCircle, List, LayoutGrid, FilterX } from 'lucide-react';
 
 interface AttendanceProps {
   students: Student[];
@@ -27,6 +27,8 @@ const Attendance: React.FC<AttendanceProps> = ({
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'GRID' | 'LIST'>('GRID');
+  const [filterMode, setFilterMode] = useState<'ALL' | 'ABSENT'>('ALL');
   const [activeStudentMenu, setActiveStudentMenu] = useState<string | null>(null);
 
   const uniqueClasses = useMemo(() => {
@@ -36,11 +38,13 @@ const Attendance: React.FC<AttendanceProps> = ({
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
+      const record = attendanceHistory.find(a => a.studentId === s.id && a.date === selectedDate);
       const matchesClass = !selectedClass || s.className === selectedClass;
       const matchesSearch = !searchTerm || s.name.includes(searchTerm);
-      return matchesClass && matchesSearch;
+      const matchesFilter = filterMode === 'ALL' || record?.status === AttendanceStatus.ABSENT;
+      return matchesClass && matchesSearch && matchesFilter;
     }).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  }, [students, selectedClass, searchTerm]);
+  }, [students, selectedClass, searchTerm, filterMode, attendanceHistory, selectedDate]);
 
   const handleUpdate = (studentId: string, status: AttendanceStatus, bStatus?: BehaviorStatus, bNote?: string) => {
     const existing = attendanceHistory.find(a => a.studentId === studentId && a.date === selectedDate);
@@ -106,16 +110,14 @@ const Attendance: React.FC<AttendanceProps> = ({
             {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
 
-          <div className="relative flex-1 lg:w-64">
-            <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
-            <input 
-              type="text" 
-              placeholder="بحث بالاسم..." 
-              className="w-full pr-10 pl-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
+          <div className="flex bg-gray-100 p-1 rounded-xl border">
+            <button onClick={() => setViewMode('GRID')} className={`p-2 rounded-lg ${viewMode === 'GRID' ? 'bg-white shadow text-indigo-600' : 'text-gray-400'}`}><LayoutGrid size={18}/></button>
+            <button onClick={() => setViewMode('LIST')} className={`p-2 rounded-lg ${viewMode === 'LIST' ? 'bg-white shadow text-indigo-600' : 'text-gray-400'}`}><List size={18}/></button>
           </div>
+          
+          <button onClick={() => setFilterMode(filterMode === 'ALL' ? 'ABSENT' : 'ALL')} className={`p-2.5 rounded-xl border font-bold text-sm flex items-center gap-2 transition-all ${filterMode === 'ABSENT' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white text-gray-500'}`}>
+            <FilterX size={18}/> {filterMode === 'ABSENT' ? 'عرض الغائبين فقط' : 'تصفية الغياب'}
+          </button>
         </div>
 
         {selectedClass && (
@@ -128,83 +130,74 @@ const Attendance: React.FC<AttendanceProps> = ({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
-        {filteredStudents.length > 0 ? (
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-20">
+        {viewMode === 'GRID' ? (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {filteredStudents.map(student => {
               const record = attendanceHistory.find(a => a.studentId === student.id && a.date === selectedDate);
               const status = record?.status || AttendanceStatus.PRESENT;
-              const bStatus = record?.behaviorStatus || BehaviorStatus.NEUTRAL;
               const hasExcuse = !!record?.excuseNote;
-              const isMenuOpen = activeStudentMenu === student.id;
 
               return (
-                <div key={student.id} className="relative group">
+                <div key={student.id} className="relative">
                     <div 
-                        onClick={() => setActiveStudentMenu(isMenuOpen ? null : student.id)}
-                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer h-40 flex flex-col justify-between shadow-sm relative overflow-hidden ${
-                            status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-200' : 
-                            status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-200' : 
-                            status === AttendanceStatus.EXCUSED ? 'bg-blue-50 border-blue-200' :
-                            'bg-white border-transparent hover:border-indigo-100 hover:shadow-md'
+                        onClick={() => handleUpdate(student.id, status === AttendanceStatus.PRESENT ? AttendanceStatus.ABSENT : AttendanceStatus.PRESENT)}
+                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer h-36 flex flex-col justify-between shadow-sm relative overflow-hidden ${
+                            status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-200' : 'bg-white border-transparent hover:border-indigo-100'
                         }`}
                     >
-                        {hasExcuse && status === AttendanceStatus.ABSENT && (
-                            <div className="absolute top-0 left-0 bg-orange-500 text-white p-1 rounded-br-lg shadow-sm animate-pulse" title="عذر مقدم">
-                                <MessageCircle size={14}/>
-                            </div>
-                        )}
-
-                        <div className="flex justify-between items-start z-10">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shadow-sm border-2 border-white ${
-                                status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white' : 
-                                status === AttendanceStatus.LATE ? 'bg-yellow-500 text-white' : 
-                                status === AttendanceStatus.EXCUSED ? 'bg-blue-600 text-white' :
-                                'bg-indigo-600 text-white'
-                            }`}>
-                                {student.name.charAt(0)}
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                {bStatus === BehaviorStatus.POSITIVE && <div className="p-1 bg-green-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsUp size={12}/></div>}
-                                {bStatus === BehaviorStatus.NEGATIVE && <div className="p-1 bg-red-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsDown size={12}/></div>}
-                            </div>
+                        {hasExcuse && <div className="absolute top-0 left-0 bg-orange-500 text-white p-1 rounded-br-lg"><MessageCircle size={12}/></div>}
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-white ${status === AttendanceStatus.ABSENT ? 'bg-red-600' : 'bg-indigo-600'}`}>
+                            {student.name.charAt(0)}
                         </div>
-
-                        <div className="z-10">
-                            <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{student.name}</h4>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'متأخر' : status === AttendanceStatus.EXCUSED ? 'بعذر' : 'حاضر'}
-                            </p>
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-800 line-clamp-1">{student.name}</h4>
+                            <p className="text-[10px] font-bold uppercase text-gray-400">{status === AttendanceStatus.ABSENT ? 'غائب' : 'حاضر'}</p>
                         </div>
                     </div>
-
-                    {isMenuOpen && (
-                        <div className="absolute inset-0 z-20 bg-white/95 backdrop-blur-sm rounded-2xl p-3 shadow-2xl border border-indigo-100 flex flex-col gap-2 animate-zoom-in">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-[10px] font-black text-indigo-600">إجراء سريع</span>
-                                <button onClick={() => setActiveStudentMenu(null)} className="p-1 text-gray-400 hover:text-red-500"><X size={14}/></button>
-                            </div>
-                            <div className="grid grid-cols-2 gap-1 mb-1">
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.PRESENT?'bg-green-600 text-white':'bg-green-50 text-green-700'}`}>حاضر</button>
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.ABSENT?'bg-red-600 text-white':'bg-red-50 text-red-700'}`}>غائب</button>
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.LATE)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.LATE?'bg-yellow-500 text-white':'bg-yellow-50 text-yellow-700'}`}>متأخر</button>
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.EXCUSED)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.EXCUSED?'bg-blue-600 text-white':'bg-blue-50 text-blue-700'}`}>بعذر</button>
-                            </div>
-                            <div className="grid grid-cols-1 gap-1 flex-1 overflow-y-auto">
-                                {QUICK_BEHAVIORS.map(b => (
-                                    <button key={b.label} onClick={() => handleUpdate(student.id, status, b.status, b.label)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[9px] font-bold transition-all ${b.color}`}>{b.icon} {b.label}</button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-gray-300 py-20">
-            <Users size={80} className="mb-4 opacity-20"/>
-            <p className="text-xl font-bold">لا يوجد طلاب مطابقين للبحث</p>
+          <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
+            <table className="w-full text-right">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="p-4">اسم الطالب</th>
+                  <th className="p-4 text-center">الحالة</th>
+                  <th className="p-4 text-center">إجراءات سريعة</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredStudents.map(student => {
+                  const record = attendanceHistory.find(a => a.studentId === student.id && a.date === selectedDate);
+                  const status = record?.status || AttendanceStatus.PRESENT;
+                  return (
+                    <tr key={student.id} className="hover:bg-gray-50">
+                      <td className="p-4 font-bold text-gray-800">{student.name}</td>
+                      <td className="p-4 text-center">
+                        <select 
+                          value={status} 
+                          onChange={(e) => handleUpdate(student.id, e.target.value as AttendanceStatus)}
+                          className={`p-1 rounded font-bold text-xs border ${status === AttendanceStatus.ABSENT ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}
+                        >
+                          <option value={AttendanceStatus.PRESENT}>حاضر</option>
+                          <option value={AttendanceStatus.ABSENT}>غائب</option>
+                          <option value={AttendanceStatus.LATE}>متأخر</option>
+                          <option value={AttendanceStatus.EXCUSED}>بعذر</option>
+                        </select>
+                      </td>
+                      <td className="p-4 flex justify-center gap-2">
+                        {QUICK_BEHAVIORS.slice(0, 3).map(b => (
+                          <button key={b.label} onClick={() => handleUpdate(student.id, status, b.status, b.label)} className={`p-2 rounded-lg border ${b.color}`} title={b.label}>{b.icon}</button>
+                        ))}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

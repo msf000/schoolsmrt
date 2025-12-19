@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { saveFormsDetailedResult, getFormsDetailedResults, deleteFormsDetailedResult, getReportHeaderConfig } from '../services/storageService';
 import { getWorkbookStructure, getSheetHeadersAndData } from '../services/excelService';
@@ -16,6 +17,149 @@ interface Props {
     students: Student[];
     currentUserId?: string;
 }
+
+// Fix: Added missing report components
+const KashfReport = ({ record, data, header, classFilter }: any) => {
+    return (
+        <div className="bg-white p-8 border shadow-sm rounded-xl">
+            <h3 className="text-xl font-bold mb-4">كشف الرصد - {record.examTitle}</h3>
+            <div className="overflow-x-auto">
+                <table className="w-full border-collapse border text-sm">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="border p-2">#</th>
+                            <th className="border p-2 text-right">اسم الطالب</th>
+                            <th className="border p-2">الدرجة</th>
+                            {record.questions.map((q: any, i: number) => (
+                                <th key={i} className="border p-2 text-center text-[10px]">{i + 1}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.studentsList.map((s: any, idx: number) => (
+                            <tr key={s.sid}>
+                                <td className="border p-2 text-center">{idx + 1}</td>
+                                <td className="border p-2 font-bold">{s.name}</td>
+                                <td className="border p-2 text-center">{s.score}</td>
+                                {record.questions.map((q: any) => (
+                                    <td key={q.id} className="border p-2 text-center">{s.answers[q.id] || '-'}</td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => {
+    const chartData = data.skillStats.map((s: any) => ({ name: s.name, mastery: s.masteredPct }));
+    return (
+        <div className="bg-white p-8 border shadow-sm rounded-xl">
+            <h3 className="text-xl font-bold mb-6">التحليل البياني لنواتج التعلم</h3>
+            <div className="h-80 w-full">
+                <ResponsiveContainer>
+                    <ReBarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" hide />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip />
+                        <ReBar dataKey="mastery" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                    </ReBarChart>
+                </ResponsiveContainer>
+            </div>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {data.skillStats.map((s: any, i: number) => (
+                    <div key={i} className="p-3 border rounded-lg flex justify-between items-center">
+                        <span className="text-xs font-bold">{s.name}</span>
+                        <span className="text-xs font-black text-indigo-600">{Math.round(s.masteredPct)}%</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const ClassificationReport = ({ record, data, header, classFilter }: any) => {
+    return (
+        <div className="bg-white p-8 border shadow-sm rounded-xl">
+            <h3 className="text-xl font-bold mb-4">تصنيف المتعلمين</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="border rounded-xl p-4">
+                    <h4 className="font-bold text-green-600 mb-2">المتقنون (أعلى من 75%)</h4>
+                    <ul className="list-disc pr-5 space-y-1 text-sm">
+                        {data.studentsList.filter((s: any) => s.pct >= 75).map((s: any) => (
+                            <li key={s.sid}>{s.name} ({Math.round(s.pct)}%)</li>
+                        ))}
+                    </ul>
+                </div>
+                <div className="border rounded-xl p-4">
+                    <h4 className="font-bold text-red-600 mb-2">غير المتقنين (أقل من 75%)</h4>
+                    <ul className="list-disc pr-5 space-y-1 text-sm">
+                        {data.studentsList.filter((s: any) => s.pct < 75).map((s: any) => (
+                            <li key={s.sid}>{s.name} ({Math.round(s.pct)}%)</li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const LearningOutcomesReport = ({ record, data, header, classFilter }: any) => {
+    return (
+        <div className="bg-white p-8 border shadow-sm rounded-xl">
+            <h3 className="text-xl font-bold mb-4">تقرير نواتج التعلم</h3>
+            <table className="w-full border-collapse border text-sm">
+                <thead>
+                    <tr className="bg-gray-50">
+                        <th className="border p-2">ناتج التعلم</th>
+                        <th className="border p-2">الوحدة</th>
+                        <th className="border p-2 text-center">نسبة الإتقان</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {data.skillStats.map((s: any, i: number) => (
+                        <tr key={i}>
+                            <td className="border p-2">{s.name}</td>
+                            <td className="border p-2">{s.unit}</td>
+                            <td className="border p-2 text-center font-bold">{Math.round(s.masteredPct)}%</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const FollowUpRecordReport = ({ record, data, header, classFilter, skillIndex, meta }: any) => {
+    const skill = record.questions[skillIndex];
+    const skillStat = data.skillStats[skillIndex];
+    return (
+        <div className="bg-white p-8 border shadow-sm rounded-xl">
+            <h3 className="text-xl font-bold mb-4">سجل متابعة المهارة: {skill.learningOutcome}</h3>
+            <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                <div className="p-3 bg-gray-50 rounded-lg"><b>الأسبوع:</b> {meta.week}</div>
+                <div className="p-3 bg-gray-50 rounded-lg"><b>التاريخ:</b> {meta.date}</div>
+            </div>
+            <div className="mb-6">
+                <h4 className="font-bold mb-2">الطلاب غير المتقنين:</h4>
+                <div className="flex flex-wrap gap-2">
+                    {data.studentsList.filter((s: any) => !s.isAbsent && s.answers[skill.id] !== '✔').map((s: any) => (
+                        <span key={s.sid} className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-xs font-bold">{s.name}</span>
+                    ))}
+                </div>
+            </div>
+            <div className="space-y-4">
+                <div className="p-4 border rounded-lg">
+                    <h5 className="font-bold text-indigo-600 mb-2">إجراءات المعالجة:</h5>
+                    <p className="text-sm whitespace-pre-line">{meta.remedialMechanism}</p>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [mainTab, setMainTab] = useState<'NEW' | 'HISTORY' | 'COMPARE'>('HISTORY');
@@ -86,7 +230,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const handleAutoGenerateSkills = async () => {
         setIsAiProcessing(true);
         try {
-            // Fix: Correctly initialize GoogleGenAI using process.env.API_KEY directly as per guidelines
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const itemAnalysis = getQuestionHeaders(headers).map(h => h.replace(/^(النقاط - )/, '').trim());
             const prompt = `أنت خبير في المنهج السعودي لمادة "علوم الأرض والفضاء". حلل الأسئلة التالية واستنتج المهارة التعليمية والوحدة لكل سؤال. أرجع JSON حصراً: {"items": [{"skill": "أن يوضح الطالب...", "unit": "الفصل 1 / نشأة الكون"}]}`;
@@ -450,10 +593,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     );
 };
 
-const TabBtnView = ({ label, active, onClick }: any) => (
-    <button onClick={onClick} className={`px-4 py-2 rounded-lg text-[11px] font-black transition-all ${active ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>{label}</button>
-);
-
 const ComparisonReport = ({ data, header, viewMode, selectedStudentId }: any) => {
     const { recA, recB, studentComparison, overallGrowth } = data;
 
@@ -795,3 +934,5 @@ const ComparisonReport = ({ data, header, viewMode, selectedStudentId }: any) =>
         </div>
     );
 };
+
+export default FormsAnalyzer;

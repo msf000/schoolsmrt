@@ -4,7 +4,7 @@ import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamR
 import { downloadFromSupabase, getAcademicTerms, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, saveExamResult } from '../services/storageService';
 import { User, Users, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Library, LayoutGrid, CalendarDays, RefreshCw, X, Activity, CheckCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, BookOpen, Zap, Star, TrendingUp, BrainCircuit, Rocket, Trophy, PlayCircle, Crown, Briefcase, Compass, ShieldCheck, Wind } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { PieChart, Pie, Cell, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { formatDualDate } from '../services/dateService';
 import BottomNavigation from './BottomNavigation';
 
@@ -28,10 +28,6 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
     const navItems = [
         { path: '/', label: 'الرئيسية', icon: LayoutGrid },
-        { path: '/skills', label: 'خارطة المهارات', icon: Compass },
-        { path: '/honor', label: 'لوحة الشرف', icon: Trophy },
-        { path: '/wallet', label: 'محفظة الجوائز', icon: Briefcase },
-        { path: '/plan', label: 'الجدول الأسبوعي', icon: CalendarDays },
         { path: '/evaluation', label: 'درجاتي', icon: Activity },
         { path: '/messages', label: 'التنبيهات', icon: Bell, badge: messages.length },
     ];
@@ -59,14 +55,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         const positiveBehaviors = myAtt.filter(a=>a.behaviorStatus==='POSITIVE').length;
         const medals = { gold: Math.floor(positiveBehaviors/5), silver: Math.floor((positiveBehaviors%5)/3), bronze: positiveBehaviors%3 };
 
-        const skillsData = [
-            { name: 'التفكير النقدي', level: Math.min(100, 40 + (avg / 2)), icon: <BrainCircuit size={16}/> },
-            { name: 'التعاون', level: Math.min(100, 30 + (positiveBehaviors * 10)), icon: <Users size={16}/> },
-            { name: 'الانضباط', level: attRate, icon: <ShieldCheck size={16}/> },
-            { name: 'المبادرة', level: Math.min(100, 20 + (positiveBehaviors * 15)), icon: <Zap size={16}/> },
-        ];
-
-        return { xp, attRate, avg, medals, skillsData, radarData: [
+        return { xp, attRate, avg, medals, radarData: [
             { subject: 'الانضباط', A: attRate },
             { subject: 'المشاركة', A: Math.min(100, positiveBehaviors * 20) },
             { subject: 'الواجبات', A: avg },
@@ -97,13 +86,9 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
             </aside>
 
             <div className="flex-1 flex flex-col overflow-hidden relative">
-                <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-gray-50/30">
+                <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-gray-50/30 pb-24">
                     <Routes>
                         <Route path="/" element={<StudentDashboard stats={stats} student={currentUser} />} />
-                        <Route path="/skills" element={<SkillsRoadmap skills={stats.skillsData} />} />
-                        <Route path="/honor" element={<LeaderboardView myXp={stats.xp} currentStudent={currentUser} />} />
-                        <Route path="/wallet" element={<TrophyWallet student={currentUser} attendance={attendance} />} />
-                        <Route path="/plan" element={<StudentWeeklyPlan student={currentUser} />} />
                         <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
                         <Route path="/messages" element={<StudentMessages messages={messages} />} />
                         <Route path="*" element={<Navigate to="/" />} />
@@ -116,69 +101,106 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 };
 
 const StudentDashboard = ({ stats, student }: any) => (
-    <div className="space-y-8 animate-fade-in pb-20">
-        <div className="bg-indigo-900 rounded-[3rem] p-10 md:p-16 text-white relative overflow-hidden shadow-[0_35px_60px_-15px_rgba(79,70,229,0.3)] border border-indigo-800">
-            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-500/30 to-transparent opacity-50"></div>
+    <div className="space-y-8 animate-fade-in">
+        <div className="bg-indigo-900 rounded-[3rem] p-10 md:p-16 text-white relative overflow-hidden shadow-2xl border border-indigo-800">
+            <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-indigo-500/30 to-transparent opacity-50"></div>
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div>
-                    <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight leading-tight">أهلاً بطلنا، {student.name.split(' ')[0]}! 🚀</h2>
-                    <div className="flex gap-4 mt-6">
-                        {student.learningStyle && (
-                            <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-xs font-bold flex items-center gap-2">
-                                <BrainCircuit size={16}/> نمط تعلمك: {student.learningStyle === 'VISUAL' ? 'بصري' : student.learningStyle === 'AUDITORY' ? 'سمعي' : student.learningStyle === 'KINESTHETIC' ? 'حركي' : 'قرائي'}
-                            </div>
-                        )}
+                    <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight leading-tight">أهلاً بطلنا، {student.name.split(' ')[0]}! 🚀</h2>
+                    <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 text-sm font-bold inline-flex items-center gap-2">
+                        <Zap className="text-yellow-400" size={18} fill="currentColor"/> رصيد نقاطك: {stats.xp}
                     </div>
                 </div>
-                <div className="grid grid-cols-2 gap-6">
-                    <DashboardCard label="رصيدك (XP)" value={stats.xp} color="bg-white/10" icon={<Zap className="text-yellow-400" size={24}/>} />
-                    <DashboardCard label="معدلك الدراسي" value={`${stats.avg}%`} color="bg-white/10" icon={<TrendingUp className="text-green-400" size={24}/>} />
+                <div className="grid grid-cols-3 gap-4">
+                    <MedalCard icon={<Medal className="text-yellow-400"/>} label="ذهبي" count={stats.medals.gold} />
+                    <MedalCard icon={<Medal className="text-slate-300"/>} label="فضي" count={stats.medals.silver} />
+                    <MedalCard icon={<Medal className="text-orange-400"/>} label="برونزي" count={stats.medals.bronze} />
                 </div>
             </div>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                <h3 className="text-2xl font-black mb-10 flex items-center gap-3 text-slate-800"><BrainCircuit size={32} className="text-indigo-600"/> راداري التعليمي</h3>
-                <div className="h-96 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                <h3 className="text-xl font-black mb-8 flex items-center gap-3 text-slate-800"><Radar size={20} className="text-indigo-600"/> راداري التعليمي</h3>
+                <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <RadarChart data={stats.radarData}>
                             <PolarGrid stroke="#e2e8f0" />
-                            <PolarAngleAxis dataKey="subject" tick={{fontSize: 14, fontWeight: 'bold', fill: '#64748b'}} />
+                            <PolarAngleAxis dataKey="subject" tick={{fontSize: 12, fontWeight: 'bold', fill: '#64748b'}} />
                             <Radar name="أدائي" dataKey="A" stroke="#4f46e5" strokeWidth={3} fill="#4f46e5" fillOpacity={0.4} />
                             <Tooltip />
                         </RadarChart>
                     </ResponsiveContainer>
                 </div>
             </div>
-            <div className="space-y-6">
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center group">
-                    <div className="w-24 h-24 bg-yellow-50 rounded-full flex items-center justify-center mb-6 group-hover:rotate-12 transition-transform duration-500"><Trophy size={48} className="text-yellow-500"/></div>
-                    <h4 className="text-xl font-black text-slate-800 mb-3">لقب الفترة: {stats.avg >= 90 ? 'العبقري المتميز' : stats.avg >= 75 ? 'البطل المجتهد' : 'المكافح الطموح'}</h4>
-                </div>
-                <div className="bg-gradient-to-br from-teal-500 to-emerald-600 p-8 rounded-[2.5rem] text-white shadow-lg relative overflow-hidden">
-                    <Wind className="absolute -bottom-4 -right-4 opacity-10" size={100}/>
-                    <h4 className="font-black text-lg mb-2">نبض بيئة التعلم</h4>
-                    <p className="text-xs text-teal-50 opacity-90 leading-relaxed">فصلك اليوم في حالة مثالية للتركيز والتعلم الإبداعي.</p>
+
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                <h3 className="text-xl font-black mb-8 flex items-center gap-3 text-slate-800"><Star size={20} className="text-yellow-500"/> مستوى التقدم</h3>
+                <div className="flex flex-col items-center justify-center h-64 text-center">
+                    <div className="relative w-40 h-40 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full border-[12px] border-indigo-50"></div>
+                        <div className="absolute inset-0 rounded-full border-[12px] border-indigo-600 border-l-transparent border-b-transparent rotate-45" style={{ transform: `rotate(${stats.avg * 3.6}deg)` }}></div>
+                        <span className="text-4xl font-black text-indigo-900">{stats.avg}%</span>
+                    </div>
+                    <p className="mt-6 font-bold text-slate-500 text-sm">معدلك التراكمي للفصل الحالي</p>
                 </div>
             </div>
         </div>
     </div>
 );
 
-// بقية الدوال المساعدة (SkillsRoadmap, TrophyWallet, etc.) بقيت كما هي...
-const SkillsRoadmap = ({ skills }: any) => <div className="p-10">خارطة المهارات</div>;
-const LeaderboardView = ({ myXp, currentStudent }: any) => <div className="p-10">لوحة الشرف</div>;
-const TrophyWallet = ({ student, attendance }: any) => <div className="p-10">محفظة الجوائز</div>;
-const StudentWeeklyPlan = ({ student }: any) => <div className="p-10">الجدول</div>;
-const StudentEvaluationView = ({ student, performance }: any) => <div className="p-10">الدرجات</div>;
-const StudentMessages = ({ messages }: any) => <div className="p-10">الرسائل</div>;
-const MedalBadge = ({ icon, count }: any) => <div className="p-2">Medal</div>;
-const DashboardCard = ({ label, value, color, icon }: any) => (
-    <div className={`${color} backdrop-blur-3xl p-8 rounded-[2rem] border border-white/10 flex flex-col items-center text-center shadow-xl`}>
-        <div className="mb-2">{icon}</div>
-        <div className="text-3xl font-black">{value}</div>
-        <div className="text-xs font-black text-indigo-200 uppercase tracking-widest mt-2">{label}</div>
+const MedalCard = ({ icon, label, count }: any) => (
+    <div className="bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/10 flex flex-col items-center">
+        {icon}
+        <span className="text-xl font-black mt-2">{count}</span>
+        <span className="text-[10px] uppercase font-bold opacity-60">{label}</span>
+    </div>
+);
+
+const StudentEvaluationView = ({ student, performance }: any) => {
+    const myPerf = performance.filter((p: any) => p.studentId === student.id).sort((a:any, b:any) => b.date.localeCompare(a.date));
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <h2 className="text-2xl font-black text-slate-800">سجل الدرجات والتقييمات</h2>
+            <div className="grid grid-cols-1 gap-4">
+                {myPerf.map((p: any) => (
+                    <div key={p.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center group hover:border-indigo-200 transition-all">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white ${p.score/p.maxScore >= 0.9 ? 'bg-green-500' : p.score/p.maxScore >= 0.7 ? 'bg-blue-500' : 'bg-red-500'}`}>
+                                {p.score}
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-slate-800">{p.title}</h4>
+                                <p className="text-xs text-slate-400">{p.subject} • {p.date}</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-sm font-black text-slate-500">/ {p.maxScore}</span>
+                        </div>
+                    </div>
+                ))}
+                {myPerf.length === 0 && <div className="p-20 text-center text-slate-300 font-bold">لا توجد درجات مرصودة حالياً.</div>}
+            </div>
+        </div>
+    );
+};
+
+const StudentMessages = ({ messages }: any) => (
+    <div className="space-y-6 animate-fade-in">
+        <h2 className="text-2xl font-black text-slate-800">التنبيهات والرسائل</h2>
+        <div className="space-y-4">
+            {messages.map((m: any) => (
+                <div key={m.id} className="bg-white p-6 rounded-2xl border-r-4 border-indigo-500 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold text-slate-400">{formatDualDate(m.date)}</span>
+                        <Bell size={16} className="text-indigo-500"/>
+                    </div>
+                    <p className="text-slate-700 leading-relaxed font-medium">{m.content}</p>
+                    <div className="mt-4 pt-4 border-t border-slate-50 text-xs text-slate-400">مرسلة بواسطة: {m.sentBy}</div>
+                </div>
+            ))}
+            {messages.length === 0 && <div className="p-20 text-center text-slate-300 font-bold">لا توجد رسائل جديدة.</div>}
+        </div>
     </div>
 );
 
