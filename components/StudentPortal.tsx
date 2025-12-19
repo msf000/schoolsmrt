@@ -10,7 +10,7 @@ import {
     Briefcase, Compass, ShieldCheck, Wind, Radar as RadarIcon 
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { PieChart, Pie, Cell, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { formatDualDate } from '../services/dateService';
 import BottomNavigation from './BottomNavigation';
 
@@ -133,7 +133,7 @@ const StudentDashboard = ({ stats, student }: any) => (
                         <RadarChart data={stats.radarData}>
                             <PolarGrid stroke="#e2e8f0" />
                             <PolarAngleAxis dataKey="subject" tick={{fontSize: 12, fontWeight: 'bold', fill: '#64748b'}} />
-                            <Radar name="أدائي" dataKey="A" stroke="#4f46e5" strokeWidth={3} fill="#4f46e5" fillOpacity={0.4} />
+                            <RechartsRadar name="أدائي" dataKey="A" stroke="#4f46e5" strokeWidth={3} fill="#4f46e5" fillOpacity={0.4} />
                             <Tooltip />
                         </RadarChart>
                     </ResponsiveContainer>
@@ -172,7 +172,7 @@ const StudentEvaluationView = ({ student, performance }: any) => {
                 {myPerf.map((p: any) => (
                     <div key={p.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center group hover:border-indigo-200 transition-all">
                         <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white ${p.score/p.maxScore >= 0.9 ? 'bg-green-500' : p.score/p.maxScore >= 0.7 ? 'bg-blue-500' : 'bg-red-500'}`}>
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white ${p.score/p.maxScore >= 0.9 ? 'bg-green-50' : p.score/p.maxScore >= 0.7 ? 'bg-blue-50' : 'bg-red-50'}`} style={{ color: p.score/p.maxScore >= 0.9 ? '#10b981' : p.score/p.maxScore >= 0.7 ? '#3b82f6' : '#ef4444' }}>
                                 {p.score}
                             </div>
                             <div>
@@ -202,7 +202,7 @@ const StudentMessages = ({ messages }: any) => (
                         <Bell size={16} className="text-indigo-500"/>
                     </div>
                     <p className="text-slate-700 leading-relaxed font-medium">{m.content}</p>
-                    <div className="mt-4 pt-4 border-t border-slate-50 text-xs text-slate-400">مرسلة بواسطة: {m.sentBy}</div>
+                    <div className="mt-4 pt-4 border-t border-slate-50 text-xs text-gray-400">مرسلة بواسطة: {m.sentBy}</div>
                 </div>
             ))}
             {messages.length === 0 && <div className="p-20 text-center text-slate-300 font-bold">لا توجد رسائل جديدة.</div>}
