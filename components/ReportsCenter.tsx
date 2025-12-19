@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment } from '../types';
 import { getAcademicTerms, getAssignments, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
@@ -18,18 +17,30 @@ interface ReportsCenterProps {
 
 const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, performance, currentUser }) => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'MONTHLY' | 'AI' | 'CERTIFICATES'>('COMPREHENSIVE');
-    const [selectedClass, setSelectedClass] = useState('');
-    const [selectedTermId, setSelectedTermId] = useState('');
+    
+    // --- الاستعادة من التخزين المحلي ---
+    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'MONTHLY' | 'AI' | 'CERTIFICATES'>(() => {
+        return (localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE';
+    });
+    const [selectedClass, setSelectedClass] = useState(() => localStorage.getItem('rep_selected_class') || '');
+    const [selectedTermId, setSelectedTermId] = useState(() => localStorage.getItem('rep_term_id') || '');
+
+    // --- الحفظ عند التغيير ---
+    useEffect(() => {
+        localStorage.setItem('rep_active_tab', activeTab);
+        localStorage.setItem('rep_selected_class', selectedClass);
+        localStorage.setItem('rep_term_id', selectedTermId);
+    }, [activeTab, selectedClass, selectedTermId]);
+
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
-    const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
-        const current = loadedTerms.find(t => t.isCurrent);
-        if (current) setSelectedTermId(current.id);
-        setHeaderConfig(getReportHeaderConfig(currentUser?.id));
+        if (!selectedTermId) {
+            const current = loadedTerms.find(t => t.isCurrent);
+            if (current) setSelectedTermId(current.id);
+        }
     }, [currentUser]);
 
     const uniqueClasses = useMemo(() => {
@@ -67,13 +78,12 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
     };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
-            <div className="mb-6 flex justify-between items-center">
+        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
+            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><FileText className="text-purple-600"/> مركز التقارير الذكي</h2>
-                    <p className="text-sm text-gray-500">تحليل البيانات وإصدار التقارير والشهادات.</p>
                 </div>
-                <div className="flex bg-white p-1 rounded-xl border shadow-sm overflow-x-auto">
+                <div className="flex bg-white p-1 rounded-xl border shadow-sm overflow-x-auto no-scrollbar">
                     <TabBtn label="التقرير الشامل" active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
                     <TabBtn label="المتعثرين" active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
                     <TabBtn label="الحضور الشهري" active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
@@ -82,73 +92,66 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                 </div>
             </div>
 
-            {activeTab === 'COMPREHENSIVE' && (
-                <div className="bg-white rounded-2xl border shadow-sm flex flex-col flex-1 overflow-hidden">
-                    <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-                        <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="p-2 border rounded-lg font-bold text-sm bg-white">
-                            <option value="">-- اختر الفصل --</option>
-                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <div className="flex gap-2">
-                            <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2"><Download size={16}/> Excel</button>
-                            <button onClick={()=>window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2"><Printer size={16}/> طباعة</button>
-                        </div>
-                    </div>
-                    <div className="flex-1 overflow-auto custom-scrollbar">
-                        <table className="w-full text-right text-sm">
-                            <thead className="bg-gray-50 sticky top-0 font-bold">
-                                <tr>
-                                    <th className="p-4">اسم الطالب</th>
-                                    <th className="p-4 text-center">نسبة الحضور</th>
-                                    <th className="p-4 text-center">أيام الغياب</th>
-                                    <th className="p-4 text-center">المعدل الأكاديمي</th>
-                                    <th className="p-4 text-center">الحالة</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {comprehensiveData.map(s => (
-                                    <tr key={s.id} className="hover:bg-gray-50">
-                                        <td className="p-4 font-bold">{s.name}</td>
-                                        <td className="p-4 text-center font-mono">{s.stats.attRate}%</td>
-                                        <td className="p-4 text-center">{s.stats.absent}</td>
-                                        <td className="p-4 text-center font-black text-indigo-600">{s.stats.gradeAvg}%</td>
-                                        <td className="p-4 text-center">
-                                            {s.stats.gradeAvg < 60 ? <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">متعثر</span> : <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">جيد</span>}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
-            {activeTab === 'AT_RISK' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar">
-                    {comprehensiveData.filter(s => s.stats.gradeAvg < 60 || s.stats.attRate < 80).map(s => (
-                        <div key={s.id} className="bg-white p-6 rounded-2xl border-2 border-red-100 shadow-sm relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-2 h-full bg-red-500"></div>
-                            <h3 className="font-bold text-lg mb-2">{s.name}</h3>
-                            <div className="space-y-2 mb-4">
-                                {s.stats.attRate < 80 && <div className="text-xs bg-red-50 text-red-700 p-2 rounded flex items-center gap-2"><AlertTriangle size={14}/> ضعف حضور ({s.stats.attRate}%)</div>}
-                                {s.stats.gradeAvg < 60 && <div className="text-xs bg-orange-50 text-orange-700 p-2 rounded flex items-center gap-2"><TrendingUp size={14} className="rotate-180"/> تعثر دراسي ({s.stats.gradeAvg}%)</div>}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
+                {activeTab === 'COMPREHENSIVE' && (
+                    <div className="bg-white rounded-2xl border shadow-sm flex flex-col overflow-hidden animate-fade-in">
+                        <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-4 justify-between items-center">
+                            <div className="flex gap-2">
+                                <select value={selectedTermId} onChange={e=>setSelectedTermId(e.target.value)} className="p-2 border rounded-lg text-xs font-bold bg-white"><option value="">-- الفصل الدراسي --</option>{terms.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                                <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="p-2 border rounded-lg text-xs font-bold bg-white"><option value="">-- اختر الفصل --</option>{uniqueClasses.map(c=><option key={c} value={c}>{c}</option>)}</select>
                             </div>
-                            <button onClick={()=>navigate('/followup', {state:{studentId:s.id}})} className="w-full py-2 bg-gray-50 hover:bg-red-50 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-1">عرض الملف والمتابعة <ChevronRight size={14}/></button>
+                            <div className="flex gap-2">
+                                <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2"><Download size={14}/> Excel</button>
+                                <button onClick={()=>window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2"><Printer size={14}/> طباعة</button>
+                            </div>
                         </div>
-                    ))}
-                    {comprehensiveData.filter(s => s.stats.gradeAvg < 60 || s.stats.attRate < 80).length === 0 && <div className="col-span-full py-20 text-center text-gray-400 font-bold">لا يوجد طلاب متعثرين حالياً. عمل رائع!</div>}
-                </div>
-            )}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-right text-sm">
+                                <thead className="bg-gray-50 font-bold">
+                                    <tr><th className="p-4">اسم الطالب</th><th className="p-4 text-center">الحضور</th><th className="p-4 text-center">الغياب</th><th className="p-4 text-center">المعدل</th><th className="p-4 text-center">الحالة</th></tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {comprehensiveData.map(s => (
+                                        <tr key={s.id} className="hover:bg-gray-50">
+                                            <td className="p-4 font-bold">{s.name}</td>
+                                            <td className="p-4 text-center font-mono">{s.stats.attRate}%</td>
+                                            <td className="p-4 text-center">{s.stats.absent}</td>
+                                            <td className="p-4 text-center font-black text-indigo-600">{s.stats.gradeAvg}%</td>
+                                            <td className="p-4 text-center">{s.stats.gradeAvg < 60 ? <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold">متعثر</span> : <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">جيد</span>}</td>
+                                        </tr>
+                                    ))}
+                                    {comprehensiveData.length === 0 && <tr><td colSpan={5} className="p-20 text-center text-gray-400 font-bold">اختر الفصل لعرض البيانات</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
-            {activeTab === 'MONTHLY' && <MonthlyReport students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
-            {activeTab === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} />}
-            {activeTab === 'AI' && <AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
+                {activeTab === 'AT_RISK' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                        {comprehensiveData.filter(s => s.stats.gradeAvg < 60 || s.stats.attRate < 80).map(s => (
+                            <div key={s.id} className="bg-white p-6 rounded-[2rem] border-2 border-red-50 shadow-sm group">
+                                <h3 className="font-bold text-gray-800 mb-3">{s.name}</h3>
+                                <div className="space-y-2 mb-4">
+                                    {s.stats.attRate < 80 && <div className="text-[10px] bg-red-50 text-red-700 p-2 rounded-lg font-bold">ضعف حضور ({s.stats.attRate}%)</div>}
+                                    {s.stats.gradeAvg < 60 && <div className="text-[10px] bg-orange-50 text-orange-700 p-2 rounded-lg font-bold">تعثر دراسي ({s.stats.gradeAvg}%)</div>}
+                                </div>
+                                <button onClick={()=>navigate('/followup', {state:{studentId:s.id}})} className="w-full py-2 bg-gray-50 hover:bg-red-50 text-red-600 rounded-xl font-bold text-xs">متابعة الطالب</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {activeTab === 'MONTHLY' && <MonthlyReport students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
+                {activeTab === 'CERTIFICATES' && <CertificatesCenter students={students} currentUser={currentUser} onSaveAttendance={(recs) => { }} />}
+                {activeTab === 'AI' && <AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser} />}
+            </div>
         </div>
     );
 };
 
 const TabBtn = ({ label, active, onClick }: any) => (
-    <button onClick={onClick} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>{label}</button>
+    <button onClick={onClick} className={`px-5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>{label}</button>
 );
 
 export default ReportsCenter;
