@@ -143,7 +143,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     };
 
     const getReportData = (record: FormsDetailedResult, classFilter: string) => {
-        const targetClass = classFilter || record.className;
         const allInClass = students.filter(s => !classFilter || s.className === classFilter).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
         const gradeName = allInClass.length > 0 ? (allInClass[0].gradeLevel || 'غير محدد') : (record.className || 'غير محدد');
         let totalPossibleSkills = 0; let totalMasteredSkills = 0; let totalStudentsAttended = 0;
@@ -200,14 +199,16 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         const dataA = getReportData(recA, compareClassFilter);
         const dataB = getReportData(recB, compareClassFilter);
 
-        // الطلاب المشتركين فقط أو تصفية حسب الفصل
+        // ربط الطلاب وتحديد النمو
         const studentComparison = dataA.studentsList.map(sA => {
             const sB = dataB.studentsList.find(x => x.sid === sA.sid);
             const growth = (sA.isAbsent || sB?.isAbsent) ? 0 : (sB?.pct || 0) - sA.pct;
             return {
                 sid: sA.sid,
                 name: sA.name,
+                scoreA: sA.isAbsent ? '-' : sA.score,
                 pctA: sA.pct,
+                scoreB: (sB && !sB.isAbsent) ? sB.score : '-',
                 pctB: sB?.pct || 0,
                 growth,
                 isAbsent: sA.isAbsent || sB?.isAbsent
@@ -429,6 +430,15 @@ const TabBtnView = ({ label, active, onClick }: any) => (
 const ComparisonReport = ({ data, header, viewMode }: any) => {
     const { recA, recB, studentComparison, overallGrowth } = data;
 
+    // تقدير الدرجة بناءً على النسبة
+    const getRating = (pct: number) => {
+        if (pct >= 90) return { label: 'ممتاز', color: 'text-green-600' };
+        if (pct >= 80) return { label: 'جيد جداً', color: 'text-blue-600' };
+        if (pct >= 65) return { label: 'جيد', color: 'text-orange-600' };
+        if (pct >= 50) return { label: 'مقبول', color: 'text-orange-400' };
+        return { label: 'ضعيف', color: 'text-red-600' };
+    };
+
     // تجهيز بيانات الرسم البياني للمهارات
     const skillChartData = recA.questions.map((qA: any, idx: number) => {
         const qB = recB.questions[idx];
@@ -507,54 +517,87 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                 </div>
             )}
 
-            {/* الصفحة الثانية: تفاصيل نمو الطلاب */}
+            {/* الصفحة الثانية: تفاصيل نمو الطلاب - مطابقة للصورة المطلوبة */}
             {(viewMode === 'DETAILS' || window.matchMedia('print').matches) && (
                 <div className="bg-white p-8 shadow-2xl border-2 border-black print:p-0 print:shadow-none">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="text-right text-[10px] font-bold">مدرسة: {header?.schoolName}</div>
-                        <h3 className="text-lg font-black text-center bg-gray-900 text-white py-2 px-10 rounded-xl uppercase tracking-widest">تحليل النمو الفردي للمتعلمين</h3>
-                        <div className="text-left text-[10px] font-bold">الفصل: {data.dataA.gradeName}</div>
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="text-right text-[11px] font-bold">
+                                <p>الإدارة العامة للتعليم بمنطقة {header?.educationAdmin}</p>
+                                <p>مكة المكرمة</p>
+                            </div>
+                            <div className="text-center">
+                                <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-14 mx-auto mb-2" alt="moe"/>
+                                <div className="bg-[#00334d] text-white py-1 px-10 rounded-full font-black text-sm uppercase">مدرسة {header?.schoolName}</div>
+                            </div>
+                            <div className="text-left"><div className="w-14 h-14"></div></div>
+                        </div>
+
+                        <div className="bg-[#00334d] text-white p-3 grid grid-cols-4 text-center text-[11px] font-black border-2 border-black">
+                            <div className="border-l border-white/20 uppercase tracking-tighter">علوم الأرض والفضاء</div>
+                            <div className="border-l border-white/20">كشف رصد درجات الاختبارات المدرسية</div>
+                            <div className="border-l border-white/20 uppercase tracking-tighter">الصف / الثالث ثانوي</div>
+                            <div className="uppercase tracking-tighter">الفصل الدراسي / الأول 1447</div>
+                        </div>
                     </div>
                     
-                    <table className="w-full border-collapse text-center table-fixed text-[11px]">
+                    <table className="w-full border-collapse text-center table-fixed text-[11px] border-2 border-black">
                         <thead>
-                            <tr className="bg-gray-100 font-black h-12 border-b-2 border-black">
-                                <th className="border border-black w-10">م</th>
-                                <th className="border border-black w-56 text-right pr-4">اسم الطالب</th>
-                                <th className="border border-black bg-blue-50 text-blue-900 font-black">{recA.examTitle}</th>
-                                <th className="border border-black bg-green-50 text-green-900 font-black">{recB.examTitle}</th>
-                                <th className="border border-black w-24">مستوى التطور</th>
-                                <th className="border border-black w-32">الحالة والتحسن</th>
+                            <tr className="bg-[#00334d] text-white font-black h-12">
+                                <th rowSpan={2} className="border border-white w-8">م</th>
+                                <th rowSpan={2} className="border border-white w-48 text-right pr-4">اسم الطالب</th>
+                                <th colSpan={2} className="border border-white">الاختبار القبلي</th>
+                                <th colSpan={2} className="border border-white">الاختبار البعدي</th>
+                                <th colSpan={2} className="border border-white">نسبة مكتسبات المتعلم وفق</th>
+                                <th rowSpan={2} className="border border-white w-24">مؤشر التحصيل الدراسي</th>
+                            </tr>
+                            <tr className="bg-[#00334d] text-white font-black h-10">
+                                <th className="border border-white">الدرجة المكتسبة</th>
+                                <th className="border border-white">التقدير</th>
+                                <th className="border border-white">الدرجة المكتسبة</th>
+                                <th className="border border-white">التقدير</th>
+                                <th className="border border-white">الاختبار القبلي</th>
+                                <th className="border border-white">الاختبار البعدي</th>
                             </tr>
                         </thead>
                         <tbody className="font-bold">
-                            {studentComparison.map((s: any, idx: number) => (
-                                <tr key={s.sid} className={`h-9 border-b border-gray-200 ${s.isAbsent ? 'bg-gray-100 opacity-50' : ''}`}>
-                                    <td className="border border-gray-200 bg-gray-50">{idx + 1}</td>
-                                    <td className="border border-gray-200 text-right pr-3 font-black text-gray-800">{s.name}</td>
-                                    <td className="border border-gray-200 text-blue-700">{s.isAbsent ? 'غ' : `${Math.round(s.pctA)}%`}</td>
-                                    <td className="border border-gray-200 text-green-700">{s.isAbsent ? 'غ' : `${Math.round(s.pctB)}%`}</td>
-                                    <td className={`border border-gray-200 font-black ${s.growth > 0 ? 'text-green-600' : s.growth < 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                                        {!s.isAbsent && (
-                                            <div className="flex items-center justify-center gap-1">
-                                                {s.growth > 0 ? <ArrowUpRight size={14}/> : s.growth < 0 ? <ArrowDownRight size={14}/> : <Minus size={14}/>}
-                                                {Math.abs(Math.round(s.growth))}%
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="border border-gray-200">
-                                        {!s.isAbsent && (
-                                            <span className={`px-2 py-1 rounded text-[9px] font-black ${s.growth > 15 ? 'bg-green-100 text-green-700' : s.growth > 0 ? 'bg-blue-100 text-blue-700' : s.growth === 0 ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-700'}`}>
-                                                {s.growth > 15 ? 'تحسن كبير 🚀' : s.growth > 0 ? 'تحسن طفيف' : s.growth === 0 ? 'مستوى ثابت' : 'تراجع أداء'}
-                                            </span>
-                                        )}
-                                    </td>
+                            {studentComparison.map((s: any, idx: number) => {
+                                const ratingA = getRating(s.pctA);
+                                const ratingB = getRating(s.pctB);
+                                return (
+                                    <tr key={s.sid} className={`h-9 border-b border-black hover:bg-gray-50 ${s.isAbsent ? 'bg-gray-100 opacity-50' : ''}`}>
+                                        <td className="border border-black bg-[#00334d] text-white">{idx + 1}</td>
+                                        <td className="border border-black text-right pr-3 font-black text-gray-800">{s.name}</td>
+                                        <td className="border border-black">{s.isAbsent ? '-' : s.scoreA}</td>
+                                        <td className={`border border-black ${ratingA.color}`}>{s.isAbsent ? '-' : ratingA.label}</td>
+                                        <td className="border border-black">{s.isAbsent ? '-' : s.scoreB}</td>
+                                        <td className={`border border-black ${ratingB.color}`}>{s.isAbsent ? '-' : ratingB.label}</td>
+                                        <td className="border border-black">{s.isAbsent ? '-' : s.pctA.toFixed(2)}</td>
+                                        <td className="border border-black">{s.isAbsent ? '-' : s.pctB.toFixed(2)}</td>
+                                        <td className="border border-black p-1">
+                                            {!s.isAbsent && (
+                                                <div className="flex flex-col items-center">
+                                                    <div className="w-full h-4 bg-gray-100 rounded-full border border-gray-300 overflow-hidden flex items-center relative">
+                                                        <div className={`h-full ${s.growth >= 0 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${s.pctB}%` }}></div>
+                                                        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-black">{s.pctB.toFixed(1)}%</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {/* صفوف فارغة لتكملة الشكل كما في الصورة */}
+                            {Array.from({ length: Math.max(0, 15 - studentComparison.length) }).map((_, i) => (
+                                <tr key={`empty-${i}`} className="h-9 border-b border-black">
+                                    <td className="border border-black bg-[#00334d] text-white">{studentComparison.length + i + 1}</td>
+                                    <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
 
-                    <div className="mt-12 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black pt-6">
+                    <div className="mt-8 flex justify-between items-center text-[11px] font-black px-10">
                         <div>معلم المادة / أ. {header?.teacherName}</div>
                         <div>مدير المدرسة / أ. {header?.schoolManager}</div>
                     </div>
@@ -951,7 +994,7 @@ const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => {
                     </div>
                     <div className="flex h-12">
                         <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-l border-black flex items-center justify-center">مؤشر المهارات الغير متقنة</div>
-                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative"><div className="w-full h-8 bg-red-50 rounded-full border border-red-200 overflow-hidden flex items-center"><div className="h-full bg-[#ef4444] transition-all" style={{ width: `${nonMasteredPct}%` }}></div><span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span></div></div>
+                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative"><div className="w-full h-8 bg-red-50 rounded-full border border-green-200 overflow-hidden flex items-center"><div className="h-full bg-[#ef4444] transition-all" style={{ width: `${nonMasteredPct}%` }}></div><span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span></div></div>
                     </div>
                 </div>
                 <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black"><div>معلم المادة / أ. {header?.teacherName}</div><div>مدير المدرسة / أ. {header?.schoolManager}</div></div>
