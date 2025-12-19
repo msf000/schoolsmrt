@@ -1,10 +1,13 @@
 
 export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC' | 'UNKNOWN';
 
+// Add missing PerformanceCategory type
+export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
+
 export interface Student {
   id: string;
   name: string;
-  role: 'STUDENT'; // تم جعلها إلزامية لحل أخطاء اتحاد الأنواع
+  role: 'STUDENT';
   nationalId?: string;
   classId?: string;
   schoolId?: string;
@@ -20,9 +23,34 @@ export interface Student {
   password?: string;
   seatIndex?: number;
   learningStyle?: LearningStyle;
+  behaviorPoints?: number; // نقاط السلوك التراكمية
 }
 
-// واجهة تحليل سؤال مفصلة
+export interface BehaviorIncident {
+    id: string;
+    studentId: string;
+    teacherId: string;
+    type: 'POSITIVE' | 'NEGATIVE';
+    category: string; // مثال: تأخر، مشاركة، تنمر، نظافة
+    points: number;
+    date: string;
+    note: string;
+    actionTaken?: string; // الإجراء المتخذ
+}
+
+export interface Task {
+    id: string;
+    teacherId: string;
+    classId: string;
+    subject: string;
+    title: string;
+    description: string;
+    dueDate: string;
+    type: 'HOMEWORK' | 'PROJECT' | 'RESEARCH';
+    maxScore: number;
+    submissions: string[]; // قائمة معرفات الطلاب الذين سلموا
+}
+
 export interface FormsQuestionAnalysis {
     id: string;
     text: string;
@@ -82,6 +110,7 @@ export enum AttendanceStatus { PRESENT = 'PRESENT', ABSENT = 'ABSENT', LATE = 'L
 export enum BehaviorStatus { POSITIVE = 'POSITIVE', NEGATIVE = 'NEGATIVE', NEUTRAL = 'NEUTRAL' }
 export interface AttendanceRecord { id: string; studentId: string; date: string; status: AttendanceStatus; subject?: string; period?: number; behaviorStatus?: BehaviorStatus; behaviorNote?: string; excuseNote?: string; excuseFile?: string; createdById?: string; }
 
+// Add missing TermPeriod interface
 export interface TermPeriod {
   id: string;
   name: string;
@@ -89,10 +118,24 @@ export interface TermPeriod {
   endDate: string;
 }
 
+// Update AcademicTerm to use TermPeriod
 export interface AcademicTerm { id: string; name: string; startDate: string; endDate: string; isCurrent: boolean; teacherId?: string; periods?: TermPeriod[]; }
-export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
-export interface Assignment { id: string; title: string; category: PerformanceCategory; maxScore: number; url?: string; isVisible: boolean; orderIndex?: number; sourceMetadata?: string; teacherId?: string; termId?: string; periodId?: string; classId?: string; }
-export interface PerformanceRecord { id: string; studentId: string; subject: string; title: string; category?: string; score: number; maxScore: number; date: string; notes?: string; url?: string; createdById?: string; }
+
+// Update PerformanceRecord category type
+export interface PerformanceRecord { id: string; studentId: string; subject: string; title: string; category?: PerformanceCategory; score: number; maxScore: number; date: string; notes?: string; url?: string; createdById?: string; }
+
+// Add missing Assignment interface
+export interface Assignment {
+  id: string;
+  title: string;
+  category: PerformanceCategory;
+  maxScore: number;
+  isVisible: boolean;
+  teacherId?: string;
+  termId?: string;
+  periodId?: string;
+  sourceMetadata?: string;
+}
 
 export interface SystemUser { 
   id: string; 

@@ -33,22 +33,14 @@ import ScheduleView from './components/ScheduleView';
 import ReloadPrompt from './components/ReloadPrompt';
 import AIChatBot from './components/AIChatBot';
 import AdminDashboard from './components/AdminDashboard';
-// Fix: Use default import for ReportsCenter at the top level
 import ReportsCenter from './components/ReportsCenter';
+import BehaviorTracking from './components/BehaviorTracking';
 import { Cloud, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-    // --- تحسين: قراءة المستخدم فوراً عند التعريف لمنع إعادة التوجيه التلقائي ---
     const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(() => {
         const savedUser = localStorage.getItem('current_user');
-        if (savedUser) {
-            try {
-                return JSON.parse(savedUser);
-            } catch (e) {
-                return null;
-            }
-        }
-        return null;
+        return savedUser ? JSON.parse(savedUser) : null;
     });
 
     const [students, setStudents] = useState<Student[]>([]);
@@ -64,10 +56,7 @@ const App: React.FC = () => {
     useEffect(() => {
         const initApp = async () => {
             loadData();
-            // المزامنة في الخلفية إذا كان هناك مستخدم
-            if (currentUser) {
-                await syncCloudData();
-            }
+            if (currentUser) await syncCloudData();
             setIsInitialLoad(false);
         };
         initApp();
@@ -85,18 +74,13 @@ const App: React.FC = () => {
             await downloadFromSupabase();
             loadData();
             await initAutoSync();
-        } catch (e) {
-            console.error("Cloud Sync Failed:", e);
-        } finally {
-            setIsCloudLoading(false);
-        }
+        } catch (e) { console.error("Cloud Sync Failed:", e); }
+        finally { setIsCloudLoading(false); }
     };
 
     const handleLoginSuccess = (user: any, rememberMe: boolean) => {
         setCurrentUser(user);
-        if (rememberMe) {
-            localStorage.setItem('current_user', JSON.stringify(user));
-        }
+        if (rememberMe) localStorage.setItem('current_user', JSON.stringify(user));
         loadData();
         syncCloudData();
         navigate('/');
@@ -105,13 +89,9 @@ const App: React.FC = () => {
     const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
-        // مسح حالات التبويبات عند تسجيل الخروج
-        const sfKeys = ['sf_selected_student', 'sf_active_tab', 'sf_term_id', 'sf_period_id'];
-        sfKeys.forEach(k => localStorage.removeItem(k));
         navigate('/login');
     };
 
-    // حماية المسارات: إذا كان جاري التحميل الأولي، لا توجه للخارج
     if (isInitialLoad && currentUser) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
@@ -121,9 +101,7 @@ const App: React.FC = () => {
         );
     }
 
-    if (!currentUser && location.pathname !== '/login') {
-        return <Navigate to="/login" replace />;
-    }
+    if (!currentUser && location.pathname !== '/login') return <Navigate to="/login" replace />;
 
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
@@ -137,6 +115,7 @@ const App: React.FC = () => {
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={(s) => { addStudent(s); loadData(); }} onUpdateStudent={(s) => { updateStudent(s); loadData(); }} onDeleteStudent={(id) => { deleteStudent(id); loadData(); }} onImportStudents={(data) => { bulkUpsertStudents(data); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={(rec) => { addPerformance(rec); loadData(); }} onImportPerformance={(recs) => { bulkAddPerformance(recs); loadData(); }} onDeletePerformance={(id) => { deletePerformance(id); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
                 <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={setTheme}/>} />
                 <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }}/>} />

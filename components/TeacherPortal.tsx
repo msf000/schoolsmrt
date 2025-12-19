@@ -5,15 +5,16 @@ import {
   LayoutGrid, Users, CheckSquare, Table, Monitor, 
   BarChart2, Settings, LogOut, Bell, Menu, X, 
   CalendarDays, Trophy, BookOpen, MessageSquare, 
-  Database, Sparkles, BrainCircuit, List
+  Database, Sparkles, BrainCircuit, List, ShieldCheck
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
 
+// Define TeacherPortalProps interface
 interface TeacherPortalProps {
-  currentUser: SystemUser;
-  onLogout: () => void;
-  children: React.ReactNode;
+    currentUser: SystemUser;
+    onLogout: () => void;
+    children: React.ReactNode;
 }
 
 const NavItem = ({ path, label, icon: Icon, color, isActive }: any) => {
@@ -64,6 +65,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <NavItem path="/students" label="قائمة الطلاب" icon={Users} isActive={location.pathname === '/students'} />
                         <NavItem path="/schedule" label="الجدول الدراسي" icon={CalendarDays} isActive={location.pathname === '/schedule'} />
                         <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
+                        <NavItem path="/behavior" label="الانضباط السلوكي" icon={ShieldCheck} color="text-yellow-600" isActive={location.pathname === '/behavior'} />
                         <NavItem path="/leaderboard" label="لوحة الشرف" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/leaderboard'} />
                         <NavItem path="/classroom" label="الإدارة الصفية" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} />
                         <NavItem path="/works" label="سجل الرصد (كشف)" icon={Table} isActive={location.pathname === '/works'} />
