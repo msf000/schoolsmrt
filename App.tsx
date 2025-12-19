@@ -33,29 +33,44 @@ import ScheduleView from './components/ScheduleView';
 import ReloadPrompt from './components/ReloadPrompt';
 import AIChatBot from './components/AIChatBot';
 import AdminDashboard from './components/AdminDashboard';
+// Fix: Use default import for ReportsCenter at the top level
+import ReportsCenter from './components/ReportsCenter';
+import { Cloud, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-    const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(null);
+    // --- تحسين: قراءة المستخدم فوراً عند التعريف لمنع إعادة التوجيه التلقائي ---
+    const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(() => {
+        const savedUser = localStorage.getItem('current_user');
+        if (savedUser) {
+            try {
+                return JSON.parse(savedUser);
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    });
+
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [theme, setTheme] = useState<UserTheme>(getUserTheme());
     const [isCloudLoading, setIsCloudLoading] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    
     const navigate = useNavigate();
     const location = useLocation();
 
     useEffect(() => {
-        const savedUser = localStorage.getItem('current_user');
-        if (savedUser) {
-            try {
-                setCurrentUser(JSON.parse(savedUser));
-            } catch (e) {
-                console.error("Failed to parse user", e);
+        const initApp = async () => {
+            loadData();
+            // المزامنة في الخلفية إذا كان هناك مستخدم
+            if (currentUser) {
+                await syncCloudData();
             }
-        }
-        loadData();
-        // بدء المزامنة السحابية فوراً عند التشغيل
-        syncCloudData();
+            setIsInitialLoad(false);
+        };
+        initApp();
     }, []);
 
     const loadData = () => {
@@ -67,10 +82,8 @@ const App: React.FC = () => {
     const syncCloudData = async () => {
         setIsCloudLoading(true);
         try {
-            // جلب أحدث البيانات من السحابة
             await downloadFromSupabase();
             loadData();
-            // تشغيل المزامنة الدورية
             await initAutoSync();
         } catch (e) {
             console.error("Cloud Sync Failed:", e);
@@ -92,8 +105,21 @@ const App: React.FC = () => {
     const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
+        // مسح حالات التبويبات عند تسجيل الخروج
+        const sfKeys = ['sf_selected_student', 'sf_active_tab', 'sf_term_id', 'sf_period_id'];
+        sfKeys.forEach(k => localStorage.removeItem(k));
         navigate('/login');
     };
+
+    // حماية المسارات: إذا كان جاري التحميل الأولي، لا توجه للخارج
+    if (isInitialLoad && currentUser) {
+        return (
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
+                <Loader2 className="animate-spin text-indigo-600 mb-4" size={40} />
+                <p className="text-gray-500 font-bold animate-pulse">جاري تأمين الجلسة...</p>
+            </div>
+        );
+    }
 
     if (!currentUser && location.pathname !== '/login') {
         return <Navigate to="/login" replace />;
@@ -102,8 +128,8 @@ const App: React.FC = () => {
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             {isCloudLoading && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 shadow-xl animate-bounce">
-                    <Cloud className="animate-pulse" size={14}/> جاري تحديث البيانات من السحابة...
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white px-4 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 shadow-xl animate-bounce">
+                    <Cloud className="animate-pulse" size={14}/> جاري تحديث البيانات سحابياً...
                 </div>
             )}
             <Routes>
@@ -111,7 +137,7 @@ const App: React.FC = () => {
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={(s) => { addStudent(s); loadData(); }} onUpdateStudent={(s) => { updateStudent(s); loadData(); }} onDeleteStudent={(id) => { deleteStudent(id); loadData(); }} onImportStudents={(data) => { bulkUpsertStudents(data); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={(rec) => { addPerformance(rec); loadData(); }} onImportPerformance={(recs) => { bulkAddPerformance(recs); loadData(); }} onDeletePerformance={(id) => { deletePerformance(id); loadData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/reports" element={<AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={setTheme}/>} />
                 <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }}/>} />
                 <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
@@ -150,5 +176,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-// استيراد Cloud من lucide-react (تأكد من إضافتها للأعلى)
-import { Cloud } from 'lucide-react';
