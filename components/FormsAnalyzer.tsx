@@ -7,7 +7,7 @@ import {
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
     PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark, FileText, EyeOff, X, LifeBuoy, Calendar, Settings2, TrendingUp, ArrowUpRight, ArrowDownRight, Minus,
-    Circle
+    Circle, User, Check, XCircle as XIcon
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend } from 'recharts';
@@ -39,7 +39,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [compareIdA, setCompareIdA] = useState('');
     const [compareIdB, setCompareIdB] = useState('');
     const [compareClassFilter, setCompareClassFilter] = useState('');
-    const [compareViewTab, setCompareViewTab] = useState<'SUMMARY' | 'DETAILS'>('SUMMARY');
+    const [compareViewTab, setCompareViewTab] = useState<'SUMMARY' | 'DETAILS' | 'CARD'>('SUMMARY');
+    const [selectedCompareStudentId, setSelectedCompareStudentId] = useState('');
 
     // بيانات المتابعة القابلة للتعديل
     const [followUpMeta, setFollowUpMeta] = useState({
@@ -161,7 +162,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 else if (pct >= 50) { levelDesc = "لدى المتعلم خلل في نواتج التعلم وضعف في التأسيس"; program = "REMEDIAL"; }
                 else { levelDesc = "يحتاج المتعلم إلى تحسين كبير ومتابعة مكثفة لنواتج التعلم"; program = "REMEDIAL"; }
             }
-            return { sid: s.id, name: s.name, score: res?.score || 0, pct, color, isAbsent: !res, answers: res?.answers || {}, masteredCount, unmasteredCount, levelDesc, program };
+            return { sid: s.id, name: s.name, score: res?.score || 0, total: record.questions.length, pct, color, isAbsent: !res, answers: res?.answers || {}, masteredCount, unmasteredCount, levelDesc, program };
         });
         const skillStats = record.questions.map(q => {
             let mastered = 0; let attended = 0;
@@ -212,7 +213,15 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 scoreB: (sB && !sB.isAbsent) ? sB.score : '-',
                 pctB: sB?.pct || 0,
                 growth,
-                isAbsent: sA.isAbsent || sB?.isAbsent
+                isAbsent: sA.isAbsent || sB?.isAbsent,
+                masteredCountA: sA.masteredCount,
+                unmasteredCountA: sA.unmasteredCount,
+                masteredCountB: sB?.masteredCount || 0,
+                unmasteredCountB: sB?.unmasteredCount || 0,
+                totalA: sA.total,
+                totalB: sB?.total || 0,
+                answersA: sA.answers,
+                answersB: sB?.answers || {}
             };
         });
 
@@ -405,9 +414,27 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             <div className="bg-white p-1 rounded-xl border shadow-sm flex w-fit mx-auto print:hidden">
                                 <TabBtnView label="ملخص النمو التعليمي" active={compareViewTab==='SUMMARY'} onClick={()=>setCompareViewTab('SUMMARY')}/>
                                 <TabBtnView label="تفاصيل نمو المتعلمين" active={compareViewTab==='DETAILS'} onClick={()=>setCompareViewTab('DETAILS')}/>
+                                <TabBtnView label="بطاقة المتعلم التفصيلية" active={compareViewTab==='CARD'} onClick={()=>setCompareViewTab('CARD')}/>
                             </div>
+                            
+                            {compareViewTab === 'CARD' && (
+                                <div className="bg-white p-4 border rounded-xl shadow-sm mb-4 max-w-md mx-auto print:hidden">
+                                    <label className="block text-xs font-bold text-gray-500 mb-2">اختر الطالب لعرض البطاقة:</label>
+                                    <select 
+                                        className="w-full p-2 border rounded-lg font-bold text-purple-700 outline-none"
+                                        value={selectedCompareStudentId}
+                                        onChange={e => setSelectedCompareStudentId(e.target.value)}
+                                    >
+                                        <option value="">-- اختر طالباً --</option>
+                                        {getComparisonData()?.studentComparison.map(s => (
+                                            <option key={s.sid} value={s.sid}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                                <ComparisonReport data={getComparisonData()} header={headerConfig} viewMode={compareViewTab} />
+                                <ComparisonReport data={getComparisonData()} header={headerConfig} viewMode={compareViewTab} selectedStudentId={selectedCompareStudentId} />
                             </div>
                         </div>
                     ) : (
@@ -419,7 +446,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                 </div>
             )}
 
-            <style>{` .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); } @media print { @page { size: landscape; margin: 0.5cm; } body { background: white !important; } .print\\:hidden { display: none !important; } .break-after { page-break-after: always; } } `}</style>
+            <style>{` .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); } @media print { @page { size: portrait; margin: 0.5cm; } body { background: white !important; } .print\\:hidden { display: none !important; } .break-after { page-break-after: always; } } `}</style>
         </div>
     );
 };
@@ -428,7 +455,7 @@ const TabBtnView = ({ label, active, onClick }: any) => (
     <button onClick={onClick} className={`px-4 py-2 rounded-lg text-[11px] font-black transition-all ${active ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>{label}</button>
 );
 
-const ComparisonReport = ({ data, header, viewMode }: any) => {
+const ComparisonReport = ({ data, header, viewMode, selectedStudentId }: any) => {
     const { recA, recB, studentComparison, overallGrowth } = data;
 
     // تقدير الدرجة بناءً على النسبة
@@ -518,9 +545,9 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                 </div>
             )}
 
-            {/* الصفحة الثانية: تفاصيل نمو الطلاب - مطابقة للصورة المطلوبة */}
+            {/* الصفحة الثانية: تفاصيل نمو الطلاب */}
             {(viewMode === 'DETAILS' || window.matchMedia('print').matches) && (
-                <div className="bg-white p-8 shadow-2xl border-2 border-black print:p-0 print:shadow-none">
+                <div className="bg-white p-8 shadow-2xl border-2 border-black print:p-0 print:shadow-none break-after">
                     <div className="mb-6">
                         <div className="flex justify-between items-center mb-6">
                             <div className="text-right text-[11px] font-bold">
@@ -588,7 +615,6 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                                     </tr>
                                 );
                             })}
-                            {/* صفوف فارغة لتكملة الشكل كما في الصورة */}
                             {Array.from({ length: Math.max(0, 15 - studentComparison.length) }).map((_, i) => (
                                 <tr key={`empty-${i}`} className="h-9 border-b border-black">
                                     <td className="border border-black bg-[#00334d] text-white">{studentComparison.length + i + 1}</td>
@@ -601,6 +627,169 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                     <div className="mt-8 flex justify-between items-center text-[11px] font-black px-10">
                         <div>معلم المادة / أ. {header?.teacherName}</div>
                         <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                    </div>
+                </div>
+            )}
+
+            {/* تبويب بطاقة المتعلم التفصيلية */}
+            {(viewMode === 'CARD' || window.matchMedia('print').matches) && selectedStudentId && (
+                <div className="bg-white p-8 shadow-2xl border-2 border-black max-w-[210mm] mx-auto print:p-0 print:shadow-none print:max-w-none">
+                    {/* الترويسة العلوية */}
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="text-right text-[11px] font-bold">
+                            <p>المملكة العربية السعودية</p>
+                            <p>وزارة التعليم</p>
+                            <p>الإدارة العامة للتعليم بمنطقة {header?.educationAdmin || 'مكة المكرمة'}</p>
+                        </div>
+                        <div className="text-center">
+                            <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12 mx-auto mb-2" alt="moe"/>
+                            <div className="bg-[#00334d] text-white py-1 px-8 rounded-full font-black text-xs">مدرسة {header?.schoolName}</div>
+                        </div>
+                        <div className="w-20"></div>
+                    </div>
+
+                    <h2 className="text-center font-black text-lg mb-6 border-b-2 border-black pb-2">بطاقة المتعلم التفصيلية</h2>
+
+                    {/* معلومات الطالب */}
+                    <table className="w-full border-collapse text-center table-fixed text-[11px] border-2 border-black mb-6">
+                        <thead className="bg-[#00334d] text-white">
+                            <tr>
+                                <th className="border border-white p-2">اسم الطالب</th>
+                                <th className="border border-white p-2">المادة</th>
+                                <th className="border border-white p-2">الصف / الفصل</th>
+                                <th className="border border-white p-2">معلم المادة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr className="font-bold">
+                                <td className="border border-black p-2">{studentComparison.find((s:any)=>s.sid===selectedStudentId)?.name}</td>
+                                <td className="border border-black p-2">علوم الأرض والفضاء</td>
+                                <td className="border border-black p-2">{data.dataA.gradeName}</td>
+                                <td className="border border-black p-2">أ. {header?.teacherName}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div className="bg-[#00334d] text-white p-2 text-center text-xs font-black mb-0 border-t-2 border-x-2 border-black">نواتج التعلم المستهدفة</div>
+                    <table className="w-full border-collapse text-center table-fixed text-[10px] border-2 border-black mb-6">
+                        <thead>
+                            <tr className="bg-gray-100 font-black h-10">
+                                <th className="border border-black w-8">م</th>
+                                <th className="border border-black w-40">الوحدة / الدرس</th>
+                                <th className="border border-black">المهارة المستهدفة</th>
+                                <th className="border border-black w-16">الاختبار القبلي</th>
+                                <th className="border border-black w-16">الاختبار البعدي</th>
+                            </tr>
+                        </thead>
+                        <tbody className="font-bold">
+                            {recA.questions.map((q: any, idx: number) => {
+                                const s = studentComparison.find((s:any)=>s.sid===selectedStudentId);
+                                return (
+                                    <tr key={idx} className="h-8">
+                                        <td className="border border-black">{idx + 1}</td>
+                                        <td className="border border-black text-right pr-2 truncate">{q.unitName}</td>
+                                        <td className="border border-black text-right pr-2 truncate">{q.learningOutcome}</td>
+                                        <td className="border border-black">
+                                            {s?.answersA[q.id] === '✔' ? <Check size={14} className="text-green-600 mx-auto"/> : <XIcon size={14} className="text-red-500 mx-auto"/>}
+                                        </td>
+                                        <td className="border border-black">
+                                            {s?.answersB[q.id] === '✔' ? <Check size={14} className="text-green-600 mx-auto"/> : <XIcon size={14} className="text-red-500 mx-auto"/>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {/* صفوف فارغة لإكمال الجدول */}
+                            {Array.from({ length: Math.max(0, 15 - recA.questions.length) }).map((_, i) => (
+                                <tr key={`empty-${i}`} className="h-8">
+                                    <td className="border border-black">{recA.questions.length + i + 1}</td>
+                                    <td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td><td className="border border-black"></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    {/* تحليل الأداء */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* القبلي */}
+                        <div className="border-2 border-black rounded-lg overflow-hidden">
+                            <div className="bg-[#e6f3ff] p-2 text-center font-black text-xs border-b border-black">تحليل الاختبار القبلي للمتعلم</div>
+                            <div className="grid grid-cols-3 text-center text-[9px] font-bold p-2 border-b border-black">
+                                <div className="border-l border-gray-300">المهارات المستهدفة <br/> <span className="text-blue-600">{recA.questions.length}</span></div>
+                                <div className="border-l border-gray-300">المهارات المتقنة <br/> <span className="text-green-600">{studentComparison.find((s:any)=>s.sid===selectedStudentId)?.masteredCountA}</span></div>
+                                <div>المهارات المفقودة <br/> <span className="text-red-500">{studentComparison.find((s:any)=>s.sid===selectedStudentId)?.unmasteredCountA}</span></div>
+                            </div>
+                            <div className="p-3 bg-white">
+                                <p className="text-[9px] font-bold mb-1">مؤشر الإتقان:</p>
+                                <div className="w-full h-4 bg-gray-100 rounded-full border border-gray-300 overflow-hidden relative">
+                                    <div className="h-full bg-blue-400" style={{ width: `${studentComparison.find((s:any)=>s.sid===selectedStudentId)?.pctA || 0}%` }}></div>
+                                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black">{Math.round(studentComparison.find((s:any)=>s.sid===selectedStudentId)?.pctA || 0)}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        {/* البعدي */}
+                        <div className="border-2 border-black rounded-lg overflow-hidden">
+                            <div className="bg-[#f0fdf4] p-2 text-center font-black text-xs border-b border-black">تحليل الاختبار البعدي للمتعلم</div>
+                            <div className="grid grid-cols-3 text-center text-[9px] font-bold p-2 border-b border-black">
+                                <div className="border-l border-gray-300">المهارات المستهدفة <br/> <span className="text-blue-600">{recB.questions.length}</span></div>
+                                <div className="border-l border-gray-300">المهارات المتقنة <br/> <span className="text-green-600">{studentComparison.find((s:any)=>s.sid===selectedStudentId)?.masteredCountB}</span></div>
+                                <div>المهارات المفقودة <br/> <span className="text-red-500">{studentComparison.find((s:any)=>s.sid===selectedStudentId)?.unmasteredCountB}</span></div>
+                            </div>
+                            <div className="p-3 bg-white">
+                                <p className="text-[9px] font-bold mb-1">مؤشر الإتقان:</p>
+                                <div className="w-full h-4 bg-gray-100 rounded-full border border-gray-300 overflow-hidden relative">
+                                    <div className="h-full bg-green-500" style={{ width: `${studentComparison.find((s:any)=>s.sid===selectedStudentId)?.pctB || 0}%` }}></div>
+                                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black">{Math.round(studentComparison.find((s:any)=>s.sid===selectedStudentId)?.pctB || 0)}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* الإجراءات العلاجية */}
+                    <div className="border-2 border-black rounded-lg overflow-hidden mb-6">
+                        <div className="grid grid-cols-3 text-[10px] font-bold">
+                            <div className="bg-[#fff7ed] p-2 border-l border-black">
+                                <div className="font-black text-orange-800 mb-2 border-b border-orange-200 pb-1 flex items-center justify-between">
+                                    <span>الإجراءات العلاجية</span>
+                                    {studentComparison.find((s:any)=>s.sid===selectedStudentId)?.growth < 20 && <Check size={12}/>}
+                                </div>
+                                <div className="space-y-1 opacity-80">
+                                    <p>• أوراق عمل مخصصة</p>
+                                    <p>• حصص فردية / تعلم أقران</p>
+                                    <p>• فيديوهات مهارية قصيرة</p>
+                                </div>
+                            </div>
+                            <div className="bg-[#f0f9ff] p-2 border-l border-black">
+                                <div className="font-black text-blue-800 mb-2 border-b border-blue-200 pb-1 flex items-center justify-between">
+                                    <span>الإجراءات الإثرائية</span>
+                                    {studentComparison.find((s:any)=>s.sid===selectedStudentId)?.pctB >= 85 && <Check size={12}/>}
+                                </div>
+                                <div className="space-y-1 opacity-80">
+                                    <p>• أنشطة تعميق المفاهيم</p>
+                                    <p>• بحوث ومهمات أدائية إثرائية</p>
+                                    <p>• تفعيل التعلم الذاتي</p>
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-2">
+                                <div className="font-black text-gray-800 mb-2 border-b border-gray-200 pb-1">توصيات المعلم</div>
+                                <p className="text-[9px] leading-relaxed italic">
+                                    {studentComparison.find((s:any)=>s.sid===selectedStudentId)?.growth > 20 
+                                        ? "نبارك للطالب هذا النمو التعليمي المتميز والحرص على اكتساب المهارات." 
+                                        : "نأمل من الطالب بذل مزيد من الجهد والتركيز على نواتج التعلم المفقودة."}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* التذييل */}
+                    <div className="bg-gray-100 p-4 border-2 border-black rounded-lg flex justify-between items-center text-[10px] font-black">
+                        <div className="space-y-1">
+                            <p>ولي أمر الطالب: {studentComparison.find((s:any)=>s.sid===selectedStudentId)?.name}</p>
+                            <p className="font-normal opacity-70 italic text-[8px]">دوركم حيوي في تمكين أبناءكم لاكتساب المهارات الأساسية وتعزيزها</p>
+                        </div>
+                        <div className="flex gap-10">
+                            <div className="text-center">معلم المادة <br/> أ. {header?.teacherName}</div>
+                            <div className="text-center">مدير المدرسة <br/> أ. {header?.schoolManager}</div>
+                        </div>
                     </div>
                 </div>
             )}
