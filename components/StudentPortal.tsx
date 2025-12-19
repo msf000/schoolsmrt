@@ -2,7 +2,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, AttendanceStatus, BehaviorStatus, LessonLink, Question } from '../types';
 import { downloadFromSupabase, getAcademicTerms, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, saveExamResult } from '../services/storageService';
-import { User, Users, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Library, LayoutGrid, CalendarDays, RefreshCw, X, Activity, CheckCircle, ChevronLeft, ChevronRight, Check, XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, BookOpen, Zap, Star, TrendingUp, BrainCircuit, Rocket, Trophy, PlayCircle, Crown, Briefcase, Compass, ShieldCheck, Wind } from 'lucide-react';
+import { 
+    User, Users, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Library, LayoutGrid, 
+    CalendarDays, RefreshCw, X, Activity, CheckCircle, ChevronLeft, ChevronRight, Check, 
+    XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, 
+    BookOpen, Zap, Star, TrendingUp, BrainCircuit, Rocket, Trophy, PlayCircle, Crown, 
+    Briefcase, Compass, ShieldCheck, Wind, Radar as RadarIcon 
+} from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { formatDualDate } from '../services/dateService';
@@ -121,7 +127,7 @@ const StudentDashboard = ({ stats, student }: any) => (
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                <h3 className="text-xl font-black mb-8 flex items-center gap-3 text-slate-800"><Radar size={20} className="text-indigo-600"/> راداري التعليمي</h3>
+                <h3 className="text-xl font-black mb-8 flex items-center gap-3 text-slate-800"><RadarIcon size={20} className="text-indigo-600"/> راداري التعليمي</h3>
                 <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <RadarChart data={stats.radarData}>
