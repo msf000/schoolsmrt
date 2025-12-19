@@ -35,6 +35,7 @@ import AIChatBot from './components/AIChatBot';
 import AdminDashboard from './components/AdminDashboard';
 import ReportsCenter from './components/ReportsCenter';
 import BehaviorTracking from './components/BehaviorTracking';
+import TasksManager from './components/TasksManager';
 import { Cloud, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -116,6 +117,7 @@ const App: React.FC = () => {
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={(rec) => { addPerformance(rec); loadData(); }} onImportPerformance={(recs) => { bulkAddPerformance(recs); loadData(); }} onDeletePerformance={(id) => { deletePerformance(id); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
+                <Route path="/tasks" element={<TasksManager students={students} currentUser={currentUser as SystemUser} />} />
                 <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={setTheme}/>} />
                 <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }}/>} />
