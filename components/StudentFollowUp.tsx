@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, TermPeriod, PerformanceCategory } from '../types';
-import { getAssignments, getAcademicTerms } from '../services/storageService';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, TermPeriod } from '../types';
+import { getAcademicTerms } from '../services/storageService';
 import { generateStudentAnalysis } from '../services/geminiService';
 import { 
     Search, PieChart as PieChartIcon, 
     TrendingUp, Loader2, Award, Activity, Sparkles, Calendar, Bot, 
     ArrowRight, XCircle, Star, Radar as RadarIcon, LineChart as LineChartIcon,
-    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info
+    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info, CalendarRange
 } from 'lucide-react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import { formatDualDate } from '../services/dateService';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -75,24 +76,30 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const activePeriods = useMemo(() => activeTerm?.periods || [], [activeTerm]);
     const activePeriod = useMemo(() => activePeriods.find(p => p.id === selectedPeriodId), [activePeriods, selectedPeriodId]);
 
-    // نطاق التاريخ الفعلي للتصفية
+    // تحديد النطاق الزمني الصارم للتصفية بناءً على اختيار (فصل أو فترة)
     const dateRange = useMemo(() => {
-        if (activePeriod) return { start: activePeriod.startDate, end: activePeriod.endDate, label: activePeriod.name };
-        if (activeTerm) return { start: activeTerm.startDate, end: activeTerm.endDate, label: activeTerm.name };
-        return { start: '', end: '', label: 'جميع الأعمال' };
+        if (activePeriod) {
+            return { start: activePeriod.startDate, end: activePeriod.endDate, label: activePeriod.name };
+        }
+        if (activeTerm) {
+            return { start: activeTerm.startDate, end: activeTerm.endDate, label: activeTerm.name };
+        }
+        return { start: '', end: '', label: 'جميع السجلات' };
     }, [activeTerm, activePeriod]);
 
     const stats = useMemo(() => {
         if (!student) return null;
         
-        const filterByDate = (list: any[]) => {
+        const filterByRange = (list: any[]) => {
             if (!dateRange.start || !dateRange.end) return list;
-            return list.filter(item => item.date >= dateRange.start && item.date <= dateRange.end);
+            return list.filter(item => {
+                const itemDate = item.date;
+                return itemDate >= dateRange.start && itemDate <= dateRange.end;
+            });
         };
 
-        // تصفية الحضور والدرجات بناءً على الفترة المختارة
-        const sAtt = filterByDate(attendance.filter(a => a.studentId === student.id));
-        const sPerf = filterByDate(performance.filter(p => p.studentId === student.id)).sort((a,b)=>a.date.localeCompare(b.date));
+        const sAtt = filterByRange(attendance.filter(a => a.studentId === student.id));
+        const sPerf = filterByRange(performance.filter(p => p.studentId === student.id)).sort((a,b)=>a.date.localeCompare(b.date));
 
         const getCategoryData = (cat: string) => sPerf.filter(p => p.category === cat);
         const homeworks = getCategoryData('HOMEWORK');
@@ -114,13 +121,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
         const radarData = [
             { subject: 'المواظبة', A: attRate },
-            { subject: 'المشاركة', A: Math.min(100, positiveBehaviors * 20) },
+            { subject: 'المشاركة', A: Math.min(100, positiveBehaviors * 25) },
             { subject: 'الواجبات', A: calcAvg(homeworks) || gradeAvg },
             { subject: 'الأنشطة', A: calcAvg(activities) || gradeAvg },
             { subject: 'الاختبارات', A: calcAvg(exams) || gradeAvg },
         ];
 
-        const growthData = sPerf.map(p => ({ date: p.date.slice(5), score: Math.round(p.score/p.maxScore*100) }));
+        const growthData = sPerf.map(p => ({ 
+            date: p.date.split('-').slice(1).join('/'), 
+            score: Math.round(p.score/p.maxScore*100) 
+        }));
 
         return { 
             attRate, absent, gradeAvg, radarData, growthData, sAtt, sPerf, 
@@ -143,15 +153,14 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden relative">
             
-            {/* Header Controls */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-2xl border shadow-sm print:hidden">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-3xl border shadow-sm print:hidden">
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate('/students')} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowRight size={20}/></button>
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">الملف التفاعلي للطالب</h2>
-                        <div className="flex items-center gap-2 mt-1">
+                        <h2 className="text-xl font-bold text-gray-800">الملف الموحد للطالب</h2>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
                             <select 
-                                className="text-[10px] font-bold bg-gray-50 border rounded px-2 py-0.5 outline-none cursor-pointer"
+                                className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded px-2 py-0.5 outline-none cursor-pointer"
                                 value={selectedTermId}
                                 onChange={e => { setSelectedTermId(e.target.value); setSelectedPeriodId(''); }}
                             >
@@ -159,29 +168,30 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </select>
                             {activePeriods.length > 0 && (
                                 <select 
-                                    className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100 rounded px-2 py-0.5 outline-none cursor-pointer"
+                                    className="text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200 rounded px-2 py-0.5 outline-none cursor-pointer"
                                     value={selectedPeriodId}
                                     onChange={e => setSelectedPeriodId(e.target.value)}
                                 >
-                                    <option value="">كل فترات {activeTerm?.name}</option>
+                                    <option value="">كامل الفصل الدراسي</option>
                                     {activePeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                 </select>
                             )}
                         </div>
                     </div>
                 </div>
+
                 <div className="relative flex-1 md:max-w-xs">
                     <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
                     <input 
-                        className="w-full pr-10 pl-4 py-2 border rounded-xl outline-none text-sm font-bold bg-gray-50 focus:bg-white transition-all" 
-                        placeholder="ابحث عن طالب..." 
+                        className="w-full pr-10 pl-4 py-2 border rounded-xl outline-none text-sm font-bold bg-gray-50 focus:bg-white transition-all shadow-inner" 
+                        placeholder="ابحث عن طالب آخر..." 
                         value={searchTerm} 
                         onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }} 
                     />
                     {isDropdownOpen && searchTerm && (
-                        <div className="absolute top-full right-0 w-full bg-white border rounded-xl shadow-2xl mt-2 max-h-60 overflow-y-auto z-50">
+                        <div className="absolute top-full right-0 w-full bg-white border rounded-2xl shadow-2xl mt-2 max-h-60 overflow-y-auto z-50">
                             {students.filter(s => s.name.includes(searchTerm)).map(s => (
-                                <div key={s.id} onClick={() => { setSelectedStudentId(s.id); setSearchTerm(''); setIsDropdownOpen(false); }} className="p-3 hover:bg-indigo-50 cursor-pointer border-b flex items-center gap-3 text-sm font-bold">{s.name}</div>
+                                <div key={s.id} onClick={() => { setSelectedStudentId(s.id); setSearchTerm(''); setIsDropdownOpen(false); }} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 flex items-center gap-3 text-sm font-bold">{s.name}</div>
                             ))}
                         </div>
                     )}
@@ -190,62 +200,57 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
             {student && stats ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Visual Range Indicator */}
-                    <div className="mb-4 flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 w-fit">
-                        <Info size={14}/>
-                        <span>عرض بيانات: {dateRange.label} </span>
-                        <span className="opacity-50 font-mono">({dateRange.start || '...'} إلى {dateRange.end || '...'})</span>
+                    
+                    <div className="mb-4 flex items-center gap-2 text-[10px] font-black text-purple-600 bg-purple-50 px-4 py-2 rounded-2xl border border-purple-100 w-fit self-center md:self-start">
+                        <CalendarRange size={14}/>
+                        <span>تصفية الأعمال حسب: {dateRange.label} </span>
+                        <span className="opacity-60">({dateRange.start} ⮕ {dateRange.end})</span>
                     </div>
 
-                    {/* Student Info Bar */}
-                    <div className="bg-white rounded-3xl p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+                    <div className="bg-white rounded-[2.5rem] p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
                         <div className="flex items-center gap-4 relative z-10">
-                            <div className="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center text-3xl font-black text-white shadow-lg">{student.name.charAt(0)}</div>
+                            <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-600 flex items-center justify-center text-3xl font-black text-white shadow-xl shadow-indigo-100">{student.name.charAt(0)}</div>
                             <div>
                                 <h1 className="text-xl font-black text-gray-800">{student.name}</h1>
                                 <p className="text-xs text-gray-400 font-bold">{student.className} • {student.gradeLevel}</p>
                             </div>
                         </div>
-                        <div className="flex gap-6 relative z-10">
-                            <StatMini label="المعدل المختار" value={`${stats.gradeAvg}%`} color="text-indigo-600" />
-                            <StatMini label="الانضباط" value={`${stats.attRate}%`} color="text-green-600" />
-                            <StatMini label="أيام الغياب" value={stats.absent} color="text-red-500" />
+                        <div className="flex gap-8 relative z-10">
+                            <StatMini label="معدل الفترة" value={`${stats.gradeAvg}%`} color="text-indigo-600" />
+                            <StatMini label="انضباط الفترة" value={`${stats.attRate}%`} color="text-green-600" />
+                            <StatMini label="الغياب" value={stats.absent} color="text-red-500" />
                         </div>
                     </div>
 
-                    {/* Navigation Tabs */}
-                    <div className="flex bg-white rounded-2xl border p-1 mb-6 shrink-0 overflow-x-auto no-scrollbar">
+                    <div className="flex bg-white rounded-2xl border p-1 mb-6 shrink-0 overflow-x-auto no-scrollbar shadow-sm">
                         <TabBtn label="نظرة عامة" icon={<RadarIcon size={16}/>} active={activeTab==='SUMMARY'} onClick={()=>setActiveTab('SUMMARY')}/>
                         <TabBtn label="الواجبات" icon={<BookOpen size={16}/>} active={activeTab==='HOMEWORK'} onClick={()=>setActiveTab('HOMEWORK')}/>
                         <TabBtn label="الأنشطة" icon={<Sparkles size={16}/>} active={activeTab==='ACTIVITY'} onClick={()=>setActiveTab('ACTIVITY')}/>
                         <TabBtn label="الاختبارات" icon={<ClipboardList size={16}/>} active={activeTab==='EXAMS'} onClick={()=>setActiveTab('EXAMS')}/>
                         <TabBtn label="السلوك" icon={<Star size={16}/>} active={activeTab==='BEHAVIOR'} onClick={()=>setActiveTab('BEHAVIOR')}/>
-                        <TabBtn label="Gemini AI" icon={<Bot size={16}/>} active={activeTab==='AI'} onClick={()=>setActiveTab('AI')}/>
+                        <TabBtn label="الذكاء AI" icon={<Bot size={16}/>} active={activeTab==='AI'} onClick={()=>setActiveTab('AI')}/>
                     </div>
 
-                    {/* Content Area */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
-                        
-                        {/* Summary View */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
                         {activeTab === 'SUMMARY' && (
                             <div className="space-y-6 animate-fade-in">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-white p-6 rounded-[2rem] border shadow-sm h-80">
-                                        <h3 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-indigo-600"/> رادار المهارات للفترة الحالية</h3>
-                                        <div className="h-full pb-8">
-                                            <ResponsiveContainer><RadarChart data={stats.radarData}><PolarGrid/><PolarAngleAxis dataKey="subject" tick={{fontSize:10, fontWeight:'bold'}}/><Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.4}/></RadarChart></ResponsiveContainer>
+                                    <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-80">
+                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-indigo-600"/> توزيع الأداء المهاراتي</h3>
+                                        <div className="h-full pb-10">
+                                            <ResponsiveContainer><RadarChart data={stats.radarData}><PolarGrid/><PolarAngleAxis dataKey="subject" tick={{fontSize:10, fontWeight:'bold', fill:'#94a3b8'}}/><Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.3} strokeWidth={3}/></RadarChart></ResponsiveContainer>
                                         </div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-[2rem] border shadow-sm h-80">
-                                        <h3 className="font-black text-gray-800 mb-4 flex items-center gap-2 text-sm"><LineChartIcon size={18} className="text-teal-600"/> منحنى النمو (حسب التواريخ المختارة)</h3>
-                                        <div className="h-full pb-8">
+                                    <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-80">
+                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 text-sm"><LineChartIcon size={18} className="text-teal-600"/> نمو الدرجات خلال {dateRange.label}</h3>
+                                        <div className="h-full pb-10">
                                             <ResponsiveContainer>
                                                 <LineChart data={stats.growthData}>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                                    <XAxis dataKey="date" tick={{fontSize:10}} axisLine={false}/>
+                                                    <XAxis dataKey="date" tick={{fontSize:10, fontWeight:'bold'}} axisLine={false} tickLine={false}/>
                                                     <YAxis domain={[0, 100]} hide/>
-                                                    <Tooltip contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 15px -3px rgb(0 0 0 / 0.1)'}}/>
-                                                    <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={4} dot={{r:4, fill:'#10b981'}}/>
+                                                    <Tooltip contentStyle={{borderRadius:'16px', border:'none', boxShadow:'0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight:'bold'}}/>
+                                                    <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={5} dot={{r:6, fill:'#10b981', strokeWidth:2, stroke:'#fff'}} activeDot={{r:8}}/>
                                                 </LineChart>
                                             </ResponsiveContainer>
                                         </div>
@@ -254,106 +259,92 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         )}
 
-                        {/* Detailed Category Views */}
                         {(['HOMEWORK', 'ACTIVITY', 'EXAMS'] as FollowUpTab[]).includes(activeTab) && (
                             <div className="space-y-6 animate-fade-in">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <MetricCard 
-                                        label={`متوسط ${activeTab === 'HOMEWORK' ? 'الواجبات' : activeTab === 'ACTIVITY' ? 'الأنشطة' : 'الاختبارات'}`} 
-                                        value={`${activeTab === 'HOMEWORK' ? stats.hwAvg : activeTab === 'ACTIVITY' ? stats.actAvg : stats.examAvg}%`} 
-                                        icon={<Target className="text-indigo-600"/>} 
-                                    />
-                                    <MetricCard 
-                                        label="إجمالي المهام" 
-                                        value={(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length} 
-                                        icon={<Activity className="text-blue-600"/>} 
-                                    />
-                                    <MetricCard 
-                                        label="أعلى درجة للفترة" 
-                                        value={Math.max(0, ...(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).map(p=>p.score))} 
-                                        icon={<Award className="text-yellow-600"/>} 
-                                    />
+                                    <MetricCard label="المعدل النوعي" value={`${activeTab === 'HOMEWORK' ? stats.hwAvg : activeTab === 'ACTIVITY' ? stats.actAvg : stats.examAvg}%`} icon={<Target className="text-indigo-600"/>} />
+                                    <MetricCard label="المهام المنجزة" value={(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length} icon={<CheckCircle className="text-green-600"/>} />
+                                    <MetricCard label="أعلى درجة" value={Math.max(0, ...(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).map(p=>p.score))} icon={<Award className="text-yellow-600"/>} />
                                 </div>
 
-                                <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
-                                    <div className="p-4 bg-gray-50 border-b flex justify-between items-center px-8">
-                                        <h4 className="font-bold text-gray-700">قائمة السجلات ({dateRange.label})</h4>
+                                <div className="bg-white rounded-[2.5rem] border shadow-sm overflow-hidden">
+                                    <div className="p-5 bg-gray-50/50 border-b flex justify-between items-center px-8">
+                                        <h4 className="font-black text-gray-700 text-sm">كشف الأعمال: {dateRange.label}</h4>
                                     </div>
-                                    <table className="w-full text-right text-sm">
-                                        <thead className="bg-white font-bold border-b text-gray-400 uppercase text-[10px] tracking-widest">
-                                            <tr>
-                                                <th className="p-4">التاريخ</th>
-                                                <th className="p-4">اسم المهمة</th>
-                                                <th className="p-4 text-center">الدرجة</th>
-                                                <th className="p-4 text-center">الإتقان</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).slice().reverse().map(p => (
-                                                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="p-4 text-gray-500 font-mono text-xs">{p.date}</td>
-                                                    <td className="p-4 font-bold text-gray-700">{p.title}</td>
-                                                    <td className="p-4 text-center font-black">{p.score} / {p.maxScore}</td>
-                                                    <td className="p-4 text-center">
-                                                        <span className={`px-2 py-1 rounded-lg font-bold text-xs ${p.score/p.maxScore >= 0.9 ? 'bg-green-100 text-green-700' : p.score/p.maxScore >= 0.6 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
-                                                            {Math.round(p.score/p.maxScore*100)}%
-                                                        </span>
-                                                    </td>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-right text-sm">
+                                            <thead className="bg-white font-black border-b text-gray-400 uppercase text-[10px] tracking-widest">
+                                                <tr>
+                                                    <th className="p-4 pr-8">اسم التكليف / المهمة</th>
+                                                    <th className="p-4 text-center">الدرجة المستحقة</th>
+                                                    <th className="p-4 text-center">نسبة الإتقان</th>
                                                 </tr>
-                                            ))}
-                                            {(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length === 0 && (
-                                                <tr><td colSpan={4} className="p-20 text-center text-gray-300 font-bold">لا توجد أعمال مرصودة في {dateRange.label}</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).slice().reverse().map(p => (
+                                                    <tr key={p.id} className="hover:bg-indigo-50/30 transition-colors group">
+                                                        <td className="p-4 pr-8 font-bold text-gray-700 group-hover:text-indigo-700">{p.title}</td>
+                                                        <td className="p-4 text-center font-black text-gray-800">{p.score} / {p.maxScore}</td>
+                                                        <td className="p-4 text-center">
+                                                            <span className={`px-3 py-1 rounded-full font-black text-[10px] ${p.score/p.maxScore >= 0.9 ? 'bg-green-100 text-green-700' : p.score/p.maxScore >= 0.6 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                                                                {Math.round(p.score/p.maxScore*100)}%
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length === 0 && (
+                                                    <tr><td colSpan={3} className="p-20 text-center text-gray-300 font-black italic">لا توجد سجلات في {dateRange.label}</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Behavior View */}
                         {activeTab === 'BEHAVIOR' && (
                             <div className="space-y-4 animate-fade-in">
                                 {stats.sAtt.filter(a => a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL).slice().reverse().map(a => (
-                                    <div key={a.id} className={`p-4 rounded-2xl border flex items-start gap-4 ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
-                                        <div className={`p-2 rounded-full ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                                            {a.behaviorStatus === BehaviorStatus.POSITIVE ? <Star size={16} fill="currentColor"/> : <XCircle size={16}/>}
+                                    <div key={a.id} className={`p-5 rounded-3xl border-2 flex items-start gap-5 transition-all hover:scale-[1.01] ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                                        <div className={`p-3 rounded-2xl shadow-sm ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                                            {a.behaviorStatus === BehaviorStatus.POSITIVE ? <Star size={20} fill="currentColor"/> : <XCircle size={20}/>}
                                         </div>
                                         <div className="flex-1">
-                                            <div className="flex justify-between mb-1">
-                                                <span className={`font-bold text-sm ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'text-green-700' : 'text-red-700'}`}>
-                                                    {a.behaviorStatus === BehaviorStatus.POSITIVE ? 'سلوك متميز / مشاركة' : 'ملاحظة سلوكية / تنبيه'}
+                                            <div className="flex justify-between mb-2">
+                                                <span className={`font-black text-sm ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'text-green-700' : 'text-red-700'}`}>
+                                                    {a.behaviorStatus === BehaviorStatus.POSITIVE ? 'نقطة تميز / مشاركة' : 'تنبيه سلوكي / تقصير'}
                                                 </span>
-                                                <span className="text-[10px] text-gray-400 font-bold">{a.date}</span>
+                                                <span className="text-[10px] text-gray-400 font-black uppercase">{a.date}</span>
                                             </div>
-                                            <p className="text-sm text-gray-600 font-medium">"{a.behaviorNote || 'لم يتم تدوين تفاصيل إضافية'}"</p>
+                                            <p className="text-sm text-gray-600 font-bold leading-relaxed italic">"{a.behaviorNote || 'تم رصد الإجراء آلياً'}"</p>
                                         </div>
                                     </div>
                                 ))}
                                 {stats.sAtt.filter(a => a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL).length === 0 && (
-                                    <div className="p-20 text-center text-gray-300 font-bold bg-white rounded-3xl border">لا توجد ملاحظات سلوكية مسجلة في {dateRange.label}</div>
+                                    <div className="p-20 text-center text-gray-300 font-black bg-white rounded-[2.5rem] border shadow-sm">سجل السلوك نظيف لهذه الفترة ({dateRange.label})</div>
                                 )}
                             </div>
                         )}
 
-                        {/* AI View */}
                         {activeTab === 'AI' && (
-                            <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-fade-in flex flex-col min-h-[400px]">
-                                <div className="flex justify-between items-center mb-8 border-b pb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-4 bg-purple-100 rounded-2xl text-purple-600"><Bot size={32}/></div>
-                                        <div><h3 className="text-xl font-black text-gray-800">التشخيص التربوي الذكي</h3><p className="text-xs text-gray-400">تحليل مخصص لفترة: {dateRange.label}</p></div>
+                            <div className="bg-white p-10 rounded-[3rem] border shadow-sm animate-fade-in flex flex-col min-h-[450px] relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><BrainCircuit size={200}/></div>
+                                <div className="flex flex-col md:flex-row justify-between items-center mb-10 border-b pb-8 gap-6 relative z-10">
+                                    <div className="flex items-center gap-5">
+                                        <div className="p-5 bg-purple-100 rounded-3xl text-purple-600 shadow-inner"><Bot size={36}/></div>
+                                        <div><h3 className="text-2xl font-black text-gray-800">التشخيص التربوي (Gemini AI)</h3><p className="text-xs text-gray-400 font-bold uppercase tracking-widest">تحليل ذكي حصري لفترة: {dateRange.label}</p></div>
                                     </div>
-                                    <button onClick={handleGenerateAI} disabled={isAiLoading} className="bg-purple-600 text-white px-8 py-3 rounded-2xl font-black shadow-xl hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
-                                        {isAiLoading ? <Loader2 className="animate-spin" size={20}/> : <Sparkles size={20}/>} تحديث التحليل
+                                    <button onClick={handleGenerateAI} disabled={isAiLoading} className="bg-purple-600 text-white px-10 py-4 rounded-2xl font-black shadow-2xl shadow-purple-200 hover:bg-purple-700 disabled:opacity-50 flex items-center gap-3 transition-all hover:scale-105 active:scale-95">
+                                        {isAiLoading ? <Loader2 className="animate-spin" size={24}/> : <Sparkles size={24}/>} تحديث التحليل
                                     </button>
                                 </div>
-                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50 p-8 rounded-3xl border"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30"><BrainCircuit size={80} className="mb-4"/><p className="text-xl font-bold">اضغط للحصول على تشخيص AI للفترة الحالية</p></div>}
+                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50/50 p-8 rounded-[2rem] border border-indigo-50 relative z-10 font-medium"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30 relative z-10"><BrainCircuit size={100} className="mb-6"/><p className="text-xl font-black text-center">اضغط على الزر أعلاه للحصول على تشخيص مخصص لهذه الفترة</p></div>}
                             </div>
                         )}
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-300 font-black bg-white rounded-[3rem] border-2 border-dashed gap-4"><Search size={80} className="opacity-10"/><p className="text-2xl">ابحث عن طالب لعرض ملفه الموحد</p></div>
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-300 font-black bg-white rounded-[3rem] border-2 border-dashed border-gray-200 gap-6"><Search size={100} className="opacity-10"/><p className="text-3xl text-center">ابحث عن طالب من القائمة العلوية <br/><span className="text-lg opacity-50 font-bold">لعرض أداء الفترة المحددة</span></p></div>
             )}
         </div>
     );
@@ -371,11 +362,11 @@ const StatMini = ({ label, value, color }: any) => (
 );
 
 const MetricCard = ({ label, value, icon }: any) => (
-    <div className="bg-white p-4 rounded-2xl border shadow-sm flex items-center gap-4">
-        <div className="p-3 bg-gray-50 rounded-xl">{icon}</div>
+    <div className="bg-white p-6 rounded-[1.5rem] border shadow-sm flex items-center gap-5">
+        <div className="p-4 bg-gray-50 rounded-2xl shadow-inner">{icon}</div>
         <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">{label}</p>
-            <p className="text-lg font-black text-gray-800">{value}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-tight">{label}</p>
+            <p className="text-2xl font-black text-gray-800">{value}</p>
         </div>
     </div>
 );
