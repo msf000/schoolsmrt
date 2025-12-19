@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar as ReBar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 
 interface Props {
     students: Student[];
@@ -144,7 +145,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     };
 
     const getReportData = (record: FormsDetailedResult, classFilter: string) => {
-        const targetClass = classFilter || record.className;
         const allInClass = students.filter(s => !classFilter || s.className === classFilter).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
         const gradeName = allInClass.length > 0 ? (allInClass[0].gradeLevel || 'غير محدد') : (record.className || 'غير محدد');
         let totalPossibleSkills = 0; let totalMasteredSkills = 0; let totalStudentsAttended = 0;
@@ -783,7 +783,7 @@ const ComparisonReport = ({ data, header, viewMode, selectedStudentId }: any) =>
                     {/* التذييل */}
                     <div className="bg-gray-100 p-4 border-2 border-black rounded-lg flex justify-between items-center text-[10px] font-black">
                         <div className="space-y-1">
-                            <p>ولي أمر الطالب: {studentComparison.find((s:any)=>s.sid===selectedStudentId)?.name}</p>
+                            <p> ولي أمر الطالب : {studentComparison.find((s:any)=>s.sid===selectedStudentId)?.name}</p>
                             <p className="font-normal opacity-70 italic text-[8px]">دوركم حيوي في تمكين أبناءكم لاكتساب المهارات الأساسية وتعزيزها</p>
                         </div>
                         <div className="flex gap-10">
