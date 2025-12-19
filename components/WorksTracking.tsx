@@ -99,14 +99,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [selectedMobileAssignment, setSelectedMobileAssignment] = useState<Assignment | null>(null);
     const [compactMode, setCompactMode] = useState(false);
 
-    // تحديث الأعمدة المتاحة عند تغيير الورقة المختارة
+    // تحديث الأعمدة المتاحة عند تغيير الورقة المختارة من إكسل
     useEffect(() => {
         if (workbookRef && selectedSheetName) {
             const { headers, data } = getSheetHeadersAndData(workbookRef, selectedSheetName);
             setAvailableHeaders(headers);
             setSheetData(data);
             
-            // اقتراح تلقائي للدرجة القصوى
+            // اقتراح تلقائي للدرجة القصوى بناء على القيم الموجودة في العمود
             const initialConfigs: Record<string, { maxScore: string, url: string }> = {};
             headers.forEach(header => {
                 let maxVal = 0;
