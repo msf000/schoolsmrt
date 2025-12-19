@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
     getStudents, getAttendance, getPerformance, saveAttendance, 
     addPerformance, deletePerformance, bulkAddPerformance, 
     bulkUpsertStudents, getUserTheme,
-    addStudent, updateStudent, deleteStudent
+    addStudent, updateStudent, deleteStudent,
+    downloadFromSupabase, initAutoSync
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 import Login from './components/Login';
@@ -40,6 +40,7 @@ const App: React.FC = () => {
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [theme, setTheme] = useState<UserTheme>(getUserTheme());
+    const [isCloudLoading, setIsCloudLoading] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -53,6 +54,8 @@ const App: React.FC = () => {
             }
         }
         loadData();
+        // بدء المزامنة السحابية فوراً عند التشغيل
+        syncCloudData();
     }, []);
 
     const loadData = () => {
@@ -61,12 +64,28 @@ const App: React.FC = () => {
         setPerformance(getPerformance());
     };
 
+    const syncCloudData = async () => {
+        setIsCloudLoading(true);
+        try {
+            // جلب أحدث البيانات من السحابة
+            await downloadFromSupabase();
+            loadData();
+            // تشغيل المزامنة الدورية
+            await initAutoSync();
+        } catch (e) {
+            console.error("Cloud Sync Failed:", e);
+        } finally {
+            setIsCloudLoading(false);
+        }
+    };
+
     const handleLoginSuccess = (user: any, rememberMe: boolean) => {
         setCurrentUser(user);
         if (rememberMe) {
             localStorage.setItem('current_user', JSON.stringify(user));
         }
         loadData();
+        syncCloudData();
         navigate('/');
     };
 
@@ -82,6 +101,11 @@ const App: React.FC = () => {
 
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
+            {isCloudLoading && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 shadow-xl animate-bounce">
+                    <Cloud className="animate-pulse" size={14}/> جاري تحديث البيانات من السحابة...
+                </div>
+            )}
             <Routes>
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v) => navigate(v)} />} />
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={(s) => { addStudent(s); loadData(); }} onUpdateStudent={(s) => { updateStudent(s); loadData(); }} onDeleteStudent={(id) => { deleteStudent(id); loadData(); }} onImportStudents={(data) => { bulkUpsertStudents(data); loadData(); }} currentUser={currentUser as SystemUser} />} />
@@ -119,7 +143,6 @@ const App: React.FC = () => {
                 ) : (
                     <Route path="/*" element={teacherRoutes} />
                 )}
-                {/* الشاشة الخاصة بالفصل */}
                 <Route path="/screen" element={<ClassroomScreen students={students} attendance={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
             </Routes>
         </div>
@@ -127,3 +150,5 @@ const App: React.FC = () => {
 };
 
 export default App;
+// استيراد Cloud من lucide-react (تأكد من إضافتها للأعلى)
+import { Cloud } from 'lucide-react';

@@ -1,7 +1,5 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-// Fix: Added Eye to lucide-react imports to resolve "Cannot find name 'Eye'" error
 import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone, MessageCircle, List, LayoutGrid, FilterX, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -27,12 +25,31 @@ const Attendance: React.FC<AttendanceProps> = ({
     currentUser 
 }) => {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedClass, setSelectedClass] = useState('');
+  
+  // استعادة الحالة من التخزين المحلي
+  const [selectedDate, setSelectedDate] = useState(() => {
+      return localStorage.getItem('att_selected_date') || new Date().toISOString().split('T')[0];
+  });
+  const [selectedClass, setSelectedClass] = useState(() => {
+      return localStorage.getItem('att_selected_class') || '';
+  });
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'GRID' | 'LIST'>('GRID');
-  const [filterMode, setFilterMode] = useState<'ALL' | 'ABSENT'>('ALL');
+  const [viewMode, setViewMode] = useState<'GRID' | 'LIST'>(() => {
+      return (localStorage.getItem('att_view_mode') as 'GRID' | 'LIST') || 'GRID';
+  });
+  const [filterMode, setFilterMode] = useState<'ALL' | 'ABSENT'>(() => {
+      return (localStorage.getItem('att_filter_mode') as 'ALL' | 'ABSENT') || 'ALL';
+  });
+  
   const [activeStudentMenu, setActiveStudentMenu] = useState<string | null>(null);
+
+  // حفظ الحالة عند كل تغيير
+  useEffect(() => {
+      localStorage.setItem('att_selected_date', selectedDate);
+      localStorage.setItem('att_selected_class', selectedClass);
+      localStorage.setItem('att_view_mode', viewMode);
+      localStorage.setItem('att_filter_mode', filterMode);
+  }, [selectedDate, selectedClass, viewMode, filterMode]);
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -142,7 +159,7 @@ const Attendance: React.FC<AttendanceProps> = ({
               const hasExcuse = !!record?.excuseNote;
 
               return (
-                <div key={student.id} className="relative">
+                <div key={student.id} className="relative group">
                     <div 
                         onClick={() => handleUpdate(student.id, status === AttendanceStatus.PRESENT ? AttendanceStatus.ABSENT : AttendanceStatus.PRESENT)}
                         className={`p-4 rounded-2xl border-2 transition-all cursor-pointer h-36 flex flex-col justify-between shadow-sm relative overflow-hidden ${
@@ -161,10 +178,10 @@ const Attendance: React.FC<AttendanceProps> = ({
                     {/* Floating Info Button */}
                     <button 
                         onClick={(e) => { e.stopPropagation(); navigate('/followup', { state: { studentId: student.id } }); }}
-                        className="absolute top-2 left-2 p-1 bg-white/50 hover:bg-white rounded-full text-gray-400 hover:text-primary transition-all opacity-0 group-hover:opacity-100"
+                        className="absolute top-2 left-2 p-1.5 bg-white/80 hover:bg-white rounded-full text-gray-400 hover:text-primary transition-all opacity-0 group-hover:opacity-100 shadow-sm"
                         title="ملف الطالب"
                     >
-                        <Eye size={12}/>
+                        <Eye size={14}/>
                     </button>
                 </div>
               );

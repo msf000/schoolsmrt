@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, AttendanceRecord, AttendanceStatus, Assignment } from '../types';
 import { formatDualDate } from '../services/dateService';
@@ -20,8 +19,6 @@ interface PerformanceProps {
   currentUser?: SystemUser | null;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
-
 const Performance: React.FC<PerformanceProps> = ({ students, performance, attendance = [], onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
   const navigate = useNavigate();
   if (!students || !performance) {
@@ -30,38 +27,37 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
   const isManager = currentUser?.role === 'SCHOOL_MANAGER';
 
-  const [activeTab, setActiveTab] = useState<'ENTRY' | 'BULK' | 'LOG' | 'ANALYTICS'>(isManager ? 'LOG' : 'BULK');
+  // استعادة الحالة من التخزين المحلي
+  const [activeTab, setActiveTab] = useState<'ENTRY' | 'BULK' | 'LOG' | 'ANALYTICS'>(() => {
+      const saved = localStorage.getItem('perf_active_tab');
+      if (isManager) return 'LOG';
+      return (saved as any) || 'BULK';
+  });
 
-  // Single Entry State
-  const [studentId, setStudentId] = useState('');
-  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
-  
+  // Bulk Specific State
+  const [bulkClass, setBulkClass] = useState(() => localStorage.getItem('perf_bulk_class') || '');
+  const [logClass, setLogClass] = useState(() => localStorage.getItem('perf_log_class') || '');
+
   // Shared/Bulk State
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
-  
   const [subject, setSubject] = useState('رياضيات');
   const [title, setTitle] = useState('');
   const [score, setScore] = useState('');
   const [maxScore, setMaxScore] = useState('10');
-  const [notes, setNotes] = useState('');
   const [category, setCategory] = useState<PerformanceCategory>('HOMEWORK');
-  
-  // Bulk Specific State
   const [bulkScores, setBulkScores] = useState<Record<string, string>>({});
-  const [bulkGrade, setBulkGrade] = useState('');
-  const [bulkClass, setBulkClass] = useState('');
+  const [notes, setNotes] = useState('');
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [studentId, setStudentId] = useState('');
 
   const [isSuccess, setIsSuccess] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
 
-  // Filter State for Log/Entry
-  const [entryGrade, setEntryGrade] = useState('');
+  // Filter State
   const [entryClass, setEntryClass] = useState('');
-
   const [logSearch, setLogSearch] = useState('');
-  const [logClass, setLogClass] = useState('');
   const [logSubject, setLogSubject] = useState('');
   const [logDateStart, setLogDateStart] = useState('');
   const [logDateEnd, setLogDateEnd] = useState('');
@@ -74,6 +70,13 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
   const [analyticsSubject, setAnalyticsSubject] = useState('');
   const [analyticsExam, setAnalyticsExam] = useState('');
 
+  // حفظ الحالة تلقائياً
+  useEffect(() => {
+      localStorage.setItem('perf_active_tab', activeTab);
+      localStorage.setItem('perf_bulk_class', bulkClass);
+      localStorage.setItem('perf_log_class', logClass);
+  }, [activeTab, bulkClass, logClass]);
+
   useEffect(() => {
       const loadedTerms = getAcademicTerms(currentUser?.id);
       setTerms(loadedTerms);
@@ -81,10 +84,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       if (current) setSelectedTermId(current.id);
       else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
       
-      // Load Assignments
       const allAssignments = getAssignments('ALL', currentUser?.id, true);
       setAssignments(allAssignments);
-
   }, [currentUser, activeTab]); 
 
   const handleAssignmentChange = (id: string) => {
@@ -93,15 +94,13 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       if (assign) {
           setTitle(assign.title);
           setMaxScore(assign.maxScore.toString());
-          setCategory(assign.category as PerformanceCategory); // Fix: Added explicit casting
+          setCategory(assign.category as PerformanceCategory);
       } else {
           setTitle('');
           setMaxScore('10');
       }
   };
 
-  const uniqueGrades = useMemo(() => Array.from(new Set(students.map(s => s.gradeLevel).filter(Boolean))), [students]);
-  
   const uniqueClasses = useMemo(() => {
       const classes = new Set<string>();
       students.forEach(s => s.className && classes.add(s.className));
@@ -110,77 +109,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       return Array.from(classes).sort();
   }, [students, currentUser]);
 
-  const uniqueSubjects = useMemo(() => {
-      const subs = new Set<string>();
-      performance.forEach(p => p.subject && subs.add(p.subject));
-      return Array.from(subs).sort();
-  }, [performance]);
-
-  const filteredStudentsEntry = useMemo(() => {
-    return students.filter(student => {
-        if (entryClass && student.className !== entryClass) return false;
-        if (entryGrade && student.gradeLevel !== entryGrade) return false;
-        return true;
-    });
-  }, [students, entryGrade, entryClass]);
-
   const filteredStudentsBulk = useMemo(() => {
       if (!bulkClass) return [];
       return students.filter(s => s.className === bulkClass).sort((a,b) => a.name.localeCompare(b.name));
   }, [students, bulkClass]);
-
-  const isSelectedStudentAbsent = useMemo(() => {
-      if (!studentId) return false;
-      const today = new Date().toISOString().split('T')[0];
-      const record = attendance.find(a => a.studentId === studentId && a.date === today);
-      return record && record.status === AttendanceStatus.ABSENT;
-  }, [studentId, attendance]);
-
-  const filteredAnalyticsPerformance = useMemo(() => {
-      const activeTerm = terms.find(t => t.id === selectedTermId);
-      if (!activeTerm) return performance;
-      return performance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
-  }, [performance, selectedTermId, terms]);
-
-  const distinctExamTitles = useMemo(() => Array.from(new Set(filteredAnalyticsPerformance.map(p => p.title))), [filteredAnalyticsPerformance]);
-
-  const analyticsData = useMemo(() => {
-      if (!analyticsExam) return null;
-      const relevantRecords = filteredAnalyticsPerformance.filter(p => p.title === analyticsExam && (!analyticsSubject || p.subject === analyticsSubject));
-      if (relevantRecords.length === 0) return null;
-
-      const scores = relevantRecords.map(r => ({ score: r.score, max: r.maxScore, studentId: r.studentId }));
-      const avgScore = scores.reduce((a, b) => a + b.score, 0) / scores.length;
-      const maxAchieved = Math.max(...scores.map(s => s.score));
-      const minAchieved = Math.min(...scores.map(s => s.score));
-      const totalPossible = scores[0].max; 
-
-      const dist = [0, 0, 0, 0, 0];
-      scores.forEach(s => {
-          const pct = s.score / s.max;
-          if (pct >= 0.9) dist[4]++;
-          else if (pct >= 0.8) dist[3]++;
-          else if (pct >= 0.7) dist[2]++;
-          else if (pct >= 0.6) dist[1]++;
-          else dist[0]++;
-      });
-
-      const chartData = [
-          { name: 'ضعيف', value: dist[0] },
-          { name: 'مقبول', value: dist[1] },
-          { name: 'جيد', value: dist[2] },
-          { name: 'جيد جداً', value: dist[3] },
-          { name: 'ممتاز', value: dist[4] },
-      ];
-
-      return { avgScore, maxAchieved, minAchieved, totalPossible, chartData, count: scores.length };
-  }, [filteredAnalyticsPerformance, analyticsExam, analyticsSubject]);
-
-  useEffect(() => {
-      if (filteredStudentsEntry.length > 0 && !filteredStudentsEntry.find(s => s.id === studentId)) {
-          setStudentId(filteredStudentsEntry[0].id);
-      }
-  }, [filteredStudentsEntry, studentId]);
 
   const filteredHistory = useMemo(() => {
       const activeTerm = terms.find(t => t.id === selectedTermId);
@@ -203,10 +135,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
     e.preventDefault();
     if (!studentId || !title || !score) return;
 
-    if (isSelectedStudentAbsent && !editingRecordId) {
-        if (!confirm('تنبيه: الطالب المحدد مسجل كـ "غائب" اليوم. هل تريد الاستمرار في رصد الدرجة؟')) return;
-    }
-
     const record: PerformanceRecord = {
       id: editingRecordId || Date.now().toString(),
       studentId,
@@ -221,7 +149,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
     };
 
     onAddPerformance(record);
-    
     if (editingRecordId) {
         setEditingRecordId(null);
         setActiveTab('LOG');
@@ -232,47 +159,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
     }
   };
 
-  const handleEditRecord = (record: PerformanceRecord) => {
-      setEditingRecordId(record.id);
-      setStudentId(record.studentId);
-      setSubject(record.subject);
-      setTitle(record.title);
-      setScore(record.score.toString());
-      setMaxScore(record.maxScore.toString());
-      setCategory(record.category as PerformanceCategory);
-      setNotes(record.notes || '');
-      
-      if (record.notes && assignments.some(a => a.id === record.notes)) {
-          setSelectedAssignmentId(record.notes);
-      } else {
-          setSelectedAssignmentId('');
-      }
-
-      const student = students.find(s => s.id === record.studentId);
-      if (student) {
-          setEntryGrade(student.gradeLevel || '');
-          setEntryClass(student.className || '');
-      }
-
-      setActiveTab('ENTRY');
-  };
-
-  const handleBulkScoreChange = (sid: string, val: string) => {
-      setBulkScores(prev => ({ ...prev, [sid]: val }));
-  };
-
-  const handleFillAll = () => {
-      const newScores: Record<string, string> = {};
-      filteredStudentsBulk.forEach(s => newScores[s.id] = maxScore);
-      setBulkScores(newScores);
-  };
-
   const handleBulkSubmit = () => {
       if (!title || !subject || !bulkClass) return alert('الرجاء تعبئة بيانات التقييم (العنوان، المادة، الفصل)');
-      
       const records: PerformanceRecord[] = [];
       const today = new Date().toISOString().split('T')[0];
-
       filteredStudentsBulk.forEach(s => {
           const sScore = bulkScores[s.id];
           if (sScore !== undefined && sScore !== '') {
@@ -290,7 +180,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
               });
           }
       });
-
       if (records.length === 0) return alert('الرجاء إدخال درجة واحدة على الأقل');
       onAddPerformance(records);
       setBulkScores({});
@@ -298,32 +187,16 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       setTimeout(() => setIsSuccess(false), 3000);
   };
 
-  const handleDelete = (id: string) => {
-      if(confirm('هل أنت متأكد من حذف هذا السجل؟')) {
-          onDeletePerformance(id);
-      }
-  };
-
-  const handleExportExcel = () => {
-      if (filteredHistory.length === 0) return alert('لا توجد بيانات للتصدير');
-      const dataToExport = filteredHistory.map(p => {
-          const student = students.find(s => s.id === p.studentId);
-          return {
-              'التاريخ': p.date,
-              'الطالب': student?.name || 'غير معروف',
-              'الفصل': student?.className || '-',
-              'المادة': p.subject,
-              'عنوان التقييم': p.title,
-              'الدرجة': p.score,
-              'الدرجة العظمى': p.maxScore,
-              'التصنيف': p.category,
-              'ملاحظات': p.notes || ''
-          };
-      });
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "سجل الدرجات");
-      XLSX.writeFile(wb, `Grades_Log_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const handleEditRecord = (record: PerformanceRecord) => {
+      setEditingRecordId(record.id);
+      setStudentId(record.studentId);
+      setSubject(record.subject);
+      setTitle(record.title);
+      setScore(record.score.toString());
+      setMaxScore(record.maxScore.toString());
+      setCategory(record.category as PerformanceCategory);
+      setNotes(record.notes || '');
+      setActiveTab('ENTRY');
   };
 
   return (
@@ -354,10 +227,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                     <button onClick={() => setIsImportModalOpen(true)} className="bg-white hover:bg-gray-50 text-gray-700 border px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold whitespace-nowrap">
                         <FileSpreadsheet size={18} />
                         <span className="hidden md:inline">استيراد Excel</span>
-                    </button>
-                    <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-2 rounded-lg flex items-center gap-2 shadow-sm text-sm font-bold whitespace-nowrap">
-                        <Cloud size={18} />
-                        <span className="hidden md:inline">استيراد AI</span>
                     </button>
                 </>
             )}
@@ -408,9 +277,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                               <tr>
                                   <th className="p-3 w-12 text-center">#</th>
                                   <th className="p-3">اسم الطالب</th>
-                                  <th className="p-3 w-40 text-center">
-                                      <button onClick={handleFillAll} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">الكل</button>
-                                  </th>
+                                  <th className="p-3 w-40 text-center">الدرجة</th>
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
@@ -428,34 +295,32 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                                       <td className="p-2 text-center">
                                           <input 
                                               type="number" 
-                                              className="w-20 p-2 border rounded text-center outline-none"
+                                              className="w-20 p-2 border rounded text-center outline-none focus:ring-2 focus:ring-primary"
                                               value={bulkScores[student.id] || ''}
-                                              onChange={(e) => handleBulkScoreChange(student.id, e.target.value)}
+                                              onChange={(e) => setBulkScores(prev => ({ ...prev, [student.id]: e.target.value }))}
                                           />
                                       </td>
                                   </tr>
                               ))}
                           </tbody>
                       </table>
-                  ) : <div className="p-10 text-center text-gray-400">اختر فصلاً للعرض</div>}
+                  ) : <div className="p-10 text-center text-gray-400 font-bold italic">الرجاء اختيار فصل للبدء بالرصد</div>}
               </div>
 
               <div className="mt-4 pt-4 border-t flex justify-end">
-                  <button onClick={handleBulkSubmit} className="bg-primary text-white px-8 py-3 rounded-xl font-bold">حفظ الدرجات</button>
+                  <button onClick={handleBulkSubmit} className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg active:scale-95">حفظ الدرجات في السحابة</button>
               </div>
           </div>
       )}
 
-      {/* باقي تبويبات الواجهة كما هي (LOG, ANALYTICS, ENTRY) */}
       {activeTab === 'LOG' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden animate-fade-in">
               <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 items-center justify-between print:hidden">
                   <div className="flex flex-wrap gap-2 text-sm items-center flex-1">
-                      <select value={logClass} onChange={e => setLogClass(e.target.value)} className="p-1 border rounded bg-white font-bold">
+                      <select value={logClass} onChange={e => setLogClass(e.target.value)} className="p-1 border rounded bg-white font-bold text-gray-700">
                           <option value="">الفصول: الكل</option>
                           {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <button onClick={handleExportExcel} className="bg-green-600 text-white px-3 py-1 rounded flex items-center gap-1 font-bold text-xs"><Download size={14}/> إكسل</button>
                       <button onClick={() => window.print()} className="bg-gray-800 text-white px-3 py-1 rounded flex items-center gap-1 font-bold text-xs"><Printer size={14}/> طباعة</button>
                   </div>
               </div>
@@ -475,31 +340,24 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                               const s = students.find(x => x.id === rec.studentId);
                               return (
                                   <tr key={rec.id} className="hover:bg-gray-50">
-                                      <td className="p-3 font-mono text-xs">{rec.date}</td>
-                                      <td className="p-3">
-                                        <span 
-                                            onClick={() => navigate('/followup', { state: { studentId: rec.studentId } })}
-                                            className="font-bold cursor-pointer hover:text-primary hover:underline"
-                                        >
-                                            {s?.name}
-                                        </span>
-                                      </td>
-                                      <td className="p-3 font-medium">{rec.title}</td>
-                                      <td className="p-3 text-center font-black">{rec.score} / {rec.maxScore}</td>
+                                      <td className="p-3 font-mono text-xs text-gray-400">{rec.date}</td>
+                                      <td className="p-3 font-bold text-gray-800 cursor-pointer hover:text-primary" onClick={() => navigate('/followup', { state: { studentId: rec.studentId } })}>{s?.name}</td>
+                                      <td className="p-3 text-gray-600">{rec.title}</td>
+                                      <td className="p-3 text-center font-black text-indigo-700">{rec.score} / {rec.maxScore}</td>
                                       <td className="p-3 text-center flex justify-center gap-2">
-                                          <button onClick={() => handleEditRecord(rec)} className="text-blue-500"><Edit size={16}/></button>
-                                          <button onClick={() => handleDelete(rec.id)} className="text-red-500"><Trash2 size={16}/></button>
+                                          <button onClick={() => handleEditRecord(rec)} className="text-blue-500 hover:bg-blue-50 p-1 rounded"><Edit size={16}/></button>
+                                          <button onClick={() => {if(confirm('حذف؟')) onDeletePerformance(rec.id)}} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
                                       </td>
                                   </tr>
                               );
                           })}
+                          {filteredHistory.length === 0 && <tr><td colSpan={5} className="p-20 text-center text-gray-300 font-bold italic">لا توجد سجلات مطابقة لهذه الفترة</td></tr>}
                       </tbody>
                   </table>
               </div>
           </div>
       )}
 
-      {/* مودالات الاستيراد */}
       {isImportModalOpen && (
           <div className="fixed inset-0 z-[100] bg-white">
               <DataImport existingStudents={students} onImportStudents={() => {}} onImportAttendance={() => {}} onImportPerformance={(recs) => { onImportPerformance(recs); setIsImportModalOpen(false); }} forcedType="PERFORMANCE" onClose={() => setIsImportModalOpen(false)} currentUser={currentUser} />
