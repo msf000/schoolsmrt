@@ -216,7 +216,6 @@ export const saveMessage = (m: MessageLog) => { const list = get<MessageLog>(KEY
 // --- أخرى ---
 export const getSchools = (): School[] => get<School>(KEYS.SCHOOLS);
 export const addSchool = async (s: School) => { const list = getSchools(); list.push(s); save(KEYS.SCHOOLS, list); };
-// Fix: Added missing updateSchool function
 export const updateSchool = (s: School) => { const list = getSchools(); const idx = list.findIndex(x => x.id === s.id); if (idx !== -1) { list[idx] = s; save(KEYS.SCHOOLS, list); } };
 export const deleteSchool = (id: string) => { save(KEYS.SCHOOLS, getSchools().filter(s => s.id !== id)); };
 

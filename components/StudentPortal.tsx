@@ -85,7 +85,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     {navItems.map(item => (
                         <button key={item.path} onClick={() => navigate(item.path)} className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === item.path ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-[1.02]' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}`}>
                             <div className="flex items-center gap-4"><item.icon size={22}/> <span className="text-sm">{item.label}</span></div>
-                            {item.badge ? <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse">{item.badge}</span> : null}
+                            {item.badge ? <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black animate-pulse">{item.badge}</span> : null}
                         </button>
                     ))}
                     <button onClick={onLogout} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-red-500 hover:bg-red-50 mt-10 font-black transition-colors"><LogOut size={22}/> خروج</button>

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { saveFormsDetailedResult, getFormsDetailedResults, deleteFormsDetailedResult, getReportHeaderConfig } from '../services/storageService';
 import { getWorkbookStructure, getSheetHeadersAndData } from '../services/excelService';
@@ -126,7 +125,6 @@ const DiagnosticAnalysis = ({ record, data, header }: any) => {
     );
 };
 
-// Fix: Added missing LearningOutcomesReport component
 const LearningOutcomesReport = ({ record, data, header }: any) => {
     return (
         <div className="bg-white p-8 border-2 border-black shadow-sm rounded-xl animate-fade-in print:border-none print:p-0 print:shadow-none">
@@ -168,7 +166,7 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                         <div className="p-8 bg-green-50 rounded-3xl border-2 border-green-100 text-center shadow-inner">
                             <p className="text-xs font-black text-green-600 mb-2 uppercase">إتقان الاختبار المستهدف</p>
                             <h3 className="text-6xl font-black text-green-900">{Math.round(data.dataB.overallMasteryPct)}%</h3>
-                            <p className="text-[10px] text-green-400 mt-3 font-bold">{recB.examTitle}</p>
+                            <p className="text-[10px] text-blue-400 mt-3 font-bold">{recB.examTitle}</p>
                         </div>
                         <div className={`p-8 rounded-3xl border-2 text-center shadow-inner ${overallGrowth >= 0 ? 'bg-purple-50 border-purple-100' : 'bg-red-50 border-red-100'}`}>
                             <p className={`text-xs font-black mb-2 uppercase ${overallGrowth >= 0 ? 'text-purple-600' : 'text-red-600'}`}>نسبة التغير (Growth)</p>
@@ -177,21 +175,6 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                             </h3>
                             <p className="text-[10px] opacity-60 mt-3 font-bold">مؤشر التحسن الكلي للفصل</p>
                         </div>
-                    </div>
-                    
-                    <div className="mt-10 p-6 border-2 border-dashed border-gray-200 rounded-3xl text-center">
-                         <h4 className="text-gray-400 font-bold text-sm mb-4">التحليل التفصيلي للنمو (Individual Student Growth)</h4>
-                         <div className="h-[300px] w-full">
-                            <ResponsiveContainer>
-                                <ReBarChart data={studentComparison.slice(0, 15)}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" hide />
-                                    <YAxis domain={[0, 100]} />
-                                    <Tooltip />
-                                    <ReBar dataKey="growth" fill="#8884d8" radius={[4,4,0,0]} />
-                                </ReBarChart>
-                            </ResponsiveContainer>
-                         </div>
                     </div>
                 </div>
             )}
@@ -232,6 +215,12 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
     );
 };
 
+// Fix: Defined the missing Props interface
+interface Props {
+    students: Student[];
+    currentUserId: string;
+}
+
 const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [mainTab, setMainTab] = useState<'NEW' | 'HISTORY' | 'COMPARE'>('HISTORY');
     const [selectedRecord, setSelectedRecord] = useState<FormsDetailedResult | null>(null);
@@ -239,7 +228,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     const [loading, setLoading] = useState(false);
     const [fileData, setFileData] = useState<any[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
-    const [hiddenHeaders, setHiddenHeaders] = useState<Set<string>>(new Set());
     const [isSaving, setIsSaving] = useState(false);
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [examTitle, setExamTitle] = useState('');
@@ -258,7 +246,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     }, [currentUserId, isSaving, mainTab]);
 
     const getQuestionHeaders = (allHeaders: string[]) => {
-        return allHeaders.filter(h => (h.includes('النقاط') || h.includes('Points')) && !h.includes('إجمالي') && !h.includes('Total') && !hiddenHeaders.has(h));
+        return allHeaders.filter(h => (h.includes('النقاط') || h.includes('Points')) && !h.includes('إجمالي') && !h.includes('Total'));
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -300,7 +288,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     };
 
     const handleFinalSave = () => {
-        if (!examTitle || !currentUserId) return alert('الرجاء إدخال عنوان الكشف.');
+        if (!examTitle || !currentUserId) return alert('الرجاء إدخل عنوان الكشف.');
         setIsSaving(true);
         try {
             const studentResponses: Record<string, any> = {};
@@ -388,14 +376,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                         <div key={idx} className="bg-gray-50 rounded-2xl border p-4 border-r-4 border-r-purple-500">
                                             <p className="text-xs font-black text-gray-400 mb-2 truncate">س{idx+1}: {h}</p>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div className="flex items-center gap-2 bg-white p-2 rounded-lg border">
-                                                    <Target size={14} className="text-indigo-500"/>
-                                                    <input className="flex-1 text-xs font-bold outline-none" placeholder="الناتج التعليمي..." value={outcomesMapping[h] || ''} onChange={e => setOutcomesMapping({...outcomesMapping, [h]: e.target.value})} />
-                                                </div>
-                                                <div className="flex items-center gap-2 bg-white p-2 rounded-lg border">
-                                                    <Bookmark size={14} className="text-teal-500"/>
-                                                    <input className="flex-1 text-xs font-bold outline-none" placeholder="الوحدة / الدرس..." value={unitsMapping[h] || ''} onChange={e => setUnitsMapping({...unitsMapping, [h]: e.target.value})} />
-                                                </div>
+                                                <input className="w-full p-2 border rounded-xl text-xs font-bold" placeholder="الناتج التعليمي..." value={outcomesMapping[h] || ''} onChange={e => setOutcomesMapping({...outcomesMapping, [h]: e.target.value})} />
+                                                <input className="w-full p-2 border rounded-xl text-xs font-bold" placeholder="الوحدة / الدرس..." value={unitsMapping[h] || ''} onChange={e => setUnitsMapping({...unitsMapping, [h]: e.target.value})} />
                                             </div>
                                         </div>
                                     ))}
@@ -430,12 +412,6 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 <button className="mt-6 w-full py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-100">فتح التقارير <ArrowRight size={14}/></button>
                             </div>
                         ))}
-                        {history.length === 0 && (
-                            <div className="col-span-full py-32 text-center text-gray-300 border-4 border-dashed border-gray-100 rounded-[3rem]">
-                                <FileSpreadsheet size={80} className="mx-auto mb-4 opacity-10"/>
-                                <p className="text-xl font-bold">لا يوجد سجل نتائج سابق. ابدأ بتحليل جديد!</p>
-                            </div>
-                        )}
                     </div>
                 ) : (
                     <div className="flex-1 flex flex-col gap-4 animate-slide-up overflow-hidden">
@@ -504,7 +480,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-20"><GitCompare size={150}/><p className="text-2xl font-black mt-4 text-center">اختر اختبارين للمقارنة وعرض مؤشرات النمو التعليمي</p></div>
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-20"><GitCompare size={150}/><p className="text-2xl font-black mt-4 text-center">اختر اختبارين للمقارنة</p></div>
                     )}
                 </div>
             )}
