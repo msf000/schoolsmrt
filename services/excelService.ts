@@ -162,9 +162,11 @@ export const processMappedData = (
             const name = getVal('name');
             const nationalId = getVal('nationalId');
             if (name && nationalId) { // Require Both Name and ID for students logic
+                // Fix: Added required 'role' property
                 results.push({
                     id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                     name: name,
+                    role: 'STUDENT',
                     nationalId: nationalId,
                     gradeLevel: getVal('gradeLevel') || 'غير محدد',
                     className: getVal('className') || '',

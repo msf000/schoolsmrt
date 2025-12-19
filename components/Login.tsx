@@ -104,7 +104,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             if (studentUser) {
                 setStatusMessage('تحميل ملف الطالب...');
                 if (isSupabaseConfigured()) await initAutoSync();
-                onLoginSuccess(studentUser, rememberMe);
+                // نضمن وجود خاصية role لتمييز الطالب في نظام المسارات
+                onLoginSuccess({ ...studentUser, role: 'STUDENT' }, rememberMe);
                 setLoading(false);
                 return;
             } else {

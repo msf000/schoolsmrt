@@ -88,9 +88,11 @@ const Students: React.FC<StudentsProps> = ({
     e.preventDefault();
     if (!formData.name || !formData.nationalId) return;
 
+    // Fix: Added required 'role' property to Student object
     const studentData: Student = {
       id: editingStudent ? editingStudent.id : Date.now().toString(),
       name: formData.name,
+      role: 'STUDENT',
       nationalId: formData.nationalId,
       classId: formData.className,
       gradeLevel: formData.gradeLevel,

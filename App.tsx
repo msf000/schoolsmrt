@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -42,14 +43,13 @@ const App: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Initial load of user and data
     useEffect(() => {
         const savedUser = localStorage.getItem('current_user');
         if (savedUser) {
             try {
                 setCurrentUser(JSON.parse(savedUser));
             } catch (e) {
-                console.error("Failed to parse saved user", e);
+                console.error("Failed to parse user", e);
             }
         }
         loadData();
@@ -80,45 +80,26 @@ const App: React.FC = () => {
         return <Navigate to="/login" replace />;
     }
 
-    const onImportStudents = (data: Student[], key?: keyof Student, strategy?: any, fields?: string[]) => {
-        bulkUpsertStudents(data, key as any);
-        loadData();
-    };
-
-    const onImportPerformance = (recs: PerformanceRecord[]) => {
-        bulkAddPerformance(recs);
-        loadData();
-    };
-
-    const onImportAttendance = (recs: AttendanceRecord[]) => {
-        saveAttendance(recs);
-        loadData();
-    };
-
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             <Routes>
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v) => navigate(v)} />} />
-                <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={(s) => { addStudent(s); loadData(); }} onUpdateStudent={(s) => { updateStudent(s); loadData(); }} onDeleteStudent={(id) => { deleteStudent(id); loadData(); }} onImportStudents={onImportStudents} currentUser={currentUser as SystemUser} />} />
+                <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={(s) => { addStudent(s); loadData(); }} onUpdateStudent={(s) => { updateStudent(s); loadData(); }} onDeleteStudent={(id) => { deleteStudent(id); loadData(); }} onImportStudents={(data) => { bulkUpsertStudents(data); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={(rec) => { addPerformance(rec); loadData(); }} onImportPerformance={onImportPerformance} onDeletePerformance={(id) => { deletePerformance(id); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={(rec) => { addPerformance(rec); loadData(); }} onImportPerformance={(recs) => { bulkAddPerformance(recs); loadData(); }} onDeletePerformance={(id) => { deletePerformance(id); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/reports" element={<AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                
-                {/* Fixed routes based on snippet context */}
-                <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={onImportStudents} onImportPerformance={onImportPerformance} onImportAttendance={onImportAttendance} currentUser={currentUser as SystemUser} onUpdateTheme={setTheme}/>} />
+                <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={setTheme}/>} />
                 <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }}/>} />
                 <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
-                
                 <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} onImportAttendance={onImportAttendance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/screen" element={<ClassroomScreen students={students} attendance={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={onImportPerformance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} onImportAttendance={(recs)=>{ saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={(recs)=>{ bulkAddPerformance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
-                <Route path="/planning" element={<LearningLab students={students} currentUserId={currentUser?.id} />} />
+                <Route path="/lab" element={<LearningLab students={students} currentUserId={currentUser?.id} />} />
                 <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser as SystemUser} />} />
                 <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
-                <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
+                <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} onNavigateToAttendance={() => navigate('/attendance')} />} />
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -138,6 +119,8 @@ const App: React.FC = () => {
                 ) : (
                     <Route path="/*" element={teacherRoutes} />
                 )}
+                {/* الشاشة الخاصة بالفصل */}
+                <Route path="/screen" element={<ClassroomScreen students={students} attendance={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
             </Routes>
         </div>
     );

@@ -188,6 +188,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                 const students: Student[] = parsedData.map(d => ({
                     id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                     name: d.name || 'طالب مجهول',
+                    role: 'STUDENT',
                     nationalId: d.nationalId,
                     gradeLevel: d.gradeLevel,
                     phone: d.phone,

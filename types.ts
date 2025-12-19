@@ -4,6 +4,7 @@ export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC'
 export interface Student {
   id: string;
   name: string;
+  role: 'STUDENT'; // تم جعلها إلزامية لحل أخطاء اتحاد الأنواع
   nationalId?: string;
   classId?: string;
   schoolId?: string;
@@ -25,11 +26,11 @@ export interface Student {
 export interface FormsQuestionAnalysis {
     id: string;
     text: string;
-    learningOutcome: string; // ناتج التعلم المرتبط بالسؤال
-    unitName?: string; // مسمى الوحدة أو الدرس
+    learningOutcome: string;
+    unitName?: string;
     successRate: number;
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    commonErrors: [string, number][]; // [الإجابة الخاطئة، عدد الطلاب]
+    commonErrors: [string, number][];
 }
 
 export interface FormsDetailedResult {
@@ -39,10 +40,10 @@ export interface FormsDetailedResult {
     date: string;
     teacherId: string;
     questions: FormsQuestionAnalysis[];
-    studentResponses: Record<string, { // studentId
+    studentResponses: Record<string, {
         score: number;
         total: number;
-        answers: Record<string, string>; // نص السؤال -> إجابة الطالب
+        answers: Record<string, string>;
     }>;
 }
 
@@ -92,7 +93,20 @@ export interface AcademicTerm { id: string; name: string; startDate: string; end
 export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
 export interface Assignment { id: string; title: string; category: PerformanceCategory; maxScore: number; url?: string; isVisible: boolean; orderIndex?: number; sourceMetadata?: string; teacherId?: string; termId?: string; periodId?: string; classId?: string; }
 export interface PerformanceRecord { id: string; studentId: string; subject: string; title: string; category?: string; score: number; maxScore: number; date: string; notes?: string; url?: string; createdById?: string; }
-export interface SystemUser { id: string; name: string; email: string; nationalId?: string; password?: string; role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; schoolId?: string; status: 'ACTIVE' | 'INACTIVE'; isDemo?: boolean; phone?: string; }
+
+export interface SystemUser { 
+  id: string; 
+  name: string; 
+  email: string; 
+  nationalId?: string; 
+  password?: string; 
+  role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; 
+  schoolId?: string; 
+  status: 'ACTIVE' | 'INACTIVE'; 
+  isDemo?: boolean; 
+  phone?: string; 
+}
+
 export interface CustomTable { id: string; name: string; createdAt: string; columns: string[]; rows: any[]; sourceUrl?: string; lastUpdated?: string; teacherId?: string; }
 export interface ReportHeaderConfig { schoolName: string; educationAdmin: string; teacherName: string; schoolManager: string; academicYear: string; term: string; logoBase64?: string; signatureBase64?: string; teacherId?: string; }
 export interface MessageLog { id: string; studentId: string; studentName: string; parentPhone?: string; type: 'WHATSAPP' | 'SMS' | 'EMAIL'; content: string; status: 'SENT' | 'FAILED'; date: string; sentBy: string; teacherId?: string; }
