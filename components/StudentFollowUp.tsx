@@ -30,38 +30,54 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const navigate = useNavigate();
     const location = useLocation();
     
-    const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+    // --- الاستعادة من التخزين المحلي لضمان البقاء في نفس المكان عند التحديث ---
+    const [selectedStudentId, setSelectedStudentId] = useState<string>(() => {
+        const saved = localStorage.getItem('sf_selected_student');
+        if (location.state && (location.state as any).studentId) return (location.state as any).studentId;
+        return saved || '';
+    });
+
+    const [activeTab, setActiveTab] = useState<FollowUpTab>(() => {
+        return (localStorage.getItem('sf_active_tab') as FollowUpTab) || 'SUMMARY';
+    });
+
+    const [selectedTermId, setSelectedTermId] = useState<string>(() => {
+        return localStorage.getItem('sf_term_id') || '';
+    });
+
+    const [selectedPeriodId, setSelectedPeriodId] = useState<string>(() => {
+        return localStorage.getItem('sf_period_id') || '';
+    });
+
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [activeTab, setSelectedTab] = useState<FollowUpTab>('SUMMARY');
-    const [selectedTermId, setSelectedTermId] = useState<string>('');
-    const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [aiReport, setAiReport] = useState<string>('');
     const [isAiLoading, setIsAiLoading] = useState(false);
 
+    // --- حفظ التغييرات فور حدوثها ---
+    useEffect(() => {
+        localStorage.setItem('sf_selected_student', selectedStudentId);
+        localStorage.setItem('sf_active_tab', activeTab);
+        localStorage.setItem('sf_term_id', selectedTermId);
+        localStorage.setItem('sf_period_id', selectedPeriodId);
+    }, [selectedStudentId, activeTab, selectedTermId, selectedPeriodId]);
+
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
-        const current = loadedTerms.find(t => t.isCurrent) || loadedTerms[0];
-        if (current) setSelectedTermId(current.id);
-
-        if (location.state && (location.state as any).studentId) {
-            const incomingId = (location.state as any).studentId;
-            const exists = students.find(s => s.id === incomingId);
-            if (exists) { 
-                setSelectedStudentId(incomingId); 
-                setSearchTerm(exists.name); 
-            }
+        if (!selectedTermId) {
+            const current = loadedTerms.find(t => t.isCurrent) || loadedTerms[0];
+            if (current) setSelectedTermId(current.id);
         }
-    }, [currentUser, students, location.state]);
+    }, [currentUser]);
 
     const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
     const activePeriods = useMemo(() => activeTerm?.periods || [], [activeTerm]);
     const activePeriod = useMemo(() => activePeriods.find(p => p.id === selectedPeriodId), [activePeriods, selectedPeriodId]);
 
-    // حساب البيانات بناءً على الفترة المختارة
+    // حساب البيانات بناءً على الفترة المختارة (فلترة زمنية دقيقة)
     const stats = useMemo(() => {
         if (!student) return null;
         
@@ -133,12 +149,12 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             {/* Header Controls */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-2xl border shadow-sm print:hidden">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => navigate('/students')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowRight size={20}/></button>
+                    <button onClick={() => navigate('/students')} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowRight size={20}/></button>
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">الملف الشامل للطالب</h2>
+                        <h2 className="text-xl font-bold text-gray-800">الملف التفاعلي للطالب</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <select 
-                                className="text-[10px] font-bold bg-gray-50 border rounded px-2 py-0.5 outline-none"
+                                className="text-[10px] font-bold bg-gray-50 border rounded px-2 py-0.5 outline-none cursor-pointer"
                                 value={selectedTermId}
                                 onChange={e => { setSelectedTermId(e.target.value); setSelectedPeriodId(''); }}
                             >
@@ -146,7 +162,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </select>
                             {activePeriods.length > 0 && (
                                 <select 
-                                    className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100 rounded px-2 py-0.5 outline-none"
+                                    className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100 rounded px-2 py-0.5 outline-none cursor-pointer"
                                     value={selectedPeriodId}
                                     onChange={e => setSelectedPeriodId(e.target.value)}
                                 >
@@ -160,7 +176,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                 <div className="relative flex-1 md:max-w-xs">
                     <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
                     <input 
-                        className="w-full pr-10 pl-4 py-2 border rounded-xl outline-none text-sm font-bold" 
+                        className="w-full pr-10 pl-4 py-2 border rounded-xl outline-none text-sm font-bold bg-gray-50 focus:bg-white transition-all" 
                         placeholder="ابحث عن طالب..." 
                         value={searchTerm} 
                         onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }} 
@@ -168,7 +184,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                     {isDropdownOpen && searchTerm && (
                         <div className="absolute top-full right-0 w-full bg-white border rounded-xl shadow-2xl mt-2 max-h-60 overflow-y-auto z-50">
                             {students.filter(s => s.name.includes(searchTerm)).map(s => (
-                                <div key={s.id} onClick={() => { setSelectedStudentId(s.id); setSearchTerm(s.name); setIsDropdownOpen(false); }} className="p-3 hover:bg-indigo-50 cursor-pointer border-b flex items-center gap-3 text-sm font-bold">{s.name}</div>
+                                <div key={s.id} onClick={() => { setSelectedStudentId(s.id); setSearchTerm(''); setIsDropdownOpen(false); }} className="p-3 hover:bg-indigo-50 cursor-pointer border-b flex items-center gap-3 text-sm font-bold">{s.name}</div>
                             ))}
                         </div>
                     )}
@@ -187,20 +203,20 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         </div>
                         <div className="flex gap-6 relative z-10">
-                            <StatMini label="المعدل العام" value={`${stats.gradeAvg}%`} color="text-indigo-600" />
+                            <StatMini label="المعدل للفترة" value={`${stats.gradeAvg}%`} color="text-indigo-600" />
                             <StatMini label="الانضباط" value={`${stats.attRate}%`} color="text-green-600" />
-                            <StatMini label="الغياب" value={stats.absent} color="text-red-500" />
+                            <StatMini label="أيام الغياب" value={stats.absent} color="text-red-500" />
                         </div>
                     </div>
 
                     {/* Navigation Tabs */}
                     <div className="flex bg-white rounded-2xl border p-1 mb-6 shrink-0 overflow-x-auto no-scrollbar">
-                        <TabBtn label="نظرة عامة" icon={<RadarIcon size={16}/>} active={activeTab==='SUMMARY'} onClick={()=>setSelectedTab('SUMMARY')}/>
-                        <TabBtn label="الواجبات" icon={<BookOpen size={16}/>} active={activeTab==='HOMEWORK'} onClick={()=>setSelectedTab('HOMEWORK')}/>
-                        <TabBtn label="الأنشطة" icon={<Sparkles size={16}/>} active={activeTab==='ACTIVITY'} onClick={()=>setSelectedTab('ACTIVITY')}/>
-                        <TabBtn label="الاختبارات" icon={<ClipboardList size={16}/>} active={activeTab==='EXAMS'} onClick={()=>setSelectedTab('EXAMS')}/>
-                        <TabBtn label="السلوك" icon={<Star size={16}/>} active={activeTab==='BEHAVIOR'} onClick={()=>setSelectedTab('BEHAVIOR')}/>
-                        <TabBtn label="Gemini AI" icon={<Bot size={16}/>} active={activeTab==='AI'} onClick={()=>setSelectedTab('AI')}/>
+                        <TabBtn label="نظرة عامة" icon={<RadarIcon size={16}/>} active={activeTab==='SUMMARY'} onClick={()=>setActiveTab('SUMMARY')}/>
+                        <TabBtn label="الواجبات" icon={<BookOpen size={16}/>} active={activeTab==='HOMEWORK'} onClick={()=>setActiveTab('HOMEWORK')}/>
+                        <TabBtn label="الأنشطة" icon={<Sparkles size={16}/>} active={activeTab==='ACTIVITY'} onClick={()=>setActiveTab('ACTIVITY')}/>
+                        <TabBtn label="الاختبارات" icon={<ClipboardList size={16}/>} active={activeTab==='EXAMS'} onClick={()=>setActiveTab('EXAMS')}/>
+                        <TabBtn label="السلوك" icon={<Star size={16}/>} active={activeTab==='BEHAVIOR'} onClick={()=>setActiveTab('BEHAVIOR')}/>
+                        <TabBtn label="Gemini AI" icon={<Bot size={16}/>} active={activeTab==='AI'} onClick={()=>setActiveTab('AI')}/>
                     </div>
 
                     {/* Content Area */}
@@ -234,7 +250,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         )}
 
-                        {/* Detailed Category Views (Homework, Activity, Exams) */}
+                        {/* Detailed Category Views */}
                         {(['HOMEWORK', 'ACTIVITY', 'EXAMS'] as FollowUpTab[]).includes(activeTab) && (
                             <div className="space-y-6 animate-fade-in">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -249,7 +265,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                         icon={<Activity className="text-blue-600"/>} 
                                     />
                                     <MetricCard 
-                                        label="أعلى درجة" 
+                                        label="أعلى درجة محققة" 
                                         value={Math.max(0, ...(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).map(p=>p.score))} 
                                         icon={<Award className="text-yellow-600"/>} 
                                     />
@@ -260,9 +276,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                         <thead className="bg-gray-50 font-bold border-b text-gray-600">
                                             <tr>
                                                 <th className="p-4">التاريخ</th>
-                                                <th className="p-4">المهمة / العنوان</th>
+                                                <th className="p-4">اسم المهمة</th>
                                                 <th className="p-4 text-center">الدرجة</th>
-                                                <th className="p-4 text-center">النسبة</th>
+                                                <th className="p-4 text-center">النسبة المئوية</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
@@ -298,35 +314,33 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                         <div className="flex-1">
                                             <div className="flex justify-between mb-1">
                                                 <span className={`font-bold text-sm ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'text-green-700' : 'text-red-700'}`}>
-                                                    {a.behaviorStatus === BehaviorStatus.POSITIVE ? 'مشاركة إيجابية / سلوك متميز' : 'ملاحظة سلوكية / تنبيه'}
+                                                    {a.behaviorStatus === BehaviorStatus.POSITIVE ? 'سلوك متميز / مشاركة' : 'ملاحظة سلوكية / تنبيه'}
                                                 </span>
                                                 <span className="text-[10px] text-gray-400 font-bold">{a.date}</span>
                                             </div>
-                                            <p className="text-sm text-gray-600 font-medium">"{a.behaviorNote || 'لا توجد تفاصيل إضافية'}"</p>
+                                            <p className="text-sm text-gray-600 font-medium">"{a.behaviorNote || 'لم يتم تدوين تفاصيل إضافية'}"</p>
                                         </div>
                                     </div>
                                 ))}
                                 {stats.sAtt.filter(a => a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL).length === 0 && (
-                                    <div className="p-20 text-center text-gray-300 font-bold bg-white rounded-3xl border">لا توجد ملاحظات سلوكية مسجلة للفترة المحددة.</div>
+                                    <div className="p-20 text-center text-gray-300 font-bold bg-white rounded-3xl border">لا توجد ملاحظات سلوكية للفترة المحددة.</div>
                                 )}
                             </div>
                         )}
 
-                        {/* AI Analysis View */}
+                        {/* AI View */}
                         {activeTab === 'AI' && (
                             <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-fade-in flex flex-col min-h-[400px]">
                                 <div className="flex justify-between items-center mb-8 border-b pb-6">
                                     <div className="flex items-center gap-4">
                                         <div className="p-4 bg-purple-100 rounded-2xl text-purple-600"><Bot size={32}/></div>
-                                        <div><h3 className="text-xl font-black text-gray-800">التشخيص التربوي الذكي</h3><p className="text-xs text-gray-400">تحليل معزز بالذكاء الاصطناعي بناءً على أداء الفترة</p></div>
+                                        <div><h3 className="text-xl font-black text-gray-800">التشخيص التربوي الذكي</h3><p className="text-xs text-gray-400">تحليل معزز بالذكاء الاصطناعي لهذه الفترة الدراسية</p></div>
                                     </div>
                                     <button onClick={handleGenerateAI} disabled={isAiLoading} className="bg-purple-600 text-white px-8 py-3 rounded-2xl font-black shadow-xl hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
                                         {isAiLoading ? <Loader2 className="animate-spin" size={20}/> : <Sparkles size={20}/>} تحديث التحليل
                                     </button>
                                 </div>
-                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50 p-8 rounded-3xl border"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30">
-                                    {/* Fix: BrainCircuit is now correctly imported */}
-                                    <BrainCircuit size={80} className="mb-4"/><p className="text-xl font-bold">اضغط توليد للحصول على تشخيص AI شامل</p></div>}
+                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50 p-8 rounded-3xl border"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30"><BrainCircuit size={80} className="mb-4"/><p className="text-xl font-bold">اضغط على الزر أعلاه للحصول على تشخيص AI شامل</p></div>}
                             </div>
                         )}
                     </div>
