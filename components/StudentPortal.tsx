@@ -66,6 +66,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
             { subject: 'المشاركة', A: Math.min(100, positiveBehaviors * 20) },
             { subject: 'الواجبات', A: avg },
             { subject: 'الاختبارات', A: Math.max(0, avg - 10) },
+            { subject: 'السلوك', A: 90 },
         ]};
     }, [currentUser, attendance, performance]);
 
@@ -132,7 +133,7 @@ const StudentDashboard = ({ stats, student }: any) => (
                     <ResponsiveContainer width="100%" height="100%">
                         <RadarChart data={stats.radarData}>
                             <PolarGrid stroke="#e2e8f0" />
-                            <PolarAngleAxis dataKey="subject" tick={{fontSize: 12, fontWeight: 'bold', fill: '#64748b'}} />
+                            <PolarAngleAxis dataKey="subject" tick={{fontSize: 10, fontWeight: 'bold', fill: '#64748b'}} />
                             <RechartsRadar name="أدائي" dataKey="A" stroke="#4f46e5" strokeWidth={3} fill="#4f46e5" fillOpacity={0.4} />
                             <Tooltip />
                         </RadarChart>
