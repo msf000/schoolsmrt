@@ -202,7 +202,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, attendance, cur
                             {filteredStudents.map((student, idx) => (
                                 <tr key={student.id} className="hover:bg-indigo-50/20 transition-colors">
                                     <td className="p-4 text-center text-gray-400 font-mono">{idx + 1}</td>
-                                    <td className="p-4 font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)]">
+                                    <td 
+                                        onClick={() => navigate('/followup', { state: { studentId: student.id } })}
+                                        className="p-4 font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] cursor-pointer hover:text-indigo-600 hover:underline transition-colors"
+                                    >
                                         {student.name}
                                     </td>
                                     {assignments.map(col => {
