@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, TermPeriod } from '../types';
-import { getAcademicTerms } from '../services/storageService';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, TermPeriod, Assignment } from '../types';
+import { getAcademicTerms, getAssignments } from '../services/storageService';
 import { generateStudentAnalysis } from '../services/geminiService';
 import { 
     Search, PieChart as PieChartIcon, 
@@ -15,7 +15,6 @@ import {
 } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { formatDualDate } from '../services/dateService';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -52,6 +51,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [aiReport, setAiReport] = useState<string>('');
     const [isAiLoading, setIsAiLoading] = useState(false);
 
@@ -65,6 +65,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
+        setAssignments(getAssignments('ALL', currentUser?.id, currentUser?.role === 'SCHOOL_MANAGER'));
+        
         if (!selectedTermId) {
             const current = loadedTerms.find(t => t.isCurrent) || loadedTerms[0];
             if (current) setSelectedTermId(current.id);
@@ -76,30 +78,48 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const activePeriods = useMemo(() => activeTerm?.periods || [], [activeTerm]);
     const activePeriod = useMemo(() => activePeriods.find(p => p.id === selectedPeriodId), [activePeriods, selectedPeriodId]);
 
-    // تحديد النطاق الزمني الصارم للتصفية بناءً على اختيار (فصل أو فترة)
+    // النطاق الزمني للحضور فقط (لأن الحضور ليس له periodId)
     const dateRange = useMemo(() => {
-        if (activePeriod) {
-            return { start: activePeriod.startDate, end: activePeriod.endDate, label: activePeriod.name };
-        }
-        if (activeTerm) {
-            return { start: activeTerm.startDate, end: activeTerm.endDate, label: activeTerm.name };
-        }
+        if (activePeriod) return { start: activePeriod.startDate, end: activePeriod.endDate, label: activePeriod.name };
+        if (activeTerm) return { start: activeTerm.startDate, end: activeTerm.endDate, label: activeTerm.name };
         return { start: '', end: '', label: 'جميع السجلات' };
     }, [activeTerm, activePeriod]);
 
     const stats = useMemo(() => {
         if (!student) return null;
         
-        const filterByRange = (list: any[]) => {
-            if (!dateRange.start || !dateRange.end) return list;
-            return list.filter(item => {
-                const itemDate = item.date;
-                return itemDate >= dateRange.start && itemDate <= dateRange.end;
-            });
-        };
+        // 1. تصفية الحضور بناءً على التاريخ (لأنه لا يملك periodId)
+        const sAtt = attendance.filter(a => {
+            const isMine = a.studentId === student.id;
+            if (!isMine) return false;
+            if (dateRange.start && dateRange.end) {
+                return a.date >= dateRange.start && a.date <= dateRange.end;
+            }
+            return true;
+        });
 
-        const sAtt = filterByRange(attendance.filter(a => a.studentId === student.id));
-        const sPerf = filterByRange(performance.filter(p => p.studentId === student.id)).sort((a,b)=>a.date.localeCompare(b.date));
+        // 2. تصفية الأعمال بناءً على periodId (أو التاريخ كخيار بديل)
+        const sPerf = performance.filter(p => {
+            const isMine = p.studentId === student.id;
+            if (!isMine) return false;
+
+            // الربط عبر التكليف (Assignment)
+            const linkedAssignment = assignments.find(a => a.id === p.notes);
+            
+            if (selectedPeriodId) {
+                // إذا كان العمل مرتبطاً بتكليف، نتحقق من periodId الخاص به
+                if (linkedAssignment) return linkedAssignment.periodId === selectedPeriodId;
+                // إذا لم يكن مرتبطاً (رصد يدوي قديم)، نلجأ للتاريخ
+                return p.date >= dateRange.start && p.date <= dateRange.end;
+            }
+            
+            if (selectedTermId) {
+                if (linkedAssignment) return linkedAssignment.termId === selectedTermId;
+                return p.date >= dateRange.start && p.date <= dateRange.end;
+            }
+
+            return true;
+        }).sort((a,b)=>a.date.localeCompare(b.date));
 
         const getCategoryData = (cat: string) => sPerf.filter(p => p.category === cat);
         const homeworks = getCategoryData('HOMEWORK');
@@ -139,7 +159,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             actAvg: calcAvg(activities),
             examAvg: calcAvg(exams)
         };
-    }, [student, attendance, performance, dateRange]);
+    }, [student, attendance, performance, dateRange, selectedPeriodId, selectedTermId, assignments]);
 
     const handleGenerateAI = async () => {
         if (!student || !stats) return;
@@ -157,7 +177,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate('/students')} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowRight size={20}/></button>
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">الملف الموحد للطالب</h2>
+                        <h2 className="text-xl font-bold text-gray-800">الملف التفاعلي</h2>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                             <select 
                                 className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded px-2 py-0.5 outline-none cursor-pointer"
@@ -184,7 +204,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                     <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
                     <input 
                         className="w-full pr-10 pl-4 py-2 border rounded-xl outline-none text-sm font-bold bg-gray-50 focus:bg-white transition-all shadow-inner" 
-                        placeholder="ابحث عن طالب آخر..." 
+                        placeholder="بحث عن طالب..." 
                         value={searchTerm} 
                         onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }} 
                     />
@@ -203,8 +223,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                     
                     <div className="mb-4 flex items-center gap-2 text-[10px] font-black text-purple-600 bg-purple-50 px-4 py-2 rounded-2xl border border-purple-100 w-fit self-center md:self-start">
                         <CalendarRange size={14}/>
-                        <span>تصفية الأعمال حسب: {dateRange.label} </span>
-                        <span className="opacity-60">({dateRange.start} ⮕ {dateRange.end})</span>
+                        <span>تصفية الأعمال حسب: {dateRange.label}</span>
                     </div>
 
                     <div className="bg-white rounded-[2.5rem] p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
@@ -236,13 +255,13 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             <div className="space-y-6 animate-fade-in">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-80">
-                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-indigo-600"/> توزيع الأداء المهاراتي</h3>
+                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-indigo-600"/> توزيع الأداء</h3>
                                         <div className="h-full pb-10">
                                             <ResponsiveContainer><RadarChart data={stats.radarData}><PolarGrid/><PolarAngleAxis dataKey="subject" tick={{fontSize:10, fontWeight:'bold', fill:'#94a3b8'}}/><Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.3} strokeWidth={3}/></RadarChart></ResponsiveContainer>
                                         </div>
                                     </div>
                                     <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-80">
-                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 text-sm"><LineChartIcon size={18} className="text-teal-600"/> نمو الدرجات خلال {dateRange.label}</h3>
+                                        <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 text-sm"><LineChartIcon size={18} className="text-teal-600"/> نمو الدرجات</h3>
                                         <div className="h-full pb-10">
                                             <ResponsiveContainer>
                                                 <LineChart data={stats.growthData}>
@@ -262,8 +281,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                         {(['HOMEWORK', 'ACTIVITY', 'EXAMS'] as FollowUpTab[]).includes(activeTab) && (
                             <div className="space-y-6 animate-fade-in">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <MetricCard label="المعدل النوعي" value={`${activeTab === 'HOMEWORK' ? stats.hwAvg : activeTab === 'ACTIVITY' ? stats.actAvg : stats.examAvg}%`} icon={<Target className="text-indigo-600"/>} />
-                                    <MetricCard label="المهام المنجزة" value={(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length} icon={<CheckCircle className="text-green-600"/>} />
+                                    <MetricCard label="المعدل" value={`${activeTab === 'HOMEWORK' ? stats.hwAvg : activeTab === 'ACTIVITY' ? stats.actAvg : stats.examAvg}%`} icon={<Target className="text-indigo-600"/>} />
+                                    <MetricCard label="المهام" value={(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length} icon={<CheckCircle className="text-green-600"/>} />
                                     <MetricCard label="أعلى درجة" value={Math.max(0, ...(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).map(p=>p.score))} icon={<Award className="text-yellow-600"/>} />
                                 </div>
 
@@ -293,7 +312,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                                     </tr>
                                                 ))}
                                                 {(activeTab === 'HOMEWORK' ? stats.homeworks : activeTab === 'ACTIVITY' ? stats.activities : stats.exams).length === 0 && (
-                                                    <tr><td colSpan={3} className="p-20 text-center text-gray-300 font-black italic">لا توجد سجلات في {dateRange.label}</td></tr>
+                                                    <tr><td colSpan={3} className="p-20 text-center text-gray-300 font-black italic">لا توجد سجلات لهذه الفترة</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
@@ -312,16 +331,16 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                         <div className="flex-1">
                                             <div className="flex justify-between mb-2">
                                                 <span className={`font-black text-sm ${a.behaviorStatus === BehaviorStatus.POSITIVE ? 'text-green-700' : 'text-red-700'}`}>
-                                                    {a.behaviorStatus === BehaviorStatus.POSITIVE ? 'نقطة تميز / مشاركة' : 'تنبيه سلوكي / تقصير'}
+                                                    {a.behaviorStatus === BehaviorStatus.POSITIVE ? 'نقطة تميز' : 'تنبيه سلوكي'}
                                                 </span>
                                                 <span className="text-[10px] text-gray-400 font-black uppercase">{a.date}</span>
                                             </div>
-                                            <p className="text-sm text-gray-600 font-bold leading-relaxed italic">"{a.behaviorNote || 'تم رصد الإجراء آلياً'}"</p>
+                                            <p className="text-sm text-gray-600 font-bold leading-relaxed italic">"{a.behaviorNote || 'رصد آلي'}"</p>
                                         </div>
                                     </div>
                                 ))}
                                 {stats.sAtt.filter(a => a.behaviorStatus && a.behaviorStatus !== BehaviorStatus.NEUTRAL).length === 0 && (
-                                    <div className="p-20 text-center text-gray-300 font-black bg-white rounded-[2.5rem] border shadow-sm">سجل السلوك نظيف لهذه الفترة ({dateRange.label})</div>
+                                    <div className="p-20 text-center text-gray-300 font-black bg-white rounded-[2.5rem] border shadow-sm">سجل السلوك نظيف</div>
                                 )}
                             </div>
                         )}
@@ -332,19 +351,19 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                 <div className="flex flex-col md:flex-row justify-between items-center mb-10 border-b pb-8 gap-6 relative z-10">
                                     <div className="flex items-center gap-5">
                                         <div className="p-5 bg-purple-100 rounded-3xl text-purple-600 shadow-inner"><Bot size={36}/></div>
-                                        <div><h3 className="text-2xl font-black text-gray-800">التشخيص التربوي (Gemini AI)</h3><p className="text-xs text-gray-400 font-bold uppercase tracking-widest">تحليل ذكي حصري لفترة: {dateRange.label}</p></div>
+                                        <div><h3 className="text-2xl font-black text-gray-800">التشخيص التربوي (AI)</h3><p className="text-xs text-gray-400 font-bold uppercase tracking-widest">تحليل ذكي حصري لفترة: {dateRange.label}</p></div>
                                     </div>
                                     <button onClick={handleGenerateAI} disabled={isAiLoading} className="bg-purple-600 text-white px-10 py-4 rounded-2xl font-black shadow-2xl shadow-purple-200 hover:bg-purple-700 disabled:opacity-50 flex items-center gap-3 transition-all hover:scale-105 active:scale-95">
                                         {isAiLoading ? <Loader2 className="animate-spin" size={24}/> : <Sparkles size={24}/>} تحديث التحليل
                                     </button>
                                 </div>
-                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50/50 p-8 rounded-[2rem] border border-indigo-50 relative z-10 font-medium"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30 relative z-10"><BrainCircuit size={100} className="mb-6"/><p className="text-xl font-black text-center">اضغط على الزر أعلاه للحصول على تشخيص مخصص لهذه الفترة</p></div>}
+                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50/50 p-8 rounded-[2rem] border border-indigo-50 relative z-10 font-medium"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30 relative z-10"><BrainCircuit size={100} className="mb-6"/><p className="text-xl font-black text-center">اضغط للحصول على تشخيص مخصص لهذه الفترة</p></div>}
                             </div>
                         )}
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-300 font-black bg-white rounded-[3rem] border-2 border-dashed border-gray-200 gap-6"><Search size={100} className="opacity-10"/><p className="text-3xl text-center">ابحث عن طالب من القائمة العلوية <br/><span className="text-lg opacity-50 font-bold">لعرض أداء الفترة المحددة</span></p></div>
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-300 font-black bg-white rounded-[3rem] border-2 border-dashed border-gray-200 gap-6"><Search size={100} className="opacity-10"/><p className="text-3xl text-center">ابحث عن طالب لعرض ملف أداء الفترة</p></div>
             )}
         </div>
     );
