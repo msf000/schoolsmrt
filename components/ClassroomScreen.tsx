@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser, StoredLessonPlan } from '../types';
 import { 
     Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, User, Maximize, AlertCircle, Monitor, X, Upload, ChevronLeft, ChevronRight, 
-    PenTool, Eraser, Trash2, Image as ImageIcon, BookOpen, CheckCircle, Minimize, Sparkles, Star, Siren, List, Music, Armchair, Bell, ThumbsUp, ThumbsDown, MicOff, XCircle, BrainCircuit, Loader2, Plus 
+    PenTool, Eraser, Trash2, Image as ImageIcon, BookOpen, CheckCircle, Minimize, Sparkles, Star, Siren, List, Music, Armchair, Bell, ThumbsUp, ThumbsDown, MicOff, XCircle, BrainCircuit, Loader2, Plus, LogOut, ArrowRight
 } from 'lucide-react';
 import { getLessonLinks, getLessonPlans, getSchedules, getTeacherPeriodTimings, getWeeklyPlans, getTeacherAssignments } from '../services/storageService';
 import { generateSlideQuestions, suggestQuickActivity } from '../services/geminiService';
+import { useNavigate } from 'react-router-dom';
 
 interface ClassroomScreenProps {
     students: Student[];
@@ -16,6 +17,7 @@ interface ClassroomScreenProps {
 }
 
 const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance, onSaveAttendance, currentUser }) => {
+    const navigate = useNavigate();
     const [selectedClass, setSelectedClass] = useState('');
     const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS' | 'SEATING'>('PRESENTATION');
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -48,11 +50,14 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
     }, [selectedClass, students, attendance]);
 
     return (
-        <div className="h-screen w-screen flex flex-col bg-slate-900 text-white animate-fade-in relative overflow-hidden font-sans">
+        <div className="fixed inset-0 h-screen w-screen flex flex-col bg-slate-900 text-white animate-fade-in z-[100] overflow-hidden font-sans">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 z-0"></div>
             
             <div className={`relative z-20 flex flex-col md:flex-row justify-between items-center bg-white/5 backdrop-blur-md border-b border-white/10 ${isFullscreen ? 'p-2' : 'p-4'}`}>
                 <div className="flex items-center gap-4">
+                    <button onClick={() => navigate('/classroom')} className="p-2 bg-white/10 rounded-xl hover:bg-red-500 hover:text-white transition-all">
+                        <ArrowRight size={20}/>
+                    </button>
                     <h2 className="text-xl font-bold flex items-center gap-2"><Monitor className="text-yellow-400"/> شاشة الفصل الذكية</h2>
                     <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="bg-black/30 border border-white/20 text-white rounded-lg px-4 py-2 font-bold outline-none">
                         {uniqueClasses.map(c => <option key={c} value={c} className="text-black">{c}</option>)}
@@ -230,6 +235,7 @@ const RandomPicker = ({ students }: any) => {
     const [name, setName] = useState('؟؟؟');
     const [rolling, setRolling] = useState(false);
     const start = () => {
+        if (students.length === 0) return;
         setRolling(true);
         let i = 0;
         const timer = setInterval(() => {
@@ -239,7 +245,7 @@ const RandomPicker = ({ students }: any) => {
     };
     return (
         <div className="text-center">
-            <div className={`w-full aspect-video bg-white/5 rounded-3xl border-4 border-dashed border-white/20 flex items-center justify-center mb-8 px-10 transition-all ${rolling ? 'scale-110 border-indigo-500' : ''}`}>
+            <div className={`w-full aspect-video bg-white/5 rounded-3xl border-4 border-dashed border-white/20 flex items-center justify-center mb-8 px-10 transition-all ${rolling ? 'scale-110 border-indigo-500 shadow-2xl shadow-indigo-500/20' : ''}`}>
                 <h1 className="text-6xl font-black">{name}</h1>
             </div>
             <button onClick={start} disabled={rolling || students.length===0} className="bg-yellow-500 text-black px-12 py-4 rounded-full font-black text-2xl shadow-xl flex items-center gap-3 mx-auto hover:bg-yellow-400 active:scale-95 transition-all">
@@ -273,6 +279,7 @@ const GroupGenerator = ({ students }: any) => {
     const [num, setNum] = useState(4);
     const [groups, setGroups] = useState<any[][]>([]);
     const gen = () => {
+        if (students.length === 0) return;
         const sh = [...students].sort(()=>0.5-Math.random());
         const g: any[][] = Array.from({length:num}, ()=>[]);
         sh.forEach((s,i)=> g[i%num].push(s));
