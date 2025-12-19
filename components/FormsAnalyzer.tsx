@@ -143,6 +143,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     };
 
     const getReportData = (record: FormsDetailedResult, classFilter: string) => {
+        const targetClass = classFilter || record.className;
         const allInClass = students.filter(s => !classFilter || s.className === classFilter).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
         const gradeName = allInClass.length > 0 ? (allInClass[0].gradeLevel || 'غير محدد') : (record.className || 'غير محدد');
         let totalPossibleSkills = 0; let totalMasteredSkills = 0; let totalStudentsAttended = 0;
@@ -536,8 +537,8 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                         <div className="bg-[#00334d] text-white p-3 grid grid-cols-4 text-center text-[11px] font-black border-2 border-black">
                             <div className="border-l border-white/20 uppercase tracking-tighter">علوم الأرض والفضاء</div>
                             <div className="border-l border-white/20">كشف رصد درجات الاختبارات المدرسية</div>
-                            <div className="border-l border-white/20 uppercase tracking-tighter">الصف / الثالث ثانوي</div>
-                            <div className="uppercase tracking-tighter">الفصل الدراسي / الأول 1447</div>
+                            <div className="border-l border-white/20 uppercase tracking-tighter">الصف / {data.dataA.gradeName}</div>
+                            <div className="uppercase tracking-tighter">الفصل الدراسي / {header?.term} {header?.academicYear}</div>
                         </div>
                     </div>
                     
@@ -567,7 +568,7 @@ const ComparisonReport = ({ data, header, viewMode }: any) => {
                                 return (
                                     <tr key={s.sid} className={`h-9 border-b border-black hover:bg-gray-50 ${s.isAbsent ? 'bg-gray-100 opacity-50' : ''}`}>
                                         <td className="border border-black bg-[#00334d] text-white">{idx + 1}</td>
-                                        <td className="border border-black text-right pr-3 font-black text-gray-800">{s.name}</td>
+                                        <td className="border border-black text-right pr-3 font-black text-gray-800 truncate">{s.name}</td>
                                         <td className="border border-black">{s.isAbsent ? '-' : s.scoreA}</td>
                                         <td className={`border border-black ${ratingA.color}`}>{s.isAbsent ? '-' : ratingA.label}</td>
                                         <td className="border border-black">{s.isAbsent ? '-' : s.scoreB}</td>
@@ -994,7 +995,7 @@ const DiagnosticAnalysis = ({ record, data, header, classFilter }: any) => {
                     </div>
                     <div className="flex h-12">
                         <div className="w-1/4 p-3 bg-[#003366] text-white text-center font-black text-xs border-l border-black flex items-center justify-center">مؤشر المهارات الغير متقنة</div>
-                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative"><div className="w-full h-8 bg-red-50 rounded-full border border-green-200 overflow-hidden flex items-center"><div className="h-full bg-[#ef4444] transition-all" style={{ width: `${nonMasteredPct}%` }}></div><span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span></div></div>
+                        <div className="w-3/4 p-2 bg-white flex items-center justify-center relative"><div className="w-full h-8 bg-red-50 rounded-full border border-red-200 overflow-hidden flex items-center"><div className="h-full bg-[#ef4444] transition-all" style={{ width: `${nonMasteredPct}%` }}></div><span className="absolute inset-0 flex items-center justify-center font-black text-sm text-red-900" style={{ textShadow: '0 0 2px white' }}>{nonMasteredPct}%</span></div></div>
                     </div>
                 </div>
                 <div className="bg-[#003366] text-white p-5 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black"><div>معلم المادة / أ. {header?.teacherName}</div><div>مدير المدرسة / أ. {header?.schoolManager}</div></div>
