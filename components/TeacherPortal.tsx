@@ -6,7 +6,7 @@ import {
     LayoutGrid, Users, CheckSquare, Settings, MonitorPlay, Table, 
     Award, Mail, Calendar, FileQuestion, Library, ScanLine, 
     PenTool, Printer, BrainCircuit, List, FolderOpen, Table2, 
-    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen, FileSpreadsheet, FlaskConical, Shield, ShieldCheck
+    LogOut, Menu, X, FileText, CreditCard, Inbox, Sparkles, BookOpen, FileSpreadsheet, FlaskConical, Shield, ShieldCheck, Monitor
 } from 'lucide-react';
 
 import Dashboard from './Dashboard';
@@ -70,13 +70,13 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
             onClick={() => { navigate(path); setIsSidebarOpen(false); }}
             className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium ${
                 location.pathname === path 
-                    ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100' 
+                    ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 shadow-sm' 
                     : `${color} hover:bg-gray-50`
             }`}
         >
             <div className="flex items-center gap-3">
-                <Icon size={20} />
-                <span>{label}</span>
+                <Icon size={20} className={location.pathname === path ? 'text-indigo-600' : ''} />
+                <span className="text-sm">{label}</span>
             </div>
             {badge && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{badge}</span>}
         </button>
@@ -103,7 +103,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                     </div>
                 </div>
                 
-                <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-100px)]">
+                <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100vh-100px)]">
                     {isSuperAdmin && (
                         <div className="mb-4">
                             <label className="px-4 text-[10px] font-black text-red-500 block mb-2 uppercase tracking-widest">إدارة النظام</label>
@@ -112,25 +112,31 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                         </div>
                     )}
 
-                    <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">القائمة الرئيسية</label>
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} />
                     
-                    <div className="pt-4 mt-4 border-t border-gray-100">
-                        <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">أدوات تعليمية</label>
+                    <div className="pt-4 mt-2">
+                        <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">المتابعة والتحضير</label>
                         <NavItem path="/students" label="سجل الطلاب" icon={Users} />
                         <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} />
-                        <NavItem path="/works" label="سجل الرصد" icon={Table} />
-                        <NavItem path="/forms-analysis" label="محلل Forms" icon={FileSpreadsheet} color="text-green-600" />
+                        <NavItem path="/classroom" label="الإدارة الصفية" icon={Monitor} color="text-indigo-600" />
+                        <NavItem path="/works" label="سجل الرصد (كشف)" icon={Table} />
+                        <NavItem path="/forms-analysis" label="محلل نتائج Forms" icon={FileSpreadsheet} color="text-green-600" />
                     </div>
 
-                    <div className="pt-4 mt-4 border-t border-gray-100">
-                        <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">أدوات ذكية (AI)</label>
-                        <NavItem path="/learning-lab" label="مختبر التعلم" icon={FlaskConical} color="text-indigo-600" />
+                    <div className="pt-4 mt-2 border-t border-gray-100">
+                        <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">الاختبارات والمناهج</label>
+                        <NavItem path="/curriculum" label="توزيع المنهج" icon={List} />
+                        <NavItem path="/exams" label="إدارة الاختبارات" icon={FileQuestion} />
                         <NavItem path="/planning" label="التحضير الذكي" icon={PenTool} />
-                        <NavItem path="/ai-tools" label="مساعد المعلم" icon={BrainCircuit} color="text-purple-600" />
                     </div>
 
-                    <div className="pt-4 mt-4 border-t border-gray-100">
+                    <div className="pt-4 mt-2 border-t border-gray-100">
+                        <label className="px-4 text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">مختبر الذكاء الاصطناعي</label>
+                        <NavItem path="/learning-lab" label="أنماط التعلم" icon={FlaskConical} color="text-purple-600" />
+                        <NavItem path="/ai-tools" label="مساعد المعلم AI" icon={BrainCircuit} color="text-purple-600" />
+                    </div>
+
+                    <div className="pt-4 mt-2 border-t border-gray-100">
                         <NavItem path="/reports" label="التقارير والشهادات" icon={Printer} />
                         <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} />
                     </div>
@@ -163,6 +169,8 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
                         <Route path="/reports" element={<ReportsCenter students={props.students} attendance={props.attendance} performance={props.performance} currentUser={currentUser}/>} />
                         <Route path="/school-mgmt" element={<SchoolManagementComponent students={props.students} onImportStudents={props.importStudents} onImportPerformance={props.importPerformance} onImportAttendance={props.importAttendance} currentUser={currentUser} onUpdateTheme={props.setTheme}/>} />
                         <Route path="/followup" element={<StudentFollowUp students={props.students} performance={props.performance} attendance={props.attendance} currentUser={currentUser} onSaveAttendance={props.saveAttendance}/>} />
+                        <Route path="/exams" element={<ExamsManager currentUser={currentUser} />} />
+                        <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser} />} />
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
                 </div>
