@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, addPerformance, saveAssignment, deleteAssignment, getStudents, getWorksMasterUrl, saveWorksMasterUrl, bulkAddPerformance, deletePerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, Table, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, DownloadCloud, X, Check, RefreshCw, Loader2, CheckSquare, Zap, Edit2, Grid, ListFilter, Tag, Maximize, CloudLightning, ChevronRight, PieChart, Info, AlertCircle } from 'lucide-react';
+import { Save, Table, Plus, Trash2, Search, FileSpreadsheet, Settings, Calendar, DownloadCloud, X, Check, RefreshCw, Loader2, CheckSquare, Zap, Edit2, Grid, ListFilter, Tag, Maximize, CloudLightning, ChevronRight, PieChart, Info, AlertCircle, Printer, ArrowRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface WorksTrackingProps {
@@ -68,6 +68,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isSheetSyncing, setIsSheetSyncing] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
 
+    // إعدادات توزيع درجات أعمال السنة
     const [yearWorkConfig, setYearWorkConfig] = useState<{ hw: number, act: number, att: number, exam: number }>({
         hw: 10, act: 10, att: 5, exam: 20
     });
@@ -99,14 +100,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [selectedMobileAssignment, setSelectedMobileAssignment] = useState<Assignment | null>(null);
     const [compactMode, setCompactMode] = useState(false);
 
-    // تحديث الأعمدة المتاحة عند تغيير الورقة المختارة من إكسل
+    // تحميل إعدادات التوزيع المحفوظة
+    useEffect(() => {
+        const savedConfig = localStorage.getItem('works_year_config');
+        if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
+    }, []);
+
+    // تحديث الأعمدة عند تغيير ورقة العمل في إكسل
     useEffect(() => {
         if (workbookRef && selectedSheetName) {
             const { headers, data } = getSheetHeadersAndData(workbookRef, selectedSheetName);
             setAvailableHeaders(headers);
             setSheetData(data);
             
-            // اقتراح تلقائي للدرجة القصوى بناء على القيم الموجودة في العمود
             const initialConfigs: Record<string, { maxScore: string, url: string }> = {};
             headers.forEach(header => {
                 let maxVal = 0;
@@ -176,7 +182,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const subs = getSubjects(currentUser.id); setSubjects(subs);
             const loadedTerms = getAcademicTerms(currentUser.id); setTerms(loadedTerms);
             const savedUrl = getWorksMasterUrl(); if (savedUrl) setGoogleSheetUrl(savedUrl);
-            const savedConfig = localStorage.getItem('works_year_config'); if (savedConfig) setYearWorkConfig(JSON.parse(savedConfig));
             if (!localStorage.getItem('works_term_id')) {
                 const current = loadedTerms.find(t => t.isCurrent);
                 if (current) { setSelectedTermId(current.id); setSettingTermId(current.id); }
@@ -260,9 +265,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
             setWorkbookRef(workbook); 
             setSheetNames(sheetNames);
-            if (sheetNames.length > 0) { 
-                setSelectedSheetName(sheetNames[0]); 
-            }
+            if (sheetNames.length > 0) { setSelectedSheetName(sheetNames[0]); }
         } catch (e: any) { alert(e.message); } finally { setIsFetchingStructure(false); }
     };
 
@@ -277,6 +280,50 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     };
 
     const handleColumnConfigChange = (header: string, field: 'maxScore' | 'url', value: string) => { setColumnConfigs(prev => ({ ...prev, [header]: { ...prev[header], [field]: value } })); };
+
+    const saveYearWorkSettings = () => {
+        localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig));
+        alert('تم حفظ توزيع الدرجات بنجاح');
+    };
+
+    // حساب درجات أعمال السنة للطالب
+    const calculateYearWork = (student: Student) => {
+        const studentPerf = performance.filter(p => p.studentId === student.id && p.subject === selectedSubject);
+        
+        // تصفية حسب الدرجات المرتبطة بالأعمدة في التيرم المختار
+        const relevantAssignments = assignments.filter(a => !selectedTermId || a.termId === selectedTermId);
+        const relevantAssignmentIds = new Set(relevantAssignments.map(a => a.id));
+
+        const getCategoryScore = (cat: string) => {
+            const records = studentPerf.filter(p => {
+                if (p.category !== cat) return false;
+                if (p.notes && relevantAssignmentIds.has(p.notes)) return true;
+                return relevantAssignments.some(a => a.title === p.title && a.category === cat);
+            });
+            
+            const totalScore = records.reduce((a, b) => a + b.score, 0);
+            const totalMax = records.reduce((a, b) => a + b.maxScore, 0);
+            return totalMax > 0 ? (totalScore / totalMax) : 0;
+        };
+
+        const hwGrade = getCategoryScore('HOMEWORK') * yearWorkConfig.hw;
+        const actGrade = getCategoryScore('ACTIVITY') * yearWorkConfig.act;
+        const examGrade = getCategoryScore('PLATFORM_EXAM') * yearWorkConfig.exam;
+        
+        // حساب الحضور (تبسيطي: نسبة الحضور من درجة الحضور المخصصة)
+        const studentAtt = attendance.filter(a => a.studentId === student.id);
+        const totalDays = studentAtt.length;
+        const presentDays = studentAtt.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        const attGrade = totalDays > 0 ? (presentDays / totalDays) * yearWorkConfig.att : yearWorkConfig.att;
+
+        return {
+            hw: Math.round(hwGrade * 10) / 10,
+            act: Math.round(actGrade * 10) / 10,
+            att: Math.round(attGrade * 10) / 10,
+            exam: Math.round(examGrade * 10) / 10,
+            total: Math.round((hwGrade + actGrade + attGrade + examGrade) * 10) / 10
+        };
+    };
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
     const activePeriods = useMemo(() => { if (!activeTerm?.periods) return []; return [...activeTerm.periods].sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')); }, [activeTerm]);
@@ -303,12 +350,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <option value="">كل الفترات</option>
                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
-                        {activePeriods.length > 0 && (
-                            <select className="p-2 border rounded-lg bg-gray-50 text-sm font-bold w-full md:min-w-[120px]" value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)}>
-                                <option value="">الكل (عام)</option>
-                                {activePeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                        )}
                         <select className="p-2 border rounded-lg bg-gray-50 text-sm font-bold w-full md:min-w-[120px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
                             <option value="">-- المادة --</option>
                             {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -327,16 +368,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 {CATEGORY_LABELS[cat] || cat}
                             </button>
                         ))}
+                        <button onClick={() => setActiveTab('YEAR_WORK')} className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'YEAR_WORK' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                            أعمال السنة (تجميعي)
+                        </button>
                     </div>
 
                     <div className="flex gap-2">
-                        {googleSheetUrl && (
-                            <button onClick={() => handleQuickSheetSync(false)} disabled={isSheetSyncing} className="hidden md:flex items-center gap-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200">
-                                {isSheetSyncing ? <Loader2 size={16} className="animate-spin"/> : <CloudLightning size={16}/>} تحديث
-                            </button>
-                        )}
+                        <button onClick={() => window.print()} className="bg-white border text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 shadow-sm flex items-center gap-1">
+                            <Printer size={16}/> طباعة
+                        </button>
                         <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 border border-indigo-200">
-                            <Settings size={16}/> <span className="hidden md:inline">الإعدادات</span>
+                            <Settings size={16}/> <span className="hidden md:inline">إعدادات الأعمدة</span>
                         </button>
                     </div>
                 </div>
@@ -350,39 +392,67 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <tr>
                                 <th className="p-3 w-10">#</th>
                                 <th className="p-3 text-right sticky right-0 bg-gray-50 z-20 w-64">اسم الطالب</th>
-                                {filteredAssignments.map(assign => (
-                                    <th key={assign.id} className="p-2 border-l min-w-[100px] group">
-                                        <div className="flex flex-col items-center gap-1">
-                                            <span className="truncate max-w-[120px]">{assign.title}</span>
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[9px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
-                                                <button onClick={() => handleDeleteColumn(assign.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Trash2 size={10}/>
-                                                </button>
+                                
+                                {activeTab === 'YEAR_WORK' ? (
+                                    <>
+                                        <th className="p-2 border-l bg-blue-50 text-blue-800">واجبات ({yearWorkConfig.hw})</th>
+                                        <th className="p-2 border-l bg-amber-50 text-amber-800">أنشطة ({yearWorkConfig.act})</th>
+                                        <th className="p-2 border-l bg-green-50 text-green-800">حضور ({yearWorkConfig.att})</th>
+                                        <th className="p-2 border-l bg-purple-50 text-purple-800">اختبارات ({yearWorkConfig.exam})</th>
+                                        <th className="p-2 border-l bg-gray-800 text-white font-black">المجموع الكلي</th>
+                                    </>
+                                ) : (
+                                    filteredAssignments.map(assign => (
+                                        <th key={assign.id} className="p-2 border-l min-w-[100px] group">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className="truncate max-w-[120px]">{assign.title}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-[9px] text-gray-400 bg-white px-1 rounded border">Max: {assign.maxScore}</span>
+                                                    <button onClick={() => handleDeleteColumn(assign.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <Trash2 size={10}/>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </th>
-                                ))}
+                                        </th>
+                                    ))
+                                )}
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredStudents.map((student, idx) => (
-                                <tr key={student.id} className="hover:bg-gray-50 border-b transition-colors">
-                                    <td className="p-3 text-gray-500">{idx + 1}</td>
-                                    <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white z-10">{student.name}</td>
-                                    {filteredAssignments.map(assign => (
-                                        <td key={assign.id} className="p-0 border-l h-10">
-                                            <input 
-                                                type="number"
-                                                className="w-full h-full text-center outline-none bg-transparent focus:bg-indigo-50 font-medium"
-                                                value={scores[student.id]?.[assign.id] || ''}
-                                                onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
-                                                placeholder="-"
-                                            />
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
+                            {filteredStudents.map((student, idx) => {
+                                if (activeTab === 'YEAR_WORK') {
+                                    const yearStats = calculateYearWork(student);
+                                    return (
+                                        <tr key={student.id} className="hover:bg-gray-50 border-b">
+                                            <td className="p-3 text-gray-500">{idx + 1}</td>
+                                            <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white z-10">{student.name}</td>
+                                            <td className="p-3 border-l font-bold text-blue-700">{yearStats.hw}</td>
+                                            <td className="p-3 border-l font-bold text-amber-700">{yearStats.act}</td>
+                                            <td className="p-3 border-l font-bold text-green-700">{yearStats.att}</td>
+                                            <td className="p-3 border-l font-bold text-purple-700">{yearStats.exam}</td>
+                                            <td className="p-3 border-l font-black text-gray-900 bg-gray-50">{yearStats.total}</td>
+                                        </tr>
+                                    );
+                                }
+
+                                return (
+                                    <tr key={student.id} className="hover:bg-gray-50 border-b transition-colors">
+                                        <td className="p-3 text-gray-500">{idx + 1}</td>
+                                        <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white z-10">{student.name}</td>
+                                        {filteredAssignments.map(assign => (
+                                            <td key={assign.id} className="p-0 border-l h-10">
+                                                <input 
+                                                    type="number"
+                                                    className="w-full h-full text-center outline-none bg-transparent focus:bg-indigo-50 font-medium"
+                                                    value={scores[student.id]?.[assign.id] || ''}
+                                                    onChange={e => handleScoreChange(student.id, assign.id, e.target.value)}
+                                                    placeholder="-"
+                                                />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -400,6 +470,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         <div className="flex border-b">
                             <button onClick={() => setSettingsTab('MANUAL')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'MANUAL' ? 'border-b-2 border-purple-600 text-purple-700 bg-purple-50' : 'text-gray-500 hover:bg-gray-50'}`}>إدارة يدوية</button>
                             <button onClick={() => setSettingsTab('SHEET')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'SHEET' ? 'border-b-2 border-green-600 text-green-700 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>ربط Google Sheet</button>
+                            <button onClick={() => setSettingsTab('DISTRIBUTION')} className={`flex-1 py-3 font-bold text-sm ${settingsTab === 'DISTRIBUTION' ? 'border-b-2 border-orange-600 text-orange-700 bg-orange-50' : 'text-gray-500 hover:bg-gray-50'}`}>توزيع الدرجات</button>
                         </div>
 
                         <div className="flex-1 overflow-auto p-6 bg-gray-50">
@@ -409,12 +480,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex flex-wrap gap-4 items-center">
                                         <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><ListFilter size={14}/> السياق الحالي:</span>
                                         <select className="p-1.5 border rounded text-xs bg-white font-bold" value={settingTermId} onChange={e => { setSettingTermId(e.target.value); setSettingPeriodId(''); }}>
-                                            <option value="">اختر الفصل...</option>
+                                            <option value="">اختر الفصل الدراسي...</option>
                                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                        </select>
-                                        <select className="p-1.5 border rounded text-xs bg-white font-bold" value={settingPeriodId} onChange={e => setSettingPeriodId(e.target.value)}>
-                                            <option value="">الفترة (عام)</option>
-                                            {settingsPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                         </select>
                                     </div>
 
@@ -471,7 +538,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                         <label className="block text-sm font-bold text-green-800 mb-2">رابط ملف Google Sheet</label>
                                         <div className="flex gap-2">
                                             <input className="flex-1 p-2 border border-green-300 rounded-lg text-sm dir-ltr text-left outline-none focus:ring-2 focus:ring-green-500" value={googleSheetUrl} onChange={e => setGoogleSheetUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
-                                            <button onClick={handleFetchSheetHeaders} disabled={isFetchingStructure} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center gap-2 shadow-sm disabled:opacity-50">{isFetchingStructure ? <Loader2 size={16} className="animate-spin"/> : <CloudLightning size={16}/>} جلب البيانات</button>
+                                            <button onClick={handleFetchSheetHeaders} disabled={isFetchingStructure} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 flex items-center gap-2 shadow-sm disabled:opacity-50">{isFetchingStructure ? <Loader2 size={16} className="animate-spin"/> : <CloudLightning size={16}/>} جلب الأوراق</button>
                                         </div>
                                     </div>
 
@@ -494,14 +561,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                         <select className="p-1.5 border rounded text-xs bg-white font-bold min-w-[120px]" value={importCategory} onChange={e => setImportCategory(e.target.value)}>{DEFAULT_CATEGORIES.map(cat => (<option key={cat.id} value={cat.id}>{cat.label}</option>))}<option value="CUSTOM">أخرى...</option></select>
                                                     </div>
                                                 </div>
-                                                {importCategory === 'CUSTOM' && ( <div><label className="text-[10px] font-bold text-gray-500 block mb-1">اسم مخصص:</label><input className="p-1.5 border rounded text-xs w-32 bg-yellow-50" value={customImportCategory} onChange={e => setCustomImportCategory(e.target.value)} placeholder="مشروع..."/></div> )}
                                             </div>
 
                                             <div className="max-h-[400px] overflow-y-auto">
                                                 <div className="grid grid-cols-12 gap-2 p-3 bg-gray-100 text-[10px] font-bold text-gray-500 border-b uppercase">
                                                     <div className="col-span-2 text-center">إجراء</div>
-                                                    <div className="col-span-2 text-center">الدرجة</div>
-                                                    <div className="col-span-8 text-right">اسم العمود في الملف</div>
+                                                    <div className="col-span-2 text-center">الدرجة القصوى</div>
+                                                    <div className="col-span-8 text-right px-4">اسم العمود في الملف</div>
                                                 </div>
                                                 <div className="divide-y">
                                                     {availableHeaders.map(h => {
@@ -517,15 +583,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                                             <div key={h} className="grid grid-cols-12 gap-2 p-2 items-center hover:bg-green-50 transition-colors group">
                                                                 <div className="col-span-2 text-center">
                                                                     {isAlreadyAdded ? (
-                                                                        <span className="text-[10px] font-bold text-green-600 flex items-center justify-center gap-1"><Check size={12}/> مضاف</span>
+                                                                        <span className="text-[10px] font-bold text-green-600 flex items-center justify-center gap-1"><Check size={12}/> مضاف مسبقاً</span>
                                                                     ) : (
                                                                         <button onClick={() => handleImportColumnFromSheet(h)} className="w-full py-1 bg-white border border-green-500 text-green-600 rounded text-[10px] font-bold hover:bg-green-600 hover:text-white transition-all shadow-sm">استيراد</button>
                                                                     )}
                                                                 </div>
-                                                                <div className="col-span-2">
+                                                                <div className="col-span-2 px-2">
                                                                     <input type="number" className="w-full p-1 border rounded text-xs text-center font-bold bg-white" value={config.maxScore} onChange={e => handleColumnConfigChange(h, 'maxScore', e.target.value)}/>
                                                                 </div>
-                                                                <div className="col-span-8 text-right font-bold text-gray-700 text-xs truncate" title={h}>{h}</div>
+                                                                <div className="col-span-8 text-right font-bold text-gray-700 text-xs truncate px-4" title={h}>{h}</div>
                                                             </div>
                                                         );
                                                     })}
@@ -533,6 +599,39 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* DISTRIBUTION TAB */}
+                            {settingsTab === 'DISTRIBUTION' && (
+                                <div className="max-w-2xl mx-auto space-y-6">
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
+                                        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                                            <PieChart className="text-orange-600"/> توزيع درجات أعمال السنة
+                                        </h3>
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-600 mb-1">الواجبات</label>
+                                                <input type="number" className="w-full p-3 border rounded-xl font-black text-center" value={yearWorkConfig.hw} onChange={e => setYearWorkConfig({...yearWorkConfig, hw: Number(e.target.value)})}/>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-600 mb-1">الأنشطة</label>
+                                                <input type="number" className="w-full p-3 border rounded-xl font-black text-center" value={yearWorkConfig.act} onChange={e => setYearWorkConfig({...yearWorkConfig, act: Number(e.target.value)})}/>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-600 mb-1">الحضور</label>
+                                                <input type="number" className="w-full p-3 border rounded-xl font-black text-center" value={yearWorkConfig.att} onChange={e => setYearWorkConfig({...yearWorkConfig, att: Number(e.target.value)})}/>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-600 mb-1">الاختبارات</label>
+                                                <input type="number" className="w-full p-3 border rounded-xl font-black text-center" value={yearWorkConfig.exam} onChange={e => setYearWorkConfig({...yearWorkConfig, exam: Number(e.target.value)})}/>
+                                            </div>
+                                        </div>
+                                        <div className="mt-8 pt-6 border-t flex justify-between items-center">
+                                            <div className="text-lg font-black text-indigo-700">المجموع الكلي: {yearWorkConfig.hw + yearWorkConfig.act + yearWorkConfig.att + yearWorkConfig.exam}</div>
+                                            <button onClick={saveYearWorkSettings} className="bg-orange-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-orange-700 shadow-lg transition-transform active:scale-95">حفظ التوزيع</button>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
