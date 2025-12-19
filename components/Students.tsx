@@ -1,10 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, SystemUser, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, AcademicTerm, ReportHeaderConfig } from '../types';
-// Fix: Added deleteStudent to replace incorrect deleteAllStudents if needed, though deleteAllStudents is now exported.
 import { deleteStudent, getAcademicTerms, getReportHeaderConfig, getTeacherAssignments, updateStudent } from '../services/storageService';
-// Fix: Added Users to the imports from lucide-react
-import { Users, UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key, TrendingUp, Clock, Cloud, Lock } from 'lucide-react';
+import { Users, UserPlus, Trash2, Search, Eye, Edit, FileSpreadsheet, X, Loader2, Filter, CheckSquare, ArrowRightLeft, Printer, Square, MessageSquare, Key, TrendingUp, Clock, Cloud, Lock, Sparkles } from 'lucide-react';
 import DataImport from './DataImport';
 import AIDataImport from './AIDataImport';
 import { useNavigate } from 'react-router-dom';
@@ -95,7 +93,17 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                 <input type="text" placeholder="بحث..." className="pr-10 pl-4 py-2 border rounded-lg text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
             </div>
             {!isManager && (
-                <button onClick={() => { setEditingStudent(null); setIsFormModalOpen(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2"><UserPlus size={18}/> إضافة طالب</button>
+                <>
+                    <button onClick={() => setIsImportModalOpen(true)} className="bg-white border text-gray-700 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                        <FileSpreadsheet size={18} className="text-green-600"/> استيراد Excel
+                    </button>
+                    <button onClick={() => setIsAIImportModalOpen(true)} className="bg-purple-50 border border-purple-200 text-purple-700 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-purple-100 transition-colors">
+                        <Sparkles size={18}/> استيراد AI
+                    </button>
+                    <button onClick={() => { setEditingStudent(null); setIsFormModalOpen(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-md">
+                        <UserPlus size={18}/> إضافة طالب
+                    </button>
+                </>
             )}
         </div>
       </div>
@@ -129,13 +137,20 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                     ))}
                 </tbody>
             </table>
+            {filteredStudents.length === 0 && (
+                <div className="p-20 text-center text-gray-400">
+                    <Users size={48} className="mx-auto mb-4 opacity-10"/>
+                    <p className="text-lg font-bold">لا يوجد طلاب مطابقين للبحث</p>
+                </div>
+            )}
         </div>
       </div>
 
+      {/* مودال الإضافة والتعديل */}
       {isFormModalOpen && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-zoom-in">
-                  <h3 className="text-xl font-bold mb-4">{editingStudent ? 'تعديل طالب' : 'إضافة طالب'}</h3>
+                  <h3 className="text-xl font-bold mb-4">{editingStudent ? 'تعديل بيانات الطالب' : 'إضافة طالب جديد'}</h3>
                   <div className="space-y-4">
                       <input className="w-full p-2 border rounded-lg" placeholder="اسم الطالب" value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})}/>
                       <input className="w-full p-2 border rounded-lg font-mono" placeholder="رقم الهوية" value={formData.nationalId} onChange={e=>setFormData({...formData, nationalId:e.target.value})}/>
@@ -146,14 +161,54 @@ const Students: React.FC<StudentsProps> = ({ students, attendance = [], performa
                         </select>
                         <input className="p-2 border rounded-lg" placeholder="الفصل" value={formData.className} onChange={e=>setFormData({...formData, className:e.target.value})}/>
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <input className="p-2 border rounded-lg" placeholder="اسم ولي الأمر" value={formData.parentName} onChange={e=>setFormData({...formData, parentName:e.target.value})}/>
+                        <input className="p-2 border rounded-lg font-mono" placeholder="جوال ولي الأمر" value={formData.parentPhone} onChange={e=>setFormData({...formData, parentPhone:e.target.value})}/>
+                      </div>
                       <button onClick={() => {
                           const s = { ...editingStudent, ...formData, id: editingStudent?.id || Date.now().toString() } as Student;
                           if (editingStudent) onUpdateStudent(s); else onAddStudent(s);
                           setIsFormModalOpen(false);
-                      }} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">حفظ البيانات</button>
-                      <button onClick={()=>setIsFormModalOpen(false)} className="w-full py-2 text-gray-500 font-bold">إلغاء</button>
+                      }} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-colors">حفظ البيانات</button>
+                      <button onClick={()=>setIsFormModalOpen(false)} className="w-full py-2 text-gray-500 font-bold hover:bg-gray-50 rounded-lg">إلغاء</button>
                   </div>
               </div>
+          </div>
+      )}
+
+      {/* مودال استيراد Excel */}
+      {isImportModalOpen && (
+          <div className="fixed inset-0 z-[150] bg-white">
+              <DataImport 
+                existingStudents={students} 
+                onImportStudents={(data, key, strategy, fields) => {
+                    onImportStudents(data, key, strategy, fields);
+                    setIsImportModalOpen(false);
+                }} 
+                onImportAttendance={() => {}}
+                onImportPerformance={() => {}}
+                forcedType="STUDENTS" 
+                onClose={() => setIsImportModalOpen(false)} 
+                currentUser={currentUser} 
+              />
+          </div>
+      )}
+
+      {/* مودال استيراد AI */}
+      {isAIImportModalOpen && (
+          <div className="fixed inset-0 z-[150] bg-white">
+              <AIDataImport 
+                existingStudents={students}
+                onImportStudents={(data) => {
+                    onImportStudents(data);
+                    setIsAIImportModalOpen(false);
+                }}
+                onImportAttendance={() => {}}
+                onImportPerformance={() => {}}
+                onClose={() => setIsAIImportModalOpen(false)}
+                forcedType="STUDENTS"
+                currentUser={currentUser}
+              />
           </div>
       )}
     </div>
