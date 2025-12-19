@@ -1,12 +1,10 @@
-
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
 import { Student, AttendanceRecord, PerformanceRecord, LessonBlock, Exam } from "../types";
 import { getAISettings } from "./storageService";
 
 const getAIClient = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("مفتاح API غير متوفر.");
-    return new GoogleGenAI({ apiKey });
+    // Fix: Use process.env.API_KEY directly for initialization as per guidelines
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // وظائف مساعدة لمعالجة الصوت الخام (PCM)

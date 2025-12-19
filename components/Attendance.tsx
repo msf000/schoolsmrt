@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone, MessageCircle } from 'lucide-react';
 
 interface AttendanceProps {
   students: Student[];
@@ -51,30 +51,26 @@ const Attendance: React.FC<AttendanceProps> = ({
       status,
       behaviorStatus: bStatus || existing?.behaviorStatus || BehaviorStatus.NEUTRAL,
       behaviorNote: bNote || existing?.behaviorNote || '',
+      excuseNote: existing?.excuseNote,
       createdById: currentUser?.id
     };
     onSaveAttendance([record]);
     setActiveStudentMenu(null);
   };
 
-  const handleWhatsApp = (student: Student) => {
-      if (!student.parentPhone) return alert('لا يوجد رقم جوال مسجل لولي الأمر');
-      const msg = `السلام عليكم، نود إشعاركم بأن الطالب ${student.name} متغيب اليوم (${selectedDate}). نرجو تزويدنا بالمبرر.`;
-      const phone = student.parentPhone.replace(/\D/g, '');
-      const formatted = phone.startsWith('966') ? phone : `966${phone.startsWith('0') ? phone.slice(1) : phone}`;
-      window.open(`https://wa.me/${formatted}?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
   const markAllPresent = () => {
     if (!selectedClass) return;
-    const records: AttendanceRecord[] = filteredStudents.map(s => ({
-      id: `${s.id}-${selectedDate}`,
-      studentId: s.id,
-      date: selectedDate,
-      status: AttendanceStatus.PRESENT,
-      behaviorStatus: BehaviorStatus.NEUTRAL,
-      createdById: currentUser?.id
-    }));
+    const records: AttendanceRecord[] = filteredStudents.map(s => {
+        const existing = attendanceHistory.find(a => a.studentId === s.id && a.date === selectedDate);
+        return {
+            id: existing?.id || `${s.id}-${selectedDate}`,
+            studentId: s.id,
+            date: selectedDate,
+            status: AttendanceStatus.PRESENT,
+            behaviorStatus: existing?.behaviorStatus || BehaviorStatus.NEUTRAL,
+            createdById: currentUser?.id
+        };
+    });
     onSaveAttendance(records);
   };
 
@@ -139,6 +135,7 @@ const Attendance: React.FC<AttendanceProps> = ({
               const record = attendanceHistory.find(a => a.studentId === student.id && a.date === selectedDate);
               const status = record?.status || AttendanceStatus.PRESENT;
               const bStatus = record?.behaviorStatus || BehaviorStatus.NEUTRAL;
+              const hasExcuse = !!record?.excuseNote;
               const isMenuOpen = activeStudentMenu === student.id;
 
               return (
@@ -148,13 +145,21 @@ const Attendance: React.FC<AttendanceProps> = ({
                         className={`p-4 rounded-2xl border-2 transition-all cursor-pointer h-40 flex flex-col justify-between shadow-sm relative overflow-hidden ${
                             status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-200' : 
                             status === AttendanceStatus.LATE ? 'bg-yellow-50 border-yellow-200' : 
+                            status === AttendanceStatus.EXCUSED ? 'bg-blue-50 border-blue-200' :
                             'bg-white border-transparent hover:border-indigo-100 hover:shadow-md'
                         }`}
                     >
+                        {hasExcuse && status === AttendanceStatus.ABSENT && (
+                            <div className="absolute top-0 left-0 bg-orange-500 text-white p-1 rounded-br-lg shadow-sm animate-pulse" title="عذر مقدم">
+                                <MessageCircle size={14}/>
+                            </div>
+                        )}
+
                         <div className="flex justify-between items-start z-10">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shadow-sm border-2 border-white ${
                                 status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white' : 
                                 status === AttendanceStatus.LATE ? 'bg-yellow-500 text-white' : 
+                                status === AttendanceStatus.EXCUSED ? 'bg-blue-600 text-white' :
                                 'bg-indigo-600 text-white'
                             }`}>
                                 {student.name.charAt(0)}
@@ -162,14 +167,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                             <div className="flex flex-col gap-1">
                                 {bStatus === BehaviorStatus.POSITIVE && <div className="p-1 bg-green-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsUp size={12}/></div>}
                                 {bStatus === BehaviorStatus.NEGATIVE && <div className="p-1 bg-red-500 text-white rounded-lg animate-bounce-in shadow-sm"><ThumbsDown size={12}/></div>}
-                                {status === AttendanceStatus.ABSENT && <div className="p-1 bg-white text-green-600 rounded-lg shadow-sm border border-green-100" onClick={(e)=>{e.stopPropagation(); handleWhatsApp(student);}}><Smartphone size={12}/></div>}
                             </div>
                         </div>
 
                         <div className="z-10">
                             <h4 className="text-sm font-bold text-gray-800 line-clamp-1 mb-1">{student.name}</h4>
                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'متأخر' : 'حاضر'}
+                                {status === AttendanceStatus.ABSENT ? 'غائب' : status === AttendanceStatus.LATE ? 'متأخر' : status === AttendanceStatus.EXCUSED ? 'بعذر' : 'حاضر'}
                             </p>
                         </div>
                     </div>
@@ -180,12 +184,13 @@ const Attendance: React.FC<AttendanceProps> = ({
                                 <span className="text-[10px] font-black text-indigo-600">إجراء سريع</span>
                                 <button onClick={() => setActiveStudentMenu(null)} className="p-1 text-gray-400 hover:text-red-500"><X size={14}/></button>
                             </div>
-                            <div className="flex gap-1 mb-1">
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.PRESENT?'bg-green-600 text-white':'bg-green-50 text-green-700'}`}>حاضر</button>
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)} className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.ABSENT?'bg-red-600 text-white':'bg-red-50 text-red-700'}`}>غائب</button>
+                            <div className="grid grid-cols-2 gap-1 mb-1">
+                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.PRESENT?'bg-green-600 text-white':'bg-green-50 text-green-700'}`}>حاضر</button>
+                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.ABSENT?'bg-red-600 text-white':'bg-red-50 text-red-700'}`}>غائب</button>
+                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.LATE)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.LATE?'bg-yellow-500 text-white':'bg-yellow-50 text-yellow-700'}`}>متأخر</button>
+                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.EXCUSED)} className={`py-1 rounded-lg text-[10px] font-bold ${status===AttendanceStatus.EXCUSED?'bg-blue-600 text-white':'bg-blue-50 text-blue-700'}`}>بعذر</button>
                             </div>
                             <div className="grid grid-cols-1 gap-1 flex-1 overflow-y-auto">
-                                <button onClick={() => handleWhatsApp(student)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[9px] font-bold bg-green-50 text-green-700 border border-green-100"><Smartphone size={12}/> مراسلة ولي الأمر</button>
                                 {QUICK_BEHAVIORS.map(b => (
                                     <button key={b.label} onClick={() => handleUpdate(student.id, status, b.status, b.label)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[9px] font-bold transition-all ${b.color}`}>{b.icon} {b.label}</button>
                                 ))}

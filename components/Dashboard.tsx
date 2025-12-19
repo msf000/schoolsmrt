@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -6,7 +5,8 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit } from 'lucide-react';
+// Fix: Added FileText to the imports from lucide-react
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -16,14 +16,6 @@ interface DashboardProps {
   currentUser?: SystemUser | null;
   onNavigate: (view: string) => void;
 }
-
-const STYLE_COLORS = {
-  VISUAL: '#4f46e5',
-  AUDITORY: '#10b981',
-  READ_WRITE: '#f59e0b',
-  KINESTHETIC: '#ef4444',
-  UNKNOWN: '#94a3b8'
-};
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
@@ -62,18 +54,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     const presentCount = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
     const attRate = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 100;
 
-    const styles: Record<string, number> = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0, UNKNOWN: 0 };
-    students.forEach(s => {
-      const style = s.learningStyle || 'UNKNOWN';
-      styles[style]++;
-    });
-
-    const styleData = Object.keys(styles).map(k => ({
-      name: k === 'VISUAL' ? 'بصري' : k === 'AUDITORY' ? 'سمعي' : k === 'READ_WRITE' ? 'قرائي' : k === 'KINESTHETIC' ? 'حركي' : 'غير محدد',
-      value: styles[k],
-      key: k
-    })).filter(d => d.value > 0);
-
     const classes = Array.from(new Set(students.map(s => s.className).filter(Boolean)));
     const classData = classes.map(c => {
         const classStudents = students.filter(s => s.className === c);
@@ -87,13 +67,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         attRate, 
         absentCount: todaysAttendance.filter(a => a.status === AttendanceStatus.ABSENT).length,
         avgPerf: classData.length > 0 ? Math.round(classData.reduce((a,b)=>a+b.performance,0)/classData.length) : 0,
-        classData,
-        styleData
+        classData
     };
   }, [students, attendance, performance]);
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24">
+      {/* AI Header */}
       <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group border border-indigo-700">
           <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
@@ -102,12 +82,10 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               </div>
               <div className="flex-1 text-center md:text-right">
                   <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                    <h2 className="text-2xl font-black">موجزك الذكي</h2>
-                    <span className="bg-yellow-400 text-indigo-900 px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-tighter">AI Ready</span>
+                    <h2 className="text-2xl font-black">موجزك الذكي اليومي</h2>
                     {aiBrief && !isAiLoading && (
                         <button 
                             onClick={handlePlayBriefing} 
-                            disabled={isPlaying}
                             className={`p-2 rounded-full transition-all ${isPlaying ? 'bg-yellow-400 text-indigo-900 animate-pulse' : 'bg-white/10 hover:bg-white/20 text-white'}`}
                         >
                             <Volume2 size={20}/>
@@ -115,13 +93,26 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                     )}
                   </div>
                   <div className="text-indigo-100 text-lg leading-relaxed opacity-90 italic">
-                      {isAiLoading ? 'جاري تحليل بيانات الطلاب واستخراج التوصيات...' : aiBrief}
+                      {isAiLoading ? 'جاري قراءة بيانات الطلاب وتجهيز التوصيات...' : aiBrief}
                   </div>
               </div>
-              <button onClick={() => navigate('/attendance')} className="bg-white text-indigo-900 px-8 py-4 rounded-2xl font-black hover:scale-105 transition-all shadow-2xl flex items-center gap-2 group">
-                  سجل الحضور <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform"/>
-              </button>
+              <div className="flex gap-2">
+                  <button onClick={() => navigate('/attendance')} className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-black hover:scale-105 transition-all shadow-xl flex items-center gap-2">
+                      تحضير الفصل
+                  </button>
+                  <button onClick={() => navigate('/screen')} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black hover:scale-105 transition-all shadow-xl flex items-center gap-2 border border-indigo-500">
+                      شاشة العرض
+                  </button>
+              </div>
           </div>
+      </div>
+
+      {/* Quick Access Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <QuickAction color="bg-blue-600" icon={<Calendar size={24}/>} label="الجدول الدراسي" onClick={()=>navigate('/schedule')}/>
+          <QuickAction color="bg-purple-600" icon={<ClipboardList size={24}/>} label="سجل الرصد" onClick={()=>navigate('/works')}/>
+          <QuickAction color="bg-green-600" icon={<PenTool size={24}/>} label="تحضير الدروس" onClick={()=>navigate('/planning')}/>
+          <QuickAction color="bg-orange-600" icon={<FileText size={24}/>} label="التقارير" onClick={()=>navigate('/reports')}/>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -145,49 +136,34 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                 <XAxis dataKey="name" tick={{fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <YAxis hide domain={[0, 100]} />
                 <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                <Bar dataKey="performance" fill="#4f46e5" radius={[12, 12, 0, 0]} barSize={50}>
-                    {stats.classData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? '#4f46e5' : '#818cf8'} />
-                    ))}
-                </Bar>
+                <Bar dataKey="performance" fill="#4f46e5" radius={[12, 12, 0, 0]} barSize={50} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col">
-            <h3 className="text-xl font-black text-gray-800 mb-6 flex items-center gap-2">
-              <BrainCircuit size={24} className="text-purple-600"/> أنماط تعلم الفصل
-            </h3>
-            <div className="flex-1 h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.styleData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {stats.styleData.map((entry: any) => (
-                      <Cell key={entry.key} fill={STYLE_COLORS[entry.key as keyof typeof STYLE_COLORS]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{borderRadius: '12px', border: 'none'}} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                </PieChart>
-              </ResponsiveContainer>
+        <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white flex flex-col justify-between shadow-xl">
+            <div>
+                <h3 className="text-xl font-black mb-4">نصيحة تربوية اليوم</h3>
+                <p className="opacity-80 leading-relaxed italic">"التعليم ليس ملء دلو، ولكنه إشعال نار. حاول اليوم أن تجعل طلابك يتساءلون بدلاً من أن يجيبوا فقط."</p>
             </div>
-            <button onClick={() => navigate('/learning-lab')} className="mt-4 w-full py-3 bg-purple-50 text-purple-700 rounded-xl font-bold text-sm hover:bg-purple-100 transition-colors">
-              تحليل الاستراتيجيات التدريسية
-            </button>
+            <div className="mt-8 flex justify-center">
+                <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border border-white/20">
+                    <Award size={48} className="text-yellow-400"/>
+                </div>
+            </div>
         </div>
       </div>
     </div>
   );
 };
+
+const QuickAction = ({ color, icon, label, onClick }: any) => (
+    <button onClick={onClick} className={`${color} p-4 rounded-3xl text-white shadow-lg hover:scale-105 transition-all flex flex-col items-center gap-2 group`}>
+        <div className="bg-white/20 p-2 rounded-xl group-hover:rotate-12 transition-transform">{icon}</div>
+        <span className="font-bold text-xs">{label}</span>
+    </button>
+);
 
 const StatCard = ({ label, value, icon, color }: any) => (
   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between hover:border-indigo-200 transition-all hover:-translate-y-1 group">

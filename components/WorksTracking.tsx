@@ -20,67 +20,31 @@ const DEFAULT_CATEGORIES = [
     { id: 'PLATFORM_EXAM', label: 'الاختبارات' },
 ];
 
-const CATEGORY_LABELS: Record<string, string> = {
-    'HOMEWORK': 'الواجبات',
-    'ACTIVITY': 'الأنشطة',
-    'PLATFORM_EXAM': 'الاختبارات',
-    'YEAR_WORK': 'أعمال السنة',
-    'OTHER': 'عام'
-};
-
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, attendance, currentUser }) => {
     const navigate = useNavigate();
     
-    // --- UI State ---
+    // UI State
     const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('works_active_tab') || 'HOMEWORK');
     const [selectedTermId, setSelectedTermId] = useState(() => localStorage.getItem('works_term_id') || '');
-    const [selectedPeriodId, setSelectedPeriodId] = useState(() => localStorage.getItem('works_period_id') || ''); 
     const [selectedClass, setSelectedClass] = useState(() => localStorage.getItem('works_class') || ''); 
     const [searchTerm, setSearchTerm] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [isSheetSyncing, setIsSheetSyncing] = useState(false);
-    const [settingsTab, setSettingsTab] = useState<'MANUAL' | 'SHEET' | 'DISTRIBUTION'>('MANUAL');
-
-    // --- Data State ---
+    
+    // Data State
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
     const [yearWorkConfig, setYearWorkConfig] = useState(() => {
         const saved = localStorage.getItem('works_year_config');
-        return saved ? JSON.parse(saved) : { hw: 10, act: 10, att: 5, exam: 20 };
+        return saved ? JSON.parse(saved) : { hw: 40, act: 20, att: 10, exam: 30 };
     });
-
-    // --- Smart Sync State ---
-    const [googleSheetUrl, setGoogleSheetUrl] = useState<string>(getWorksMasterUrl());
-    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
-    const [sheetMapping, setSheetMapping] = useState<Record<string, string>>(() => {
-        const saved = localStorage.getItem('works_sheet_mapping');
-        return saved ? JSON.parse(saved) : {};
-    });
-    const [allSheetHeaders, setAllSheetHeaders] = useState<Record<string, string[]>>({});
-    const [connectionStatus, setConnectionStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
-
-    // New Col Form
-    const [newColTitle, setNewColTitle] = useState('');
-    const [newColMax, setNewColMax] = useState('10');
-    const [newColCategory, setNewColCategory] = useState<PerformanceCategory>('HOMEWORK');
-    const [newColUrl, setNewColUrl] = useState('');
-
-    useEffect(() => {
-        localStorage.setItem('works_active_tab', activeTab);
-        localStorage.setItem('works_term_id', selectedTermId);
-        localStorage.setItem('works_period_id', selectedPeriodId);
-        localStorage.setItem('works_class', selectedClass);
-        localStorage.setItem('works_sheet_mapping', JSON.stringify(sheetMapping));
-        localStorage.setItem('works_year_config', JSON.stringify(yearWorkConfig));
-    }, [activeTab, selectedTermId, selectedPeriodId, selectedClass, sheetMapping, yearWorkConfig]);
 
     useEffect(() => {
         if (currentUser) {
             setTerms(getAcademicTerms(currentUser.id));
             refreshAssignments();
         }
-    }, [currentUser, isSettingsOpen]);
+    }, [currentUser]);
 
     const refreshAssignments = () => {
         setAssignments(getAssignments('ALL', currentUser?.id, true));
@@ -102,13 +66,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         if (activeTab === 'YEAR_WORK') return []; 
         return assignments.filter(a => { 
             const termMatch = !selectedTermId || (a.termId === selectedTermId); 
-            const periodMatch = !selectedPeriodId || a.periodId === selectedPeriodId; 
             const categoryMatch = a.category === activeTab; 
-            return termMatch && periodMatch && categoryMatch; 
+            return termMatch && categoryMatch; 
         }).sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)); 
-    }, [assignments, selectedTermId, selectedPeriodId, activeTab]);
-
-    const activeTerm = terms.find(t => t.id === selectedTermId);
+    }, [assignments, selectedTermId, activeTab]);
 
     const handleScoreChange = (studentId: string, assignmentId: string, value: string) => {
         setScores(prev => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), [assignmentId]: value } }));
@@ -145,347 +106,133 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
         if (recordsToSave.length > 0) bulkAddPerformance(recordsToSave);
         setScores({});
-        alert('تم حفظ التغييرات');
-    };
-
-    const handleConnectSheet = async () => {
-        if (!googleSheetUrl) return;
-        setIsSheetSyncing(true);
-        try {
-            const sheetId = extractGoogleSheetId(googleSheetUrl);
-            if (!sheetId) throw new Error("رابط غير صالح");
-            const apiKey = process.env.API_KEY || '';
-            const meta = await fetchGoogleSpreadsheetMeta(sheetId, apiKey);
-            setAvailableSheets(meta.sheets);
-            saveWorksMasterUrl(googleSheetUrl);
-            setConnectionStatus('SUCCESS');
-            const headersMap: Record<string, string[]> = {};
-            for (const cat of DEFAULT_CATEGORIES) {
-                const mappedSheet = sheetMapping[cat.id];
-                if (mappedSheet && meta.sheets.includes(mappedSheet)) {
-                    const { headers } = await fetchGoogleSheetData(sheetId, apiKey, mappedSheet);
-                    headersMap[cat.id] = headers;
-                }
-            }
-            setAllSheetHeaders(headersMap);
-        } catch (e: any) {
-            setConnectionStatus('ERROR');
-            alert(e.message || "فشل الاتصال.");
-        } finally {
-            setIsSheetSyncing(false);
-        }
-    };
-
-    const handleSyncAllTabs = async () => {
-        if (!googleSheetUrl) return alert("يرجى ربط ملف Google Sheet أولاً.");
-        const sheetId = extractGoogleSheetId(googleSheetUrl);
-        const apiKey = process.env.API_KEY || '';
-        if (!sheetId) return;
-        setIsSheetSyncing(true);
-        let totalUpdated = 0;
-        try {
-            const identityCol = localStorage.getItem('works_sheet_identity_col') || 'اسم الطالب';
-            for (const cat of DEFAULT_CATEGORIES) {
-                const targetSheet = sheetMapping[cat.id];
-                if (!targetSheet) continue;
-                const { data } = await fetchGoogleSheetData(sheetId, apiKey, targetSheet);
-                if (!data || data.length === 0) continue;
-                const recordsToSync: PerformanceRecord[] = [];
-                const categoryAssignments = assignments.filter(a => a.category === cat.id);
-                data.forEach((row: any) => {
-                    const studentIdentity = row[identityCol];
-                    if (!studentIdentity) return;
-                    const student = students.find(s => s.name.trim() === String(studentIdentity).trim() || s.nationalId === String(studentIdentity).trim());
-                    if (student) {
-                        categoryAssignments.forEach(assign => {
-                            if (assign.sourceMetadata) {
-                                const meta = JSON.parse(assign.sourceMetadata);
-                                const header = meta.sheetHeader;
-                                if (header && row[header] !== undefined) {
-                                    const numVal = parseFloat(row[header]);
-                                    if (!isNaN(numVal)) {
-                                        recordsToSync.push({
-                                            id: `${student.id}_${assign.id}`,
-                                            studentId: student.id,
-                                            subject: 'عام',
-                                            title: assign.title,
-                                            category: assign.category,
-                                            score: numVal,
-                                            maxScore: assign.maxScore,
-                                            date: new Date().toISOString().split('T')[0],
-                                            notes: assign.id,
-                                            createdById: currentUser?.id
-                                        });
-                                        totalUpdated++;
-                                    }
-                                }
-                            }
-                        });
-                    }
-                });
-                if (recordsToSync.length > 0) bulkAddPerformance(recordsToSync);
-            }
-            alert(`تمت مزامنة ${totalUpdated} درجة.`);
-        } catch (e: any) {
-            alert("خطأ في المزامنة: " + e.message);
-        } finally {
-            setIsSheetSyncing(false);
-        }
-    };
-
-    const handleMapColumn = (assignmentId: string, sheetHeader: string) => {
-        const assignment = assignments.find(a => a.id === assignmentId);
-        if (assignment) {
-            const meta = assignment.sourceMetadata ? JSON.parse(assignment.sourceMetadata) : {};
-            meta.sheetHeader = sheetHeader;
-            const updated = { ...assignment, sourceMetadata: JSON.stringify(meta) };
-            saveAssignment(updated);
-            setAssignments(prev => prev.map(a => a.id === assignmentId ? updated : a));
-        }
-    };
-
-    const handleUpdateAssignment = (id: string, updates: Partial<Assignment>) => {
-        const assignment = assignments.find(a => a.id === id);
-        if (assignment) {
-            const updated = { ...assignment, ...updates };
-            saveAssignment(updated);
-            refreshAssignments();
-        }
-    };
-
-    const handleAddAssignment = () => {
-        if (!newColTitle) return;
-        const newAssign: Assignment = {
-            id: Date.now().toString(),
-            title: newColTitle,
-            category: newColCategory,
-            maxScore: Number(newColMax),
-            url: newColUrl || undefined,
-            isVisible: true,
-            orderIndex: assignments.length,
-            teacherId: currentUser?.id,
-            termId: selectedTermId,
-            periodId: selectedPeriodId || undefined
-        };
-        saveAssignment(newAssign);
-        refreshAssignments();
-        setNewColTitle('');
-        setNewColUrl('');
+        alert('تم الحفظ بنجاح');
     };
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative pb-24 md:pb-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                    <div className="bg-white p-1 rounded-lg border shadow-sm flex gap-1">
-                        {DEFAULT_CATEGORIES.map(cat => (
-                            <button 
-                                key={cat.id} 
-                                onClick={() => setActiveTab(cat.id)}
-                                className={`px-4 py-2 rounded-md text-sm font-bold transition-all whitespace-nowrap ${activeTab === cat.id ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
-                            >
-                                {cat.label}
-                            </button>
-                        ))}
+                <div className="bg-white p-1 rounded-2xl border shadow-sm flex gap-1">
+                    {DEFAULT_CATEGORIES.map(cat => (
                         <button 
-                            onClick={() => setActiveTab('YEAR_WORK')}
-                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'YEAR_WORK' ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
+                            key={cat.id} 
+                            onClick={() => setActiveTab(cat.id)}
+                            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === cat.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500'}`}
                         >
-                            <Calculator size={14}/> أعمال السنة
+                            {cat.label}
                         </button>
-                    </div>
+                    ))}
+                    <button 
+                        onClick={() => setActiveTab('YEAR_WORK')}
+                        className={`px-6 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'YEAR_WORK' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-500'}`}
+                    >
+                        <Calculator size={14}/> أعمال السنة (100)
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-2 self-end">
-                    {googleSheetUrl && (
-                        <button 
-                            onClick={handleSyncAllTabs} 
-                            disabled={isSheetSyncing}
-                            className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow hover:bg-green-700 disabled:opacity-50"
-                        >
-                            {isSheetSyncing ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>} 
-                            <span className="hidden md:inline">مزامنة الكل من الملف</span>
-                        </button>
-                    )}
+                <div className="flex items-center gap-2">
                     {Object.keys(scores).length > 0 && (
-                        <button onClick={saveManualChanges} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 animate-bounce-in shadow-lg">
-                            <Save size={16}/> حفظ التغييرات
+                        <button onClick={saveManualChanges} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-xl animate-bounce">
+                            <Save size={16} className="inline ml-2"/> حفظ التغييرات
                         </button>
                     )}
-                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-white border rounded hover:bg-gray-50 text-gray-600 shadow-sm"><Settings size={18}/></button>
+                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-white border rounded-xl hover:bg-gray-50 shadow-sm"><Settings size={18}/></button>
                 </div>
             </div>
 
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border">
-                    <Filter size={14} className="text-gray-400 mr-1"/>
-                    <select className="bg-transparent text-sm font-bold text-gray-700 outline-none" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
-                        <option value="">كل الفصول</option>
-                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                </div>
-                
-                <select className="p-2 border rounded-lg text-sm font-bold bg-white outline-none" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
-                    <option value="">كل الفصول</option>
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-4 flex flex-wrap gap-4 items-center">
+                <select className="p-2 border rounded-xl text-sm font-bold bg-white outline-none" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+                    <option value="">جميع الفصول</option>
                     {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-
                 <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute top-2.5 right-3 text-gray-400" size={16}/>
-                    <input className="w-full pr-9 pl-3 py-2 border rounded-lg text-sm" placeholder="بحث باسم الطالب..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+                    <input className="w-full pr-9 pl-3 py-2 border rounded-xl text-sm" placeholder="بحث باسم الطالب..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
                 </div>
             </div>
 
-            {activeTab !== 'YEAR_WORK' ? (
-                <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                    {filteredAssignments.length > 0 ? (
-                        <div className="flex-1 overflow-auto custom-scrollbar">
-                            <table className="w-full text-right text-sm border-collapse">
-                                <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
-                                    <tr>
-                                        <th className="p-3 w-10 text-center border-b">#</th>
-                                        <th className="p-3 border-b min-w-[200px] sticky right-0 bg-gray-50 z-20 shadow-sm">اسم الطالب</th>
+            <div className="flex-1 bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-auto custom-scrollbar">
+                    {activeTab !== 'YEAR_WORK' ? (
+                        <table className="w-full text-right text-sm border-collapse">
+                            <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10">
+                                <tr>
+                                    <th className="p-4 border-b w-10 text-center">#</th>
+                                    <th className="p-4 border-b min-w-[200px] sticky right-0 bg-gray-50">اسم الطالب</th>
+                                    {filteredAssignments.map(col => (
+                                        <th key={col.id} className="p-4 border-b text-center min-w-[100px] border-l border-gray-100">
+                                            <div className="flex flex-col">
+                                                <span>{col.title}</span>
+                                                <span className="text-[10px] text-gray-400 font-normal">({col.maxScore})</span>
+                                            </div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {filteredStudents.map((student, idx) => (
+                                    <tr key={student.id} className="hover:bg-indigo-50/30 transition-colors">
+                                        <td className="p-4 text-center text-gray-400 font-mono">{idx + 1}</td>
+                                        <td className="p-4 font-bold text-gray-800 sticky right-0 bg-white shadow-sm">{student.name}</td>
                                         {filteredAssignments.map(col => (
-                                            <th key={col.id} className="p-3 border-b text-center min-w-[100px] border-l border-gray-200">
-                                                <div className="flex flex-col items-center">
-                                                    <span>{col.title}</span>
-                                                    <span className="text-[10px] text-gray-400 font-normal">({col.maxScore})</span>
-                                                </div>
-                                            </th>
+                                            <td key={col.id} className="p-0 border-l border-gray-50">
+                                                <input 
+                                                    className="w-full h-full p-4 text-center outline-none bg-transparent font-bold focus:bg-white transition-colors"
+                                                    value={scores[student.id]?.[col.id] ?? (performance.find(p => p.studentId === student.id && p.notes === col.id)?.score.toString() || '')}
+                                                    onChange={e => handleScoreChange(student.id, col.id, e.target.value)}
+                                                    placeholder="-"
+                                                />
+                                            </td>
                                         ))}
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {filteredStudents.map((student, idx) => (
-                                        <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="p-3 text-center text-gray-400 text-xs font-mono">{idx + 1}</td>
-                                            <td className="p-3 font-bold text-gray-800 sticky right-0 bg-white z-10 shadow-sm cursor-pointer hover:text-indigo-600" onClick={() => navigate('/followup', { state: { studentId: student.id } })}>
-                                                {student.name}
-                                                <div className="text-[10px] text-gray-400 font-normal">{student.className}</div>
-                                            </td>
-                                            {filteredAssignments.map(col => (
-                                                <td key={col.id} className="p-0 border-l border-gray-100">
-                                                    <input 
-                                                        className="w-full h-full p-3 text-center outline-none bg-transparent font-mono font-bold focus:bg-indigo-50"
-                                                        value={scores[student.id]?.[col.id] ?? (performance.find(p => p.studentId === student.id && p.notes === col.id)?.score.toString() || '')}
-                                                        onChange={e => handleScoreChange(student.id, col.id, e.target.value)}
-                                                        placeholder="-"
-                                                    />
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                            <LayoutPanelLeft size={48} className="mb-4 opacity-20"/>
-                            <p>لا توجد تقييمات مضافة لهذا التبويب.</p>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col animate-fade-in">
-                    <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-center text-sm border-collapse">
                             <thead className="bg-orange-50 text-orange-900 font-bold sticky top-0 z-10">
                                 <tr>
-                                    <th className="p-3 text-right bg-orange-50 sticky right-0 z-20">اسم الطالب</th>
-                                    <th className="p-3 border-l border-orange-200">الواجبات ({yearWorkConfig.hw})</th>
-                                    <th className="p-3 border-l border-orange-200">الأنشطة ({yearWorkConfig.act})</th>
-                                    <th className="p-3 border-l border-orange-200">الاختبارات ({yearWorkConfig.exam})</th>
-                                    <th className="p-3 border-l border-orange-200">الحضور ({yearWorkConfig.att})</th>
-                                    <th className="p-3 border-l border-orange-200 bg-orange-100 text-orange-950 font-black">المجموع (100)</th>
+                                    <th className="p-4 text-right bg-orange-50 sticky right-0 z-20">اسم الطالب</th>
+                                    <th className="p-4 border-l border-orange-200">الواجبات ({yearWorkConfig.hw})</th>
+                                    <th className="p-4 border-l border-orange-200">الأنشطة ({yearWorkConfig.act})</th>
+                                    <th className="p-4 border-l border-orange-200">الاختبارات ({yearWorkConfig.exam})</th>
+                                    <th className="p-4 border-l border-orange-200">الحضور ({yearWorkConfig.att})</th>
+                                    <th className="p-4 border-l border-orange-200 bg-orange-600 text-white font-black">المجموع (100)</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody>
                                 {filteredStudents.map(student => {
-                                    const calcCategoryScore = (catId: string, weight: number) => {
+                                    const calcPct = (catId: string) => {
                                         const catAssigns = assignments.filter(a => a.category === catId);
-                                        let obtained = 0, maxPossible = 0;
-                                        catAssigns.forEach(assign => {
-                                            const rec = performance.find(p => p.studentId === student.id && p.notes === assign.id);
-                                            if (rec) { obtained += rec.score; maxPossible += rec.maxScore; }
-                                            else { maxPossible += assign.maxScore; }
+                                        let obtained = 0, total = 0;
+                                        catAssigns.forEach(a => {
+                                            const rec = performance.find(p => p.studentId === student.id && p.notes === a.id);
+                                            if (rec) { obtained += rec.score; total += a.maxScore; }
                                         });
-                                        return maxPossible > 0 ? Math.round((obtained / maxPossible) * weight) : 0;
+                                        return total > 0 ? (obtained / total) : 0;
                                     };
-                                    const hw = calcCategoryScore('HOMEWORK', yearWorkConfig.hw);
-                                    const act = calcCategoryScore('ACTIVITY', yearWorkConfig.act);
-                                    const exam = calcCategoryScore('PLATFORM_EXAM', yearWorkConfig.exam);
-                                    const studentAtt = attendance.filter(a => a.studentId === student.id);
-                                    const attRate = studentAtt.length > 0 ? (studentAtt.filter(a => a.status === 'PRESENT').length / studentAtt.length) : 1;
-                                    const attScore = Math.round(attRate * yearWorkConfig.att);
+                                    const hw = Math.round(calcPct('HOMEWORK') * yearWorkConfig.hw);
+                                    const act = Math.round(calcPct('ACTIVITY') * yearWorkConfig.act);
+                                    const exam = Math.round(calcPct('PLATFORM_EXAM') * yearWorkConfig.exam);
+                                    const attPct = attendance.filter(a => a.studentId === student.id).length ? (attendance.filter(a => a.studentId === student.id && a.status === 'PRESENT').length / attendance.filter(a => a.studentId === student.id).length) : 1;
+                                    const att = Math.round(attPct * yearWorkConfig.att);
 
                                     return (
-                                        <tr key={student.id} className="hover:bg-orange-50/20">
-                                            <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white border-l">{student.name}</td>
-                                            <td className="p-3 border-l">{hw}</td>
-                                            <td className="p-3 border-l">{act}</td>
-                                            <td className="p-3 border-l">{exam}</td>
-                                            <td className="p-3 border-l">{attScore}</td>
-                                            <td className="p-3 border-l font-black text-lg text-orange-600 bg-orange-50/50">{hw + act + exam + attScore}</td>
+                                        <tr key={student.id} className="hover:bg-orange-50 transition-colors border-b">
+                                            <td className="p-4 text-right font-bold text-gray-800 sticky right-0 bg-white">{student.name}</td>
+                                            <td className="p-4">{hw}</td>
+                                            <td className="p-4">{act}</td>
+                                            <td className="p-4">{exam}</td>
+                                            <td className="p-4">{att}</td>
+                                            <td className="p-4 font-black text-lg text-orange-600">{hw+act+exam+att}</td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
-                    </div>
+                    )}
                 </div>
-            )}
-
-            {isSettingsOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-bounce-in overflow-hidden">
-                        <div className="flex border-b">
-                            <button onClick={() => setSettingsTab('MANUAL')} className={`flex-1 py-4 font-bold text-sm transition-all ${settingsTab === 'MANUAL' ? 'border-b-2 border-indigo-600 text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'}`}>إدارة الأعمدة</button>
-                            <button onClick={() => setSettingsTab('SHEET')} className={`flex-1 py-4 font-bold text-sm transition-all ${settingsTab === 'SHEET' ? 'border-b-2 border-green-600 text-green-700 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>إعدادات الربط (Excel)</button>
-                        </div>
-                        <div className="flex-1 overflow-auto p-6 bg-gray-50/50">
-                            {settingsTab === 'MANUAL' && (
-                                <div className="space-y-6">
-                                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                        <h4 className="font-bold text-gray-800 mb-4 text-sm flex items-center gap-2"><Plus size={16}/> إضافة عمود رصد جديد</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                                            <input className="p-2 border rounded-lg text-sm bg-gray-50" value={newColTitle} onChange={e => setNewColTitle(e.target.value)} placeholder="العنوان"/>
-                                            <input type="number" className="p-2 border rounded-lg text-sm bg-gray-50 text-center" value={newColMax} onChange={e => setNewColMax(e.target.value)} placeholder="الدرجة العظمى"/>
-                                            <select className="p-2 border rounded-lg text-sm bg-gray-50" value={newColCategory} onChange={e => setNewColCategory(e.target.value as PerformanceCategory)}>
-                                                {DEFAULT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                                            </select>
-                                            <button onClick={handleAddAssignment} className="bg-indigo-600 text-white py-2 rounded-lg font-bold text-sm">إضافة</button>
-                                        </div>
-                                    </div>
-                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                                        <div className="divide-y max-h-[400px] overflow-y-auto">
-                                            {filteredAssignments.map((a, idx) => (
-                                                <div key={a.id} className="p-4 flex justify-between items-center gap-4 hover:bg-gray-50">
-                                                    <div className="font-bold text-sm text-gray-800">{a.title} ({a.maxScore})</div>
-                                                    <button onClick={() => { deleteAssignment(a.id); refreshAssignments(); }} className="text-red-400 hover:text-red-600"><Trash2 size={18}/></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            {settingsTab === 'SHEET' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <div className="bg-green-50 p-6 rounded-2xl border border-green-200">
-                                        <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2"><FileSpreadsheet size={20}/> الربط مع Google Sheets</h4>
-                                        <div className="flex gap-2">
-                                            <input className="flex-1 p-3 border-2 border-green-100 rounded-xl text-sm dir-ltr bg-white" placeholder="رابط الملف" value={googleSheetUrl} onChange={e => setGoogleSheetUrl(e.target.value)} />
-                                            <button onClick={handleConnectSheet} disabled={isSheetSyncing} className="bg-green-600 text-white px-8 rounded-xl font-bold">اتصال</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="p-4 border-t bg-gray-50 flex justify-end">
-                            <button onClick={() => setIsSettingsOpen(false)} className="px-8 py-2.5 bg-gray-200 rounded-xl font-bold">إغلاق</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            </div>
         </div>
     );
 };

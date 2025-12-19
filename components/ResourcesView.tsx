@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { LessonLink, SystemUser, Subject } from '../types';
 import { getLessonLinks, saveLessonLink, deleteLessonLink, getSubjects, getTeacherAssignments } from '../services/storageService';
@@ -72,10 +71,8 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
         if (!suggestionTopic) return;
         setIsSuggesting(true);
         try {
-            // Fix: Initialize GoogleGenAI correctly using apiKey property from environment
-            const apiKey = process.env.API_KEY;
-            if (!apiKey) return;
-            const ai = new GoogleGenAI({ apiKey });
+            // Fix: Correctly initialize GoogleGenAI using process.env.API_KEY directly as per guidelines
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Suggest 3 educational YouTube video titles and search queries for: "${suggestionTopic}" for grade: "${newGrade || 'General'}". 
             Format as JSON array: [{"title": "Video Title", "searchQuery": "YouTube Search Query"}].`;
             
