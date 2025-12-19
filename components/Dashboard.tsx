@@ -1,12 +1,12 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, Legend
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, BehaviorStatus } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
-// Fix: Added FileText to the imports from lucide-react
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText } from 'lucide-react';
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -47,6 +47,20 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       await playTextAsSpeech(aiBrief);
       setIsPlaying(false);
   };
+
+  const topStudents = useMemo(() => {
+    return students.map(student => {
+        const myAtt = attendance.filter(a => a.studentId === student.id);
+        const myPerf = performance.filter(p => p.studentId === student.id);
+        let xp = 0;
+        myAtt.forEach(a => {
+            if (a.status === AttendanceStatus.PRESENT) xp += 10;
+            if (a.behaviorStatus === BehaviorStatus.POSITIVE) xp += 50;
+        });
+        myPerf.forEach(p => { if (p.score / p.maxScore >= 0.9) xp += 100; });
+        return { ...student, xp };
+    }).sort((a, b) => b.xp - a.xp).slice(0, 3);
+  }, [students, attendance, performance]);
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -107,12 +121,38 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
       </div>
 
-      {/* Quick Access Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <QuickAction color="bg-blue-600" icon={<Calendar size={24}/>} label="الجدول الدراسي" onClick={()=>navigate('/schedule')}/>
-          <QuickAction color="bg-purple-600" icon={<ClipboardList size={24}/>} label="سجل الرصد" onClick={()=>navigate('/works')}/>
-          <QuickAction color="bg-green-600" icon={<PenTool size={24}/>} label="تحضير الدروس" onClick={()=>navigate('/planning')}/>
-          <QuickAction color="bg-orange-600" icon={<FileText size={24}/>} label="التقارير" onClick={()=>navigate('/reports')}/>
+      {/* Top Students / Leaderboard Widget */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QuickAction color="bg-blue-600" icon={<Calendar size={24}/>} label="الجدول الدراسي" onClick={()=>navigate('/schedule')}/>
+            <QuickAction color="bg-purple-600" icon={<ClipboardList size={24}/>} label="سجل الرصد" onClick={()=>navigate('/works')}/>
+            <QuickAction color="bg-yellow-600" icon={<Trophy size={24}/>} label="لوحة الشرف" onClick={()=>navigate('/leaderboard')}/>
+            <QuickAction color="bg-green-600" icon={<PenTool size={24}/>} label="تحضير الدروس" onClick={()=>navigate('/planning')}/>
+        </div>
+
+        {/* Honor Roll Mini Widget */}
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="font-black text-gray-800 flex items-center gap-2 text-sm"><Crown size={18} className="text-yellow-500"/> أبطال الأسبوع</h3>
+                <button onClick={()=>navigate('/leaderboard')} className="text-[10px] font-bold text-indigo-600 hover:underline">عرض الكل</button>
+            </div>
+            <div className="space-y-3">
+                {topStudents.map((s, idx) => (
+                    <div key={s.id} onClick={()=>navigate('/followup', {state:{studentId: s.id}})} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-yellow-400 text-white' : idx === 1 ? 'bg-gray-200 text-gray-600' : 'bg-orange-100 text-orange-600'}`}>
+                                {idx + 1}
+                            </div>
+                            <span className="text-sm font-bold text-gray-700 group-hover:text-indigo-600">{s.name.split(' ')[0]} {s.name.split(' ')[1]}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-indigo-600 font-black text-xs">
+                            <Zap size={10} fill="currentColor"/> {s.xp}
+                        </div>
+                    </div>
+                ))}
+                {topStudents.length === 0 && <p className="text-center text-gray-400 py-4 text-xs font-bold italic">لا توجد بيانات نقاط حالياً</p>}
+            </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -159,9 +199,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 };
 
 const QuickAction = ({ color, icon, label, onClick }: any) => (
-    <button onClick={onClick} className={`${color} p-4 rounded-3xl text-white shadow-lg hover:scale-105 transition-all flex flex-col items-center gap-2 group`}>
+    <button onClick={onClick} className={`${color} p-4 rounded-3xl text-white shadow-lg hover:scale-105 transition-all flex flex-col items-center gap-2 group shrink-0`}>
         <div className="bg-white/20 p-2 rounded-xl group-hover:rotate-12 transition-transform">{icon}</div>
-        <span className="font-bold text-xs">{label}</span>
+        <span className="font-bold text-[10px] md:text-xs whitespace-nowrap">{label}</span>
     </button>
 );
 

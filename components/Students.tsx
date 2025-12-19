@@ -200,11 +200,14 @@ const Students: React.FC<StudentsProps> = ({
                 {filteredStudents.length > 0 ? filteredStudents.map(student => (
                 <tr key={student.id} className="hover:bg-gray-50 transition-colors group">
                     <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                      <div 
+                        onClick={() => navigate('/followup', { state: { studentId: student.id } })}
+                        className="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors group/name"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs group-hover/name:bg-primary group-hover/name:text-white transition-all">
                           {student.name.charAt(0)}
                         </div>
-                        <span className="font-bold text-gray-800">{student.name}</span>
+                        <span className="font-bold text-gray-800 group-hover/name:underline">{student.name}</span>
                       </div>
                     </td>
                     <td className="p-4 text-gray-600 font-mono">{student.nationalId || '-'}</td>

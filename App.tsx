@@ -1,211 +1,145 @@
-
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, UserTheme } from './types';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
-    getStudents, getAttendance, getPerformance, 
-    addStudent, updateStudent, deleteStudent, 
-    saveAttendance, addPerformance, deletePerformance, 
-    bulkAddStudents, bulkAddPerformance, bulkAddAttendance, 
-    getUserTheme, bulkUpsertStudents,
-    setSystemMode, subscribeToSyncStatus, subscribeToDataChanges, SyncStatus,
-    initRealtimeSync, stopRealtimeSync, initAutoSync
+    getStudents, getAttendance, getPerformance, saveAttendance, 
+    addPerformance, deletePerformance, bulkAddPerformance, 
+    bulkUpsertStudents, getUserTheme,
+    addStudent, updateStudent, deleteStudent
 } from './services/storageService';
-import { isSupabaseConfigured } from './services/supabaseClient';
-import { checkAIConnection } from './services/geminiService';
-import { WifiOff, Loader2, Sparkles } from 'lucide-react';
-
+import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 import Login from './components/Login';
+import TeacherPortal from './components/TeacherPortal';
 import StudentPortal from './components/StudentPortal';
 import ParentPortal from './components/ParentPortal';
-import TeacherPortal from './components/TeacherPortal';
+import Dashboard from './components/Dashboard';
+import Students from './components/Students';
+import Attendance from './components/Attendance';
+import Performance from './components/Performance';
+import AIReports from './components/AIReports';
+import SchoolManagementComponent from './components/SchoolManagement';
+import StudentFollowUp from './components/StudentFollowUp';
+import Leaderboard from './components/Leaderboard';
+import ExamsManager from './components/ExamsManager';
+import MessageCenter from './components/MessageCenter';
+import ClassroomManager from './components/ClassroomManager';
+import ClassroomScreen from './components/ClassroomScreen';
+import WorksTracking from './components/WorksTracking';
+import FormsAnalyzer from './components/FormsAnalyzer';
+import LearningLab from './components/LearningLab';
+import CustomTablesView from './components/CustomTablesView';
+import ResourcesView from './components/ResourcesView';
+import ScheduleView from './components/ScheduleView';
 import ReloadPrompt from './components/ReloadPrompt';
-
-interface AppContextType {
-    currentUser: SystemUser | null;
-    students: Student[];
-    attendance: AttendanceRecord[];
-    performance: PerformanceRecord[];
-    theme: UserTheme;
-    syncStatus: SyncStatus;
-    aiStatus: string;
-    refreshData: () => void;
-    login: (user: SystemUser, remember: boolean) => void;
-    logout: () => void;
-    addStudent: (s: Student) => void;
-    updateStudent: (s: Student) => void;
-    deleteStudent: (id: string) => void;
-    saveAttendance: (recs: AttendanceRecord[]) => void;
-    addPerformance: (p: PerformanceRecord | PerformanceRecord[]) => void;
-    deletePerformance: (id: string) => void;
-    importStudents: (data: Student[], key?: any, strategy?: any, fields?: any[]) => void;
-    importAttendance: (recs: AttendanceRecord[]) => void;
-    importPerformance: (recs: PerformanceRecord[]) => void;
-}
-
-const AppContext = createContext<AppContextType | null>(null);
-export const useApp = () => {
-    const context = useContext(AppContext);
-    if (!context) throw new Error("useApp must be used within AppProvider");
-    return context;
-};
+import AIChatBot from './components/AIChatBot';
+import AdminDashboard from './components/AdminDashboard';
 
 const App: React.FC = () => {
-    const [isAppLoading, setIsAppLoading] = useState(true);
-    const [currentUser, setCurrentUser] = useState<SystemUser | null>(null);
+    const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
-    const [theme, setTheme] = useState<UserTheme>({ mode: 'LIGHT', backgroundStyle: 'FLAT' });
-    const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
-    const [aiStatus, setAiStatus] = useState('IDLE');
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [theme, setTheme] = useState<UserTheme>(getUserTheme());
     const navigate = useNavigate();
+    const location = useLocation();
 
-    const refreshData = () => {
-        try {
-            const userJson = localStorage.getItem('current_user');
-            const activeUser = userJson ? JSON.parse(userJson) : currentUser;
-            
-            let allStudents = getStudents();
-            let allAttendance = getAttendance();
-            let allPerformance = getPerformance();
-            
-            // Apply STRICT Role Filtering
-            if (activeUser) {
-                if (activeUser.role === 'TEACHER') {
-                    // المعلم يرى فقط الطلاب التابعين لمدرسته أو الذين قام بإنشائهم
-                    allStudents = allStudents.filter(s => 
-                        (activeUser.schoolId && s.schoolId === activeUser.schoolId) || 
-                        s.createdById === activeUser.id || !s.createdById
-                    );
-                } else if (activeUser.role === 'SCHOOL_MANAGER') {
-                    // مدير المدرسة يرى فقط طلاب مدرسته
-                    allStudents = allStudents.filter(s => s.schoolId === activeUser.schoolId);
-                }
-                // SUPER_ADMIN sees everything (no filter)
-            }
-
-            setStudents(allStudents);
-            setAttendance(allAttendance);
-            setPerformance(allPerformance);
-            setTheme(getUserTheme());
-        } catch (err) {
-            console.error("Critical error refreshing data", err);
-        }
-    };
-
+    // Initial load of user and data
     useEffect(() => {
-        const bootApp = async () => {
-            setIsAppLoading(true);
+        const savedUser = localStorage.getItem('current_user');
+        if (savedUser) {
             try {
-                const saved = localStorage.getItem('current_user');
-                if (saved && saved !== "undefined") {
-                    const parsed = JSON.parse(saved);
-                    if (parsed && parsed.id) setCurrentUser(parsed);
-                }
-
-                if (isSupabaseConfigured()) {
-                    await initAutoSync();
-                    initRealtimeSync();
-                }
-
-                refreshData();
-                checkAIConnection().then(res => setAiStatus(res.success ? 'CONNECTED' : 'ERROR')).catch(() => {});
-            } catch (err) {
-                console.error("App boot sequence failed", err);
-            } finally {
-                setTimeout(() => setIsAppLoading(false), 800);
+                setCurrentUser(JSON.parse(savedUser));
+            } catch (e) {
+                console.error("Failed to parse saved user", e);
             }
-        };
-
-        bootApp();
-
-        const unsubSync = subscribeToSyncStatus(setSyncStatus);
-        const unsubData = subscribeToDataChanges(refreshData);
-        
-        const handleOnline = () => { setIsOnline(true); setSystemMode(true); };
-        const handleOffline = () => { setIsOnline(false); setSystemMode(false); };
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            unsubSync(); unsubData(); stopRealtimeSync();
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
+        }
+        loadData();
     }, []);
 
-    const login = (user: SystemUser, remember: boolean) => {
+    const loadData = () => {
+        setStudents(getStudents());
+        setAttendance(getAttendance());
+        setPerformance(getPerformance());
+    };
+
+    const handleLoginSuccess = (user: any, rememberMe: boolean) => {
         setCurrentUser(user);
-        if (remember) localStorage.setItem('current_user', JSON.stringify(user));
-        refreshData();
+        if (rememberMe) {
+            localStorage.setItem('current_user', JSON.stringify(user));
+        }
+        loadData();
         navigate('/');
     };
 
-    const logout = () => {
+    const handleLogout = () => {
         setCurrentUser(null);
         localStorage.removeItem('current_user');
-        stopRealtimeSync();
-        navigate('/');
+        navigate('/login');
     };
 
-    if (isAppLoading) {
-        return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 text-indigo-600">
-                <div className="relative mb-6">
-                    <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-2xl animate-bounce">
-                        <Sparkles size={40} className="animate-pulse" />
-                    </div>
-                </div>
-                <Loader2 size={32} className="animate-spin mb-4" />
-                <h2 className="text-xl font-bold text-gray-800 animate-pulse">جاري التحقق من الصلاحيات...</h2>
-                <p className="text-sm text-gray-400 mt-2 font-medium">Smart School Engine v2.5</p>
-            </div>
-        );
+    if (!currentUser && location.pathname !== '/login') {
+        return <Navigate to="/login" replace />;
     }
 
-    const contextValue: AppContextType = {
-        currentUser, students, attendance, performance, theme, syncStatus, aiStatus,
-        refreshData, login, logout,
-        addStudent: (s) => { addStudent(s); refreshData(); },
-        updateStudent: (s) => { updateStudent(s); refreshData(); },
-        deleteStudent: (id) => { deleteStudent(id); refreshData(); },
-        saveAttendance: (recs) => { saveAttendance(recs); refreshData(); },
-        addPerformance: (p) => { if (Array.isArray(p)) bulkAddPerformance(p); else addPerformance(p); refreshData(); },
-        deletePerformance: (id) => { deletePerformance(id); refreshData(); },
-        importStudents: (d, k, s, f) => { if (s === 'UPDATE') bulkUpsertStudents(d, k); else bulkAddStudents(d); refreshData(); },
-        importAttendance: (r) => { bulkAddAttendance(r); refreshData(); },
-        importPerformance: (r) => { bulkAddPerformance(r); refreshData(); }
+    const onImportStudents = (data: Student[], key?: keyof Student, strategy?: any, fields?: string[]) => {
+        bulkUpsertStudents(data, key as any);
+        loadData();
     };
 
+    const onImportPerformance = (recs: PerformanceRecord[]) => {
+        bulkAddPerformance(recs);
+        loadData();
+    };
+
+    const onImportAttendance = (recs: AttendanceRecord[]) => {
+        saveAttendance(recs);
+        loadData();
+    };
+
+    const teacherRoutes = (
+        <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
+            <Routes>
+                <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v) => navigate(v)} />} />
+                <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={(s) => { addStudent(s); loadData(); }} onUpdateStudent={(s) => { updateStudent(s); loadData(); }} onDeleteStudent={(id) => { deleteStudent(id); loadData(); }} onImportStudents={onImportStudents} currentUser={currentUser as SystemUser} />} />
+                <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={(rec) => { addPerformance(rec); loadData(); }} onImportPerformance={onImportPerformance} onDeletePerformance={(id) => { deletePerformance(id); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/reports" element={<AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                
+                {/* Fixed routes based on snippet context */}
+                <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={onImportStudents} onImportPerformance={onImportPerformance} onImportAttendance={onImportAttendance} currentUser={currentUser as SystemUser} onUpdateTheme={setTheme}/>} />
+                <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }}/>} />
+                <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
+                
+                <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} onImportAttendance={onImportAttendance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/screen" element={<ClassroomScreen students={students} attendance={attendance} onSaveAttendance={(recs) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={onImportPerformance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
+                <Route path="/planning" element={<LearningLab students={students} currentUserId={currentUser?.id} />} />
+                <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser as SystemUser} />} />
+                <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
+                <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            <AIChatBot students={students} attendance={attendance} performance={performance} />
+        </TeacherPortal>
+    );
+
     return (
-        <AppContext.Provider value={contextValue}>
-            <div className="h-full flex flex-col font-sans">
-                <ReloadPrompt />
-                {!isOnline && (
-                    <div className="bg-red-600 text-white text-[10px] font-bold text-center py-1 z-[9999] flex items-center justify-center gap-2">
-                        <WifiOff size={12} /> وضع عدم الاتصال: التغييرات تحفظ محلياً
-                    </div>
-                )}
-                {!currentUser ? (
-                    <Login onLoginSuccess={login} />
-                ) : currentUser.role === 'STUDENT' ? (
-                    <StudentPortal currentUser={currentUser as any} attendance={attendance} performance={performance} onLogout={logout} />
-                ) : currentUser.role === 'PARENT' ? (
-                    <ParentPortal parentPhone={currentUser.email} allStudents={students} attendance={attendance} performance={performance} onLogout={logout} />
+        <div className={`min-h-screen ${theme.mode === 'DARK' ? 'dark bg-gray-900 text-white' : 'bg-gray-50'}`}>
+            <ReloadPrompt />
+            <Routes>
+                <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+                {currentUser?.role === 'STUDENT' ? (
+                    <Route path="/*" element={<StudentPortal currentUser={currentUser as Student} attendance={attendance} performance={performance} onLogout={handleLogout} />} />
+                ) : currentUser?.role === 'PARENT' ? (
+                    <Route path="/*" element={<ParentPortal parentPhone={(currentUser as any).phone} allStudents={students} attendance={attendance} performance={performance} onLogout={handleLogout} />} />
                 ) : (
-                    <TeacherPortal 
-                        currentUser={currentUser} students={students} attendance={attendance} performance={performance}
-                        syncStatus={syncStatus} aiStatus={aiStatus} onLogout={logout}
-                        addStudent={contextValue.addStudent} updateStudent={contextValue.updateStudent} deleteStudent={contextValue.deleteStudent}
-                        saveAttendance={contextValue.saveAttendance} addPerformance={contextValue.addPerformance} deletePerformance={contextValue.deletePerformance}
-                        importStudents={contextValue.importStudents} importAttendance={contextValue.importAttendance} importPerformance={contextValue.importPerformance}
-                        setTheme={setTheme}
-                    />
+                    <Route path="/*" element={teacherRoutes} />
                 )}
-            </div>
-        </AppContext.Provider>
+            </Routes>
+        </div>
     );
 };
 

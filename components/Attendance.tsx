@@ -1,7 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone, MessageCircle, List, LayoutGrid, FilterX } from 'lucide-react';
+// Fix: Added Eye to lucide-react imports to resolve "Cannot find name 'Eye'" error
+import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsUp, ThumbsDown, BookOpen, X, Smartphone, MessageCircle, List, LayoutGrid, FilterX, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface AttendanceProps {
   students: Student[];
@@ -24,6 +26,7 @@ const Attendance: React.FC<AttendanceProps> = ({
     onSaveAttendance, 
     currentUser 
 }) => {
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -155,6 +158,14 @@ const Attendance: React.FC<AttendanceProps> = ({
                             <p className="text-[10px] font-bold uppercase text-gray-400">{status === AttendanceStatus.ABSENT ? 'غائب' : 'حاضر'}</p>
                         </div>
                     </div>
+                    {/* Floating Info Button */}
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); navigate('/followup', { state: { studentId: student.id } }); }}
+                        className="absolute top-2 left-2 p-1 bg-white/50 hover:bg-white rounded-full text-gray-400 hover:text-primary transition-all opacity-0 group-hover:opacity-100"
+                        title="ملف الطالب"
+                    >
+                        <Eye size={12}/>
+                    </button>
                 </div>
               );
             })}
@@ -175,7 +186,14 @@ const Attendance: React.FC<AttendanceProps> = ({
                   const status = record?.status || AttendanceStatus.PRESENT;
                   return (
                     <tr key={student.id} className="hover:bg-gray-50">
-                      <td className="p-4 font-bold text-gray-800">{student.name}</td>
+                      <td className="p-4">
+                        <span 
+                            onClick={() => navigate('/followup', { state: { studentId: student.id } })}
+                            className="font-bold text-gray-800 cursor-pointer hover:text-primary hover:underline"
+                        >
+                            {student.name}
+                        </span>
+                      </td>
                       <td className="p-4 text-center">
                         <select 
                           value={status} 

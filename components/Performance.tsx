@@ -417,7 +417,14 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                               {filteredStudentsBulk.map((student, idx) => (
                                   <tr key={student.id} className="hover:bg-gray-50">
                                       <td className="p-3 text-center text-gray-400">{idx + 1}</td>
-                                      <td className="p-3 font-bold text-gray-800">{student.name}</td>
+                                      <td className="p-3">
+                                        <span 
+                                            onClick={() => navigate('/followup', { state: { studentId: student.id } })}
+                                            className="font-bold text-gray-800 cursor-pointer hover:text-primary hover:underline"
+                                        >
+                                            {student.name}
+                                        </span>
+                                      </td>
                                       <td className="p-2 text-center">
                                           <input 
                                               type="number" 
@@ -469,7 +476,14 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                               return (
                                   <tr key={rec.id} className="hover:bg-gray-50">
                                       <td className="p-3 font-mono text-xs">{rec.date}</td>
-                                      <td className="p-3 font-bold">{s?.name}</td>
+                                      <td className="p-3">
+                                        <span 
+                                            onClick={() => navigate('/followup', { state: { studentId: rec.studentId } })}
+                                            className="font-bold cursor-pointer hover:text-primary hover:underline"
+                                        >
+                                            {s?.name}
+                                        </span>
+                                      </td>
                                       <td className="p-3 font-medium">{rec.title}</td>
                                       <td className="p-3 text-center font-black">{rec.score} / {rec.maxScore}</td>
                                       <td className="p-3 text-center flex justify-center gap-2">
