@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, AcademicTerm, PerformanceCategory } from '../types';
 import { getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, bulkAddPerformance, deletePerformance } from '../services/storageService';
-import { extractGoogleSheetId, fetchGoogleSheetData, fetchGoogleSpreadsheetMeta } from '../services/excelService';
 import { Save, Filter, Trash2, Search, FileSpreadsheet, Settings, Link as LinkIcon, RefreshCw, Loader2, Calculator, ArrowRight, Layers, LayoutPanelLeft, Edit2, Plus, X, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -44,7 +43,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             setTerms(getAcademicTerms(currentUser.id));
             refreshAssignments();
         }
-    }, [currentUser]);
+    }, [currentUser, activeTab]);
 
     const refreshAssignments = () => {
         setAssignments(getAssignments('ALL', currentUser?.id, true));
@@ -106,7 +105,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
         if (recordsToSave.length > 0) bulkAddPerformance(recordsToSave);
         setScores({});
-        alert('تم الحفظ بنجاح');
+        alert('تم حفظ التغييرات في الكشف بنجاح.');
     };
 
     return (

@@ -172,7 +172,7 @@ const StudentEvaluationView = ({ student, performance }: any) => {
                 {myPerf.map((p: any) => (
                     <div key={p.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center group hover:border-indigo-200 transition-all">
                         <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white ${p.score/p.maxScore >= 0.9 ? 'bg-green-50' : p.score/p.maxScore >= 0.7 ? 'bg-blue-50' : 'bg-red-50'}`} style={{ color: p.score/p.maxScore >= 0.9 ? '#10b981' : p.score/p.maxScore >= 0.7 ? '#3b82f6' : '#ef4444' }}>
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white ${p.score/p.maxScore >= 0.9 ? 'bg-green-500' : p.score/p.maxScore >= 0.7 ? 'bg-blue-500' : 'bg-red-500'}`}>
                                 {p.score}
                             </div>
                             <div>
