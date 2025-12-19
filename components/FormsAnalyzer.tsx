@@ -7,7 +7,6 @@ import {
     FileSpreadsheet, Loader2, Upload, ListFilter, Target, Save, ArrowLeft, Trash2, 
     BarChart2, Sparkles, Printer, Filter, GitCompare, Wand2, CheckCircle, 
     PlusCircle, History, LayoutGrid, ArrowRightLeft, UserCheck, BookOpen, ArrowRight, ClipboardCheck, Users, Bookmark, FileText, EyeOff, X, LifeBuoy, Calendar, Settings2, TrendingUp, ArrowUpRight, ArrowDownRight, Minus,
-    // Added missing 'Circle' import
     Circle
 } from 'lucide-react';
 import { Student, FormsDetailedResult, ReportHeaderConfig } from '../types';
@@ -39,6 +38,8 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
     // حالات المقارنة
     const [compareIdA, setCompareIdA] = useState('');
     const [compareIdB, setCompareIdB] = useState('');
+    const [compareClassFilter, setCompareClassFilter] = useState('');
+    const [compareViewTab, setCompareViewTab] = useState<'SUMMARY' | 'DETAILS'>('SUMMARY');
 
     // بيانات المتابعة القابلة للتعديل
     const [followUpMeta, setFollowUpMeta] = useState({
@@ -143,7 +144,7 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
     const getReportData = (record: FormsDetailedResult, classFilter: string) => {
         const targetClass = classFilter || record.className;
-        const allInClass = students.filter(s => s.className === targetClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+        const allInClass = students.filter(s => !classFilter || s.className === classFilter).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
         const gradeName = allInClass.length > 0 ? (allInClass[0].gradeLevel || 'غير محدد') : (record.className || 'غير محدد');
         let totalPossibleSkills = 0; let totalMasteredSkills = 0; let totalStudentsAttended = 0;
         const studentsList = allInClass.map(s => {
@@ -196,12 +197,13 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
         const recB = history.find(r => r.id === compareIdB);
         if (!recA || !recB) return null;
 
-        const dataA = getReportData(recA, '');
-        const dataB = getReportData(recB, '');
+        const dataA = getReportData(recA, compareClassFilter);
+        const dataB = getReportData(recB, compareClassFilter);
 
+        // الطلاب المشتركين فقط أو تصفية حسب الفصل
         const studentComparison = dataA.studentsList.map(sA => {
             const sB = dataB.studentsList.find(x => x.sid === sA.sid);
-            const growth = sB ? sB.pct - sA.pct : 0;
+            const growth = (sA.isAbsent || sB?.isAbsent) ? 0 : (sB?.pct || 0) - sA.pct;
             return {
                 sid: sA.sid,
                 name: sA.name,
@@ -216,6 +218,16 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
 
         return { recA, recB, dataA, dataB, studentComparison, overallGrowth };
     };
+
+    const allCompareClasses = useMemo(() => {
+        const recA = history.find(r => r.id === compareIdA);
+        const recB = history.find(r => r.id === compareIdB);
+        if (!recA && !recB) return [];
+        const classes = new Set<string>();
+        if (recA) activeClassesForRecord(recA).forEach(c => classes.add(c));
+        if (recB) activeClassesForRecord(recB).forEach(c => classes.add(c));
+        return Array.from(classes).sort();
+    }, [compareIdA, compareIdB, history]);
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
@@ -376,19 +388,32 @@ const FormsAnalyzer: React.FC<Props> = ({ students, currentUserId }) => {
                                 {history.map(r => <option key={r.id} value={r.id}>{r.examTitle} ({r.className})</option>)}
                             </select>
                         </div>
-                        <button onClick={()=>window.print()} className="bg-gray-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-black transition-all"><Printer size={18}/> طباعة التقرير</button>
+                        <div className="w-full md:w-48 space-y-2">
+                             <label className="text-xs font-black text-gray-400 flex items-center gap-1"><Filter size={12}/> تصفية الفصل</label>
+                             <select className="w-full p-3 border rounded-xl font-bold bg-gray-50 outline-none focus:ring-2 focus:ring-purple-500" value={compareClassFilter} onChange={e=>setCompareClassFilter(e.target.value)}>
+                                <option value="">كل الفصول</option>
+                                {allCompareClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                        <button onClick={()=>window.print()} className="bg-gray-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-black transition-all"><Printer size={18}/> طباعة</button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
-                        {getComparisonData() ? (
-                            <ComparisonReport data={getComparisonData()} header={headerConfig} />
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-300 gap-4 bg-white rounded-[3rem] border-4 border-dashed border-gray-100">
-                                <GitCompare size={80} className="opacity-10"/>
-                                <p className="text-xl font-black">يرجى اختيار اختبارين للمقارنة</p>
+                    {getComparisonData() ? (
+                        <div className="flex-1 flex flex-col overflow-hidden gap-4">
+                            <div className="bg-white p-1 rounded-xl border shadow-sm flex w-fit mx-auto print:hidden">
+                                <TabBtnView label="ملخص النمو التعليمي" active={compareViewTab==='SUMMARY'} onClick={()=>setCompareViewTab('SUMMARY')}/>
+                                <TabBtnView label="تفاصيل نمو المتعلمين" active={compareViewTab==='DETAILS'} onClick={()=>setCompareViewTab('DETAILS')}/>
                             </div>
-                        )}
-                    </div>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                                <ComparisonReport data={getComparisonData()} header={headerConfig} viewMode={compareViewTab} />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-4 bg-white rounded-[3rem] border-4 border-dashed border-gray-100">
+                            <GitCompare size={80} className="opacity-10"/>
+                            <p className="text-xl font-black">يرجى اختيار اختبارين للمقارنة</p>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -401,7 +426,7 @@ const TabBtnView = ({ label, active, onClick }: any) => (
     <button onClick={onClick} className={`px-4 py-2 rounded-lg text-[11px] font-black transition-all ${active ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>{label}</button>
 );
 
-const ComparisonReport = ({ data, header }: any) => {
+const ComparisonReport = ({ data, header, viewMode }: any) => {
     const { recA, recB, studentComparison, overallGrowth } = data;
 
     // تجهيز بيانات الرسم البياني للمهارات
@@ -422,106 +447,119 @@ const ComparisonReport = ({ data, header }: any) => {
     return (
         <div className="space-y-10">
             {/* الصفحة الأولى: ملخص المقارنة والتحليل البياني */}
-            <div className="bg-white p-8 shadow-2xl border-2 border-black print:p-0 print:shadow-none break-after">
-                <div className="flex justify-between items-center mb-8 border-b-2 border-black pb-4">
-                    <div className="text-right text-[11px] font-bold">
-                        <p>الإدارة العامة للتعليم بمنطقة {header?.educationAdmin}</p>
-                        <p>مدرسة {header?.schoolName}</p>
+            {(viewMode === 'SUMMARY' || window.matchMedia('print').matches) && (
+                <div className="bg-white p-8 shadow-2xl border-2 border-black print:p-0 print:shadow-none break-after">
+                    <div className="flex justify-between items-center mb-8 border-b-2 border-black pb-4">
+                        <div className="text-right text-[11px] font-bold">
+                            <p>المملكة العربية السعودية</p>
+                            <p>وزارة التعليم</p>
+                            <p>الإدارة العامة للتعليم بمنطقة {header?.educationAdmin}</p>
+                            <p>مدرسة {header?.schoolName}</p>
+                        </div>
+                        <div className="text-center">
+                            <h2 className="text-2xl font-black uppercase mb-1">تقرير مقارنة نواتج التعلم</h2>
+                            <p className="text-xs font-bold text-gray-500">تحليل الفاقد والنمو التعليمي بين اختبارين</p>
+                        </div>
+                        <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-14" alt="moe"/></div>
                     </div>
-                    <div className="text-center">
-                        <h2 className="text-2xl font-black uppercase mb-1">تقرير مقارنة نواتج التعلم</h2>
-                        <p className="text-xs font-bold text-gray-500">تحليل الفاقد والنمو التعليمي بين اختبارين</p>
-                    </div>
-                    <div className="text-left"><img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-12" alt="moe"/></div>
-                </div>
 
-                <div className="grid grid-cols-3 gap-6 mb-10">
-                    <div className="p-6 rounded-3xl border-2 border-blue-100 bg-blue-50 text-center">
-                        <p className="text-xs font-black text-blue-600 mb-2">إتقان الاختبار الأساس</p>
-                        <h3 className="text-4xl font-black text-blue-900">{Math.round(data.dataA.overallMasteryPct)}%</h3>
+                    <div className="grid grid-cols-3 gap-6 mb-10">
+                        <div className="p-6 rounded-3xl border-2 border-blue-100 bg-blue-50 text-center">
+                            <p className="text-xs font-black text-blue-600 mb-2">إتقان الاختبار الأساس</p>
+                            <h3 className="text-4xl font-black text-blue-900">{Math.round(data.dataA.overallMasteryPct)}%</h3>
+                            <p className="text-[10px] text-blue-400 mt-1">{recA.examTitle}</p>
+                        </div>
+                        <div className="p-6 rounded-3xl border-2 border-green-100 bg-green-50 text-center">
+                            <p className="text-xs font-black text-green-600 mb-2">إتقان الاختبار المستهدف</p>
+                            <h3 className="text-4xl font-black text-green-900">{Math.round(data.dataB.overallMasteryPct)}%</h3>
+                            <p className="text-[10px] text-green-400 mt-1">{recB.examTitle}</p>
+                        </div>
+                        <div className={`p-6 rounded-3xl border-2 text-center ${overallGrowth >= 0 ? 'border-purple-100 bg-purple-50' : 'border-red-100 bg-red-50'}`}>
+                            <p className={`text-xs font-black mb-2 ${overallGrowth >= 0 ? 'text-purple-600' : 'text-red-600'}`}>نسبة التطور (Growth)</p>
+                            <h3 className={`text-4xl font-black ${overallGrowth >= 0 ? 'text-purple-900' : 'text-red-900'}`}>
+                                {overallGrowth >= 0 ? '+' : ''}{Math.round(overallGrowth)}%
+                            </h3>
+                            <p className="text-[10px] opacity-60 mt-1">مؤشر التحسن العام</p>
+                        </div>
                     </div>
-                    <div className="p-6 rounded-3xl border-2 border-green-100 bg-green-50 text-center">
-                        <p className="text-xs font-black text-green-600 mb-2">إتقان الاختبار المستهدف</p>
-                        <h3 className="text-4xl font-black text-green-900">{Math.round(data.dataB.overallMasteryPct)}%</h3>
-                    </div>
-                    <div className={`p-6 rounded-3xl border-2 text-center ${overallGrowth >= 0 ? 'border-purple-100 bg-purple-50' : 'border-red-100 bg-red-50'}`}>
-                        <p className={`text-xs font-black mb-2 ${overallGrowth >= 0 ? 'text-purple-600' : 'text-red-600'}`}>نسبة التطور (Growth)</p>
-                        <h3 className={`text-4xl font-black ${overallGrowth >= 0 ? 'text-purple-900' : 'text-red-900'}`}>
-                            {overallGrowth >= 0 ? '+' : ''}{Math.round(overallGrowth)}%
-                        </h3>
-                    </div>
-                </div>
 
-                <div className="bg-gray-50 border-2 border-black rounded-3xl p-6 mb-10">
-                    <h3 className="text-center font-black text-gray-800 mb-8 border-b border-gray-200 pb-4">مقارنة نسب الإتقان لكل مهارة</h3>
-                    <div className="h-[400px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <ReBarChart data={skillChartData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} />
-                                <YAxis domain={[0, 100]} unit="%" />
-                                <Tooltip />
-                                <Legend />
-                                <ReBar name={recA.examTitle} dataKey="testA" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                <ReBar name={recB.examTitle} dataKey="testB" fill="#10b981" radius={[4, 4, 0, 0]} />
-                            </ReBarChart>
-                        </ResponsiveContainer>
+                    <div className="bg-gray-50 border-2 border-black rounded-3xl p-6 mb-10">
+                        <h3 className="text-center font-black text-gray-800 mb-8 border-b border-gray-200 pb-4">مقارنة نسب الإتقان لكل مهارة مستهدفة</h3>
+                        <div className="h-[350px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ReBarChart data={skillChartData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" tick={{fontSize: 9, fontWeight: 'bold'}} />
+                                    <YAxis domain={[0, 100]} unit="%" />
+                                    <Tooltip />
+                                    <Legend iconType="circle" />
+                                    <ReBar name={recA.examTitle} dataKey="testA" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                    <ReBar name={recB.examTitle} dataKey="testB" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                </ReBarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 text-center text-xs font-black border-t-2 border-black pt-6 bg-gray-50 p-4">
+                        <div>معلم المادة / أ. {header?.teacherName}</div>
+                        <div>مدير المدرسة / أ. {header?.schoolManager}</div>
                     </div>
                 </div>
-
-                <div className="grid grid-cols-2 text-center text-xs font-black border-t-2 border-black pt-6">
-                    <div>معلم المادة / أ. {header?.teacherName}</div>
-                    <div>مدير المدرسة / أ. {header?.schoolManager}</div>
-                </div>
-            </div>
+            )}
 
             {/* الصفحة الثانية: تفاصيل نمو الطلاب */}
-            <div className="bg-white p-8 shadow-2xl border-2 border-black print:p-0 print:shadow-none">
-                <h3 className="text-xl font-black text-center mb-6 bg-gray-900 text-white py-3 rounded-xl uppercase tracking-widest">مقارنة درجات الطلاب وتحليل النمو الفردي</h3>
-                
-                <table className="w-full border-collapse text-center table-fixed text-[11px]">
-                    <thead>
-                        <tr className="bg-gray-100 font-black h-12 border-b-2 border-black">
-                            <th className="border border-black w-10">م</th>
-                            <th className="border border-black w-56 text-right pr-4">اسم الطالب</th>
-                            <th className="border border-black bg-blue-50 text-blue-900 font-black">{recA.examTitle}</th>
-                            <th className="border border-black bg-green-50 text-green-900 font-black">{recB.examTitle}</th>
-                            <th className="border border-black w-24">مستوى التطور</th>
-                            <th className="border border-black w-32">الحالة والتحسن</th>
-                        </tr>
-                    </thead>
-                    <tbody className="font-bold">
-                        {studentComparison.map((s: any, idx: number) => (
-                            <tr key={s.sid} className={`h-9 border-b border-gray-200 ${s.isAbsent ? 'bg-gray-100 opacity-50' : ''}`}>
-                                <td className="border border-gray-200 bg-gray-50">{idx + 1}</td>
-                                <td className="border border-gray-200 text-right pr-3 font-black text-gray-800">{s.name}</td>
-                                <td className="border border-gray-200 text-blue-700">{s.isAbsent ? 'غ' : `${Math.round(s.pctA)}%`}</td>
-                                <td className="border border-gray-200 text-green-700">{s.isAbsent ? 'غ' : `${Math.round(s.pctB)}%`}</td>
-                                <td className={`border border-gray-200 font-black ${s.growth > 0 ? 'text-green-600' : s.growth < 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                                    {!s.isAbsent && (
-                                        <div className="flex items-center justify-center gap-1">
-                                            {s.growth > 0 ? <ArrowUpRight size={14}/> : s.growth < 0 ? <ArrowDownRight size={14}/> : <Minus size={14}/>}
-                                            {Math.abs(Math.round(s.growth))}%
-                                        </div>
-                                    )}
-                                </td>
-                                <td className="border border-gray-200">
-                                    {!s.isAbsent && (
-                                        <span className={`px-2 py-1 rounded text-[9px] font-black ${s.growth > 15 ? 'bg-green-100 text-green-700' : s.growth > 0 ? 'bg-blue-100 text-blue-700' : s.growth === 0 ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-700'}`}>
-                                            {s.growth > 15 ? 'تحسن كبير 🚀' : s.growth > 0 ? 'تحسن طفيف' : s.growth === 0 ? 'مستوى ثابت' : 'تراجع أداء'}
-                                        </span>
-                                    )}
-                                </td>
+            {(viewMode === 'DETAILS' || window.matchMedia('print').matches) && (
+                <div className="bg-white p-8 shadow-2xl border-2 border-black print:p-0 print:shadow-none">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="text-right text-[10px] font-bold">مدرسة: {header?.schoolName}</div>
+                        <h3 className="text-lg font-black text-center bg-gray-900 text-white py-2 px-10 rounded-xl uppercase tracking-widest">تحليل النمو الفردي للمتعلمين</h3>
+                        <div className="text-left text-[10px] font-bold">الفصل: {data.dataA.gradeName}</div>
+                    </div>
+                    
+                    <table className="w-full border-collapse text-center table-fixed text-[11px]">
+                        <thead>
+                            <tr className="bg-gray-100 font-black h-12 border-b-2 border-black">
+                                <th className="border border-black w-10">م</th>
+                                <th className="border border-black w-56 text-right pr-4">اسم الطالب</th>
+                                <th className="border border-black bg-blue-50 text-blue-900 font-black">{recA.examTitle}</th>
+                                <th className="border border-black bg-green-50 text-green-900 font-black">{recB.examTitle}</th>
+                                <th className="border border-black w-24">مستوى التطور</th>
+                                <th className="border border-black w-32">الحالة والتحسن</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="font-bold">
+                            {studentComparison.map((s: any, idx: number) => (
+                                <tr key={s.sid} className={`h-9 border-b border-gray-200 ${s.isAbsent ? 'bg-gray-100 opacity-50' : ''}`}>
+                                    <td className="border border-gray-200 bg-gray-50">{idx + 1}</td>
+                                    <td className="border border-gray-200 text-right pr-3 font-black text-gray-800">{s.name}</td>
+                                    <td className="border border-gray-200 text-blue-700">{s.isAbsent ? 'غ' : `${Math.round(s.pctA)}%`}</td>
+                                    <td className="border border-gray-200 text-green-700">{s.isAbsent ? 'غ' : `${Math.round(s.pctB)}%`}</td>
+                                    <td className={`border border-gray-200 font-black ${s.growth > 0 ? 'text-green-600' : s.growth < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                                        {!s.isAbsent && (
+                                            <div className="flex items-center justify-center gap-1">
+                                                {s.growth > 0 ? <ArrowUpRight size={14}/> : s.growth < 0 ? <ArrowDownRight size={14}/> : <Minus size={14}/>}
+                                                {Math.abs(Math.round(s.growth))}%
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="border border-gray-200">
+                                        {!s.isAbsent && (
+                                            <span className={`px-2 py-1 rounded text-[9px] font-black ${s.growth > 15 ? 'bg-green-100 text-green-700' : s.growth > 0 ? 'bg-blue-100 text-blue-700' : s.growth === 0 ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-700'}`}>
+                                                {s.growth > 15 ? 'تحسن كبير 🚀' : s.growth > 0 ? 'تحسن طفيف' : s.growth === 0 ? 'مستوى ثابت' : 'تراجع أداء'}
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
 
-                <div className="mt-12 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black pt-6">
-                    <div>معلم المادة / أ. {header?.teacherName}</div>
-                    <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                    <div className="mt-12 grid grid-cols-2 text-center text-xs font-black border-t-2 border-black pt-6">
+                        <div>معلم المادة / أ. {header?.teacherName}</div>
+                        <div>مدير المدرسة / أ. {header?.schoolManager}</div>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
