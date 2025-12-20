@@ -72,11 +72,23 @@ export const uploadToSupabase = async () => {
     for (const item of tables) {
         const data = get(item.key);
         if (data.length > 0) {
-            try { await supabase.from(item.table).upsert(data); } catch (e) { console.error(`Error syncing ${item.table}:`, e); }
+            try { 
+                // نرفع البيانات على دفعات لتجنب أخطاء حجم الطلب الكبير
+                const chunkSize = 500;
+                for (let i = 0; i < data.length; i += chunkSize) {
+                    const chunk = data.slice(i, i + chunkSize);
+                    await supabase.from(item.table).upsert(chunk);
+                }
+            } catch (e) { 
+                console.error(`Error syncing ${item.table}:`, e); 
+            }
         }
     }
 };
 
+/**
+ * دالة جلب البيانات مع دعم الترقيم (Pagination) لجلب أكثر من 1000 سجل
+ */
 export const downloadFromSupabase = async () => {
     if (!navigator.onLine) return;
     const tables = [
@@ -93,9 +105,40 @@ export const downloadFromSupabase = async () => {
 
     for (const item of tables) {
         try {
-            const { data, error } = await supabase.from(item.table).select('*');
-            if (!error && data) save(item.key, data);
-        } catch (e) { console.error(`Error downloading ${item.table}:`, e); }
+            let allData: any[] = [];
+            let from = 0;
+            const pageSize = 1000;
+            let finished = false;
+
+            while (!finished) {
+                const { data, error } = await supabase
+                    .from(item.table)
+                    .select('*')
+                    .range(from, from + pageSize - 1);
+
+                if (error) {
+                    console.error(`Supabase Error in ${item.table}:`, error);
+                    break;
+                }
+
+                if (data && data.length > 0) {
+                    allData = [...allData, ...data];
+                    if (data.length < pageSize) {
+                        finished = true;
+                    } else {
+                        from += pageSize;
+                    }
+                } else {
+                    finished = true;
+                }
+            }
+
+            if (allData.length > 0) {
+                save(item.key, allData);
+            }
+        } catch (e) { 
+            console.error(`Error downloading ${item.table}:`, e); 
+        }
     }
 };
 
@@ -123,7 +166,6 @@ export const addPerformance = (record: PerformanceRecord | PerformanceRecord[]) 
     const list = getPerformance(); 
     const records = Array.isArray(record) ? record : [record]; 
     records.forEach(rec => { 
-        // تحسين: المطابقة تتم بناءً على ID أو تركيبة الطالب + التكليف + التاريخ لمنع الحذف العشوائي
         const idx = list.findIndex(r => 
             r.id === rec.id || 
             (r.studentId === rec.studentId && r.title === rec.title && r.date === rec.date)
