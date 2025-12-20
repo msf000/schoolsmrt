@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment } from '../types';
+import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment, AttendanceRecord } from '../types';
 import { getAcademicTerms, getAssignments, getTeacherAssignments, addPerformance } from '../services/storageService';
 // Added Trash2 to lucide-react imports
 import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2 } from 'lucide-react';
@@ -10,13 +9,14 @@ import { useNavigate } from 'react-router-dom';
 interface PerformanceProps {
   students: Student[];
   performance: PerformanceRecord[];
+  attendance: AttendanceRecord[];
   onAddPerformance: (record: PerformanceRecord | PerformanceRecord[]) => void;
   onImportPerformance: (records: PerformanceRecord[]) => void;
   onDeletePerformance: (id: string) => void;
   currentUser?: SystemUser | null;
 }
 
-const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
+const Performance: React.FC<PerformanceProps> = ({ students, performance, attendance, onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
   const navigate = useNavigate();
   const isManager = currentUser?.role === 'SCHOOL_MANAGER';
 

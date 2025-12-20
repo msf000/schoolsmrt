@@ -216,9 +216,9 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
         });
 
         return {
-            homeworks: worksWithScores.filter(w => w.category === 'HOMEWORK'),
-            activities: worksWithScores.filter(w => w.category === 'ACTIVITY'),
-            exams: worksWithScores.filter(w => w.category === 'PLATFORM_EXAM' || w.category === 'OTHER')
+            homeworks: worksWithScores.filter((w: any) => w.category === 'HOMEWORK'),
+            activities: worksWithScores.filter((w: any) => w.category === 'ACTIVITY'),
+            exams: worksWithScores.filter((w: any) => w.category === 'PLATFORM_EXAM' || w.category === 'OTHER')
         };
     }, [assignments, performance, student.id, selectedPeriodId, currentTerm]);
 
