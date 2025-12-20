@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, LearningStyle } from '../types';
 
 export interface ImportResult {
   success: boolean;
@@ -8,18 +8,74 @@ export interface ImportResult {
   data?: any[];
 }
 
-// Helper to clean headers
+// الكلمات المفتاحية لكل نمط بناءً على هيكلة أسئلة مايكروسوفت فورمز
+const VARK_KEYWORDS = {
+    VISUAL: ['رؤية', 'صور', 'فيديو', 'خريطة', 'رسم', 'مخطط', 'تخيل', 'شرائح', 'ملامحه'],
+    AUDITORY: ['استماع', 'صوتي', 'محاضرة', 'تحدث', 'نقاش', 'تكراره', 'سماعه', 'صوته', 'نطق'],
+    READ_WRITE: ['قراءة', 'كتابة', 'نص', 'دفتر', 'تعليمات', 'ملخصات', 'ملاحظات', 'مذكرات', 'إرشادات'],
+    KINESTHETIC: ['تطبيق', 'تجربة', 'عملي', 'حركات', 'مشي', 'لمسه', 'بيدي', 'تطبيقها', 'تجربتها', 'أزرار']
+};
+
+export const analyzeVarkLocally = (rawData: any[]): any => {
+    const studentAssignments: any[] = [];
+    const stats = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0 };
+
+    rawData.forEach(row => {
+        // البحث عن اسم الطالب في الأعمدة المحتملة
+        const studentName = row['اسمك الرباعي'] || row['الاسم'] || row['اسم الطالب'] || 'طالب مجهول';
+        
+        const scores = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0 };
+
+        // فحص كل خلية في الصف بحثاً عن الكلمات المفتاحية
+        Object.values(row).forEach(val => {
+            const text = String(val);
+            if (VARK_KEYWORDS.VISUAL.some(k => text.includes(k))) scores.VISUAL++;
+            if (VARK_KEYWORDS.AUDITORY.some(k => text.includes(k))) scores.AUDITORY++;
+            if (VARK_KEYWORDS.READ_WRITE.some(k => text.includes(k))) scores.READ_WRITE++;
+            if (VARK_KEYWORDS.KINESTHETIC.some(k => text.includes(k))) scores.KINESTHETIC++;
+        });
+
+        // تحديد النمط الغالب
+        let dominant: LearningStyle = 'UNKNOWN';
+        let maxScore = 0;
+
+        (Object.keys(scores) as (keyof typeof scores)[]).forEach(style => {
+            if (scores[style] > maxScore) {
+                maxScore = scores[style];
+                dominant = style as LearningStyle;
+            }
+        });
+
+        if (dominant !== 'UNKNOWN') {
+            stats[dominant as keyof typeof stats]++;
+            studentAssignments.push({
+                studentName,
+                style: dominant,
+                confidence: 'local-match'
+            });
+        }
+    });
+
+    return {
+        studentAssignments,
+        stats,
+        tips: [
+            "النمط البصري يفضل الخرائط الذهنية والألوان.",
+            "النمط السمعي يستفيد من المناقشات الجماعية والتسجيلات.",
+            "النمط القرائي يفضل التلخيص الكتابي والمذكرات.",
+            "النمط الحركي يحتاج للقيام بأنشطة بدنية أو تجارب عملية."
+        ]
+    };
+};
+
 export const cleanHeader = (header: string) => header?.toString().trim();
 
-// Fix: Added missing export for extractGoogleSheetId
 export const extractGoogleSheetId = (url: string): string | null => {
     const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
     return match ? match[1] : null;
 };
 
-// Fix: Added missing export for fetchGoogleSheetData using Google Sheets API
 export const fetchGoogleSheetData = async (sheetId: string, apiKey: string): Promise<{ sheetName: string, headers: string[], data: any[] }> => {
-    // 1. Get spreadsheet metadata to find the first sheet name
     const metaResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?key=${apiKey}`);
     if (!metaResponse.ok) {
         const error = await metaResponse.json();
@@ -29,8 +85,6 @@ export const fetchGoogleSheetData = async (sheetId: string, apiKey: string): Pro
     if (!spreadsheet.sheets || spreadsheet.sheets.length === 0) throw new Error("الملف لا يحتوي على أوراق عمل.");
     
     const sheetName = spreadsheet.sheets[0].properties.title;
-
-    // 2. Get values for that sheet
     const valuesResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}?key=${apiKey}`);
     if (!valuesResponse.ok) {
         const error = await valuesResponse.json();
@@ -40,7 +94,6 @@ export const fetchGoogleSheetData = async (sheetId: string, apiKey: string): Pro
     const rows = result.values;
     if (!rows || rows.length === 0) return { sheetName, headers: [], data: [] };
 
-    // 3. Process rows into objects
     const headers = rows[0].map((h: any) => String(h).trim());
     const data = rows.slice(1).map((row: any) => {
         const obj: any = {};
@@ -80,7 +133,6 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
         if (emailHeader) mapping['email'] = emailHeader;
         const parentNameHeader = findHeader(['parent', 'father', 'guardian', 'ولي', 'الاب']);
         if (parentNameHeader) mapping['parentName'] = parentNameHeader;
-        const parentNameHeaderValue = parentNameHeader; // for consistency
         const parentPhoneHeader = findHeader(['parent phone', 'father phone', 'guardian phone', 'جوال ولي', 'هاتف ولي', 'جوال الاب']);
         if (parentPhoneHeader) mapping['parentPhone'] = parentPhoneHeader;
     } else if (fieldType === 'PERFORMANCE') {
@@ -111,7 +163,6 @@ export const getSheetHeadersAndData = (workbook: any, sheetName: string): { head
     const worksheet = workbook.Sheets[sheetName];
     if (!worksheet) return { headers: [], data: [] };
     
-    // تأكد من جلب كافة الأعمدة من نطاق الورقة بالكامل
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
     const headers: string[] = [];
     for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -119,14 +170,12 @@ export const getSheetHeadersAndData = (workbook: any, sheetName: string): { head
         if (cell && cell.v) {
             headers.push(String(cell.v).trim());
         } else {
-            // في حال وجود عمود بدون عنوان، نعطيه اسماً افتراضياً
             headers.push(`Column_${C + 1}`);
         }
     }
 
-    // استخراج البيانات مع التأكد من مطابقة الرؤوس
     const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-    const rows = data.slice(1).map((row: any) => {
+    const rows = (data.slice(1) as any[]).map((row: any) => {
         const obj: any = {};
         headers.forEach((h, i) => {
             obj[h] = row[i];
@@ -178,7 +227,6 @@ export const getWorkbookStructure = async (file: File): Promise<{ sheetNames: st
   });
 };
 
-// Fix: Implemented missing logic in processMappedData
 export const processMappedData = (rawRows: any[], mapping: Record<string, string>, type: 'STUDENTS' | 'PERFORMANCE' | 'ATTENDANCE', existingStudents: Student[] = []): any[] => {
     const results: any[] = [];
     rawRows.forEach((row) => {

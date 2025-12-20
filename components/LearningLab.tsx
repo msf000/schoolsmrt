@@ -2,11 +2,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Student, EnvironmentRecord, LearningStyle } from '../types';
 import { updateStudentLearningStyle, saveEnvironmentRecord, getStudents } from '../services/storageService';
 import { diagnoseLearningStyle, chatWithData, analyzeLearningStyleExcel } from '../services/geminiService';
-import { getWorkbookStructure, getSheetHeadersAndData } from '../services/excelService';
+import { getWorkbookStructure, getSheetHeadersAndData, analyzeVarkLocally } from '../services/excelService';
 import { 
     BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, 
     History, TrendingUp, Lightbulb, Bot, ChevronRight, FileSpreadsheet, ClipboardList, 
-    PieChart as PieChartIcon, Upload, X, HelpCircle, BarChart, Info, UserCheck
+    PieChart as PieChartIcon, Upload, X, HelpCircle, BarChart, Info, UserCheck, Zap
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
@@ -107,9 +107,10 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
         updateStudentLearningStyle(selectedStudentId, dominantStyle as LearningStyle);
         alert(`تم تحديد نمط الطالب: ${dominantStyle}. تم تحديث الملف.`);
         setQuizAnswers({});
+        setLocalStudents(getStudents());
     };
 
-    const handleFormsImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFormsImport = async (e: React.ChangeEvent<HTMLInputElement>, method: 'AI' | 'LOCAL') => {
         const file = e.target.files?.[0];
         if (!file) return;
         setIsImportLoading(true);
@@ -117,10 +118,13 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
             const { workbook, sheetNames } = await getWorkbookStructure(file);
             const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
             
-            // نرسل أول 50 سجلاً للذكاء الاصطناعي لتوفير التكلفة والوقت
-            const result = await analyzeLearningStyleExcel(JSON.stringify(data.slice(0, 50)));
+            let result;
+            if (method === 'AI') {
+                result = await analyzeLearningStyleExcel(JSON.stringify(data.slice(0, 50)));
+            } else {
+                result = analyzeVarkLocally(data);
+            }
             
-            // تنفيذ التحديثات في قاعدة البيانات المحلية
             let matchedCount = 0;
             if (result.studentAssignments) {
                 result.studentAssignments.forEach((item: any) => {
@@ -137,11 +141,11 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                 });
             }
             
-            setBulkResult({ ...result, matchedCount });
-            setLocalStudents(getStudents()); // تحديث القائمة المحلية
-            alert(`تم معالجة الملف ومطابقة ${matchedCount} طالباً بنجاح.`);
+            setBulkResult({ ...result, matchedCount, method });
+            setLocalStudents(getStudents());
+            alert(`تم ${method === 'AI' ? 'التحليل الذكي' : 'التحليل المحلي'} ومطابقة ${matchedCount} طالباً.`);
         } catch (error) {
-            alert('حدث خطأ أثناء تحليل ملف Microsoft Forms.');
+            alert('حدث خطأ أثناء معالجة الملف.');
         } finally {
             setIsImportLoading(false);
         }
@@ -281,17 +285,22 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col gap-6 overflow-y-auto">
                             <div className="flex justify-between items-center border-b pb-4">
                                 <h3 className="font-bold text-gray-800 flex items-center gap-2"><HelpCircle className="text-purple-600"/> اختبار الأنماط (VARK)</h3>
-                                <div className="relative">
-                                    <input type="file" id="forms-import" className="hidden" accept=".xlsx" onChange={handleFormsImport}/>
-                                    <label htmlFor="forms-import" className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-xl text-xs font-black cursor-pointer hover:bg-green-100 border border-green-200 shadow-sm">
-                                        {isImportLoading ? <Loader2 className="animate-spin" size={14}/> : <FileSpreadsheet size={14}/>} استيراد من Forms
+                                <div className="flex gap-2">
+                                    <input type="file" id="local-import" className="hidden" accept=".xlsx" onChange={e => handleFormsImport(e, 'LOCAL')}/>
+                                    <label htmlFor="local-import" className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl text-[10px] font-black cursor-pointer hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all active:scale-95">
+                                        <Zap size={14}/> تحليل محلي (سريع)
+                                    </label>
+                                    
+                                    <input type="file" id="ai-import" className="hidden" accept=".xlsx" onChange={e => handleFormsImport(e, 'AI')}/>
+                                    <label htmlFor="ai-import" className="flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-2 rounded-xl text-[10px] font-black cursor-pointer hover:bg-purple-100 border border-purple-200 shadow-sm transition-all active:scale-95">
+                                        <Sparkles size={14}/> تحليل ذكي (AI)
                                     </label>
                                 </div>
                             </div>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">اختيار الطالب</label>
+                                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">اختيار الطالب للتقييم الفردي</label>
                                     <select className="w-full p-3 border rounded-xl bg-gray-50 font-bold" value={selectedStudentId} onChange={e=>setSelectedStudentId(e.target.value)}>
                                         <option value="">-- اختر طالباً --</option>
                                         {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -321,30 +330,35 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                             {bulkResult ? (
                                 <div className="space-y-6 animate-fade-in">
                                     <div className="flex items-center gap-4 bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                                        <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg"><CheckCircle size={32}/></div>
+                                        <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg">
+                                            {bulkResult.method === 'AI' ? <Sparkles size={32}/> : <CheckCircle size={32}/>}
+                                        </div>
                                         <div>
-                                            <h4 className="text-xl font-black text-indigo-900">تحليل Forms المكتمل</h4>
-                                            <p className="text-sm text-indigo-600 font-bold">تم مطابقة وتحديث {bulkResult.matchedCount} طالب من السجلات.</p>
+                                            <h4 className="text-xl font-black text-indigo-900">اكتمال التحليل ({bulkResult.method === 'AI' ? 'ذكي' : 'محلي'})</h4>
+                                            <p className="text-sm text-indigo-600 font-bold">تم مطابقة وتحديث {bulkResult.matchedCount} طالب من أصل {bulkResult.studentAssignments.length} سجل.</p>
                                         </div>
                                     </div>
 
                                     <div className="bg-white p-6 rounded-3xl border shadow-sm">
                                         <h5 className="font-black text-gray-800 mb-4 flex items-center gap-2"><BarChart size={18} className="text-indigo-600"/> توزيع الأنماط في الملف</h5>
                                         <div className="space-y-3">
-                                            {Object.entries(bulkResult.stats).map(([style, count]: [string, any], i) => (
-                                                <div key={style} className="flex items-center gap-4">
-                                                    <span className="text-[10px] font-bold w-20 text-gray-500">{style}</span>
-                                                    <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div className="h-full rounded-full" style={{ width: `${(count/bulkResult.studentAssignments.length)*100}%`, backgroundColor: COLORS[i] }}></div>
+                                            {Object.entries(bulkResult.stats).map(([style, count]: [string, any], i) => {
+                                                const pct = (count/bulkResult.studentAssignments.length)*100;
+                                                return (
+                                                    <div key={style} className="flex items-center gap-4">
+                                                        <span className="text-[10px] font-bold w-20 text-gray-500">{style}</span>
+                                                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, backgroundColor: COLORS[i] }}></div>
+                                                        </div>
+                                                        <span className="text-xs font-black text-gray-700">{count}</span>
                                                     </div>
-                                                    <span className="text-xs font-black text-gray-700">{count}</span>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
                                     <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100">
-                                        <h5 className="font-black text-yellow-800 mb-4 flex items-center gap-2"><Lightbulb size={18}/> توصيات AI لهذا الفصل</h5>
+                                        <h5 className="font-black text-yellow-800 mb-4 flex items-center gap-2"><Lightbulb size={18}/> توصيات تربوية</h5>
                                         <ul className="space-y-3">
                                             {bulkResult.tips.map((tip: string, i: number) => (
                                                 <li key={i} className="text-sm text-yellow-700 font-medium flex items-start gap-2">
@@ -358,10 +372,10 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                                 <div className="h-full flex flex-col items-center justify-center text-gray-300 p-10 text-center">
                                     <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6"><FileSpreadsheet size={48} className="opacity-10"/></div>
                                     <h4 className="text-xl font-bold text-gray-400 mb-2">تحليل الاستجابات الجماعية</h4>
-                                    <p className="text-sm max-w-xs leading-relaxed opacity-60">قم برفع ملف Excel المستخرج من مايكروسوفت فورمز ليقوم النظام بتحليل الأنماط لجميع الطلاب دفعة واحدة وتحديث سجلاتهم.</p>
+                                    <p className="text-sm max-w-xs leading-relaxed opacity-60">ارفع ملف الاستجابات من Microsoft Forms للتحليل الفوري لأنماط تعلم الطلاب.</p>
                                     <div className="mt-8 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-blue-800 text-xs flex gap-3">
                                         <Info size={16} className="shrink-0"/>
-                                        <p className="text-right">تأكد من وجود عمود "الاسم" في الملف لمطابقة النتائج مع الطلاب المسجلين في النظام.</p>
+                                        <p className="text-right">ملاحظة: التحليل المحلي أسرع ويعمل بدون إنترنت، بينما التحليل الذكي (AI) أكثر دقة في فهم الإجابات المفتوحة.</p>
                                     </div>
                                 </div>
                             )}
