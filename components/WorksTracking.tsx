@@ -13,7 +13,7 @@ interface WorksTrackingProps {
     currentUser?: SystemUser | null;
 }
 
-// التبويبات الافتراضية
+// التبويبات الافتراضية للنظام
 const DEFAULT_CATEGORIES = [
     { id: 'HOMEWORK', label: 'الواجبات' },
     { id: 'ACTIVITY', label: 'الأنشطة' },
@@ -28,7 +28,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         return [...initialStudents].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [initialStudents]);
 
-    // --- State: Categories ---
+    // إدارة التبويبات (الافتراضية + المخصصة)
     const [categories, setCategories] = useState<{id: string, label: string}[]>(() => {
         const saved = localStorage.getItem('works_custom_categories');
         return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
@@ -104,7 +104,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     }, [assignments, activeTab, selectedTermId, selectedPeriodId]);
 
-    // حساب نسبة الإنجاز لأي تبويب حالي أو محدد
+    // حساب نسبة الإنجاز (Mastery %) لتبويب معين أو التبويب النشط
     const calculateAchievement = useCallback((studentId: string, categoryId?: string) => {
         const targetAssignments = categoryId 
             ? assignments.filter(a => a.category === categoryId && (!selectedTermId || a.termId === selectedTermId) && (!selectedPeriodId || a.periodId === selectedPeriodId))
@@ -126,6 +126,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         return Math.round((totalEarned / totalPossible) * 100);
     }, [scores, filteredAssignments, assignments, selectedTermId, selectedPeriodId]);
 
+    // حساب ملخص أعمال السنة النهائي
     const calculateYearWork = useCallback((studentId: string) => {
         const studentPerf = performance.filter(p => {
             const isMatch = p.studentId === studentId && p.subject === selectedSubject;
@@ -141,25 +142,25 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             if (items.length === 0) return 0;
             const weight = weights[catId] || 0;
 
-            // إذا كان التبويب اختبارات -> نستخدم المعدل الموزون (متوسط نسب الإتقان لكل اختبار)
+            // إذا كان التبويب اختبارات -> نستخدم "المعدل الموزون" لمتوسط النسب
             if (catId === 'PLATFORM_EXAM') {
                 const percentages = items.map(item => (item.score / item.maxScore));
                 const averagePct = percentages.reduce((a, b) => a + b, 0) / percentages.length;
                 return averagePct * weight;
             } 
             
-            // للواجبات والأنشطة والتبويبات الأخرى -> نستخدم نسبة الإنجاز الإجمالية (إجمالي المحصل / إجمالي العظمى)
+            // لباقي التبويبات -> نستخدم "نسبة الإنجاز الإجمالية"
             const totalEarned = items.reduce((sum, item) => sum + item.score, 0);
             const totalMax = items.reduce((sum, item) => sum + item.maxScore, 0);
             return (totalEarned / (totalMax || 1)) * weight;
         };
 
-        const scoresByCat: Record<string, number> = {};
+        const results: Record<string, number> = {};
         let total = 0;
 
         categories.forEach(cat => {
             const score = getCategoryFinalScore(cat.id);
-            scoresByCat[cat.id] = Math.round(score * 100) / 100;
+            results[cat.id] = Math.round(score * 100) / 100;
             total += score;
         });
         
@@ -168,14 +169,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             if (a.studentId !== studentId) return false;
             if (!selectedPeriodId) return true;
             const period = activePeriods.find(p => p.id === selectedPeriodId);
-            if (!period) return true;
-            return a.date >= period.startDate && a.date <= period.endDate;
+            return period ? (a.date >= period.startDate && a.date <= period.endDate) : true;
         });
         const attRate = studentAtt.length > 0 ? (studentAtt.filter(a => a.status === 'PRESENT').length / studentAtt.length) : 1;
         const attScore = attRate * (weights.ATTENDANCE || 5);
+        results['att'] = Math.round(attScore * 100) / 100;
         total += attScore;
 
-        return { ...scoresByCat, att: Math.round(attScore * 100) / 100, total: Math.round(total * 10) / 10 };
+        results['total'] = Math.round(total * 10) / 10;
+        return results;
     }, [performance, selectedSubject, weights, attendance, assignments, selectedPeriodId, activePeriods, categories]);
 
     const saveAllScores = async () => {
@@ -190,16 +192,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                 const val = scores[studentId][assignId];
                 if (assign && val !== '') {
                     records.push({
-                        id: `${studentId}_${assignId}`,
-                        studentId,
-                        subject: selectedSubject,
-                        title: assign.title,
-                        category: assign.category,
-                        score: parseFloat(val),
-                        maxScore: assign.maxScore,
-                        date: today,
-                        notes: assign.id,
-                        createdById: currentUser?.id
+                        id: `${studentId}_${assignId}`, studentId, subject: selectedSubject, title: assign.title, category: assign.category,
+                        score: parseFloat(val), maxScore: assign.maxScore, date: today, notes: assign.id, createdById: currentUser?.id
                     });
                 }
             });
@@ -207,13 +201,47 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
         if (records.length > 0) {
             onAddPerformance(records);
-            setTimeout(() => {
-                setIsSaving(false);
-                alert('تم حفظ الدرجات بنجاح!');
-            }, 500);
-        } else {
-            setIsSaving(false);
-        }
+            setTimeout(() => { setIsSaving(false); alert('تم حفظ الدرجات بنجاح!'); }, 500);
+        } else { setIsSaving(false); }
+    };
+
+    const handleQuickSync = async () => {
+        if (!googleSheetUrl) return alert('الرجاء وضع رابط الملف في الإعدادات أولاً');
+        setIsSheetSyncing(true);
+        try {
+            const { workbook } = await fetchWorkbookStructureUrl(googleSheetUrl);
+            const linked = filteredAssignments.filter(a => a.sourceMetadata);
+            if (linked.length === 0) throw new Error('لا توجد أعمدة مرتبطة في هذا التبويب/الفترة. قم بربط الأعمدة من الإعدادات.');
+            
+            const newRecords: PerformanceRecord[] = [];
+            for (const assign of linked) {
+                const meta = JSON.parse(assign.sourceMetadata!);
+                const { data } = getSheetHeadersAndData(workbook, meta.sheet);
+                data.forEach((row: any) => {
+                    const name = String(row['الاسم'] || row['اسم الطالب'] || row['Name'] || '').trim();
+                    const nationalId = String(row['رقم الهوية'] || row['السجل المدني'] || '').trim();
+                    const student = students.find(s => 
+                        (nationalId && s.nationalId === nationalId) || 
+                        (name && s.name.trim() === name) || 
+                        (name && s.name.includes(name))
+                    );
+                    const scoreVal = row[meta.header];
+                    const score = parseFloat(scoreVal);
+                    if (student && !isNaN(score)) {
+                        newRecords.push({
+                            id: `${student.id}_${assign.id}`, studentId: student.id, subject: selectedSubject, title: assign.title, category: assign.category,
+                            score: score, maxScore: assign.maxScore, date: new Date().toISOString().split('T')[0], notes: assign.id, createdById: currentUser?.id
+                        });
+                    }
+                });
+            }
+            if (newRecords.length > 0) {
+                onAddPerformance(newRecords);
+                alert(`تم تحديث ${newRecords.length} سجل بنجاح من ملف قوقل!`);
+            } else {
+                alert('لم يتم العثور على بيانات متطابقة للمزامنة.');
+            }
+        } catch (e: any) { alert(e.message); } finally { setIsSheetSyncing(false); }
     };
 
     const handleFetchSheet = async () => {
@@ -222,8 +250,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         try {
             saveWorksMasterUrl(googleSheetUrl);
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
-            setWorkbookRef(workbook);
-            setSheetNames(sheetNames);
+            setWorkbookRef(workbook); setSheetNames(sheetNames);
             if (sheetNames.length > 0) setSelectedSheetName(sheetNames[0]);
         } catch (e: any) { alert(e.message); } finally { setIsFetchingStructure(false); }
     };
@@ -247,9 +274,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
     const handleDeleteCategory = (id: string) => {
         if (DEFAULT_CATEGORIES.some(c => c.id === id)) return alert('لا يمكن حذف التبويبات الأساسية');
-        const newCats = categories.filter(c => c.id !== id);
-        setCategories(newCats);
-        localStorage.setItem('works_custom_categories', JSON.stringify(newCats));
+        if (confirm('حذف التبويب سيؤدي لفصل ارتباط الأعمدة التابعة له. هل تريد الاستمرار؟')) {
+            const newCats = categories.filter(c => c.id !== id);
+            setCategories(newCats);
+            localStorage.setItem('works_custom_categories', JSON.stringify(newCats));
+        }
     };
 
     return (
@@ -284,6 +313,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                     <button onClick={saveAllScores} disabled={isSaving} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-md hover:bg-indigo-700 transition-all">
                         {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <CheckCircle size={16}/>} حفظ التعديلات
                     </button>
+                    {googleSheetUrl && (
+                        <button onClick={handleQuickSync} disabled={isSheetSyncing} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-md hover:bg-green-700 transition-all">
+                            {isSheetSyncing ? <RefreshCw className="animate-spin" size={16}/> : <Zap size={16}/>} تحديث من الملف
+                        </button>
+                    )}
                     <button onClick={() => setIsSettingsOpen(true)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-200 border"><Settings size={18}/></button>
                 </div>
             </div>
@@ -295,7 +329,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             {cat.label}
                         </button>
                     ))}
-                    <button onClick={() => setActiveTab('YEAR_WORK')} className={`px-4 py-2 rounded-lg text-sm font-black transition-all whitespace-nowrap ${activeTab === 'YEAR_WORK' ? 'bg-indigo-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>أعمال السنة</button>
+                    <button onClick={() => setActiveTab('YEAR_WORK')} className={`px-4 py-2 rounded-lg text-sm font-black transition-all whitespace-nowrap ${activeTab === 'YEAR_WORK' ? 'bg-indigo-900 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-100'}`}>أعمال السنة</button>
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">
@@ -317,6 +351,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                 <div className="flex flex-col items-center">
                                                     <span className="font-bold">{a.title}</span>
                                                     <span className="text-[9px] text-gray-400 mt-1">({a.maxScore})</span>
+                                                    {a.sourceMetadata && <div className="text-[8px] text-green-600 flex items-center gap-0.5 mt-0.5"><Sheet size={8}/> متزامن</div>}
                                                 </div>
                                             </th>
                                         ))}
@@ -333,15 +368,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                             <td className="p-3 border-l text-gray-400">{idx + 1}</td>
                                             <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white z-10 border-l">
                                                 <div className="flex items-center justify-between">
-                                                    <span>{student.name}</span>
+                                                    <span className="truncate">{student.name}</span>
                                                 </div>
                                             </td>
-                                            {categories.map(cat => {
-                                                const scoreValue = (res as any)[cat.id] || 0;
-                                                return <td key={cat.id} className="p-3 border-l font-bold">{scoreValue}</td>;
-                                            })}
-                                            <td className="p-3 border-l font-bold text-green-600">{res.att}</td>
-                                            <td className="p-3 border-l font-black text-indigo-900 bg-indigo-50">{res.total}</td>
+                                            {categories.map(cat => (
+                                                <td key={cat.id} className="p-3 border-l font-bold text-gray-700">{(res as any)[cat.id] || 0}</td>
+                                            ))}
+                                            <td className="p-3 border-l font-bold text-green-600">{(res as any).att || 0}</td>
+                                            <td className="p-3 border-l font-black text-indigo-900 bg-indigo-50">{(res as any).total || 0}</td>
                                         </tr>
                                     );
                                 }
@@ -350,9 +384,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                     <tr key={student.id} className="hover:bg-gray-50 border-b">
                                         <td className="p-3 border-l text-gray-400">{idx + 1}</td>
                                         <td className="p-3 text-right font-bold text-gray-800 sticky right-0 bg-white z-10 border-l" onClick={() => navigate('/followup', {state: {studentId: student.id}})}>
-                                            <div className="flex items-center justify-between">
+                                            <div className="flex items-center justify-between gap-4">
                                                 <span className="truncate">{student.name}</span>
-                                                <span className={`mr-2 px-2 py-0.5 rounded-full text-[9px] font-black shadow-sm ${achievement >= 90 ? 'bg-green-600 text-white' : achievement >= 50 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black shadow-sm shrink-0 ${achievement >= 90 ? 'bg-green-600 text-white' : achievement >= 50 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
                                                     {achievement}%
                                                 </span>
                                             </div>
@@ -379,10 +413,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                         </div>
                         
                         <div className="flex bg-white border-b overflow-x-auto no-scrollbar">
-                            <button onClick={() => setSettingsTab('MANUAL')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'MANUAL' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-500'}`}>إدارة الأعمدة</button>
-                            <button onClick={() => setSettingsTab('CATEGORIES')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'CATEGORIES' ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50' : 'text-gray-500'}`}>التبويبات</button>
-                            <button onClick={() => setSettingsTab('SHEET')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'SHEET' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-gray-500'}`}>قوقل شيت</button>
-                            <button onClick={() => setSettingsTab('WEIGHTS')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'WEIGHTS' ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50' : 'text-gray-500'}`}>الأوزان</button>
+                            <button onClick={() => setSettingsTab('MANUAL')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'MANUAL' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'}`}>إدارة الأعمدة</button>
+                            <button onClick={() => setSettingsTab('CATEGORIES')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'CATEGORIES' ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50' : 'text-gray-500 hover:bg-gray-50'}`}>التبويبات المخصصة</button>
+                            <button onClick={() => setSettingsTab('SHEET')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'SHEET' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>قوقل شيت</button>
+                            <button onClick={() => setSettingsTab('WEIGHTS')} className={`px-6 py-4 font-bold text-sm whitespace-nowrap ${settingsTab === 'WEIGHTS' ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50' : 'text-gray-500 hover:bg-gray-50'}`}>توزيع الأوزان</button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
@@ -390,21 +424,21 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                 <div className="space-y-6">
                                     <div className="bg-indigo-900 text-white p-4 rounded-2xl shadow-sm flex flex-col md:flex-row gap-4 items-end">
                                         <div className="flex-1 w-full">
-                                            <label className="block text-xs font-bold text-indigo-200 mb-1 uppercase">إضافة عمود جديد لتبويب "{categories.find(c=>c.id===activeTab)?.label || activeTab}"</label>
-                                            <input className="w-full p-2.5 bg-indigo-800 border-indigo-700 text-white rounded-xl" placeholder="اسم العمود..." value={newCol.title} onChange={e => setNewCol({...newCol, title: e.target.value})}/>
+                                            <label className="block text-xs font-bold text-indigo-200 mb-1 uppercase">إضافة عمود يدوي لتبويب "{categories.find(c=>c.id===activeTab)?.label || activeTab}"</label>
+                                            <input className="w-full p-2.5 bg-indigo-800 border-indigo-700 text-white rounded-xl" placeholder="مثلاً: واجب 1" value={newCol.title} onChange={e => setNewCol({...newCol, title: e.target.value})}/>
                                         </div>
                                         <div className="w-24"><label className="block text-xs font-bold text-indigo-200 mb-1">الدرجة</label><input type="number" className="w-full p-2.5 bg-indigo-800 border-indigo-700 text-white rounded-xl text-center" value={newCol.max} onChange={e => setNewCol({...newCol, max: e.target.value})}/></div>
                                         <div className="w-20"><label className="block text-xs font-bold text-indigo-200 mb-1">الترتيب</label><input type="number" className="w-full p-2.5 bg-indigo-800 border-indigo-700 text-white rounded-xl text-center" value={newCol.order} onChange={e => setNewCol({...newCol, order: e.target.value})}/></div>
                                         <button onClick={() => { 
-                                            if(!newCol.title || !selectedTermId || !selectedPeriodId) return alert('أكمل البيانات'); 
+                                            if(!newCol.title || !selectedTermId || !selectedPeriodId) return alert('أكمل البيانات واختر الفترة'); 
                                             saveAssignment({ id: Date.now().toString(), title: newCol.title, maxScore: parseFloat(newCol.max), isVisible: true, teacherId: currentUser?.id, termId: selectedTermId, periodId: selectedPeriodId, category: activeTab as any, sortOrder: parseInt(newCol.order) }); 
-                                            setAssignments(getAssignments('ALL', currentUser?.id, isManager)); setNewCol({...newCol, title:''}); 
+                                            setAssignments(getAssignments('ALL', currentUser?.id, isManager)); setNewCol({...newCol, title:'', order: (filteredAssignments.length + 1).toString()}); 
                                         }} className="bg-white text-indigo-900 px-6 py-2.5 rounded-xl font-black">إضافة</button>
                                     </div>
                                     <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
                                         <table className="w-full text-right text-sm">
-                                            <thead className="bg-gray-50 text-gray-500 font-bold text-[10px]">
-                                                <tr><th className="p-3 w-16 text-center">الترتيب</th><th className="p-3">الاسم</th><th className="p-3 w-24 text-center">الدرجة</th><th className="p-3">الرابط</th><th className="p-3 w-16">حذف</th></tr>
+                                            <thead className="bg-gray-50 text-gray-500 font-bold text-[10px] uppercase">
+                                                <tr><th className="p-3 w-16 text-center">الترتيب</th><th className="p-3">الاسم</th><th className="p-3 w-24 text-center">الدرجة</th><th className="p-3">المصدر</th><th className="p-3 w-16">حذف</th></tr>
                                             </thead>
                                             <tbody className="divide-y">
                                                 {filteredAssignments.map(a => (
@@ -412,10 +446,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                         <td className="p-2 border-l"><input type="number" className="w-12 p-1 border rounded text-center font-bold" value={a.sortOrder || 0} onChange={e => handleUpdateAssignment(a.id, { sortOrder: parseInt(e.target.value) })} /></td>
                                                         <td className="p-2"><input className="w-full p-1 border rounded font-bold" value={a.title} onChange={e => handleUpdateAssignment(a.id, { title: e.target.value })} /></td>
                                                         <td className="p-2"><input type="number" className="w-16 p-1 border rounded text-center font-bold" value={a.maxScore} onChange={e => handleUpdateAssignment(a.id, { maxScore: parseFloat(e.target.value) })} /></td>
-                                                        <td className="p-2 text-xs text-gray-400">{a.sourceMetadata ? JSON.parse(a.sourceMetadata).header : 'يدوي'}</td>
+                                                        <td className="p-2 text-[10px] text-gray-400">{a.sourceMetadata ? JSON.parse(a.sourceMetadata).header : 'يدوي'}</td>
                                                         <td className="p-2"><button onClick={() => { if(confirm('حذف؟')) { deleteAssignment(a.id); setAssignments(prev => prev.filter(x => x.id !== a.id)); } }} className="p-1.5 text-red-400 hover:text-red-600"><Trash2 size={16}/></button></td>
                                                     </tr>
                                                 ))}
+                                                {filteredAssignments.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-gray-300 italic">لا توجد أعمدة في هذه الفترة.</td></tr>}
                                             </tbody>
                                         </table>
                                     </div>
@@ -427,16 +462,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                     <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col gap-4">
                                         <h4 className="font-bold text-gray-800 flex items-center gap-2"><Layout className="text-purple-600"/> إضافة تبويب مخصص جديد</h4>
                                         <div className="flex gap-2">
-                                            <input className="flex-1 p-3 border rounded-xl" placeholder="مثلاً: مشاريع، مشاركة..." value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)}/>
+                                            <input className="flex-1 p-3 border rounded-xl font-bold" placeholder="مثلاً: مشاريع، مشاركة..." value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)}/>
                                             <button onClick={handleAddCategory} className="bg-purple-600 text-white px-6 rounded-xl font-bold">إضافة التبويب</button>
                                         </div>
-                                        <p className="text-[10px] text-gray-400">سيظهر التبويب المضاف في شريط التبويبات العلوي وفي توزيع درجات أعمال السنة.</p>
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold text-gray-400">التبويبات الحالية:</label>
                                         {categories.map(cat => (
                                             <div key={cat.id} className="bg-white p-3 border rounded-xl flex justify-between items-center group">
-                                                <span className="font-bold text-gray-700">{cat.label} {DEFAULT_CATEGORIES.some(c=>c.id===cat.id) && <span className="text-[9px] text-gray-300">(أساسي)</span>}</span>
+                                                <span className="font-bold text-gray-700">{cat.label} {DEFAULT_CATEGORIES.some(c=>c.id===cat.id) && <span className="text-[10px] text-gray-300 font-normal mr-2">(أساسي)</span>}</span>
                                                 {!DEFAULT_CATEGORIES.some(c=>c.id===cat.id) && <button onClick={()=>handleDeleteCategory(cat.id)} className="text-red-300 hover:text-red-500"><Trash2 size={16}/></button>}
                                             </div>
                                         ))}
@@ -446,12 +480,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
                             {settingsTab === 'WEIGHTS' && (
                                 <div className="max-w-md mx-auto space-y-4 bg-white p-6 rounded-3xl border shadow-sm">
-                                    <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-2"><PieChart className="text-orange-500"/> أوزان أعمال السنة</h4>
+                                    <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-2"><PieChart className="text-orange-500"/> توزيع أوزان أعمال السنة</h4>
                                     <div className="grid grid-cols-2 gap-4">
                                         {categories.map(cat => (
-                                            <div key={cat.id}><label className="text-[10px] font-bold text-gray-400">{cat.label}</label><input type="number" className="w-full p-2 border rounded-xl font-bold" value={weights[cat.id] || 0} onChange={e=>setWeights({...weights, [cat.id]: parseInt(e.target.value)})}/></div>
+                                            <div key={cat.id}><label className="text-[10px] font-black text-gray-400 uppercase">{cat.label}</label><input type="number" className="w-full p-2 border rounded-xl font-black text-center" value={weights[cat.id] || 0} onChange={e=>setWeights({...weights, [cat.id]: parseInt(e.target.value)})}/></div>
                                         ))}
-                                        <div><label className="text-[10px] font-bold text-gray-400">الحضور والغياب</label><input type="number" className="w-full p-2 border rounded-xl font-bold" value={weights.ATTENDANCE || 0} onChange={e=>setWeights({...weights, ATTENDANCE: parseInt(e.target.value)})}/></div>
+                                        <div><label className="text-[10px] font-black text-gray-400 uppercase">الحضور</label><input type="number" className="w-full p-2 border rounded-xl font-black text-center" value={weights.ATTENDANCE || 0} onChange={e=>setWeights({...weights, ATTENDANCE: parseInt(e.target.value)})}/></div>
                                     </div>
                                     <button onClick={()=>{localStorage.setItem('works_weights', JSON.stringify(weights)); alert('تم حفظ الأوزان!');}} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold mt-4 shadow-lg">حفظ التوزيع</button>
                                 </div>
@@ -460,15 +494,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6 max-w-2xl mx-auto">
                                     <div className="bg-green-50 p-4 rounded-2xl border border-green-200">
-                                        <label className="block text-sm font-bold text-green-800 mb-2">رابط ملف قوقل شيت</label>
+                                        <label className="block text-sm font-bold text-green-800 mb-2">رابط ملف قوقل شيت المفتوح</label>
                                         <div className="flex gap-2">
-                                            <input className="flex-1 p-2.5 border border-green-300 rounded-xl dir-ltr" value={googleSheetUrl} onChange={e => setGoogleSheetUrl(e.target.value)} placeholder="https://docs.google.com/..." />
-                                            <button onClick={handleFetchSheet} disabled={isFetchingStructure} className="bg-green-600 text-white px-6 rounded-xl font-bold">جلب</button>
+                                            <input className="flex-1 p-2.5 border border-green-300 rounded-xl dir-ltr" value={googleSheetUrl} onChange={e => setGoogleSheetUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
+                                            <button onClick={handleFetchSheet} disabled={isFetchingStructure} className="bg-green-600 text-white px-6 rounded-xl font-bold">جلب البيانات</button>
                                         </div>
                                     </div>
                                     {sheetNames.length > 0 && (
                                         <div className="bg-white rounded-2xl border overflow-hidden">
-                                            <div className="p-3 bg-gray-50 border-b flex gap-4">
+                                            <div className="p-3 bg-gray-50 border-b flex gap-4 items-center">
+                                                <span className="text-xs font-bold">ورقة العمل:</span>
                                                 <select className="flex-1 p-2 border rounded-lg text-sm bg-white font-bold" value={selectedSheetName} onChange={e => setSelectedSheetName(e.target.value)}>{sheetNames.map(s => <option key={s} value={s}>{s}</option>)}</select>
                                             </div>
                                             <div className="max-h-64 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-100">
@@ -476,10 +511,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                     <div key={h} className="p-3 flex justify-between items-center bg-white hover:bg-green-50 group">
                                                         <span className="font-bold text-gray-700 text-xs truncate max-w-[150px]">{h}</span>
                                                         <button onClick={() => {
-                                                            if(!selectedTermId || !selectedPeriodId) return alert('اختر الفترة أولاً');
+                                                            if(!selectedTermId || !selectedPeriodId) return alert('اختر الفصل الدراسي والفترة أولاً من أعلى الصفحة');
                                                             saveAssignment({ id: Date.now().toString(), title: h, category: activeTab as any, maxScore: 10, isVisible: true, teacherId: currentUser?.id, termId: selectedTermId, periodId: selectedPeriodId, sourceMetadata: JSON.stringify({ sheet: selectedSheetName, header: h }), sortOrder: filteredAssignments.length + 1 });
-                                                            setAssignments(getAssignments('ALL', currentUser?.id, isManager)); alert('تم الربط!');
-                                                        }} className="text-[9px] bg-green-600 text-white px-3 py-1.5 rounded-lg font-black">ربط بـ {categories.find(c=>c.id===activeTab)?.label}</button>
+                                                            setAssignments(getAssignments('ALL', currentUser?.id, isManager)); alert('تم ربط العمود بنجاح!');
+                                                        }} className="text-[9px] bg-green-600 text-white px-3 py-1.5 rounded-lg font-black">ربط بـ {categories.find(c=>c.id===activeTab)?.label || activeTab}</button>
                                                     </div>
                                                 ))}
                                             </div>
