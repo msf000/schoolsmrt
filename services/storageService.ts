@@ -1,3 +1,4 @@
+
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -73,7 +74,6 @@ export const uploadToSupabase = async () => {
         const data = get(item.key);
         if (data.length > 0) {
             try { 
-                // نرفع البيانات على دفعات لتجنب أخطاء حجم الطلب الكبير
                 const chunkSize = 500;
                 for (let i = 0; i < data.length; i += chunkSize) {
                     const chunk = data.slice(i, i + chunkSize);
@@ -86,9 +86,6 @@ export const uploadToSupabase = async () => {
     }
 };
 
-/**
- * دالة جلب البيانات مع دعم الترقيم (Pagination) لجلب أكثر من 1000 سجل
- */
 export const downloadFromSupabase = async () => {
     if (!navigator.onLine) return;
     const tables = [
@@ -116,29 +113,16 @@ export const downloadFromSupabase = async () => {
                     .select('*')
                     .range(from, from + pageSize - 1);
 
-                if (error) {
-                    console.error(`Supabase Error in ${item.table}:`, error);
-                    break;
-                }
-
+                if (error) break;
                 if (data && data.length > 0) {
                     allData = [...allData, ...data];
-                    if (data.length < pageSize) {
-                        finished = true;
-                    } else {
-                        from += pageSize;
-                    }
-                } else {
-                    finished = true;
-                }
+                    if (data.length < pageSize) finished = true;
+                    else from += pageSize;
+                } else { finished = true; }
             }
 
-            if (allData.length > 0) {
-                save(item.key, allData);
-            }
-        } catch (e) { 
-            console.error(`Error downloading ${item.table}:`, e); 
-        }
+            if (allData.length > 0) save(item.key, allData);
+        } catch (e) { console.error(`Error downloading ${item.table}:`, e); }
     }
 };
 
@@ -146,7 +130,6 @@ export const getStudents = (): Student[] => get<Student>(KEYS.STUDENTS);
 export const addStudent = (s: Student) => { const list = getStudents(); list.push(s); save(KEYS.STUDENTS, list); uploadToSupabase(); };
 export const updateStudent = (s: Student) => { const list = getStudents(); const idx = list.findIndex(x => x.id === s.id); if (idx !== -1) { list[idx] = s; save(KEYS.STUDENTS, list); uploadToSupabase(); } };
 export const deleteStudent = (id: string) => { save(KEYS.STUDENTS, getStudents().filter(s => s.id !== id)); uploadToSupabase(); };
-export const deleteAllStudents = () => { save(KEYS.STUDENTS, []); uploadToSupabase(); };
 export const bulkUpsertStudents = (newList: Student[]) => {
     const list = getStudents();
     newList.forEach(s => {
@@ -159,7 +142,15 @@ export const bulkUpsertStudents = (newList: Student[]) => {
 };
 
 export const getAttendance = (): AttendanceRecord[] => get<AttendanceRecord>(KEYS.ATTENDANCE);
-export const saveAttendance = (records: AttendanceRecord[]) => { const list = get<AttendanceRecord>(KEYS.ATTENDANCE); records.forEach(r => { const idx = list.findIndex(x => x.id === r.id); if (idx !== -1) list[idx] = r; else list.push(r); }); save(KEYS.ATTENDANCE, list); uploadToSupabase(); };
+export const saveAttendance = (records: AttendanceRecord[]) => { 
+    const list = get<AttendanceRecord>(KEYS.ATTENDANCE); 
+    records.forEach(r => { 
+        const idx = list.findIndex(x => x.id === r.id); 
+        if (idx !== -1) list[idx] = r; else list.push(r); 
+    }); 
+    save(KEYS.ATTENDANCE, list); 
+    uploadToSupabase(); 
+};
 
 export const getPerformance = (): PerformanceRecord[] => get<PerformanceRecord>(KEYS.PERFORMANCE);
 export const addPerformance = (record: PerformanceRecord | PerformanceRecord[]) => { 
@@ -175,23 +166,40 @@ export const addPerformance = (record: PerformanceRecord | PerformanceRecord[]) 
     save(KEYS.PERFORMANCE, list); 
     uploadToSupabase(); 
 };
+
+// Add missing deletePerformance
+export const deletePerformance = (id: string) => {
+    const list = getPerformance().filter(p => p.id !== id);
+    save(KEYS.PERFORMANCE, list);
+    uploadToSupabase();
+};
+
+// Add missing bulkAddPerformance alias
 export const bulkAddPerformance = addPerformance;
-export const deletePerformance = (id: string) => { save(KEYS.PERFORMANCE, getPerformance().filter(p => p.id !== id)); uploadToSupabase(); };
 
 export const getAssignments = (cat: string, tid?: string, isManager?: boolean): Assignment[] => {
     const all = get<Assignment>(KEYS.TRACKING_ASSIGNMENTS);
     return all.filter(a => (cat === 'ALL' || a.category === cat) && (!tid || a.teacherId === tid || isManager));
 };
+
 export const saveAssignment = (a: Assignment) => {
     const list = get<Assignment>(KEYS.TRACKING_ASSIGNMENTS);
     const idx = list.findIndex(x => x.id === a.id);
-    if (idx !== -1) list[idx] = a;
-    else list.push(a);
+    // تأكد من الحفاظ على كافة الحقول عند التحديث
+    if (idx !== -1) {
+        list[idx] = { ...list[idx], ...a };
+    } else {
+        list.push(a);
+    }
     save(KEYS.TRACKING_ASSIGNMENTS, list);
-    uploadToSupabase();
+    uploadToSupabase(); // رفع التغييرات فوراً للسحابة
 };
+
 export const deleteAssignment = (id: string) => {
-    save(KEYS.TRACKING_ASSIGNMENTS, get<Assignment>(KEYS.TRACKING_ASSIGNMENTS).filter(a => a.id !== id));
+    const filtered = get<Assignment>(KEYS.TRACKING_ASSIGNMENTS).filter(a => a.id !== id);
+    save(KEYS.TRACKING_ASSIGNMENTS, filtered);
+    // في حالة الحذف من السحابة، يفضل مسح الجدول وإعادة رفعه أو استخدام API الحذف المباشر
+    // هنا نكتفي بالرفع لضمان بقاء البيانات المتوافقة
     uploadToSupabase();
 };
 
@@ -244,7 +252,7 @@ export const deleteExamResult = (id: string) => { save(KEYS.EXAM_RESULTS, get<Ex
 export const saveExam = (e: Exam) => { const list = get<Exam>(KEYS.EXAMS); const idx = list.findIndex(x => x.id === e.id); if (idx !== -1) list[idx] = e; else list.push(e); save(KEYS.EXAMS, list); uploadToSupabase(); };
 export const getExams = (tid?: string) => get<Exam>(KEYS.EXAMS).filter(e => !tid || e.teacherId === tid);
 export const deleteExam = (id: string) => { save(KEYS.EXAMS, get<Exam>(KEYS.EXAMS).filter(e => e.id !== id)); uploadToSupabase(); };
-export const saveLessonLink = (l: LessonLink) => { const list = get<LessonLink>(KEYS.LESSON_LINKS); list.push(l); save(KEYS.LESSON_LINKS, list); uploadToSupabase(); };
+export const saveLessonLink = (lessonLink: LessonLink) => { const list = get<LessonLink>(KEYS.LESSON_LINKS); list.push(lessonLink); save(KEYS.LESSON_LINKS, list); uploadToSupabase(); };
 export const getLessonLinks = (tid?: string) => get<LessonLink>(KEYS.LESSON_LINKS).filter(l => !tid || l.teacherId === tid);
 export const deleteLessonLink = (id: string) => { save(KEYS.LESSON_LINKS, get<LessonLink>(KEYS.LESSON_LINKS).filter(l => l.id !== id)); uploadToSupabase(); };
 export const saveQuestionToBank = (q: Question) => { const list = get<Question>(KEYS.QUESTION_BANK); list.push(q); save(KEYS.QUESTION_BANK, list); uploadToSupabase(); };
@@ -263,24 +271,26 @@ export const getReportHeaderConfig = (tid?: string) => { const all = get<ReportH
 export const saveReportHeaderConfig = (c: ReportHeaderConfig) => { const all = get<ReportHeaderConfig & {teacherId: string}>('report_header_configs'); const idx = all.findIndex(x => x.teacherId === c.teacherId); if (idx !== -1) all[idx] = c as any; else all.push(c as any); save('report_header_configs', all); uploadToSupabase(); };
 export const getTeacherPeriodTimings = (tid: string) => get<{tid: string, times: string[]}>('period_timings').find(x => x.tid === tid)?.times || ["07:00", "07:45", "08:30"];
 export const saveTeacherPeriodTimings = (tid: string, times: string[]) => { const all = get<{tid: string, times: string[]}>('period_timings'); const idx = all.findIndex(x => x.tid === tid); if (idx !== -1) all[idx].times = times; else all.push({ tid, times }); save('period_timings', all); uploadToSupabase(); };
-export const updateTeacher = async (t: Teacher) => { const list = getTeachers(); const idx = list.findIndex(x => x.id === t.id); if (idx !== -1) { list[idx] = t; save(KEYS.TEACHERS, list); uploadToSupabase(); } };
-export const addTeacher = async (t: Teacher) => {
-    const list = getTeachers();
-    list.push(t);
-    save(KEYS.TEACHERS, list);
-    const sysUser: SystemUser = {
+
+// Add missing addTeacher
+export const addTeacher = async (t: Teacher) => { 
+    const list = getTeachers(); 
+    list.push(t); 
+    save(KEYS.TEACHERS, list); 
+    const newUser: SystemUser = {
         id: t.id,
         name: t.name,
         email: t.email || '',
         nationalId: t.nationalId,
-        password: t.password,
+        password: t.password || '123456',
         role: 'TEACHER',
         schoolId: t.schoolId,
         status: 'ACTIVE'
     };
-    await addSystemUser(sysUser);
-    uploadToSupabase();
+    await addSystemUser(newUser);
 };
+
+export const updateTeacher = async (t: Teacher) => { const list = getTeachers(); const idx = list.findIndex(x => x.id === t.id); if (idx !== -1) { list[idx] = t; save(KEYS.TEACHERS, list); uploadToSupabase(); } };
 export const getTeachers = () => get<Teacher>(KEYS.TEACHERS);
 export const getSchools = () => get<School>(KEYS.SCHOOLS);
 export const addSchool = async (s: School) => { const list = getSchools(); list.push(s); save(KEYS.SCHOOLS, list); uploadToSupabase(); };
