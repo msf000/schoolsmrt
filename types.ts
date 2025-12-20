@@ -1,4 +1,3 @@
-
 export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC' | 'UNKNOWN';
 
 // Add missing PerformanceCategory type
@@ -135,6 +134,7 @@ export interface Assignment {
   termId?: string;
   periodId?: string;
   sourceMetadata?: string;
+  sortOrder?: number;
 }
 
 export interface SystemUser { 
