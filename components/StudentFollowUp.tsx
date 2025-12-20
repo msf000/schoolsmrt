@@ -6,7 +6,7 @@ import {
     Search, PieChart as PieChartIcon, 
     TrendingUp, Loader2, Award, Activity, Sparkles, Calendar, Bot, 
     ArrowRight, XCircle, Star, Radar as RadarIcon, LineChart as LineChartIcon,
-    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info, CalendarRange
+    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info, CalendarRange, Eye, Lightbulb
 } from 'lucide-react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -25,6 +25,14 @@ interface StudentFollowUpProps {
 }
 
 type FollowUpTab = 'SUMMARY' | 'HOMEWORK' | 'ACTIVITY' | 'EXAMS' | 'BEHAVIOR' | 'AI';
+
+const STYLE_LABELS: Record<string, { label: string, color: string, tip: string }> = {
+    'VISUAL': { label: 'بصري', color: 'bg-blue-100 text-blue-700', tip: 'استخدم الصور والخرائط الذهنية معه.' },
+    'AUDITORY': { label: 'سمعي', color: 'bg-green-100 text-green-700', tip: 'يفضل الشرح الصوتي والمناقشات.' },
+    'READ_WRITE': { label: 'قرائي/كتابي', color: 'bg-orange-100 text-orange-700', tip: 'شجعه على تدوين الملاحظات والقراءة.' },
+    'KINESTHETIC': { label: 'حركي', color: 'bg-red-100 text-red-700', tip: 'أشركه في التجارب والأنشطة البدنية.' },
+    'UNKNOWN': { label: 'غير محدد', color: 'bg-gray-100 text-gray-400', tip: 'قم بإجراء اختبار الأنماط في مختبر التعلم.' }
+};
 
 const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], performance = [], attendance = [], currentUser }) => {
     const navigate = useNavigate();
@@ -78,7 +86,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const activePeriods = useMemo(() => activeTerm?.periods || [], [activeTerm]);
     const activePeriod = useMemo(() => activePeriods.find(p => p.id === selectedPeriodId), [activePeriods, selectedPeriodId]);
 
-    // النطاق الزمني للحضور فقط (لأن الحضور ليس له periodId)
     const dateRange = useMemo(() => {
         if (activePeriod) return { start: activePeriod.startDate, end: activePeriod.endDate, label: activePeriod.name };
         if (activeTerm) return { start: activeTerm.startDate, end: activeTerm.endDate, label: activeTerm.name };
@@ -88,7 +95,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const stats = useMemo(() => {
         if (!student) return null;
         
-        // 1. تصفية الحضور بناءً على التاريخ (لأنه لا يملك periodId)
         const sAtt = attendance.filter(a => {
             const isMine = a.studentId === student.id;
             if (!isMine) return false;
@@ -98,26 +104,18 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
             return true;
         });
 
-        // 2. تصفية الأعمال بناءً على periodId (أو التاريخ كخيار بديل)
         const sPerf = performance.filter(p => {
             const isMine = p.studentId === student.id;
             if (!isMine) return false;
-
-            // الربط عبر التكليف (Assignment)
             const linkedAssignment = assignments.find(a => a.id === p.notes);
-            
             if (selectedPeriodId) {
-                // إذا كان العمل مرتبطاً بتكليف، نتحقق من periodId الخاص به
                 if (linkedAssignment) return linkedAssignment.periodId === selectedPeriodId;
-                // إذا لم يكن مرتبطاً (رصد يدوي قديم)، نلجأ للتاريخ
                 return p.date >= dateRange.start && p.date <= dateRange.end;
             }
-            
             if (selectedTermId) {
                 if (linkedAssignment) return linkedAssignment.termId === selectedTermId;
                 return p.date >= dateRange.start && p.date <= dateRange.end;
             }
-
             return true;
         }).sort((a,b)=>a.date.localeCompare(b.date));
 
@@ -170,6 +168,8 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         } catch (e) { alert('فشل الاتصال بـ Gemini'); } finally { setIsAiLoading(false); }
     };
 
+    const studentStyle = STYLE_LABELS[student?.learningStyle || 'UNKNOWN'];
+
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden relative">
             
@@ -177,7 +177,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate('/students')} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowRight size={20}/></button>
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">الملف التفاعلي</h2>
+                        <h2 className="text-xl font-bold text-gray-800">الملف التفاعلي الموحد</h2>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                             <select 
                                 className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded px-2 py-0.5 outline-none cursor-pointer"
@@ -231,9 +231,24 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-600 flex items-center justify-center text-3xl font-black text-white shadow-xl shadow-indigo-100">{student.name.charAt(0)}</div>
                             <div>
                                 <h1 className="text-xl font-black text-gray-800">{student.name}</h1>
-                                <p className="text-xs text-gray-400 font-bold">{student.className} • {student.gradeLevel}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${studentStyle.color}`}>
+                                        نمط التعلم: {studentStyle.label}
+                                    </span>
+                                    <span className="text-xs text-gray-400 font-bold">{student.className}</span>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Tip Box Based on Style */}
+                        <div className="flex-1 max-w-sm hidden md:flex items-center gap-3 bg-amber-50 p-3 rounded-2xl border border-amber-100">
+                            <Lightbulb className="text-amber-500 shrink-0" size={20}/>
+                            <p className="text-[11px] text-amber-900 font-bold leading-tight">
+                                <span className="block opacity-60 text-[9px] uppercase tracking-widest mb-0.5">توصية لنمط الطالب:</span>
+                                {studentStyle.tip}
+                            </p>
+                        </div>
+
                         <div className="flex gap-8 relative z-10">
                             <StatMini label="معدل الفترة" value={`${stats.gradeAvg}%`} color="text-indigo-600" />
                             <StatMini label="انضباط الفترة" value={`${stats.attRate}%`} color="text-green-600" />
