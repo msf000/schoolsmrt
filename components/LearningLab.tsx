@@ -6,7 +6,7 @@ import { getWorkbookStructure, getSheetHeadersAndData } from '../services/excelS
 import { 
     BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, 
     History, TrendingUp, Lightbulb, Bot, ChevronRight, FileSpreadsheet, ClipboardList, 
-    PieChart as PieChartIcon, Upload, X, HelpCircle, BarChart, Info
+    PieChart as PieChartIcon, Upload, X, HelpCircle, BarChart, Info, UserCheck
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
@@ -96,7 +96,6 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
         }
 
         const counts: any = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0 };
-        // Fix: Explicitly cast style as any to resolve "unknown" indexing error on counts object (line 99 fix).
         Object.values(quizAnswers).forEach(style => { counts[style as any]++; });
         
         let dominantStyle = 'UNKNOWN';
@@ -118,20 +117,31 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
             const { workbook, sheetNames } = await getWorkbookStructure(file);
             const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
             
-            const result = await analyzeLearningStyleExcel(JSON.stringify(data.slice(0, 30)));
-            setBulkResult(result);
-
-            // Apply style updates to students
+            // نرسل أول 50 سجلاً للذكاء الاصطناعي لتوفير التكلفة والوقت
+            const result = await analyzeLearningStyleExcel(JSON.stringify(data.slice(0, 50)));
+            
+            // تنفيذ التحديثات في قاعدة البيانات المحلية
+            let matchedCount = 0;
             if (result.studentAssignments) {
                 result.studentAssignments.forEach((item: any) => {
-                    const match = students.find(s => s.name.includes(item.studentName) || item.studentName.includes(s.name));
+                    const cleanName = item.studentName.trim();
+                    const match = students.find(s => 
+                        s.name.includes(cleanName) || 
+                        cleanName.includes(s.name) ||
+                        (s.name.split(' ')[0] === cleanName.split(' ')[0] && s.name.split(' ').pop() === cleanName.split(' ').pop())
+                    );
                     if (match) {
                         updateStudentLearningStyle(match.id, item.style);
+                        matchedCount++;
                     }
                 });
             }
+            
+            setBulkResult({ ...result, matchedCount });
+            setLocalStudents(getStudents()); // تحديث القائمة المحلية
+            alert(`تم معالجة الملف ومطابقة ${matchedCount} طالباً بنجاح.`);
         } catch (error) {
-            alert('حدث خطأ أثناء تحليل الملف.');
+            alert('حدث خطأ أثناء تحليل ملف Microsoft Forms.');
         } finally {
             setIsImportLoading(false);
         }
@@ -163,6 +173,7 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
         alert('تم تحديث نمط تعلم الطالب بنجاح!');
         setDiagnosis(null);
         setObservations('');
+        setLocalStudents(getStudents());
     };
 
     const handleSaveEnv = () => {
@@ -182,7 +193,6 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
 
     const styleStats = useMemo(() => {
         const stats: any = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0, UNKNOWN: 0 };
-        // Fix: Explicitly cast style value to any to avoid "unknown" indexing error.
         students.forEach(s => { stats[(s.learningStyle || 'UNKNOWN') as any]++; });
         return Object.entries(stats).map(([name, value]) => ({ name, value }));
     }, [students]);
@@ -314,7 +324,7 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                                         <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg"><CheckCircle size={32}/></div>
                                         <div>
                                             <h4 className="text-xl font-black text-indigo-900">تحليل Forms المكتمل</h4>
-                                            <p className="text-sm text-indigo-600">تم معالجة {bulkResult.studentAssignments.length} استجابة وتحديث الأنماط.</p>
+                                            <p className="text-sm text-indigo-600 font-bold">تم مطابقة وتحديث {bulkResult.matchedCount} طالب من السجلات.</p>
                                         </div>
                                     </div>
 
@@ -323,7 +333,7 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                                         <div className="space-y-3">
                                             {Object.entries(bulkResult.stats).map(([style, count]: [string, any], i) => (
                                                 <div key={style} className="flex items-center gap-4">
-                                                    <span className="text-xs font-bold w-20 text-gray-500">{style}</span>
+                                                    <span className="text-[10px] font-bold w-20 text-gray-500">{style}</span>
                                                     <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
                                                         <div className="h-full rounded-full" style={{ width: `${(count/bulkResult.studentAssignments.length)*100}%`, backgroundColor: COLORS[i] }}></div>
                                                     </div>

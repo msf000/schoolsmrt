@@ -68,52 +68,28 @@ const getModelConfig = (extraConfig?: any) => {
         model: 'gemini-3-flash-preview',
         config: {
             temperature: settings.temperature || 0.7,
-            systemInstruction: settings.systemInstruction || "أنت مساعد تعليمي ذكي في نظام مدرسي سعودي متطور. ردودك يجب أن تكون تربوية ودقيقة وباللغة العربية.",
+            systemInstruction: settings.systemInstruction || "أنت مساعد تعليمي ذكي خبير في علم النفس التربوي ونموذج VARK. مهمتك تحليل استجابات الطلاب بدقة.",
             ...extraConfig
         }
     };
 };
 
-export const analyzeMicrosoftFormsData = async (rawData: string) => {
-    const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `
-    حلل بيانات ملف Excel التالي المصدر من Microsoft Forms:
-    "${rawData}"
-    
-    المطلوب:
-    1. استخراج قائمة الطلاب ودرجاتهم (score) والدرجة الكلية (total).
-    2. تحديد الأسئلة أو المفاهيم التي واجه فيها معظم الطلاب صعوبة.
-    3. تقديم توصية تربوية للمعلم لتحسين النتائج.
-    
-    أرجع النتيجة بتنسيق JSON:
-    {
-      "results": [{"studentName": "...", "score": 10, "total": 15}],
-      "analysis": "ملخص عام للأداء...",
-      "difficultQuestions": ["اسم المفهوم/السؤال الأصعب 1", "..."],
-      "recommendations": "نصيحة للمعلم..."
-    }
-    `;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return JSON.parse(response.text || "{}");
-    } catch (e) { throw e; }
-};
-
 export const analyzeLearningStyleExcel = async (rawData: string) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
     const prompt = `
-    حلل بيانات ملف Excel لاستجابات الطلاب على اختبار أنماط التعلم (VARK):
+    حلل بيانات ملف Excel التالية (استجابات الطلاب على اختبار أنماط التعلم VARK):
     "${rawData}"
     
-    المطلوب:
-    1. ربط كل طالب بنمطه المناسب (VISUAL, AUDITORY, READ_WRITE, KINESTHETIC).
-    2. تقديم ملخص لتوزيع الأنماط في الفصل.
-    3. اقتراح 3 نصائح عامة للمعلم بناءً على غلبة الأنماط المكتشفة.
+    البيانات تحتوي على أعمدة تشمل اسم الطالب وإجاباته على مواقف تعليمية مختلفة.
     
-    أرجع النتيجة بتنسيق JSON:
+    المطلوب بدقة:
+    1. لكل طالب، حلل إجاباته (سواء كانت نصية أو خيارات) وحدد النمط الغالب (VISUAL, AUDITORY, READ_WRITE, KINESTHETIC).
+    2. استخرج "توزيع الأنماط" كأرقام للفصل كاملاً.
+    3. قدم 3 نصائح تعليمية عملية للمعلم بناءً على النتائج.
+    
+    تنسيق الإخراج JSON حصراً:
     {
-      "studentAssignments": [{"studentName": "...", "style": "VISUAL|AUDITORY|READ_WRITE|KINESTHETIC"}],
+      "studentAssignments": [{"studentName": "اسم الطالب من الملف", "style": "النمط المحدد بالإنجليزية", "confidence": "high|medium"}],
       "stats": {"VISUAL": 0, "AUDITORY": 0, "READ_WRITE": 0, "KINESTHETIC": 0},
       "tips": ["نصيحة 1", "نصيحة 2", "نصيحة 3"]
     }
@@ -128,7 +104,7 @@ export const analyzeLearningStyleExcel = async (rawData: string) => {
 export const diagnoseLearningStyle = async (studentName: string, observations: string) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
     const prompt = `
-    بناءً على الملاحظات التالية للطالب ${studentName}: "${observations}".
+    بناءً على الملاحظات السلوكية التالية للطالب ${studentName}: "${observations}".
     حدد نمط التعلم الأنسب له وفق نموذج VARK (بصري، سمعي، قرائي، حركي).
     
     أرجع JSON: {"style": "VISUAL|AUDITORY|READ_WRITE|KINESTHETIC", "reasoning": "سبب اختيار هذا النمط باختصار...", "tips": "نصائح تعليمية مخصصة..."}
@@ -174,20 +150,6 @@ export const generateDailyBriefing = async (students: Student[], attendance: Att
     } catch (e) { return "بالتوفيق في يومك الدراسي! ✨"; }
 };
 
-export const suggestSeatingPlan = async (students: any[], criteria: string) => {
-    const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `
-    لديك قائمة طلاب: ${JSON.stringify(students.map(s => ({id: s.id, name: s.name, level: s.stats?.gradeAvg})))}.
-    المطلوب: إعادة توزيع المقاعد في الفصل (صفوف وأعمدة) بناءً على المعيار التالي: "${criteria}".
-    أرجع النتيجة كـ JSON حصراً: {"seating": [{"studentId": "...", "row": 1, "col": 1}], "reasoning": "شرح تربوي للتوزيع..."}. استخدم العربية.
-    `;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return JSON.parse(response.text || "{}");
-    } catch (e) { return null; }
-};
-
 export const generateStudentAnalysis = async (student: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
     const { model, config } = getModelConfig();
     const prompt = `
@@ -201,6 +163,20 @@ export const generateStudentAnalysis = async (student: Student, attendance: Atte
         const response = await ai.models.generateContent({ model, contents: prompt, config });
         return response.text || "التحليل غير متاح.";
     } catch (e) { return "خطأ في الاتصال بالذكاء الاصطناعي."; }
+};
+
+export const suggestSeatingPlan = async (students: any[], criteria: string) => {
+    const { model, config } = getModelConfig({ responseMimeType: "application/json" });
+    const prompt = `
+    لديك قائمة طلاب: ${JSON.stringify(students.map(s => ({id: s.id, name: s.name, level: s.stats?.gradeAvg})))}.
+    المطلوب: إعادة توزيع المقاعد في الفصل (صفوف وأعمدة) بناءً على المعيار التالي: "${criteria}".
+    أرجع النتيجة كـ JSON حصراً: {"seating": [{"studentId": "...", "row": 1, "col": 1}], "reasoning": "شرح تربوي للتوزيع..."}. استخدم العربية.
+    `;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return JSON.parse(response.text || "{}");
+    } catch (e) { return null; }
 };
 
 export const generateParentMessage = async (studentName: string, topic: string, tone: string) => {
