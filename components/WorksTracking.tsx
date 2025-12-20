@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory, TermPeriod } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, bulkAddPerformance, getPerformance, getStudents } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Table, Plus, Trash2, Settings, Calendar, X, Check, RefreshCw, Loader2, Zap, CloudLightning, ListFilter, Tag, Printer, CheckCircle, PieChart, Sheet, ArrowUpDown, Link as LinkIcon, Edit3 } from 'lucide-react';
+import { Table, Plus, Trash2, Settings, Calendar, X, Check, RefreshCw, Loader2, Zap, CloudLightning, ListFilter, Tag, Printer, CheckCircle, PieChart, Sheet, ArrowUpDown, Link as LinkIcon, Edit3, Target } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface WorksTrackingProps {
@@ -99,14 +99,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
     }, [assignments, activeTab, selectedTermId, selectedPeriodId]);
 
     const calculateYearWork = useCallback((studentId: string) => {
-        // تصفية سجلات الأداء لتشمل فقط المادة المختارة وسجلات الفترة المختارة
         const studentPerf = performance.filter(p => {
             const isMatch = p.studentId === studentId && p.subject === selectedSubject;
             if (!isMatch) return false;
-            
-            // ربط السجل بالتكليف لمعرفة الفترة
             const assign = assignments.find(a => a.id === p.notes || a.title === p.title);
-            if (!selectedPeriodId) return true; // إذا لم يتم اختيار فترة، احسب الكل
+            if (!selectedPeriodId) return true;
             return assign?.periodId === selectedPeriodId;
         });
 
@@ -141,6 +138,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             total: Math.round((hw + act + exam + att) * 10) / 10
         };
     }, [performance, selectedSubject, weights, attendance, assignments, selectedPeriodId, activePeriods]);
+
+    const calculateCategoryAchievement = useCallback((studentId: string) => {
+        const studentScores = scores[studentId] || {};
+        let totalEarned = 0;
+        let totalPossible = 0;
+
+        filteredAssignments.forEach(a => {
+            const val = parseFloat(studentScores[a.id]);
+            if (!isNaN(val)) {
+                totalEarned += val;
+                totalPossible += a.maxScore;
+            }
+        });
+
+        if (totalPossible === 0) return 0;
+        return Math.round((totalEarned / totalPossible) * 100);
+    }, [scores, filteredAssignments]);
 
     const saveAllScores = async () => {
         if (!selectedSubject) return alert('الرجاء اختيار المادة');
@@ -195,16 +209,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                 data.forEach((row: any) => {
                     const name = String(row['الاسم'] || row['اسم الطالب'] || row['Name'] || '').trim();
                     const nationalId = String(row['رقم الهوية'] || row['السجل المدني'] || '').trim();
-                    
                     const student = students.find(s => 
                         (nationalId && s.nationalId === nationalId) || 
                         (name && s.name.trim() === name) || 
                         (name && s.name.includes(name))
                     );
-
                     const scoreVal = row[meta.header];
                     const score = parseFloat(scoreVal);
-                    
                     if (student && !isNaN(score)) {
                         newRecords.push({
                             id: `${student.id}_${assign.id}`,
@@ -251,7 +262,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
     const importColumnFromSheet = (header: string) => {
         if (!selectedTermId || !selectedPeriodId) return alert('الرجاء اختيار الفصل الدراسي والفترة من الأعلى أولاً.');
-        
         const assign: Assignment = {
             id: Date.now().toString(),
             title: header,
@@ -279,7 +289,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in relative overflow-hidden">
-            
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 flex flex-col md:flex-row justify-between gap-4 print:hidden">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border">
@@ -289,7 +298,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                     </div>
-
                     <div className="flex items-center gap-2 bg-purple-50 p-1.5 rounded-lg border border-purple-100">
                         <ListFilter size={16} className="text-purple-600"/>
                         <select className="bg-transparent text-sm font-bold text-purple-700 outline-none min-w-[120px]" value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)}>
@@ -297,18 +305,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             {activePeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
-
                     <select className="p-2 border rounded-lg bg-gray-50 text-sm font-bold outline-none" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
                         <option value="">-- المادة --</option>
                         {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
-
                     <select className="p-2 border rounded-lg bg-gray-50 text-sm font-bold outline-none" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
                         <option value="">-- الفصل --</option>
                         {Array.from(new Set(initialStudents.map(s => s.className).filter(Boolean))).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>
-
                 <div className="flex gap-2">
                     <button onClick={saveAllScores} disabled={isSaving} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-md hover:bg-indigo-700 transition-all">
                         {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <CheckCircle size={16}/>}
@@ -340,7 +345,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                         <thead className="bg-gray-50 text-gray-700 font-bold sticky top-0 z-10 shadow-sm">
                             <tr>
                                 <th className="p-4 w-12 border-l">#</th>
-                                <th className="p-4 text-right sticky right-0 bg-gray-50 z-20 w-64 border-l">اسم الطالب (مرتب أبجدياً)</th>
+                                <th className="p-4 text-right sticky right-0 bg-gray-50 z-20 w-64 border-l">اسم الطالب</th>
                                 {activeTab === 'YEAR_WORK' ? (
                                     <>
                                         <th className="p-2 border-l bg-blue-50 text-blue-700 text-xs">الواجبات ({weights.HOMEWORK})</th>
@@ -350,16 +355,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                         <th className="p-2 border-l bg-indigo-900 text-white font-black">المجموع</th>
                                     </>
                                 ) : (
-                                    filteredAssignments.map(a => (
-                                        <th key={a.id} className="p-3 border-l min-w-[120px] text-xs relative group">
-                                            <div className="flex flex-col items-center">
-                                                <span className="font-bold">{a.title}</span>
-                                                <span className="text-[9px] text-gray-400 mt-1">({a.maxScore})</span>
-                                                {a.sourceMetadata && <div className="text-[8px] text-green-600 flex items-center gap-0.5 mt-0.5"><Sheet size={8}/> متزامن</div>}
-                                                <button onClick={() => { if(confirm('حذف العمود بالكامل؟')) { deleteAssignment(a.id); setAssignments(prev => prev.filter(x => x.id !== a.id)); } }} className="absolute -top-1 -left-1 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>
-                                            </div>
-                                        </th>
-                                    ))
+                                    <>
+                                        {filteredAssignments.map(a => (
+                                            <th key={a.id} className="p-3 border-l min-w-[120px] text-xs relative group">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="font-bold">{a.title}</span>
+                                                    <span className="text-[9px] text-gray-400 mt-1">({a.maxScore})</span>
+                                                    {a.sourceMetadata && <div className="text-[8px] text-green-600 flex items-center gap-0.5 mt-0.5"><Sheet size={8}/> متزامن</div>}
+                                                    <button onClick={() => { if(confirm('حذف العمود بالكامل؟')) { deleteAssignment(a.id); setAssignments(prev => prev.filter(x => x.id !== a.id)); } }} className="absolute -top-1 -left-1 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>
+                                                </div>
+                                            </th>
+                                        ))}
+                                        <th className="p-3 border-l min-w-[100px] bg-indigo-50 text-indigo-700 text-xs font-black">نسبة الإنجاز</th>
+                                    </>
                                 )}
                             </tr>
                         </thead>
@@ -379,6 +387,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                         </tr>
                                     );
                                 }
+                                const achievement = calculateCategoryAchievement(student.id);
                                 return (
                                     <tr key={student.id} className="hover:bg-gray-50 border-b">
                                         <td className="p-3 border-l text-gray-400">{idx + 1}</td>
@@ -393,6 +402,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                 />
                                             </td>
                                         ))}
+                                        <td className="p-3 border-l bg-indigo-50/50">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden">
+                                                    <div className={`h-full transition-all ${achievement >= 90 ? 'bg-green-500' : achievement >= 50 ? 'bg-blue-500' : 'bg-red-500'}`} style={{width: `${achievement}%`}}></div>
+                                                </div>
+                                                <span className={`text-[10px] font-black ${achievement >= 90 ? 'text-green-600' : achievement >= 50 ? 'text-blue-600' : 'text-red-600'}`}>{achievement}%</span>
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -408,13 +425,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             <h3 className="font-black text-gray-800 flex items-center gap-2"><Settings size={20}/> إعدادات السجل والأعمدة</h3>
                             <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-gray-100 rounded-full"><X/></button>
                         </div>
-                        
                         <div className="flex bg-white border-b overflow-x-auto no-scrollbar">
                             <button onClick={() => setSettingsTab('MANUAL')} className={`px-6 py-4 font-bold text-sm transition-all whitespace-nowrap ${settingsTab === 'MANUAL' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'}`}>إدارة الأعمدة والترتيب</button>
                             <button onClick={() => setSettingsTab('SHEET')} className={`px-6 py-4 font-bold text-sm transition-all whitespace-nowrap ${settingsTab === 'SHEET' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>استيراد من قوقل شيت</button>
                             <button onClick={() => setSettingsTab('WEIGHTS')} className={`px-6 py-4 font-bold text-sm transition-all whitespace-nowrap ${settingsTab === 'WEIGHTS' ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50' : 'text-gray-500 hover:bg-gray-50'}`}>توزيع الأوزان</button>
                         </div>
-
                         <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                             {settingsTab === 'MANUAL' && (
                                 <div className="space-y-6">
@@ -453,7 +468,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                             <Plus size={18}/> إضافة
                                         </button>
                                     </div>
-
                                     <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
                                         <div className="p-3 bg-gray-50 border-b font-bold text-gray-700 flex items-center gap-2">
                                             <Table size={16}/> الأعمدة الحالية في تبويب "{CATEGORY_LABELS[activeTab]}"
@@ -473,27 +487,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                     {filteredAssignments.map(a => (
                                                         <tr key={a.id} className="hover:bg-gray-50 transition-colors">
                                                             <td className="p-2 border-l">
-                                                                <input 
-                                                                    type="number" 
-                                                                    className="w-12 p-1 border rounded text-center font-bold" 
-                                                                    value={a.sortOrder || 0} 
-                                                                    onChange={e => handleUpdateAssignment(a.id, { sortOrder: parseInt(e.target.value) })}
-                                                                />
+                                                                <input type="number" className="w-12 p-1 border rounded text-center font-bold" value={a.sortOrder || 0} onChange={e => handleUpdateAssignment(a.id, { sortOrder: parseInt(e.target.value) })} />
                                                             </td>
                                                             <td className="p-2">
-                                                                <input 
-                                                                    className="w-full p-1 border rounded font-bold" 
-                                                                    value={a.title} 
-                                                                    onChange={e => handleUpdateAssignment(a.id, { title: e.target.value })}
-                                                                />
+                                                                <input className="w-full p-1 border rounded font-bold" value={a.title} onChange={e => handleUpdateAssignment(a.id, { title: e.target.value })} />
                                                             </td>
                                                             <td className="p-2">
-                                                                <input 
-                                                                    type="number" 
-                                                                    className="w-16 p-1 border rounded text-center font-bold" 
-                                                                    value={a.maxScore} 
-                                                                    onChange={e => handleUpdateAssignment(a.id, { maxScore: parseFloat(e.target.value) })}
-                                                                />
+                                                                <input type="number" className="w-16 p-1 border rounded text-center font-bold" value={a.maxScore} onChange={e => handleUpdateAssignment(a.id, { maxScore: parseFloat(e.target.value) })} />
                                                             </td>
                                                             <td className="p-2 text-xs text-gray-400">
                                                                 {a.sourceMetadata ? (
@@ -518,7 +518,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                     </div>
                                 </div>
                             )}
-
                             {settingsTab === 'SHEET' && (
                                 <div className="space-y-6">
                                     <div className="bg-green-50 p-4 rounded-2xl border border-green-200">
@@ -531,7 +530,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                             </button>
                                         </div>
                                     </div>
-
                                     {sheetNames.length > 0 && (
                                         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                                             <div className="p-3 bg-gray-50 border-b flex items-center gap-4">
@@ -561,7 +559,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                     )}
                                 </div>
                             )}
-
                             {settingsTab === 'WEIGHTS' && (
                                 <div className="max-w-md mx-auto space-y-4 bg-white p-6 rounded-3xl border">
                                     <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-2"><PieChart className="text-orange-500"/> أوزان درجات أعمال السنة</h4>
