@@ -5,8 +5,8 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, BehaviorStatus } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
-import { generateLocalDailyBrief, getLocalPedagogicalTip } from '../services/analysisService';
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown } from 'lucide-react';
+import { generateLocalDailyBrief, getLocalPedagogicalTip, detectAtRiskStudents, getTopAchievers } from '../services/analysisService';
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown, AlertTriangle, MessageCircle, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -53,25 +53,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       setBriefing(res);
   };
 
-  const handlePlayBriefing = async () => {
-      if (!briefing || isPlaying) return;
-      setIsPlaying(true);
-      await playTextAsSpeech(briefing);
-      setIsPlaying(false);
-  };
-
-  const topStudents = useMemo(() => {
-    return students.map(student => {
-        const myAtt = attendance.filter(a => a.studentId === student.id);
-        const myPerf = performance.filter(p => p.studentId === student.id);
-        let xp = student.behaviorPoints || 0;
-        myAtt.forEach(a => {
-            if (a.status === AttendanceStatus.PRESENT) xp += 10;
-        });
-        myPerf.forEach(p => { if (p.score / p.maxScore >= 0.9) xp += 100; });
-        return { ...student, xp };
-    }).sort((a, b) => b.xp - a.xp).slice(0, 3);
-  }, [students, attendance, performance]);
+  const atRiskList = useMemo(() => detectAtRiskStudents(students, attendance, performance), [students, attendance, performance]);
+  const topAchievers = useMemo(() => getTopAchievers(students, attendance, performance), [students, attendance, performance]);
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -96,10 +79,18 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     };
   }, [students, attendance, performance]);
 
+  // Fix: Added missing pedagogicalTip definition
   const pedagogicalTip = useMemo(() => getLocalPedagogicalTip(), []);
 
+  const handlePlayBriefing = async () => {
+      if (!briefing || isPlaying) return;
+      setIsPlaying(true);
+      await playTextAsSpeech(briefing);
+      setIsPlaying(false);
+  };
+
   return (
-    <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24">
+    <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24 overflow-y-auto custom-scrollbar">
       {/* AI/Stats Header */}
       <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group border border-indigo-700">
           <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
@@ -109,7 +100,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                   <button 
                     onClick={() => setBriefMode(briefMode==='AI'?'STATS':'AI')} 
                     className="absolute -bottom-2 -right-2 bg-white text-indigo-900 p-1 rounded-full shadow-lg border border-indigo-200 hover:scale-110 transition-transform"
-                    title="تبديل وضع التحليل"
                   >
                       {briefMode === 'AI' ? <TrendingUp size={12}/> : <Bot size={12}/>}
                   </button>
@@ -118,10 +108,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                   <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
                     <h2 className="text-2xl font-black">{briefMode === 'AI' ? 'موجزك الذكي اليومي' : 'موجز الفصل الإحصائي'}</h2>
                     {briefing && !isAiLoading && (
-                        <button 
-                            onClick={handlePlayBriefing} 
-                            className={`p-2 rounded-full transition-all ${isPlaying ? 'bg-yellow-400 text-indigo-900 animate-pulse' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-                        >
+                        <button onClick={handlePlayBriefing} className={`p-2 rounded-full transition-all ${isPlaying ? 'bg-yellow-400 text-indigo-900 animate-pulse' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
                             <Volume2 size={20}/>
                         </button>
                     )}
@@ -130,13 +117,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                       {isAiLoading ? 'جاري قراءة البيانات وتجهيز التوصيات...' : briefing}
                   </div>
               </div>
-              <div className="flex gap-2">
-                  <button onClick={() => navigate('/attendance')} className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-black hover:scale-105 transition-all shadow-xl flex items-center gap-2">
-                      تحضير الفصل
-                  </button>
-                  <button onClick={() => navigate('/screen')} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black hover:scale-105 transition-all shadow-xl flex items-center gap-2 border border-indigo-500">
-                      شاشة العرض
-                  </button>
+              <div className="flex gap-2 shrink-0">
+                  <button onClick={() => navigate('/attendance')} className="bg-white text-indigo-900 px-6 py-3 rounded-2xl font-black hover:scale-105 transition-all shadow-xl">تحضير</button>
+                  <button onClick={() => navigate('/screen')} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black hover:scale-105 transition-all shadow-xl border border-indigo-500">العرض</button>
               </div>
           </div>
       </div>
@@ -151,42 +134,65 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="font-black text-gray-800 flex items-center gap-2 text-sm"><Crown size={18} className="text-yellow-500"/> أبطال الأسبوع</h3>
+                <h3 className="font-black text-gray-800 flex items-center gap-2 text-sm"><Crown size={18} className="text-yellow-500"/> أبطال الفصل</h3>
                 <button onClick={()=>navigate('/leaderboard')} className="text-[10px] font-bold text-indigo-600 hover:underline">عرض الكل</button>
             </div>
-            <div className="space-y-3">
-                {topStudents.map((s, idx) => (
-                    <div key={s.id} onClick={()=>navigate('/followup', {state:{studentId: s.id}})} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors group">
+            <div className="space-y-3 flex-1 overflow-y-auto no-scrollbar">
+                {topAchievers.map((item, idx) => (
+                    <div key={item.student.id} onClick={()=>navigate('/followup', {state:{studentId: item.student.id}})} className="flex items-center justify-between p-2 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors group">
                         <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-yellow-400 text-white' : idx === 1 ? 'bg-gray-200 text-gray-600' : 'bg-orange-100 text-orange-600'}`}>
-                                {idx + 1}
-                            </div>
-                            <span className="text-sm font-bold text-gray-700 group-hover:text-indigo-600">{s.name.split(' ')[0]} {s.name.split(' ')[1]}</span>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-yellow-400 text-white' : 'bg-gray-100 text-gray-500'}`}>{idx+1}</div>
+                            <span className="text-sm font-bold text-gray-700">{item.student.name.split(' ')[0]} {item.student.name.split(' ')[1]}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-indigo-600 font-black text-xs">
-                            <Zap size={10} fill="currentColor"/> {s.xp}
-                        </div>
+                        <div className="flex items-center gap-1 text-indigo-600 font-black text-xs"><Zap size={10} fill="currentColor"/> {Math.round(item.score)}</div>
                     </div>
                 ))}
-                {topStudents.length === 0 && <p className="text-center text-gray-400 py-4 text-xs font-bold italic">لا توجد بيانات نقاط حالياً</p>}
             </div>
         </div>
       </div>
 
+      {/* At Risk Alert Section */}
+      {atRiskList.length > 0 && (
+          <div className="bg-red-50 rounded-[2rem] p-6 border border-red-100 shadow-sm animate-fade-in">
+              <div className="flex items-center gap-3 mb-4 text-red-700">
+                  <AlertTriangle size={24}/>
+                  <h3 className="text-lg font-black uppercase tracking-tight">طلاب يحتاجون لتدخل فوري</h3>
+                  <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{atRiskList.length} طلاب</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {atRiskList.slice(0, 6).map(item => (
+                      <div key={item.student.id} className="bg-white p-4 rounded-2xl border border-red-50 flex flex-col justify-between hover:shadow-md transition-shadow">
+                          <div>
+                              <p className="font-bold text-gray-800 text-sm truncate">{item.student.name}</p>
+                              <div className="space-y-1 mt-2">
+                                  {item.risks.map((r, i) => <p key={i} className="text-[10px] text-red-500 font-bold flex items-center gap-1"><XCircle size={10}/> {r}</p>)}
+                              </div>
+                          </div>
+                          <div className="flex gap-2 mt-4 pt-3 border-t">
+                              <button onClick={() => navigate('/followup', {state: {studentId: item.student.id}})} className="flex-1 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-black hover:bg-gray-200">ملف الطالب</button>
+                              <button onClick={() => navigate('/messages', {state: {studentIds: [item.student.id]}})} className="flex-1 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black shadow-sm flex items-center justify-center gap-1"><MessageCircle size={10}/> تواصل</button>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+              {atRiskList.length > 6 && (
+                  <button onClick={() => navigate('/reports')} className="w-full mt-4 py-2 text-red-600 text-xs font-black flex items-center justify-center gap-2 hover:underline">عرض جميع المتعثرين في التقارير <ChevronLeft size={14}/></button>
+              )}
+          </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="إجمالي الطلاب" value={stats.totalStudents} icon={<Users size={24}/>} color="bg-blue-50 text-blue-600" />
-        <StatCard label="نسبة الحضور" value={stats.attRate + '%'} icon={<CheckCircle size={24}/>} color="bg-green-50 text-green-600" />
+        <StatCard label="نسبة الحضور" value={stats.attRate + '%'} icon={<CheckCircle size={24}/>} color="bg-green-600 text-white" />
         <StatCard label="المعدل العام" value={stats.avgPerf + '%'} icon={<TrendingUp size={24}/>} color="bg-purple-50 text-purple-600" />
         <StatCard label="غائبون اليوم" value={stats.absentCount} icon={<XCircle size={24}/>} color="bg-red-50 text-red-600" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-10">
         <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-xl font-black text-gray-800 flex items-center gap-3">
-                <BarChart3 size={24} className="text-indigo-600"/> مقارنة أداء الفصول
-            </h3>
-          </div>
+          <h3 className="text-xl font-black text-gray-800 flex items-center gap-3 mb-8">
+              <BarChart3 size={24} className="text-indigo-600"/> مقارنة أداء الفصول
+          </h3>
           <div className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.classData}>
@@ -200,13 +206,14 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
         </div>
 
-        <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white flex flex-col justify-between shadow-xl">
+        <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white flex flex-col justify-between shadow-xl relative overflow-hidden group">
+            <Sparkles className="absolute -bottom-10 -right-10 opacity-10 group-hover:rotate-45 transition-transform duration-700" size={200}/>
             <div>
                 <h3 className="text-xl font-black mb-4">نصيحة تربوية اليوم</h3>
-                <p className="opacity-80 leading-relaxed italic">"{pedagogicalTip}"</p>
+                <p className="opacity-90 leading-relaxed italic text-lg">"{pedagogicalTip}"</p>
             </div>
             <div className="mt-8 flex justify-center">
-                <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border border-white/20">
+                <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border border-white/20 animate-pulse-slow">
                     <Award size={48} className="text-yellow-400"/>
                 </div>
             </div>

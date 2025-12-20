@@ -1,4 +1,4 @@
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, LearningStyle } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, LearningStyle, BehaviorIncident } from '../types';
 
 /**
  * خدمة التحليل الإحصائي المتقدم (Advanced Local Analysis)
@@ -56,7 +56,16 @@ export const detectAtRiskStudents = (students: Student[], attendance: Attendance
             if (last3 < avgScore - 15) risks.push("تراجع مفاجئ في الدرجات الأخيرة");
         }
         return risks.length > 0 ? { student: s, risks } : null;
-    }).filter(item => item !== null);
+    }).filter(item => item !== null) as { student: Student, risks: string[] }[];
+};
+
+export const getTopAchievers = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
+    return students.map(s => {
+        const sPerf = performance.filter(p => p.studentId === s.id);
+        const avg = sPerf.length > 0 ? (sPerf.reduce((a, b) => a + (b.score / b.maxScore), 0) / sPerf.length) * 100 : 0;
+        const behaviorPoints = s.behaviorPoints || 0;
+        return { student: s, score: avg + (behaviorPoints * 0.1) };
+    }).sort((a, b) => b.score - a.score).slice(0, 5);
 };
 
 export const generateLocalStudentReport = (student: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
@@ -93,32 +102,24 @@ export const generateLocalSeatingPlan = (students: any[], criteria: string) => {
             index++;
         }
     } else {
-        // Fix: Use 'i' instead of undefined 'index' variable
         sorted.forEach((s, i) => { seating.push({ studentId: s.id, row: Math.floor(i / cols) + 1, col: (i % cols) + 1 }); });
     }
     return { seating, reasoning: "توزيع إحصائي مبني على متوسط درجات الطلاب لضمان توازن المجموعات." };
 };
 
-/**
- * خوارزمية تقسيم المجموعات بناءً على أنماط التعلم (VARK)
- * تهدف لإنشاء مجموعات متنوعة الأنماط لضمان تكامل الأدوار
- */
 export const generateVarkBalancedGroups = (students: Student[], groupSize: number) => {
     const groups: Student[][] = [];
     const numGroups = Math.ceil(students.length / groupSize);
     if (numGroups === 0) return [];
     for (let i = 0; i < numGroups; i++) groups.push([]);
 
-    // تقسيم الطلاب حسب الأنماط
     const pool: Record<string, Student[]> = { VISUAL: [], AUDITORY: [], READ_WRITE: [], KINESTHETIC: [], UNKNOWN: [] };
     students.forEach(s => {
         pool[s.learningStyle || 'UNKNOWN'].push(s);
     });
 
-    // خلط كل قائمة عشوائياً
     Object.keys(pool).forEach(k => pool[k].sort(() => Math.random() - 0.5));
 
-    // توزيع دائري لضمان التنوع
     let currentGroupIdx = 0;
     const stylesOrder: LearningStyle[] = ['VISUAL', 'AUDITORY', 'KINESTHETIC', 'READ_WRITE', 'UNKNOWN'];
 

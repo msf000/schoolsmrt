@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, TermPeriod, Assignment } from '../types';
-import { getAcademicTerms, getAssignments } from '../services/storageService';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, TermPeriod, Assignment, BehaviorIncident } from '../types';
+import { getAcademicTerms, getAssignments, getBehaviorIncidents } from '../services/storageService';
 import { generateStudentAnalysis } from '../services/geminiService';
 import { generateLocalStudentReport } from '../services/analysisService';
 import { 
@@ -8,7 +8,7 @@ import {
     TrendingUp, Loader2, Award, Activity, Sparkles, Calendar, Bot, 
     ArrowRight, XCircle, Star, Radar as RadarIcon, LineChart as LineChartIcon,
     BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info, CalendarRange, Eye, Lightbulb, BarChart,
-    FileText, ChevronLeft, User
+    FileText, ChevronLeft, User, Zap, AlertTriangle, Trophy
 } from 'lucide-react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import { formatDualDate } from '../services/dateService';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -54,14 +55,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         return localStorage.getItem('sf_term_id') || '';
     });
 
-    const [selectedPeriodId, setSelectedPeriodId] = useState<string>(() => {
-        return localStorage.getItem('sf_period_id') || '';
-    });
-
     const [searchTerm, setSearchTerm] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
+    const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
     const [reportContent, setReportContent] = useState<string>('');
     const [reportType, setReportType] = useState<'AI' | 'STATS'>('STATS');
     const [isLoading, setIsLoading] = useState(false);
@@ -70,57 +68,29 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         localStorage.setItem('sf_selected_student', selectedStudentId);
         localStorage.setItem('sf_active_tab', activeTab);
         localStorage.setItem('sf_term_id', selectedTermId);
-        localStorage.setItem('sf_period_id', selectedPeriodId);
-    }, [selectedStudentId, activeTab, selectedTermId, selectedPeriodId]);
+    }, [selectedStudentId, activeTab, selectedTermId]);
 
     useEffect(() => {
         const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
         setAssignments(getAssignments('ALL', currentUser?.id, currentUser?.role === 'SCHOOL_MANAGER'));
+        setBehaviorLog(getBehaviorIncidents());
         
         if (!selectedTermId) {
             const current = loadedTerms.find(t => t.isCurrent) || loadedTerms[0];
             if (current) setSelectedTermId(current.id);
         }
-    }, [currentUser]);
+    }, [currentUser, activeTab]);
 
     const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
-    const activePeriods = useMemo(() => activeTerm?.periods || [], [activeTerm]);
-    const activePeriod = useMemo(() => activePeriods.find(p => p.id === selectedPeriodId), [activePeriods, selectedPeriodId]);
-
-    const dateRange = useMemo(() => {
-        if (activePeriod) return { start: activePeriod.startDate, end: activePeriod.endDate, label: activePeriod.name };
-        if (activeTerm) return { start: activeTerm.startDate, end: activeTerm.endDate, label: activeTerm.name };
-        return { start: '', end: '', label: 'جميع السجلات' };
-    }, [activeTerm, activePeriod]);
 
     const stats = useMemo(() => {
         if (!student) return null;
         
-        const sAtt = attendance.filter(a => {
-            const isMine = a.studentId === student.id;
-            if (!isMine) return false;
-            if (dateRange.start && dateRange.end) {
-                return a.date >= dateRange.start && a.date <= dateRange.end;
-            }
-            return true;
-        });
-
-        const sPerf = performance.filter(p => {
-            const isMine = p.studentId === student.id;
-            if (!isMine) return false;
-            const linkedAssignment = assignments.find(a => a.id === p.notes);
-            if (selectedPeriodId) {
-                if (linkedAssignment) return linkedAssignment.periodId === selectedPeriodId;
-                return p.date >= dateRange.start && p.date <= dateRange.end;
-            }
-            if (selectedTermId) {
-                if (linkedAssignment) return linkedAssignment.termId === selectedTermId;
-                return p.date >= dateRange.start && p.date <= dateRange.end;
-            }
-            return true;
-        }).sort((a,b)=>a.date.localeCompare(b.date));
+        const sAtt = attendance.filter(a => a.studentId === student.id);
+        const sPerf = performance.filter(p => p.studentId === student.id);
+        const sBeh = behaviorLog.filter(b => b.studentId === student.id).sort((a,b) => b.date.localeCompare(a.date));
 
         const calcAvg = (items: PerformanceRecord[]) => {
             if (items.length === 0) return 0;
@@ -130,18 +100,18 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
         const attRate = sAtt.length > 0 ? Math.round(((sAtt.length - sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length) / sAtt.length) * 100) : 100;
         const gradeAvg = calcAvg(sPerf);
-        const positiveBehaviors = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
+        const positiveBehaviors = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length + sBeh.filter(b => b.type === 'POSITIVE').length;
 
         const radarData = [
             { subject: 'الانضباط', A: attRate },
-            { subject: 'المشاركة', A: Math.min(100, positiveBehaviors * 25) },
+            { subject: 'المشاركة', A: Math.min(100, positiveBehaviors * 15) },
             { subject: 'الواجبات', A: calcAvg(sPerf.filter(p => p.category === 'HOMEWORK')) || gradeAvg },
             { subject: 'الأنشطة', A: calcAvg(sPerf.filter(p => p.category === 'ACTIVITY')) || gradeAvg },
             { subject: 'الاختبارات', A: calcAvg(sPerf.filter(p => p.category === 'PLATFORM_EXAM')) || gradeAvg },
         ];
 
-        return { attRate, gradeAvg, radarData, sAtt, sPerf };
-    }, [student, attendance, performance, dateRange, selectedPeriodId, selectedTermId, assignments]);
+        return { attRate, gradeAvg, radarData, sAtt, sPerf, sBeh };
+    }, [student, attendance, performance, selectedTermId, behaviorLog]);
 
     const handleGenerateReport = async (type: 'AI' | 'STATS') => {
         if (!student || !stats) return;
@@ -269,6 +239,50 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                             ))}
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'BEHAVIOR' && (
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="bg-indigo-900 p-8 rounded-[3rem] text-white flex justify-between items-center shadow-xl relative overflow-hidden">
+                                    <Trophy className="absolute -bottom-2 -left-2 opacity-20" size={100}/>
+                                    <div>
+                                        <p className="text-xs font-bold opacity-70 mb-1 uppercase tracking-widest">نقاط السلوك التراكمية</p>
+                                        <h3 className="text-5xl font-black">{student.behaviorPoints || 0}</h3>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm font-bold opacity-80 mb-2">الحالة السلوكية العامة</p>
+                                        <span className={`px-4 py-1 rounded-full font-black text-xs ${(student.behaviorPoints || 0) >= 50 ? 'bg-green-500' : (student.behaviorPoints || 0) >= 0 ? 'bg-indigo-500' : 'bg-red-500'}`}>
+                                            {(student.behaviorPoints || 0) >= 50 ? 'نموذجي ✨' : (student.behaviorPoints || 0) >= 0 ? 'منضبط' : 'يحتاج متابعة'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4">
+                                    {stats.sBeh.map(i => (
+                                        <div key={i.id} className={`p-5 rounded-3xl border flex gap-4 transition-all hover:scale-[1.01] ${i.type === 'POSITIVE' ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
+                                            <div className={`p-3 rounded-2xl h-fit ${i.type === 'POSITIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                {i.type === 'POSITIVE' ? <Star size={24} fill="currentColor"/> : <AlertTriangle size={24}/>}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <h4 className="font-black text-gray-800 text-base">{i.category}</h4>
+                                                    <span className="text-[10px] font-bold text-gray-400 font-mono uppercase">{formatDualDate(i.date)}</span>
+                                                </div>
+                                                <p className="text-xs text-gray-600 mb-3 font-medium">{i.note || (i.type === 'POSITIVE' ? 'تميز الطالب بمشاركة استثنائية' : 'تنبيه سلوكي من المعلم')}</p>
+                                                <div className="flex justify-between items-center">
+                                                    <span className={`text-[10px] font-black px-3 py-1 rounded-full shadow-sm ${i.points > 0 ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                                                        {i.points > 0 ? '+' : ''}{i.points} نقطة
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-gray-400">رصد بواسطة المعلم</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {stats.sBeh.length === 0 && (
+                                        <div className="p-20 text-center text-gray-300 font-black border-2 border-dashed rounded-[3rem] bg-white">لا توجد سجلات سلوكية مضافة لهذا الطالب</div>
+                                    )}
                                 </div>
                             </div>
                         )}
