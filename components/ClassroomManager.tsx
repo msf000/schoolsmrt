@@ -1,11 +1,11 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, SystemUser, PerformanceRecord, EnvironmentRecord } from '../types';
 import { 
-    MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History
+    MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid
 } from 'lucide-react';
 import { getTeacherAssignments, updateStudent, getEnvironmentRecords } from '../services/storageService';
 import { suggestSeatingPlan } from '../services/geminiService';
+import { generateLocalSeatingPlan } from '../services/analysisService';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
@@ -29,7 +29,8 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'ENVIRONMENT'>('TOOLS');
     const [selectedClass, setSelectedClass] = useState('');
-    const [isAiArranging, setIsAiArranging] = useState(false);
+    const [isArranging, setIsArranging] = useState(false);
+    const [arrangeMethod, setArrangeMethod] = useState<'AI' | 'LOCAL'>('LOCAL');
     const [aiCriterion, setAiCriterion] = useState('مزج المستويات (متفوق بجانب ضعيف)');
     const [envHistory, setEnvHistory] = useState<EnvironmentRecord[]>([]);
     const navigate = useNavigate();
@@ -51,9 +52,10 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         students.filter(s => s.className === selectedClass).sort((a,b) => (a.seatIndex || 0) - (b.seatIndex || 0)),
     [students, selectedClass]);
 
-    const handleAiArrange = async () => {
+    const handleArrange = async (method: 'AI' | 'LOCAL') => {
         if (filteredStudents.length === 0) return;
-        setIsAiArranging(true);
+        setArrangeMethod(method);
+        setIsArranging(true);
         try {
             const studentStats = filteredStudents.map(s => {
                 const sPerf = performance.filter(p => p.studentId === s.id);
@@ -61,18 +63,24 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                 return { ...s, stats: { gradeAvg: avg } };
             });
 
-            const result = await suggestSeatingPlan(studentStats, aiCriterion);
+            let result;
+            if (method === 'AI') {
+                result = await suggestSeatingPlan(studentStats, aiCriterion);
+            } else {
+                result = generateLocalSeatingPlan(studentStats, aiCriterion);
+            }
+
             if (result && result.seating) {
                 result.seating.forEach((item: any) => {
                     const s = students.find(x => x.id === item.studentId);
                     if (s) updateStudent({ ...s, seatIndex: (item.row * 10) + item.col });
                 });
-                alert('تم اقتراح توزيع جديد بناءً على: ' + result.reasoning);
+                alert('تم التوزيع بنجاح: ' + result.reasoning);
             }
         } catch (e) {
-            alert('فشل توزيع المقاعد ذكياً.');
+            alert('فشل توزيع المقاعد.');
         } finally {
-            setIsAiArranging(false);
+            setIsArranging(false);
         }
     };
 
@@ -116,25 +124,32 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                     <div className="h-full flex flex-col overflow-hidden">
                         <div className="p-4 bg-indigo-50 border-b flex flex-wrap justify-between items-center gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-indigo-600 text-white rounded-lg"><BrainCircuit size={20}/></div>
+                                <div className="p-2 bg-indigo-600 text-white rounded-lg"><LayoutGrid size={20}/></div>
                                 <div>
-                                    <h4 className="font-bold text-indigo-900 text-sm">التوزيع الذكي (AI)</h4>
-                                    <p className="text-[10px] text-indigo-600">رتب الفصل تربوياً بناءً على مستويات الطلاب</p>
+                                    <h4 className="font-bold text-indigo-900 text-sm">توزيع المقاعد</h4>
+                                    <p className="text-[10px] text-indigo-600">رتب الفصل بناءً على مستويات الطلاب</p>
                                 </div>
                             </div>
                             <div className="flex gap-2">
                                 <select value={aiCriterion} onChange={e=>setAiCriterion(e.target.value)} className="text-xs p-2 border rounded-lg bg-white outline-none">
-                                    <option>مزج المستويات (متفوق بجانب ضعيف)</option>
-                                    <option>فصل المشاغبين (بناءً على السلوك)</option>
-                                    <option>ترتيب حسب الطول (قصير في الأمام)</option>
+                                    <option>مزج المستويات (متفوق بجانب متعثر)</option>
+                                    <option>ترتيب حسب المستوى (تصاعدي)</option>
                                 </select>
                                 <button 
-                                    onClick={handleAiArrange}
-                                    disabled={isAiArranging}
-                                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-md disabled:opacity-50"
+                                    onClick={() => handleArrange('LOCAL')}
+                                    disabled={isArranging}
+                                    className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-md disabled:opacity-50"
                                 >
-                                    {isAiArranging ? <Loader2 size={14} className="animate-spin"/> : <RotateCcw size={14}/>} 
-                                    توزيع تلقائي
+                                    {isArranging && arrangeMethod === 'LOCAL' ? <Loader2 size={14} className="animate-spin"/> : <RotateCcw size={14}/>} 
+                                    توزيع إحصائي
+                                </button>
+                                <button 
+                                    onClick={() => handleArrange('AI')}
+                                    disabled={isArranging}
+                                    className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-md disabled:opacity-50"
+                                >
+                                    {isArranging && arrangeMethod === 'AI' ? <Loader2 size={14} className="animate-spin"/> : <BrainCircuit size={14}/>} 
+                                    توزيع AI
                                 </button>
                             </div>
                         </div>
@@ -159,6 +174,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         </div>
                     </div>
                 )}
+                {/* ... (ENVIRONMENT and TOOLS Tabs remain same) ... */}
                 {activeTab === 'ENVIRONMENT' && (
                     <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar bg-slate-50/50">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -187,9 +203,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
-                        </div>
-                        <div className="mt-6 flex justify-center">
-                            <button onClick={() => navigate('/learning-lab')} className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700">فتح مختبر التعلم الكامل</button>
                         </div>
                     </div>
                 )}

@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -6,6 +5,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, BehaviorStatus } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
+import { generateLocalDailyBrief } from '../services/analysisService';
 import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,32 +19,39 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
-  const [aiBrief, setAiBrief] = useState<string>('');
+  const [briefing, setBriefing] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [briefMode, setBriefMode] = useState<'AI' | 'STATS'>('STATS');
 
   useEffect(() => {
     if (students.length > 0) {
-        loadAiBrief();
+        if (briefMode === 'AI') loadAiBrief();
+        else loadStatsBrief();
     }
-  }, [currentUser, students.length]);
+  }, [currentUser, students.length, briefMode]);
 
   const loadAiBrief = async () => {
     setIsAiLoading(true);
     try {
-        const briefing = await generateDailyBriefing(students, attendance, performance);
-        setAiBrief(briefing);
+        const res = await generateDailyBriefing(students, attendance, performance);
+        setBriefing(res);
     } catch (e) {
-        setAiBrief("أهلاً بك! ركز اليوم على تحفيز الطلاب ومتابعة تقدمهم. بالتوفيق!");
+        loadStatsBrief();
     } finally {
         setIsAiLoading(false);
     }
   };
 
+  const loadStatsBrief = () => {
+      const res = generateLocalDailyBrief(students, attendance, performance);
+      setBriefing(res);
+  };
+
   const handlePlayBriefing = async () => {
-      if (!aiBrief || isPlaying) return;
+      if (!briefing || isPlaying) return;
       setIsPlaying(true);
-      await playTextAsSpeech(aiBrief);
+      await playTextAsSpeech(briefing);
       setIsPlaying(false);
   };
 
@@ -52,10 +59,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     return students.map(student => {
         const myAtt = attendance.filter(a => a.studentId === student.id);
         const myPerf = performance.filter(p => p.studentId === student.id);
-        let xp = 0;
+        let xp = student.behaviorPoints || 0;
         myAtt.forEach(a => {
             if (a.status === AttendanceStatus.PRESENT) xp += 10;
-            if (a.behaviorStatus === BehaviorStatus.POSITIVE) xp += 50;
         });
         myPerf.forEach(p => { if (p.score / p.maxScore >= 0.9) xp += 100; });
         return { ...student, xp };
@@ -87,17 +93,20 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24">
-      {/* AI Header */}
+      {/* AI/Stats Header */}
       <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group border border-indigo-700">
           <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles size={200}/></div>
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-              <div className="w-20 h-20 bg-white/10 backdrop-blur-2xl rounded-3xl flex items-center justify-center shrink-0 border border-white/20 shadow-2xl">
-                  {isAiLoading ? <Loader2 className="animate-spin text-yellow-400" size={32}/> : <Bot className="text-yellow-400" size={40}/>}
+              <div className="w-20 h-20 bg-white/10 backdrop-blur-2xl rounded-3xl flex flex-col items-center justify-center shrink-0 border border-white/20 shadow-2xl relative">
+                  {isAiLoading ? <Loader2 className="animate-spin text-yellow-400" size={32}/> : (briefMode==='AI' ? <Bot className="text-yellow-400" size={40}/> : <Activity className="text-teal-400" size={40}/>)}
+                  <button onClick={() => setBriefMode(briefMode==='AI'?'STATS':'AI')} className="absolute -bottom-2 -right-2 bg-white text-indigo-900 p-1 rounded-full shadow-lg border border-indigo-200 hover:scale-110 transition-transform">
+                      {briefMode === 'AI' ? <TrendingUp size={12}/> : <Bot size={12}/>}
+                  </button>
               </div>
               <div className="flex-1 text-center md:text-right">
                   <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                    <h2 className="text-2xl font-black">موجزك الذكي اليومي</h2>
-                    {aiBrief && !isAiLoading && (
+                    <h2 className="text-2xl font-black">{briefMode === 'AI' ? 'موجزك الذكي اليومي' : 'موجز الفصل الإحصائي'}</h2>
+                    {briefing && !isAiLoading && (
                         <button 
                             onClick={handlePlayBriefing} 
                             className={`p-2 rounded-full transition-all ${isPlaying ? 'bg-yellow-400 text-indigo-900 animate-pulse' : 'bg-white/10 hover:bg-white/20 text-white'}`}
@@ -106,8 +115,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                         </button>
                     )}
                   </div>
-                  <div className="text-indigo-100 text-lg leading-relaxed opacity-90 italic">
-                      {isAiLoading ? 'جاري قراءة بيانات الطلاب وتجهيز التوصيات...' : aiBrief}
+                  <div className="text-indigo-100 text-lg leading-relaxed opacity-90 italic whitespace-pre-line">
+                      {isAiLoading ? 'جاري قراءة البيانات وتجهيز التوصيات...' : briefing}
                   </div>
               </div>
               <div className="flex gap-2">
@@ -121,7 +130,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
       </div>
 
-      {/* Top Students / Leaderboard Widget */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
             <QuickAction color="bg-blue-600" icon={<Calendar size={24}/>} label="الجدول الدراسي" onClick={()=>navigate('/schedule')}/>
@@ -130,7 +138,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
             <QuickAction color="bg-green-600" icon={<PenTool size={24}/>} label="تحضير الدروس" onClick={()=>navigate('/planning')}/>
         </div>
 
-        {/* Honor Roll Mini Widget */}
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-black text-gray-800 flex items-center gap-2 text-sm"><Crown size={18} className="text-yellow-500"/> أبطال الأسبوع</h3>

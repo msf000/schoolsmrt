@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, TermPeriod, Assignment } from '../types';
 import { getAcademicTerms, getAssignments } from '../services/storageService';
 import { generateStudentAnalysis } from '../services/geminiService';
+import { generateLocalStudentReport } from '../services/analysisService';
 import { 
     Search, PieChart as PieChartIcon, 
     TrendingUp, Loader2, Award, Activity, Sparkles, Calendar, Bot, 
     ArrowRight, XCircle, Star, Radar as RadarIcon, LineChart as LineChartIcon,
-    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info, CalendarRange, Eye, Lightbulb
+    BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info, CalendarRange, Eye, Lightbulb, BarChart
 } from 'lucide-react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -60,8 +61,9 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
-    const [aiReport, setAiReport] = useState<string>('');
-    const [isAiLoading, setIsAiLoading] = useState(false);
+    const [reportContent, setReportContent] = useState<string>('');
+    const [reportType, setReportType] = useState<'AI' | 'STATS'>('STATS');
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         localStorage.setItem('sf_selected_student', selectedStudentId);
@@ -159,13 +161,23 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         };
     }, [student, attendance, performance, dateRange, selectedPeriodId, selectedTermId, assignments]);
 
-    const handleGenerateAI = async () => {
+    const handleGenerateReport = async (type: 'AI' | 'STATS') => {
         if (!student || !stats) return;
-        setIsAiLoading(true);
+        setReportType(type);
+        setIsLoading(true);
         try {
-            const report = await generateStudentAnalysis(student, stats.sAtt, stats.sPerf);
-            setAiReport(report);
-        } catch (e) { alert('فشل الاتصال بـ Gemini'); } finally { setIsAiLoading(false); }
+            if (type === 'AI') {
+                const report = await generateStudentAnalysis(student, stats.sAtt, stats.sPerf);
+                setReportContent(report);
+            } else {
+                const report = generateLocalStudentReport(student, stats.sAtt, stats.sPerf);
+                setReportContent(report);
+            }
+        } catch (e) { 
+            alert('فشل توليد التقرير'); 
+        } finally { 
+            setIsLoading(false); 
+        }
     };
 
     const studentStyle = STYLE_LABELS[student?.learningStyle || 'UNKNOWN'];
@@ -262,7 +274,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                         <TabBtn label="الأنشطة" icon={<Sparkles size={16}/>} active={activeTab==='ACTIVITY'} onClick={()=>setActiveTab('ACTIVITY')}/>
                         <TabBtn label="الاختبارات" icon={<ClipboardList size={16}/>} active={activeTab==='EXAMS'} onClick={()=>setActiveTab('EXAMS')}/>
                         <TabBtn label="السلوك" icon={<Star size={16}/>} active={activeTab==='BEHAVIOR'} onClick={()=>setActiveTab('BEHAVIOR')}/>
-                        <TabBtn label="الذكاء AI" icon={<Bot size={16}/>} active={activeTab==='AI'} onClick={()=>setActiveTab('AI')}/>
+                        <TabBtn label="التحليل" icon={<BarChart size={16}/>} active={activeTab==='AI'} onClick={()=>setActiveTab('AI')}/>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
@@ -365,14 +377,29 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                 <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><BrainCircuit size={200}/></div>
                                 <div className="flex flex-col md:flex-row justify-between items-center mb-10 border-b pb-8 gap-6 relative z-10">
                                     <div className="flex items-center gap-5">
-                                        <div className="p-5 bg-purple-100 rounded-3xl text-purple-600 shadow-inner"><Bot size={36}/></div>
-                                        <div><h3 className="text-2xl font-black text-gray-800">التشخيص التربوي (AI)</h3><p className="text-xs text-gray-400 font-bold uppercase tracking-widest">تحليل ذكي حصري لفترة: {dateRange.label}</p></div>
+                                        <div className="p-5 bg-purple-100 rounded-3xl text-purple-600 shadow-inner"><BarChart size={36}/></div>
+                                        <div><h3 className="text-2xl font-black text-gray-800">تحليل الأداء والدعم</h3><p className="text-xs text-gray-400 font-bold uppercase tracking-widest">توليد تقارير تشخيصية لفترة: {dateRange.label}</p></div>
                                     </div>
-                                    <button onClick={handleGenerateAI} disabled={isAiLoading} className="bg-purple-600 text-white px-10 py-4 rounded-2xl font-black shadow-2xl shadow-purple-200 hover:bg-purple-700 disabled:opacity-50 flex items-center gap-3 transition-all hover:scale-105 active:scale-95">
-                                        {isAiLoading ? <Loader2 className="animate-spin" size={24}/> : <Sparkles size={24}/>} تحديث التحليل
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleGenerateReport('STATS')} disabled={isLoading} className="bg-gray-800 text-white px-6 py-3 rounded-2xl font-black shadow-lg hover:bg-black disabled:opacity-50 flex items-center gap-2 transition-all">
+                                            {isLoading && reportType==='STATS' ? <Loader2 className="animate-spin" size={20}/> : <BarChart size={20}/>} تقرير إحصائي
+                                        </button>
+                                        <button onClick={() => handleGenerateReport('AI')} disabled={isLoading} className="bg-purple-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2 transition-all">
+                                            {isLoading && reportType==='AI' ? <Loader2 className="animate-spin" size={20}/> : <Sparkles size={20}/>} تحليل AI
+                                        </button>
+                                    </div>
                                 </div>
-                                {aiReport ? <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50/50 p-8 rounded-[2rem] border border-indigo-50 relative z-10 font-medium"><ReactMarkdown>{aiReport}</ReactMarkdown></div> : <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30 relative z-10"><BrainCircuit size={100} className="mb-6"/><p className="text-xl font-black text-center">اضغط للحصول على تشخيص مخصص لهذه الفترة</p></div>}
+                                {reportContent ? (
+                                    <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50/50 p-8 rounded-[2rem] border border-indigo-50 relative z-10 font-medium">
+                                        {reportType === 'STATS' && <div className="mb-4 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-[10px] w-fit font-black">تحليل إحصائي محلي</div>}
+                                        <ReactMarkdown>{reportContent}</ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30 relative z-10">
+                                        <BrainCircuit size={100} className="mb-6"/>
+                                        <p className="text-xl font-black text-center">اختر نوع التقرير المطلوب لتوليد التشخيص</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
