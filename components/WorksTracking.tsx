@@ -104,7 +104,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     }, [assignments, activeTab, selectedTermId, selectedPeriodId]);
 
-    // حساب نسبة الإنجاز لأي تبويب حالي
+    // حساب نسبة الإنجاز لأي تبويب حالي أو محدد
     const calculateAchievement = useCallback((studentId: string, categoryId?: string) => {
         const targetAssignments = categoryId 
             ? assignments.filter(a => a.category === categoryId && (!selectedTermId || a.termId === selectedTermId) && (!selectedPeriodId || a.periodId === selectedPeriodId))
@@ -130,6 +130,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         const studentPerf = performance.filter(p => {
             const isMatch = p.studentId === studentId && p.subject === selectedSubject;
             if (!isMatch) return false;
+            
             const assign = assignments.find(a => a.id === p.notes || a.title === p.title);
             if (!selectedPeriodId) return true;
             return assign?.periodId === selectedPeriodId;
@@ -140,14 +141,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             if (items.length === 0) return 0;
             const weight = weights[catId] || 0;
 
-            // إذا كان التبويب اختبارات -> نستخدم المعدل الموزون (متوسط النسب)
+            // إذا كان التبويب اختبارات -> نستخدم المعدل الموزون (متوسط نسب الإتقان لكل اختبار)
             if (catId === 'PLATFORM_EXAM') {
                 const percentages = items.map(item => (item.score / item.maxScore));
                 const averagePct = percentages.reduce((a, b) => a + b, 0) / percentages.length;
                 return averagePct * weight;
             } 
             
-            // للواجبات والأنشطة والتبويبات الأخرى -> نستخدم نسبة الإنجاز الإجمالية
+            // للواجبات والأنشطة والتبويبات الأخرى -> نستخدم نسبة الإنجاز الإجمالية (إجمالي المحصل / إجمالي العظمى)
             const totalEarned = items.reduce((sum, item) => sum + item.score, 0);
             const totalMax = items.reduce((sum, item) => sum + item.maxScore, 0);
             return (totalEarned / (totalMax || 1)) * weight;
@@ -167,7 +168,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             if (a.studentId !== studentId) return false;
             if (!selectedPeriodId) return true;
             const period = activePeriods.find(p => p.id === selectedPeriodId);
-            return period ? (a.date >= period.startDate && a.date <= period.endDate) : true;
+            if (!period) return true;
+            return a.date >= period.startDate && a.date <= period.endDate;
         });
         const attRate = studentAtt.length > 0 ? (studentAtt.filter(a => a.status === 'PRESENT').length / studentAtt.length) : 1;
         const attScore = attRate * (weights.ATTENDANCE || 5);
@@ -188,8 +190,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                 const val = scores[studentId][assignId];
                 if (assign && val !== '') {
                     records.push({
-                        id: `${studentId}_${assignId}`, studentId, subject: selectedSubject, title: assign.title, category: assign.category,
-                        score: parseFloat(val), maxScore: assign.maxScore, date: today, notes: assign.id, createdById: currentUser?.id
+                        id: `${studentId}_${assignId}`,
+                        studentId,
+                        subject: selectedSubject,
+                        title: assign.title,
+                        category: assign.category,
+                        score: parseFloat(val),
+                        maxScore: assign.maxScore,
+                        date: today,
+                        notes: assign.id,
+                        createdById: currentUser?.id
                     });
                 }
             });
@@ -197,8 +207,13 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
         if (records.length > 0) {
             onAddPerformance(records);
-            setTimeout(() => { setIsSaving(false); alert('تم حفظ الدرجات بنجاح!'); }, 500);
-        } else { setIsSaving(false); }
+            setTimeout(() => {
+                setIsSaving(false);
+                alert('تم حفظ الدرجات بنجاح!');
+            }, 500);
+        } else {
+            setIsSaving(false);
+        }
     };
 
     const handleFetchSheet = async () => {
@@ -207,7 +222,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         try {
             saveWorksMasterUrl(googleSheetUrl);
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
-            setWorkbookRef(workbook); setSheetNames(sheetNames);
+            setWorkbookRef(workbook);
+            setSheetNames(sheetNames);
             if (sheetNames.length > 0) setSelectedSheetName(sheetNames[0]);
         } catch (e: any) { alert(e.message); } finally { setIsFetchingStructure(false); }
     };
@@ -320,7 +336,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                     <span>{student.name}</span>
                                                 </div>
                                             </td>
-                                            {categories.map(cat => <td key={cat.id} className="p-3 border-l font-bold">{res[cat.id] || 0}</td>)}
+                                            {categories.map(cat => {
+                                                const scoreValue = (res as any)[cat.id] || 0;
+                                                return <td key={cat.id} className="p-3 border-l font-bold">{scoreValue}</td>;
+                                            })}
                                             <td className="p-3 border-l font-bold text-green-600">{res.att}</td>
                                             <td className="p-3 border-l font-black text-indigo-900 bg-indigo-50">{res.total}</td>
                                         </tr>
