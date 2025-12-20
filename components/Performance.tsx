@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment, AttendanceRecord } from '../types';
 import { getAcademicTerms, getAssignments, getTeacherAssignments, addPerformance } from '../services/storageService';
-// Added Trash2 to lucide-react imports
 import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2 } from 'lucide-react';
 import DataImport from './DataImport';
 import { useNavigate } from 'react-router-dom';
@@ -59,7 +58,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
   const uniqueClasses = useMemo(() => {
       const classes = new Set<string>();
       students.forEach(s => s.className && classes.add(s.className));
-      getTeacherAssignments(currentUser?.id).forEach(a => classes.add(a.classId));
+      if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach(a => classes.add(a.classId));
       return Array.from(classes).sort();
   }, [students, currentUser]);
 
@@ -96,7 +95,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
           const sScore = bulkScores[s.id];
           if (sScore !== undefined && sScore !== '') {
               records.push({
-                  // معرف ثابت يجمع الطالب والتكليف لضمان الـ Upsert
                   id: selectedAssignmentId ? `${s.id}_${selectedAssignmentId}` : `${s.id}_${Date.now()}`,
                   studentId: s.id,
                   subject,
@@ -105,7 +103,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                   score: Number(sScore),
                   maxScore: Number(maxScore),
                   date: today,
-                  notes: selectedAssignmentId, // هذا الحقل أساسي للربط مع بوابة الطالب
+                  notes: selectedAssignmentId,
                   createdById: currentUser?.id
               });
           }
@@ -163,7 +161,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                                       <tr key={student.id} className="hover:bg-indigo-50/20">
                                           <td className="p-4 text-center text-xs text-gray-300 font-mono">{idx + 1}</td>
                                           <td className="p-4 font-bold text-gray-800">{student.name}</td>
-                                          <td className="p-2"><input type="number" className="w-full h-full p-3 bg-gray-50 border-none rounded-xl text-center font-black focus:ring-2 focus:ring-indigo-500 transition-all" value={bulkScores[student.id] || ''} onChange={(e) => setBulkScores({...bulkScores, [student.id]: e.target.value})} placeholder="-"/></td>
+                                          <td className="p-2"><input type="number" className="w-full p-3 bg-gray-50 border-none rounded-xl text-center font-black focus:ring-2 focus:ring-indigo-500 transition-all" value={bulkScores[student.id] || ''} onChange={(e) => setBulkScores({...bulkScores, [student.id]: e.target.value})} placeholder="-"/></td>
                                       </tr>
                                   ))}
                               </tbody>
