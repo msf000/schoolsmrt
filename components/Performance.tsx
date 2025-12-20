@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment, AttendanceRecord } from '../types';
 import { getAcademicTerms, getAssignments, getTeacherAssignments, addPerformance } from '../services/storageService';
-import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2, List } from 'lucide-react';
+import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2, List, Download } from 'lucide-react';
 import DataImport from './DataImport';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 
 interface PerformanceProps {
   students: Student[];
@@ -115,6 +116,29 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       setTimeout(() => setIsSuccess(false), 3000);
   };
 
+  const handleExportExcel = () => {
+      if (filteredHistory.length === 0) return alert('لا توجد بيانات لتصديرها');
+      
+      const dataToExport = filteredHistory.map(rec => {
+          const student = students.find(s => s.id === rec.studentId);
+          return {
+              'اسم الطالب': student?.name || 'مجهول',
+              'الفصل': student?.className || '-',
+              'المادة': rec.subject,
+              'نوع التقييم': rec.title,
+              'الدرجة': rec.score,
+              'الدرجة العظمى': rec.maxScore,
+              'التاريخ': rec.date,
+              'النسبة المئوية': `${Math.round((rec.score / rec.maxScore) * 100)}%`
+          };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "سجل الدرجات");
+      XLSX.writeFile(wb, `سجل_الدرجات_${logClass || 'الكل'}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col bg-gray-50 animate-fade-in pb-24">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -122,7 +146,12 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
             <button onClick={() => setActiveTab('BULK')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>رصد جديد</button>
             <button onClick={() => setActiveTab('LOG')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'LOG' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>سجل الدرجات</button>
         </div>
-        <button onClick={() => setIsImportModalOpen(true)} className="w-full md:w-auto bg-emerald-600 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg active:scale-95"><FileSpreadsheet size={16}/> استيراد Excel</button>
+        <div className="flex gap-2 w-full md:w-auto">
+            <button onClick={() => setIsImportModalOpen(true)} className="flex-1 bg-emerald-600 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg active:scale-95 transition-all"><FileSpreadsheet size={16}/> استيراد</button>
+            {activeTab === 'LOG' && (
+                <button onClick={handleExportExcel} className="flex-1 bg-gray-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg active:scale-95 transition-all"><Download size={16}/> تصدير Excel</button>
+            )}
+        </div>
       </div>
 
       {activeTab === 'BULK' && (

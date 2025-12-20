@@ -81,6 +81,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
     }, [students, selectedClass]);
 
     const handleExportPerf = () => {
+        if (filteredPerformance.length === 0) return alert('لا توجد بيانات للتحميل');
         const data = filteredPerformance.map(p => {
             const s = students.find(x => x.id === p.studentId);
             return {
@@ -96,7 +97,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "سجل الدرجات");
-        XLSX.writeFile(wb, `Performance_Log_${selectedClass || 'All'}.xlsx`);
+        XLSX.writeFile(wb, `Performance_Log_${selectedClass || 'All'}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const TabBtn = ({ label, active, onClick }: any) => (
