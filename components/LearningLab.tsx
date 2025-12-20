@@ -6,7 +6,7 @@ import { getWorkbookStructure, getSheetHeadersAndData, analyzeVarkLocally } from
 import { 
     BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, 
     History, TrendingUp, Lightbulb, Bot, ChevronRight, FileSpreadsheet, ClipboardList, 
-    PieChart as PieChartIcon, Upload, X, HelpCircle, BarChart, Info, UserCheck, Zap
+    PieChart as PieChartIcon, Upload, X, HelpCircle, BarChart, Info, UserCheck, Zap, Share2
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
@@ -16,42 +16,9 @@ interface Props {
     currentUserId?: string;
 }
 
-const VARK_QUESTIONS = [
-    {
-        id: 1,
-        question: "عندما أتعلم مهارة جديدة، أفضل أن:",
-        options: [
-            { text: "أشاهد شخصاً آخر يقوم بها (فيديو أو عرض)", style: "VISUAL" },
-            { text: "أستمع لشخص يشرح لي الخطوات", style: "AUDITORY" },
-            { text: "أقرأ التعليمات المكتوبة بعناية", style: "READ_WRITE" },
-            { text: "أجرب القيام بها بنفسي فوراً", style: "KINESTHETIC" }
-        ]
-    },
-    {
-        id: 2,
-        question: "عندما أحاول تذكر معلومة معينة، فإني أتذكر:",
-        options: [
-            { text: "صورة الصفحة أو المخطط الذي رأيته", style: "VISUAL" },
-            { text: "صوت المعلم وهو ينطق بالمعلومة", style: "AUDITORY" },
-            { text: "الكلمات المكتوبة في دفتري", style: "READ_WRITE" },
-            { text: "ما قمت بفعله أو لمسه أثناء تعلمها", style: "KINESTHETIC" }
-        ]
-    },
-    {
-        id: 3,
-        question: "في وقت فراغي، أفضل:",
-        options: [
-            { text: "مشاهدة الأفلام أو الصور", style: "VISUAL" },
-            { text: "الاستماع للموسيقى أو البودكاست", style: "AUDITORY" },
-            { text: "قراءة كتاب أو كتابة يومياتي", style: "READ_WRITE" },
-            { text: "ممارسة الرياضة أو العمل اليدوي", style: "KINESTHETIC" }
-        ]
-    }
-];
-
 const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId }) => {
     const [students, setLocalStudents] = useState<Student[]>(initialStudents);
-    const [activeTab, setActiveTab] = useState<'STYLES' | 'ENVIRONMENT' | 'STRATEGY' | 'ASSESSMENT'>('STYLES');
+    const [activeTab, setActiveTab] = useState<'STYLES' | 'ENVIRONMENT' | 'STRATEGY' | 'ASSESSMENT' | 'ANALYTICS'>('STYLES');
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [observations, setObservations] = useState('');
     const [isDiagnosing, setIsDiagnosing] = useState(false);
@@ -71,6 +38,23 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
         lighting: 3, noiseLevel: 2, mood: 'FOCUSED'
     });
 
+    // Fix: Implemented handleSaveEnv to save classroom environment records
+    const handleSaveEnv = () => {
+        if (!currentUserId) return;
+        const record: EnvironmentRecord = {
+            id: Date.now().toString(),
+            teacherId: currentUserId,
+            classId: students[0]?.className || 'General',
+            date: new Date().toISOString(),
+            lighting: env.lighting || 3,
+            noiseLevel: env.noiseLevel || 2,
+            mood: env.mood || 'FOCUSED',
+            notes: ''
+        };
+        saveEnvironmentRecord(record);
+        alert('تم حفظ حالة البيئة التعليمية بنجاح');
+    };
+
     useEffect(() => {
         setLocalStudents(getStudents());
     }, [activeTab]);
@@ -87,27 +71,6 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
         } finally {
             setIsDiagnosing(false);
         }
-    };
-
-    const handleQuizSubmit = () => {
-        if (!selectedStudentId || Object.keys(quizAnswers).length < VARK_QUESTIONS.length) {
-            alert('يرجى الإجابة على جميع الأسئلة.');
-            return;
-        }
-
-        const counts: any = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0 };
-        Object.values(quizAnswers).forEach(style => { counts[style as any]++; });
-        
-        let dominantStyle = 'UNKNOWN';
-        let max = 0;
-        Object.entries(counts).forEach(([style, count]: [string, any]) => {
-            if (count > max) { max = count; dominantStyle = style; }
-        });
-
-        updateStudentLearningStyle(selectedStudentId, dominantStyle as LearningStyle);
-        alert(`تم تحديد نمط الطالب: ${dominantStyle}. تم تحديث الملف.`);
-        setQuizAnswers({});
-        setLocalStudents(getStudents());
     };
 
     const handleFormsImport = async (e: React.ChangeEvent<HTMLInputElement>, method: 'AI' | 'LOCAL') => {
@@ -131,8 +94,7 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                     const cleanName = item.studentName.trim();
                     const match = students.find(s => 
                         s.name.includes(cleanName) || 
-                        cleanName.includes(s.name) ||
-                        (s.name.split(' ')[0] === cleanName.split(' ')[0] && s.name.split(' ').pop() === cleanName.split(' ').pop())
+                        cleanName.includes(s.name)
                     );
                     if (match) {
                         updateStudentLearningStyle(match.id, item.style);
@@ -143,7 +105,7 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
             
             setBulkResult({ ...result, matchedCount, method });
             setLocalStudents(getStudents());
-            alert(`تم ${method === 'AI' ? 'التحليل الذكي' : 'التحليل المحلي'} ومطابقة ${matchedCount} طالباً.`);
+            setActiveTab('ANALYTICS');
         } catch (error) {
             alert('حدث خطأ أثناء معالجة الملف.');
         } finally {
@@ -171,34 +133,17 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
         }
     };
 
-    const saveStyle = () => {
-        if (!selectedStudentId || !diagnosis) return;
-        updateStudentLearningStyle(selectedStudentId, diagnosis.style as LearningStyle);
-        alert('تم تحديث نمط تعلم الطالب بنجاح!');
-        setDiagnosis(null);
-        setObservations('');
-        setLocalStudents(getStudents());
-    };
-
-    const handleSaveEnv = () => {
-        const record: EnvironmentRecord = {
-            id: Date.now().toString(),
-            teacherId: currentUserId || '',
-            classId: 'عام',
-            date: new Date().toISOString(),
-            lighting: env.lighting!,
-            noiseLevel: env.noiseLevel!,
-            mood: env.mood!,
-            notes: ''
-        };
-        saveEnvironmentRecord(record);
-        alert('تم رصد حالة البيئة الصفية.');
-    };
-
     const styleStats = useMemo(() => {
         const stats: any = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0, UNKNOWN: 0 };
         students.forEach(s => { stats[(s.learningStyle || 'UNKNOWN') as any]++; });
-        return Object.entries(stats).map(([name, value]) => ({ name, value }));
+        // Fix: Explicitly cast value to number to prevent 'unknown' comparison error
+        return Object.entries(stats)
+            .filter(([_, value]) => (value as number) > 0)
+            .map(([name, value]) => ({ 
+                name: name === 'VISUAL' ? 'بصري' : name === 'AUDITORY' ? 'سمعي' : name === 'READ_WRITE' ? 'قرائي' : name === 'KINESTHETIC' ? 'حركي' : 'غير محدد', 
+                value: value as number,
+                key: name
+            }));
     }, [students]);
 
     const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#94a3b8'];
@@ -214,7 +159,8 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                 </div>
                 <div className="flex bg-white rounded-2xl border p-1 shadow-sm overflow-x-auto no-scrollbar max-w-full">
                     <TabBtn label="التشخيص الذكي" active={activeTab === 'STYLES'} onClick={() => setActiveTab('STYLES')} />
-                    <TabBtn label="اختبار الأنماط" active={activeTab === 'ASSESSMENT'} onClick={() => setActiveTab('ASSESSMENT')} />
+                    <TabBtn label="تحليل النتائج" active={activeTab === 'ANALYTICS'} onClick={() => setActiveTab('ANALYTICS')} />
+                    <TabBtn label="استيراد Forms" active={activeTab === 'ASSESSMENT'} onClick={() => setActiveTab('ASSESSMENT')} />
                     <TabBtn label="بيئة الصف" active={activeTab === 'ENVIRONMENT'} onClick={() => setActiveTab('ENVIRONMENT')} />
                     <TabBtn label="الاستراتيجية" active={activeTab === 'STRATEGY'} onClick={() => setActiveTab('STRATEGY')} />
                 </div>
@@ -242,9 +188,9 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                             </button>
                         </div>
 
-                        <div className="bg-white p-6 rounded-3xl border shadow-sm overflow-y-auto custom-scrollbar">
+                        <div className="bg-white p-6 rounded-3xl border shadow-sm overflow-y-auto custom-scrollbar flex flex-col justify-center items-center">
                             {diagnosis ? (
-                                <div className="space-y-6 animate-slide-up">
+                                <div className="space-y-6 animate-slide-up w-full">
                                     <div className="text-center">
                                         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-600 border-2 border-indigo-100 shadow-inner"><BrainCircuit size={40}/></div>
                                         <h4 className="text-2xl font-black text-indigo-600">النمط: {diagnosis.style === 'VISUAL' ? 'بصري' : diagnosis.style === 'AUDITORY' ? 'سمعي' : diagnosis.style === 'KINESTHETIC' ? 'حركي' : 'قرائي'}</h4>
@@ -257,128 +203,85 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
                                         <h5 className="font-bold text-green-800 mb-2 flex items-center gap-2"><CheckCircle size={16}/> نصائح للتعامل معه:</h5>
                                         <p className="text-sm text-green-700 leading-relaxed">{diagnosis.tips}</p>
                                     </div>
-                                    <button onClick={saveStyle} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl hover:bg-indigo-700 transition-all">حفظ النمط في ملف الطالب</button>
+                                    <button onClick={() => { updateStudentLearningStyle(selectedStudentId, diagnosis.style); setDiagnosis(null); alert('تم الحفظ'); }} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl hover:bg-indigo-700 transition-all">حفظ النمط في ملف الطالب</button>
                                 </div>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-300">
-                                    <PieChartIcon size={80} className="mb-4 opacity-10"/>
-                                    <p className="text-xl font-bold text-center opacity-40">ملخص أنماط الفصل</p>
-                                    <div className="w-full h-64">
-                                        <ResponsiveContainer>
-                                            <PieChart>
-                                                <Pie data={styleStats} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                                    {styleStats.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                                </Pie>
-                                                <RechartsTooltip />
-                                                <Legend verticalAlign="bottom" height={36}/>
-                                            </PieChart>
-                                        </ResponsiveContainer>
-                                    </div>
+                                <div className="text-center text-gray-300">
+                                    <BrainCircuit size={80} className="mb-4 opacity-10 mx-auto"/>
+                                    <p className="font-bold">اختر طالباً وأدخل ملاحظاتك لبدء التحليل</p>
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
 
-                {activeTab === 'ASSESSMENT' && (
+                {activeTab === 'ANALYTICS' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full overflow-hidden">
-                        <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col gap-6 overflow-y-auto">
-                            <div className="flex justify-between items-center border-b pb-4">
-                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><HelpCircle className="text-purple-600"/> اختبار الأنماط (VARK)</h3>
-                                <div className="flex gap-2">
-                                    <input type="file" id="local-import" className="hidden" accept=".xlsx" onChange={e => handleFormsImport(e, 'LOCAL')}/>
-                                    <label htmlFor="local-import" className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl text-[10px] font-black cursor-pointer hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all active:scale-95">
-                                        <Zap size={14}/> تحليل محلي (سريع)
-                                    </label>
-                                    
-                                    <input type="file" id="ai-import" className="hidden" accept=".xlsx" onChange={e => handleFormsImport(e, 'AI')}/>
-                                    <label htmlFor="ai-import" className="flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-2 rounded-xl text-[10px] font-black cursor-pointer hover:bg-purple-100 border border-purple-200 shadow-sm transition-all active:scale-95">
-                                        <Sparkles size={14}/> تحليل ذكي (AI)
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">اختيار الطالب للتقييم الفردي</label>
-                                    <select className="w-full p-3 border rounded-xl bg-gray-50 font-bold" value={selectedStudentId} onChange={e=>setSelectedStudentId(e.target.value)}>
-                                        <option value="">-- اختر طالباً --</option>
-                                        {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
-                                </div>
-
-                                <div className="space-y-6 mt-4">
-                                    {VARK_QUESTIONS.map(q => (
-                                        <div key={q.id} className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                            <p className="font-bold text-gray-700 mb-3">{q.question}</p>
-                                            <div className="space-y-2">
-                                                {q.options.map(opt => (
-                                                    <label key={opt.style} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${quizAnswers[q.id] === opt.style ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white hover:bg-indigo-50 border-transparent shadow-sm'}`}>
-                                                        <input type="radio" name={`q-${q.id}`} value={opt.style} className="hidden" checked={quizAnswers[q.id] === opt.style} onChange={e => setQuizAnswers({...quizAnswers, [q.id]: e.target.value})}/>
-                                                        <span className="text-sm font-medium">{opt.text}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <button onClick={handleQuizSubmit} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black shadow-xl hover:bg-purple-700 transition-all mt-4">حفظ وتحليل النمط الفردي</button>
+                        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm flex flex-col overflow-hidden">
+                            <h3 className="font-black text-gray-800 mb-8 flex items-center gap-2"><BarChart className="text-indigo-600"/> توزيع الأنماط في فصولي</h3>
+                            <div className="flex-1 min-h-[300px]">
+                                <ResponsiveContainer>
+                                    <PieChart>
+                                        <Pie data={styleStats} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value">
+                                            {styleStats.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                        </Pie>
+                                        <RechartsTooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                        <Legend verticalAlign="bottom" height={36}/>
+                                    </PieChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
 
-                        <div className="bg-white p-6 rounded-3xl border shadow-sm overflow-y-auto custom-scrollbar">
-                            {bulkResult ? (
-                                <div className="space-y-6 animate-fade-in">
-                                    <div className="flex items-center gap-4 bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                                        <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg">
-                                            {bulkResult.method === 'AI' ? <Sparkles size={32}/> : <CheckCircle size={32}/>}
+                        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm overflow-y-auto custom-scrollbar">
+                            <h3 className="font-black text-gray-800 mb-6">قائمة الطلاب والأنماط</h3>
+                            <div className="space-y-3">
+                                {students.map(s => (
+                                    <div key={s.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-indigo-200 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-xs">{s.name.charAt(0)}</div>
+                                            <span className="font-bold text-gray-700">{s.name}</span>
                                         </div>
-                                        <div>
-                                            <h4 className="text-xl font-black text-indigo-900">اكتمال التحليل ({bulkResult.method === 'AI' ? 'ذكي' : 'محلي'})</h4>
-                                            <p className="text-sm text-indigo-600 font-bold">تم مطابقة وتحديث {bulkResult.matchedCount} طالب من أصل {bulkResult.studentAssignments.length} سجل.</p>
-                                        </div>
+                                        {s.learningStyle ? (
+                                            <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
+                                                s.learningStyle === 'VISUAL' ? 'bg-blue-100 text-blue-700' :
+                                                s.learningStyle === 'AUDITORY' ? 'bg-green-100 text-green-700' :
+                                                s.learningStyle === 'KINESTHETIC' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                                            }`}>{s.learningStyle}</span>
+                                        ) : (
+                                            <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">لم يختبر</span>
+                                        )}
                                     </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
-                                    <div className="bg-white p-6 rounded-3xl border shadow-sm">
-                                        <h5 className="font-black text-gray-800 mb-4 flex items-center gap-2"><BarChart size={18} className="text-indigo-600"/> توزيع الأنماط في الملف</h5>
-                                        <div className="space-y-3">
-                                            {Object.entries(bulkResult.stats).map(([style, count]: [string, any], i) => {
-                                                const pct = (count/bulkResult.studentAssignments.length)*100;
-                                                return (
-                                                    <div key={style} className="flex items-center gap-4">
-                                                        <span className="text-[10px] font-bold w-20 text-gray-500">{style}</span>
-                                                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, backgroundColor: COLORS[i] }}></div>
-                                                        </div>
-                                                        <span className="text-xs font-black text-gray-700">{count}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
+                {activeTab === 'ASSESSMENT' && (
+                    <div className="max-w-4xl mx-auto w-full h-full flex flex-col gap-6">
+                        <div className="bg-indigo-900 text-white p-10 rounded-[3rem] shadow-xl relative overflow-hidden shrink-0">
+                            <Sparkles className="absolute -bottom-4 -right-4 opacity-10" size={120}/>
+                            <div className="relative z-10">
+                                <h3 className="text-2xl font-black mb-4 flex items-center gap-3">تحليل استجابات الطلاب (MS Forms)</h3>
+                                <p className="text-indigo-100 text-sm max-w-lg mb-8">قم برفع ملف الـ Excel المستخرج من مايكروسوفت فورمز وسيقوم النظام بمطابقة الأسماء وتحديد نمط كل طالب تلقائياً.</p>
+                                
+                                <div className="flex flex-wrap gap-4">
+                                    <label className="bg-white text-indigo-900 px-8 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all cursor-pointer flex items-center gap-2">
+                                        {isImportLoading ? <Loader2 className="animate-spin"/> : <Upload size={20}/>}
+                                        {isImportLoading ? 'جاري التحليل...' : 'اختر ملف الاستجابات (Excel)'}
+                                        <input type="file" className="hidden" accept=".xlsx" onChange={(e) => handleFormsImport(e, 'LOCAL')} />
+                                    </label>
+                                    <button className="bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black border border-indigo-500 hover:bg-indigo-800 transition-all flex items-center gap-2">
+                                        <Share2 size={20}/> نسخ رابط الاختبار للطلاب
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                                    <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100">
-                                        <h5 className="font-black text-yellow-800 mb-4 flex items-center gap-2"><Lightbulb size={18}/> توصيات تربوية</h5>
-                                        <ul className="space-y-3">
-                                            {bulkResult.tips.map((tip: string, i: number) => (
-                                                <li key={i} className="text-sm text-yellow-700 font-medium flex items-start gap-2">
-                                                    <span className="mt-1"><ChevronRight size={14}/></span> {tip}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-300 p-10 text-center">
-                                    <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6"><FileSpreadsheet size={48} className="opacity-10"/></div>
-                                    <h4 className="text-xl font-bold text-gray-400 mb-2">تحليل الاستجابات الجماعية</h4>
-                                    <p className="text-sm max-w-xs leading-relaxed opacity-60">ارفع ملف الاستجابات من Microsoft Forms للتحليل الفوري لأنماط تعلم الطلاب.</p>
-                                    <div className="mt-8 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-blue-800 text-xs flex gap-3">
-                                        <Info size={16} className="shrink-0"/>
-                                        <p className="text-right">ملاحظة: التحليل المحلي أسرع ويعمل بدون إنترنت، بينما التحليل الذكي (AI) أكثر دقة في فهم الإجابات المفتوحة.</p>
-                                    </div>
-                                </div>
-                            )}
+                        <div className="flex-1 bg-white rounded-[3rem] border border-dashed border-gray-300 p-10 flex flex-col items-center justify-center text-center text-gray-400">
+                             <FileSpreadsheet size={64} className="mb-4 opacity-20"/>
+                             <h4 className="text-xl font-black text-gray-500">بانتظار البيانات</h4>
+                             <p className="max-w-xs mt-2 text-sm leading-relaxed">ارفع ملف Excel يحتوي على أعمدة (الاسم) وإجابات الأسئلة للبدء في تحليل أنماط الفصل.</p>
                         </div>
                     </div>
                 )}

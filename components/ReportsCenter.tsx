@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, ReportHeaderConfig, Assignment } from '../types';
 import { getAcademicTerms, getAssignments, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
-import { FileText, AlertTriangle, Calendar, BrainCircuit, Printer, Download, CheckCircle, TrendingUp, ChevronRight } from 'lucide-react';
+import { detectAtRiskStudents, calculateClassStats } from '../services/analysisService';
+import { FileText, AlertTriangle, Calendar, BrainCircuit, Printer, Download, CheckCircle, TrendingUp, ChevronRight, BarChart3, Activity } from 'lucide-react';
 import MonthlyReport from './MonthlyReport';
 import AIReports from './AIReports';
 import CertificatesCenter from './CertificatesCenter';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend } from 'recharts';
 
 interface ReportsCenterProps {
   students: Student[];
@@ -18,14 +20,12 @@ interface ReportsCenterProps {
 const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, performance, currentUser }) => {
     const navigate = useNavigate();
     
-    // --- الاستعادة من التخزين المحلي ---
-    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'MONTHLY' | 'AI' | 'CERTIFICATES'>(() => {
+    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'MONTHLY' | 'AI' | 'CERTIFICATES' | 'STATS'>(() => {
         return (localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE';
     });
     const [selectedClass, setSelectedClass] = useState(() => localStorage.getItem('rep_selected_class') || '');
     const [selectedTermId, setSelectedTermId] = useState(() => localStorage.getItem('rep_term_id') || '');
 
-    // --- الحفظ عند التغيير ---
     useEffect(() => {
         localStorage.setItem('rep_active_tab', activeTab);
         localStorage.setItem('rep_selected_class', selectedClass);
@@ -50,6 +50,21 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
     }, [students, currentUser]);
 
     const activeTerm = terms.find(t => t.id === selectedTermId);
+
+    const classStats = useMemo(() => {
+        if (!selectedClass) return null;
+        const classPerf = performance.filter(p => {
+            const s = students.find(std => std.id === p.studentId);
+            return s?.className === selectedClass;
+        });
+        return calculateClassStats(classPerf);
+    }, [performance, students, selectedClass]);
+
+    const atRiskData = useMemo(() => {
+        if (!selectedClass) return [];
+        const classStudents = students.filter(s => s.className === selectedClass);
+        return detectAtRiskStudents(classStudents, attendance, performance);
+    }, [students, attendance, performance, selectedClass]);
 
     const comprehensiveData = useMemo(() => {
         if (!selectedClass) return [];
@@ -81,10 +96,11 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
             <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><FileText className="text-purple-600"/> مركز التقارير الذكي</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><FileText className="text-purple-600"/> مركز التقارير المتقدم</h2>
                 </div>
                 <div className="flex bg-white p-1 rounded-xl border shadow-sm overflow-x-auto no-scrollbar">
                     <TabBtn label="التقرير الشامل" active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
+                    <TabBtn label="التحليل الإحصائي" active={activeTab==='STATS'} onClick={()=>setActiveTab('STATS')} />
                     <TabBtn label="المتعثرين" active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
                     <TabBtn label="الحضور الشهري" active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
                     <TabBtn label="الشهادات" active={activeTab==='CERTIFICATES'} onClick={()=>setActiveTab('CERTIFICATES')} />
@@ -127,18 +143,88 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                     </div>
                 )}
 
-                {activeTab === 'AT_RISK' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-                        {comprehensiveData.filter(s => s.stats.gradeAvg < 60 || s.stats.attRate < 80).map(s => (
-                            <div key={s.id} className="bg-white p-6 rounded-[2rem] border-2 border-red-50 shadow-sm group">
-                                <h3 className="font-bold text-gray-800 mb-3">{s.name}</h3>
-                                <div className="space-y-2 mb-4">
-                                    {s.stats.attRate < 80 && <div className="text-[10px] bg-red-50 text-red-700 p-2 rounded-lg font-bold">ضعف حضور ({s.stats.attRate}%)</div>}
-                                    {s.stats.gradeAvg < 60 && <div className="text-[10px] bg-orange-50 text-orange-700 p-2 rounded-lg font-bold">تعثر دراسي ({s.stats.gradeAvg}%)</div>}
+                {activeTab === 'STATS' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex gap-2 mb-4 bg-white p-4 rounded-xl border">
+                             <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="p-2 border rounded-lg text-sm font-bold bg-gray-50"><option value="">-- اختر الفصل للتحليل --</option>{uniqueClasses.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                        </div>
+                        {classStats ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm">
+                                    <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><Activity className="text-teal-600"/> منحنى توزيع الدرجات</h3>
+                                    <div className="h-64">
+                                        <ResponsiveContainer>
+                                            <BarChart data={[
+                                                { name: 'متفوق', val: classStats.distribution.EXCELLENT, color: '#10b981' },
+                                                { name: 'جيد', val: classStats.distribution.GOOD, color: '#3b82f6' },
+                                                { name: 'متوسط', val: classStats.distribution.AVERAGE, color: '#f59e0b' },
+                                                { name: 'متعثر', val: classStats.distribution.LOW, color: '#ef4444' }
+                                            ]}>
+                                                <XAxis dataKey="name" tick={{fontSize: 12, fontWeight: 'bold'}} />
+                                                <YAxis hide />
+                                                <Tooltip />
+                                                <Bar dataKey="val" radius={[8, 8, 0, 0]}>
+                                                    { [0,1,2,3].map((entry, index) => <Cell key={index} fill={['#10b981','#3b82f6','#f59e0b','#ef4444'][index]} />) }
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 mt-6">
+                                        <div className="p-4 bg-gray-50 rounded-2xl border">
+                                            <p className="text-xs font-bold text-gray-400 mb-1">المتوسط الحسابي</p>
+                                            <p className="text-2xl font-black text-indigo-600">{classStats.avg}%</p>
+                                        </div>
+                                        <div className="p-4 bg-gray-50 rounded-2xl border">
+                                            <p className="text-xs font-bold text-gray-400 mb-1">الانحراف المعياري</p>
+                                            <p className="text-2xl font-black text-purple-600">{classStats.stdDev}</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <button onClick={()=>navigate('/followup', {state:{studentId:s.id}})} className="w-full py-2 bg-gray-50 hover:bg-red-50 text-red-600 rounded-xl font-bold text-xs">متابعة الطالب</button>
+                                <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+                                    <TrendingUp className="absolute -bottom-4 -left-4 opacity-10" size={150}/>
+                                    <h3 className="text-xl font-black mb-6">مؤشرات الجودة الإحصائية</h3>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between border-b border-white/10 pb-3"><span>أعلى درجة مسجلة:</span><span className="font-black">{classStats.highest}%</span></div>
+                                        <div className="flex justify-between border-b border-white/10 pb-3"><span>أدنى درجة مسجلة:</span><span className="font-black">{classStats.lowest}%</span></div>
+                                        {/* Fix: Added explicit type casting to number for distribution values to resolve arithmetic operation errors */}
+                                        <div className="flex justify-between border-b border-white/10 pb-3"><span>نسبة الإتقان العامة:</span><span className="font-black">{Math.round(((classStats.distribution.EXCELLENT as number + classStats.distribution.GOOD as number) / ((Object.values(classStats.distribution) as number[]).reduce((a: number, b: number) => a + b, 0))) * 100)}%</span></div>
+                                    </div>
+                                    <p className="mt-8 text-xs text-indigo-200 leading-relaxed italic">"تظهر البيانات أن تباين الفصل {classStats.stdDev > 15 ? 'مرتفع، مما يتطلب تفريد التعليم' : 'منخفض، مما يدل على انسجام المستوى الأكاديمي'}."</p>
+                                </div>
                             </div>
-                        ))}
+                        ) : <div className="p-20 text-center text-gray-400 font-bold border-2 border-dashed rounded-3xl">لا توجد بيانات درجات للفصل المختار</div>}
+                    </div>
+                )}
+
+                {activeTab === 'AT_RISK' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex gap-2 mb-4 bg-white p-4 rounded-xl border">
+                             <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="p-2 border rounded-lg text-sm font-bold bg-gray-50"><option value="">-- اختر الفصل --</option>{uniqueClasses.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {atRiskData.map((item: any) => (
+                                <div key={item.student.id} className="bg-white p-6 rounded-[2rem] border-2 border-red-50 shadow-sm hover:border-red-200 transition-all">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center font-black">{item.student.name.charAt(0)}</div>
+                                        <h3 className="font-bold text-gray-800">{item.student.name}</h3>
+                                    </div>
+                                    <div className="space-y-2 mb-6">
+                                        {item.risks.map((risk: string, i: number) => (
+                                            <div key={i} className="text-[10px] bg-red-50 text-red-700 p-2 rounded-lg font-bold flex items-center gap-2">
+                                                <AlertTriangle size={12}/> {risk}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button onClick={()=>navigate('/followup', {state:{studentId: item.student.id}})} className="w-full py-2.5 bg-gray-900 text-white rounded-xl font-bold text-xs hover:bg-black transition-all">التدخل والمتابعة</button>
+                                </div>
+                            ))}
+                            {selectedClass && atRiskData.length === 0 && (
+                                <div className="col-span-full p-20 text-center text-green-600 font-bold bg-green-50 border border-green-100 rounded-[2.5rem]">
+                                    <CheckCircle size={48} className="mx-auto mb-4"/>
+                                    جميع طلاب هذا الفصل بمستوى آمن حالياً.
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 

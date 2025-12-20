@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, BehaviorStatus } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
-import { generateLocalDailyBrief } from '../services/analysisService';
+import { generateLocalDailyBrief, getLocalPedagogicalTip } from '../services/analysisService';
 import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,9 +22,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   const [briefing, setBriefing] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [briefMode, setBriefMode] = useState<'AI' | 'STATS'>('STATS');
+  const [briefMode, setBriefMode] = useState<'AI' | 'STATS'>(() => {
+      const saved = localStorage.getItem('dashboard_brief_mode');
+      return (saved as 'AI' | 'STATS') || 'STATS';
+  });
 
   useEffect(() => {
+    localStorage.setItem('dashboard_brief_mode', briefMode);
     if (students.length > 0) {
         if (briefMode === 'AI') loadAiBrief();
         else loadStatsBrief();
@@ -38,6 +42,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         setBriefing(res);
     } catch (e) {
         loadStatsBrief();
+        setBriefMode('STATS');
     } finally {
         setIsAiLoading(false);
     }
@@ -91,6 +96,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     };
   }, [students, attendance, performance]);
 
+  const pedagogicalTip = useMemo(() => getLocalPedagogicalTip(), []);
+
   return (
     <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24">
       {/* AI/Stats Header */}
@@ -99,7 +106,11 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
               <div className="w-20 h-20 bg-white/10 backdrop-blur-2xl rounded-3xl flex flex-col items-center justify-center shrink-0 border border-white/20 shadow-2xl relative">
                   {isAiLoading ? <Loader2 className="animate-spin text-yellow-400" size={32}/> : (briefMode==='AI' ? <Bot className="text-yellow-400" size={40}/> : <Activity className="text-teal-400" size={40}/>)}
-                  <button onClick={() => setBriefMode(briefMode==='AI'?'STATS':'AI')} className="absolute -bottom-2 -right-2 bg-white text-indigo-900 p-1 rounded-full shadow-lg border border-indigo-200 hover:scale-110 transition-transform">
+                  <button 
+                    onClick={() => setBriefMode(briefMode==='AI'?'STATS':'AI')} 
+                    className="absolute -bottom-2 -right-2 bg-white text-indigo-900 p-1 rounded-full shadow-lg border border-indigo-200 hover:scale-110 transition-transform"
+                    title="تبديل وضع التحليل"
+                  >
                       {briefMode === 'AI' ? <TrendingUp size={12}/> : <Bot size={12}/>}
                   </button>
               </div>
@@ -192,7 +203,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white flex flex-col justify-between shadow-xl">
             <div>
                 <h3 className="text-xl font-black mb-4">نصيحة تربوية اليوم</h3>
-                <p className="opacity-80 leading-relaxed italic">"التعليم ليس ملء دلو، ولكنه إشعال نار. حاول اليوم أن تجعل طلابك يتساءلون بدلاً من أن يجيبوا فقط."</p>
+                <p className="opacity-80 leading-relaxed italic">"{pedagogicalTip}"</p>
             </div>
             <div className="mt-8 flex justify-center">
                 <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border border-white/20">

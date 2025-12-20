@@ -13,6 +13,7 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 import { PieChart, Pie, Cell, ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { formatDualDate } from '../services/dateService';
 import BottomNavigation from './BottomNavigation';
+import StudentLearningTest from './StudentLearningTest';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -26,6 +27,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [messages, setMessages] = useState<MessageLog[]>([]);
+    const [view, setView] = useState<'DASHBOARD' | 'TEST'>('DASHBOARD');
 
     useEffect(() => {
         const allMsgs = getMessages();
@@ -83,7 +85,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                 </div>
                 <nav className="flex-1 p-6 space-y-2">
                     {navItems.map(item => (
-                        <button key={item.path} onClick={() => navigate(item.path)} className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === item.path ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-[1.02]' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}`}>
+                        <button key={item.path} onClick={() => { navigate(item.path); setView('DASHBOARD'); }} className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === item.path && view === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-[1.02]' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}`}>
                             <div className="flex items-center gap-4"><item.icon size={22}/> <span className="text-sm">{item.label}</span></div>
                             {item.badge ? <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black animate-pulse">{item.badge}</span> : null}
                         </button>
@@ -94,12 +96,16 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
             <div className="flex-1 flex flex-col overflow-hidden relative">
                 <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-gray-50/30 pb-24">
-                    <Routes>
-                        <Route path="/" element={<StudentDashboard stats={stats} student={currentUser} />} />
-                        <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
-                        <Route path="/messages" element={<StudentMessages messages={messages} />} />
-                        <Route path="*" element={<Navigate to="/" />} />
-                    </Routes>
+                    {view === 'TEST' ? (
+                        <StudentLearningTest student={currentUser} onComplete={() => setView('DASHBOARD')} />
+                    ) : (
+                        <Routes>
+                            <Route path="/" element={<StudentDashboard stats={stats} student={currentUser} onStartTest={() => setView('TEST')} />} />
+                            <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
+                            <Route path="/messages" element={<StudentMessages messages={messages} />} />
+                            <Route path="*" element={<Navigate to="/" />} />
+                        </Routes>
+                    )}
                 </main>
                 <BottomNavigation role="STUDENT" onMenuClick={() => setIsMobileMenuOpen(true)} />
             </div>
@@ -107,15 +113,22 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     );
 };
 
-const StudentDashboard = ({ stats, student }: any) => (
+const StudentDashboard = ({ stats, student, onStartTest }: any) => (
     <div className="space-y-8 animate-fade-in">
         <div className="bg-indigo-900 rounded-[3rem] p-10 md:p-16 text-white relative overflow-hidden shadow-2xl border border-indigo-800">
             <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-indigo-500/30 to-transparent opacity-50"></div>
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div>
                     <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight leading-tight">أهلاً بطلنا، {student.name.split(' ')[0]}! 🚀</h2>
-                    <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 text-sm font-bold inline-flex items-center gap-2">
-                        <Zap className="text-yellow-400" size={18} fill="currentColor"/> رصيد نقاطك: {stats.xp}
+                    <div className="flex flex-wrap gap-3">
+                        <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 text-sm font-bold inline-flex items-center gap-2">
+                            <Zap className="text-yellow-400" size={18} fill="currentColor"/> رصيد نقاطك: {stats.xp}
+                        </div>
+                        {student.learningStyle && (
+                            <div className="bg-purple-500/30 backdrop-blur-md px-6 py-3 rounded-2xl border border-purple-400/30 text-sm font-black inline-flex items-center gap-2">
+                                <BrainCircuit className="text-purple-300" size={18}/> نمطك: {student.learningStyle}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -125,6 +138,19 @@ const StudentDashboard = ({ stats, student }: any) => (
                 </div>
             </div>
         </div>
+
+        {!student.learningStyle && (
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex items-center gap-6">
+                    <div className="p-4 bg-white/20 rounded-3xl"><BrainCircuit size={40}/></div>
+                    <div>
+                        <h3 className="text-xl font-black mb-1">كيف تحب أن تتعلم؟</h3>
+                        <p className="text-sm opacity-80 font-bold">قم بأداء اختبار VARK لمساعدة معلمك على شرح الدروس بالطريقة التي تفضلها.</p>
+                    </div>
+                </div>
+                <button onClick={onStartTest} className="bg-white text-indigo-600 px-8 py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-transform whitespace-nowrap">ابدأ الاختبار الآن</button>
+            </div>
+        )}
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
