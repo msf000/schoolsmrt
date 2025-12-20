@@ -93,6 +93,7 @@ export const generateLocalSeatingPlan = (students: any[], criteria: string) => {
             index++;
         }
     } else {
+        // Fix: Use 'i' instead of undefined 'index' variable
         sorted.forEach((s, i) => { seating.push({ studentId: s.id, row: Math.floor(i / cols) + 1, col: (i % cols) + 1 }); });
     }
     return { seating, reasoning: "توزيع إحصائي مبني على متوسط درجات الطلاب لضمان توازن المجموعات." };
@@ -105,6 +106,7 @@ export const generateLocalSeatingPlan = (students: any[], criteria: string) => {
 export const generateVarkBalancedGroups = (students: Student[], groupSize: number) => {
     const groups: Student[][] = [];
     const numGroups = Math.ceil(students.length / groupSize);
+    if (numGroups === 0) return [];
     for (let i = 0; i < numGroups; i++) groups.push([]);
 
     // تقسيم الطلاب حسب الأنماط

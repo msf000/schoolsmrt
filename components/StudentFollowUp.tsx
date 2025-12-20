@@ -8,8 +8,7 @@ import {
     TrendingUp, Loader2, Award, Activity, Sparkles, Calendar, Bot, 
     ArrowRight, XCircle, Star, Radar as RadarIcon, LineChart as LineChartIcon,
     BookOpen, ClipboardList, ListFilter, Target, CheckCircle, BrainCircuit, Info, CalendarRange, Eye, Lightbulb, BarChart,
-    // Add missing icons
-    FileText, ChevronLeft
+    FileText, ChevronLeft, User
 } from 'lucide-react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -134,7 +133,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         const positiveBehaviors = sAtt.filter(a => a.behaviorStatus === BehaviorStatus.POSITIVE).length;
 
         const radarData = [
-            { subject: 'المواظبة', A: attRate },
+            { subject: 'الانضباط', A: attRate },
             { subject: 'المشاركة', A: Math.min(100, positiveBehaviors * 25) },
             { subject: 'الواجبات', A: calcAvg(sPerf.filter(p => p.category === 'HOMEWORK')) || gradeAvg },
             { subject: 'الأنشطة', A: calcAvg(sPerf.filter(p => p.category === 'ACTIVITY')) || gradeAvg },
@@ -146,6 +145,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
     const handleGenerateReport = async (type: 'AI' | 'STATS') => {
         if (!student || !stats) return;
+        setReportContent('');
         setReportType(type);
         setIsLoading(true);
         try {
@@ -204,7 +204,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                             </div>
                         </div>
 
-                        <div className="flex-1 max-w-sm hidden md:flex items-center gap-3 bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                        <div className="flex-1 max-w-sm hidden md:flex items-center gap-3 bg-amber-50 p-4 rounded-2xl border border-amber-100 animate-pulse-slow">
                             <Lightbulb className="text-amber-500 shrink-0" size={24}/>
                             <div>
                                 <p className="text-[9px] uppercase font-black text-amber-600 tracking-widest mb-1">توصية تعليمية مخصصة</p>
@@ -238,7 +238,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                     <BrainCircuit className="absolute -bottom-10 -left-10 opacity-10" size={200}/>
                                     <div>
                                         <h3 className="text-xl font-black mb-4">نبذة ذكية</h3>
-                                        <p className="text-indigo-100 text-sm leading-relaxed font-medium">هذا الطالب يظهر تفوقاً في {stats.radarData.reduce((a, b) => a.A > b.A ? a : b).subject}، بينما قد يحتاج لتعزيز مهارة {stats.radarData.reduce((a, b) => a.A < b.A ? a : b).subject}.</p>
+                                        <p className="text-indigo-100 text-sm leading-relaxed font-medium">هذا الطالب يظهر تميزاً في {stats.radarData.reduce((a, b) => a.A > b.A ? a : b).subject}، بينما يحتاج لبعض الدعم في مهارة {stats.radarData.reduce((a, b) => a.A < b.A ? a : b).subject}.</p>
                                     </div>
                                     <button onClick={()=>setActiveTab('AI')} className="mt-8 bg-white/20 hover:bg-white/30 p-4 rounded-2xl flex items-center justify-between transition-all group">
                                         <span className="font-bold">توليد تقرير تشخيصي كامل</span>
@@ -253,7 +253,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-right text-sm">
                                         <thead className="bg-gray-50/50 font-black border-b text-gray-400 uppercase text-[10px] tracking-widest">
-                                            <tr><th className="p-4 pr-8">المهمة / التقييم</th><th className="p-4 text-center">الدرجة المستحقة</th><th className="p-4 text-center">النسبة</th></tr>
+                                            <tr><th className="p-4 pr-8">المهمة / التقييم</th><th className="p-4 text-center">الدرجة</th><th className="p-4 text-center">النسبة</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
                                             {stats.sPerf.filter(p => (activeTab === 'HOMEWORK' ? p.category === 'HOMEWORK' : activeTab === 'ACTIVITY' ? p.category === 'ACTIVITY' : p.category === 'PLATFORM_EXAM')).slice().reverse().map(p => (
@@ -283,7 +283,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                     </div>
                                 </div>
                                 {reportContent ? (
-                                    <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50/50 p-8 rounded-[2rem] border border-indigo-50"><ReactMarkdown>{reportContent}</ReactMarkdown></div>
+                                    <div className="prose prose-indigo max-w-none text-gray-700 leading-relaxed bg-gray-50/50 p-8 rounded-[2rem] border border-indigo-50 animate-slide-up"><ReactMarkdown>{reportContent}</ReactMarkdown></div>
                                 ) : (
                                     <div className="flex-1 flex flex-col items-center justify-center text-gray-300 opacity-30 py-20"><BrainCircuit size={100} className="mb-6"/><p className="text-xl font-black">اختر نوع التقرير المطلوب لتوليد التشخيص</p></div>
                                 )}

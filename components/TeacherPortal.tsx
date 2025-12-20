@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   LayoutGrid, Users, CheckSquare, Table, Monitor, 
   BarChart2, Settings, LogOut, Bell, Menu, X, 
   CalendarDays, Trophy, BookOpen, MessageSquare, 
-  Database, Sparkles, BrainCircuit, List, ShieldCheck, ClipboardList
+  Database, Sparkles, BrainCircuit, List, ShieldCheck, ClipboardList, Inbox
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -34,6 +33,8 @@ const NavItem = ({ path, label, icon: Icon, color, isActive }: any) => {
 };
 
 const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, children }) => {
+    // Add navigate hook initialization to fix "Cannot find name 'navigate'" error
+    const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -59,6 +60,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
 
                 <nav className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-1">
                     <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} isActive={location.pathname === '/'} />
+                    <NavItem path="/inbox" label="صندوق الوارد" icon={Inbox} color="text-indigo-600" isActive={location.pathname === '/inbox'} />
                     
                     <div className="pt-3 mt-2 border-t border-gray-50">
                         <label className={`px-4 text-[9px] font-black text-gray-400 block mb-1 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>المتابعة والتحضير</label>
@@ -108,7 +110,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <span className="font-black text-gray-800 text-sm">المعلم الذكي</span>
                     </div>
                     <div className="flex items-center gap-3">
-                         <button className="p-2 text-gray-400"><Bell size={20}/></button>
+                         <button onClick={() => navigate('/inbox')} className="p-2 text-gray-400 hover:text-indigo-600"><Inbox size={20}/></button>
                          <div className="w-8 h-8 bg-indigo-50 rounded-full border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">{currentUser.name.charAt(0)}</div>
                     </div>
                 </header>
