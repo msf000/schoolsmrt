@@ -1,4 +1,3 @@
-
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -124,8 +123,11 @@ export const addPerformance = (record: PerformanceRecord | PerformanceRecord[]) 
     const list = getPerformance(); 
     const records = Array.isArray(record) ? record : [record]; 
     records.forEach(rec => { 
-        // تحسين المطابقة: نستخدم المعرف المباشر أو الربط الطالب+التكليف لمنع التكرار
-        const idx = list.findIndex(r => r.id === rec.id || (r.studentId === rec.studentId && r.notes === rec.notes && rec.notes !== '')); 
+        // تحسين: المطابقة تتم بناءً على ID أو تركيبة الطالب + التكليف + التاريخ لمنع الحذف العشوائي
+        const idx = list.findIndex(r => 
+            r.id === rec.id || 
+            (r.studentId === rec.studentId && r.title === rec.title && r.date === rec.date)
+        ); 
         if (idx !== -1) list[idx] = rec; else list.push(rec); 
     }); 
     save(KEYS.PERFORMANCE, list); 
@@ -280,10 +282,6 @@ export const submitTask = (taskId: string, studentId: string) => {
 export const getDatabaseSchemaSQL = () => `CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, name TEXT, national_id TEXT, class_id TEXT, grade_level TEXT, className TEXT, behavior_points INT, learning_style TEXT, parent_phone TEXT); CREATE TABLE IF NOT EXISTS attendance (id TEXT PRIMARY KEY, student_id TEXT, date TEXT, status TEXT, behavior_status TEXT, behavior_note TEXT, excuse_note TEXT, subject TEXT, period INT); CREATE TABLE IF NOT EXISTS performance (id TEXT PRIMARY KEY, student_id TEXT, subject TEXT, title TEXT, category TEXT, score FLOAT, max_score FLOAT, date TEXT, notes TEXT); CREATE TABLE IF NOT EXISTS assignments (id TEXT PRIMARY KEY, title TEXT, category TEXT, max_score FLOAT, is_visible BOOLEAN, teacher_id TEXT, term_id TEXT, period_id TEXT, source_metadata TEXT, sort_order INT, url TEXT); CREATE TABLE IF NOT EXISTS subjects (id TEXT PRIMARY KEY, name TEXT, teacher_id TEXT); CREATE TABLE IF NOT EXISTS behavior_incidents (id TEXT PRIMARY KEY, student_id TEXT, teacher_id TEXT, type TEXT, category TEXT, points INT, date TEXT, note TEXT); CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, teacher_id TEXT, class_id TEXT, subject TEXT, title TEXT, description TEXT, due_date TEXT, type TEXT, max_score FLOAT, submissions JSONB); CREATE TABLE IF NOT EXISTS academic_terms (id TEXT PRIMARY KEY, name TEXT, startDate TEXT, endDate TEXT, isCurrent BOOLEAN, teacherId TEXT, periods JSONB);`;
 export const getDatabaseUpdateSQL = () => `CREATE TABLE IF NOT EXISTS curriculum_units (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, grade_level TEXT, title TEXT, order_index INT); CREATE TABLE IF NOT EXISTS curriculum_lessons (id TEXT PRIMARY KEY, unit_id TEXT, title TEXT, order_index INT, learning_standards JSONB, micro_concept_ids JSONB, is_completed BOOLEAN, completed_at TEXT); CREATE TABLE IF NOT EXISTS question_bank (id TEXT PRIMARY KEY, text TEXT, type TEXT, options JSONB, correct_answer TEXT, points FLOAT, teacher_id TEXT, subject TEXT, grade_level TEXT); CREATE TABLE IF NOT EXISTS exams (id TEXT PRIMARY KEY, title TEXT, subject TEXT, grade_level TEXT, duration_minutes INT, questions JSONB, is_active BOOLEAN, created_at TEXT, teacher_id TEXT); CREATE TABLE IF NOT EXISTS exam_results (id TEXT PRIMARY KEY, exam_id TEXT, student_id TEXT, score FLOAT, total_score FLOAT, answers JSONB, date TEXT); CREATE TABLE IF NOT EXISTS tracking_sheets (id TEXT PRIMARY KEY, title TEXT, subject TEXT, class_name TEXT, teacher_id TEXT, created_at TEXT, columns JSONB, scores JSONB); CREATE TABLE IF NOT EXISTS environment_records (id TEXT PRIMARY KEY, teacher_id TEXT, class_id TEXT, date TEXT, lighting INT, noise_level INT, mood TEXT, notes TEXT); CREATE TABLE IF NOT EXISTS custom_tables (id TEXT PRIMARY KEY, name TEXT, created_at TEXT, columns JSONB, rows JSONB, source_url TEXT, last_updated TEXT, teacher_id TEXT);`;
 
-// Added missing cloud database maintenance functions
-/**
- * تصفير قاعدة البيانات السحابية بالكامل
- */
 export const resetCloudDatabase = async () => {
     const tables = [
         'students', 'attendance', 'performance', 'assignments', 'subjects', 
@@ -301,9 +299,6 @@ export const resetCloudDatabase = async () => {
     }
 };
 
-/**
- * عمل نسخة احتياطية من قاعدة البيانات السحابية
- */
 export const backupCloudDatabase = async (): Promise<string> => {
     const tables = [
         'students', 'attendance', 'performance', 'assignments', 'subjects', 
@@ -324,9 +319,6 @@ export const backupCloudDatabase = async (): Promise<string> => {
     return JSON.stringify(backup);
 };
 
-/**
- * استعادة نسخة احتياطية إلى قاعدة البيانات السحابية
- */
 export const restoreCloudDatabase = async (json: string) => {
     const backup = JSON.parse(json);
     for (const t in backup) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment, AttendanceRecord } from '../types';
-import { getAcademicTerms, getAssignments, getTeacherAssignments, addPerformance } from '../services/storageService';
-import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2, List, Download } from 'lucide-react';
+import { getAcademicTerms, getAssignments, getTeacherAssignments, addPerformance, getPerformance } from '../services/storageService';
+import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2, List, Download, RefreshCw, AlertCircle } from 'lucide-react';
 import DataImport from './DataImport';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -37,6 +37,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
   const [isSuccess, setIsSuccess] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState('');
@@ -68,12 +69,14 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
       return students.filter(s => s.className === bulkClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
   }, [students, bulkClass]);
 
+  // إصلاح: الفلترة الآن لا تخفي السجلات إذا لم يجد الطالب، بل يظهر "طالب غير معروف"
   const filteredHistory = useMemo(() => {
       return performance.filter(p => {
           const student = students.find(s => s.id === p.studentId);
-          if (!student) return false;
-          if (logSearch && !student.name.includes(logSearch) && !p.title.includes(logSearch)) return false;
-          if (logClass && student.className !== logClass) return false;
+          const studentName = student?.name || 'طالب غير مسجل';
+          
+          if (logSearch && !studentName.includes(logSearch) && !p.title.includes(logSearch)) return false;
+          if (logClass && student?.className !== logClass) return false;
           return true;
       }).sort((a, b) => b.date.localeCompare(a.date));
   }, [performance, students, logSearch, logClass]);
@@ -96,7 +99,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
           const sScore = bulkScores[s.id];
           if (sScore !== undefined && sScore !== '') {
               records.push({
-                  id: selectedAssignmentId ? `${s.id}_${selectedAssignmentId}` : `${s.id}_${Date.now()}`,
+                  id: `${s.id}_${selectedAssignmentId || Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                   studentId: s.id,
                   subject,
                   title,
@@ -118,67 +121,65 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
   const handleExportExcel = () => {
       if (filteredHistory.length === 0) return alert('لا توجد بيانات لتصديرها');
-      
-      const dataToExport = filteredHistory.map(rec => {
-          const student = students.find(s => s.id === rec.studentId);
-          return {
-              'اسم الطالب': student?.name || 'مجهول',
-              'الفصل': student?.className || '-',
-              'المادة': rec.subject,
-              'نوع التقييم': rec.title,
-              'الدرجة': rec.score,
-              'الدرجة العظمى': rec.maxScore,
-              'التاريخ': rec.date,
-              'النسبة المئوية': `${Math.round((rec.score / rec.maxScore) * 100)}%`
-          };
-      });
-
+      const dataToExport = filteredHistory.map(rec => ({
+          'اسم الطالب': students.find(s => s.id === rec.studentId)?.name || 'غير معروف',
+          'الفصل': students.find(s => s.id === rec.studentId)?.className || '-',
+          'المادة': rec.subject,
+          'نوع التقييم': rec.title,
+          'الدرجة': rec.score,
+          'الدرجة العظمى': rec.maxScore,
+          'التاريخ': rec.date
+      }));
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "سجل الدرجات");
-      XLSX.writeFile(wb, `سجل_الدرجات_${logClass || 'الكل'}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      XLSX.writeFile(wb, `سجل_الدرجات_${new Date().getTime()}.xlsx`);
+  };
+
+  const manualRefresh = () => {
+      setIsRefreshing(true);
+      window.location.reload(); // إعادة تحميل بسيطة لضمان جلب الحالة الأخيرة
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 h-full flex flex-col bg-gray-50 animate-fade-in pb-24">
+    <div className="p-4 md:p-6 space-y-6 h-full flex flex-col bg-gray-50 animate-fade-in pb-24 overflow-hidden">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex bg-white p-1 rounded-xl border shadow-sm w-full md:w-auto overflow-x-auto no-scrollbar">
-            <button onClick={() => setActiveTab('BULK')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>رصد جديد</button>
-            <button onClick={() => setActiveTab('LOG')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'LOG' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>سجل الدرجات</button>
+        <div className="flex bg-white p-1 rounded-xl border shadow-sm w-full md:w-auto">
+            <button onClick={() => setActiveTab('BULK')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all ${activeTab === 'BULK' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>رصد جديد</button>
+            <button onClick={() => setActiveTab('LOG')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all ${activeTab === 'LOG' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>سجل الدرجات</button>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-            <button onClick={() => setIsImportModalOpen(true)} className="flex-1 bg-emerald-600 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg active:scale-95 transition-all"><FileSpreadsheet size={16}/> استيراد</button>
+            <button onClick={manualRefresh} className="p-2.5 bg-white border rounded-xl text-gray-500 hover:text-indigo-600 shadow-sm transition-all"><RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''}/></button>
+            <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none bg-emerald-600 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg"><FileSpreadsheet size={16}/> استيراد</button>
             {activeTab === 'LOG' && (
-                <button onClick={handleExportExcel} className="flex-1 bg-gray-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg active:scale-95 transition-all"><Download size={16}/> تصدير Excel</button>
+                <button onClick={handleExportExcel} className="flex-1 md:flex-none bg-gray-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg"><Download size={16}/> تصدير</button>
             )}
         </div>
       </div>
 
       {activeTab === 'BULK' && (
-          <div className="flex-1 flex flex-col gap-6 animate-fade-in">
+          <div className="flex-1 flex flex-col gap-6 animate-fade-in overflow-hidden">
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div><label className="block text-[10px] font-black text-gray-400 uppercase mb-1">الفصل</label>
-                          <select className="w-full p-3 border rounded-xl bg-gray-50 font-bold outline-none focus:ring-2 focus:ring-indigo-500" value={bulkClass} onChange={e => setBulkClass(e.target.value)}>
+                          <select className="w-full p-3 border rounded-xl bg-gray-50 font-bold outline-none" value={bulkClass} onChange={e => setBulkClass(e.target.value)}>
                               <option value="">-- اختر الفصل --</option>
                               {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                       </div>
-                      <div className="md:col-span-2"><label className="block text-[10px] font-black text-gray-400 uppercase mb-1 flex items-center gap-1"><Link size={10}/> ربط بعمود من سجل الرصد</label>
-                          <select className="w-full p-3 border rounded-xl bg-indigo-50 text-indigo-700 font-bold outline-none focus:ring-2 focus:ring-indigo-500" value={selectedAssignmentId} onChange={e => handleAssignmentChange(e.target.value)}>
-                              <option value="">-- إنشاء تقييم جديد --</option>
-                              {assignments.map(a => <option key={a.id} value={a.id}>{a.title} ({a.category})</option>)}
+                      <div className="md:col-span-2"><label className="block text-[10px] font-black text-gray-400 uppercase mb-1">ربط بعمود من سجل الرصد</label>
+                          <select className="w-full p-3 border rounded-xl bg-indigo-50 text-indigo-700 font-bold outline-none" value={selectedAssignmentId} onChange={e => handleAssignmentChange(e.target.value)}>
+                              <option value="">-- تقييم جديد --</option>
+                              {assignments.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
                           </select>
                       </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div><label className="block text-[10px] font-black text-gray-400 uppercase mb-1">العنوان</label><input className="w-full p-3 border rounded-xl font-bold bg-gray-50" value={title} onChange={e => setTitle(e.target.value)} readOnly={!!selectedAssignmentId}/></div>
-                      <div><label className="block text-[10px] font-black text-gray-400 uppercase mb-1">المادة</label><input className="w-full p-3 border rounded-xl font-bold bg-gray-50" value={subject} onChange={e => setSubject(e.target.value)}/></div>
-                      <div><label className="block text-[10px] font-black text-gray-400 uppercase mb-1">الدرجة العظمى</label><input type="number" className="w-full p-3 border rounded-xl font-bold bg-gray-50 text-center" value={maxScore} onChange={e => setMaxScore(e.target.value)} readOnly={!!selectedAssignmentId}/></div>
-                  </div>
               </div>
 
-              <div className="flex-1 bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="flex-1 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-4 border-b bg-gray-50/30 flex justify-between items-center">
+                      <span className="text-xs font-black text-gray-500">عدد الطلاب في الفصل: {filteredStudentsBulk.length}</span>
+                  </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar">
                       {filteredStudentsBulk.length > 0 ? (
                           <table className="w-full text-right">
@@ -187,56 +188,67 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                               </thead>
                               <tbody className="divide-y divide-gray-50">
                                   {filteredStudentsBulk.map((student, idx) => (
-                                      <tr key={student.id} className="hover:bg-indigo-50/20">
+                                      <tr key={student.id} className="hover:bg-indigo-50/20 transition-colors">
                                           <td className="p-4 text-center text-xs text-gray-300 font-mono">{idx + 1}</td>
                                           <td className="p-4 font-bold text-gray-800">{student.name}</td>
-                                          <td className="p-2"><input type="number" className="w-full p-3 bg-gray-50 border-none rounded-xl text-center font-black focus:ring-2 focus:ring-indigo-500 transition-all" value={bulkScores[student.id] || ''} onChange={(e) => setBulkScores({...bulkScores, [student.id]: e.target.value})} placeholder="-"/></td>
+                                          <td className="p-2"><input type="number" className="w-full p-3 bg-gray-50 border-none rounded-xl text-center font-black focus:ring-2 focus:ring-indigo-500" value={bulkScores[student.id] || ''} onChange={(e) => setBulkScores({...bulkScores, [student.id]: e.target.value})} placeholder="-"/></td>
                                       </tr>
                                   ))}
                               </tbody>
                           </table>
-                      ) : <div className="p-20 text-center text-gray-300 font-black italic">يرجى اختيار الفصل للبدء بالرصد</div>}
+                      ) : <div className="p-20 text-center text-gray-300 font-black italic">اختر فصلاً للبدء</div>}
                   </div>
                   <div className="p-6 bg-gray-50 border-t flex justify-between items-center">
-                      {isSuccess ? <div className="text-emerald-600 font-black text-sm flex items-center gap-2 animate-bounce"><Check size={20}/> تم الحفظ بنجاح!</div> : <div></div>}
-                      <button onClick={handleBulkSubmit} className="bg-indigo-600 text-white px-10 py-3 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">حفظ السجل</button>
+                      {isSuccess ? <div className="text-emerald-600 font-black text-sm flex items-center gap-2 animate-bounce"><Check size={20}/> تم الحفظ!</div> : <div></div>}
+                      <button onClick={handleBulkSubmit} className="bg-indigo-600 text-white px-10 py-3 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all">حفظ السجل</button>
                   </div>
               </div>
           </div>
       )}
 
       {activeTab === 'LOG' && (
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm flex-1 overflow-hidden flex flex-col animate-fade-in">
-              <div className="p-4 border-b bg-gray-50/50 flex flex-wrap gap-4 items-center">
-                  <div className="relative flex-1 max-w-md">
-                      <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                      <input className="w-full pr-10 pl-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold" placeholder="بحث في سجل الدرجات..." value={logSearch} onChange={e => setLogSearch(e.target.value)} />
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm flex-1 overflow-hidden flex flex-col animate-fade-in">
+              <div className="p-4 border-b bg-gray-50/50 flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex flex-wrap gap-4 flex-1">
+                      <div className="relative flex-1 max-w-md">
+                          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                          <input className="w-full pr-10 pl-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold shadow-sm" placeholder="بحث باسم الطالب أو التقييم..." value={logSearch} onChange={e => setLogSearch(e.target.value)} />
+                      </div>
+                      <select value={logClass} onChange={e => setLogClass(e.target.value)} className="p-2 border rounded-xl text-xs font-black bg-white shadow-sm">
+                          <option value="">كل الفصول</option>
+                          {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                   </div>
-                  <select value={logClass} onChange={e => setLogClass(e.target.value)} className="p-2 border rounded-xl text-xs font-black bg-white">
-                      <option value="">كل الفصول</option>
-                      {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <div className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-black">
+                      عدد السجلات: {filteredHistory.length}
+                  </div>
               </div>
               <div className="flex-1 overflow-auto">
                   <table className="w-full text-right text-sm">
-                      <thead className="bg-gray-50/30 text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                          <tr><th className="p-4">التاريخ</th><th className="p-4">الطالب</th><th className="p-4">التقييم</th><th className="p-4 text-center">الدرجة</th><th className="p-4 text-center">إجراء</th></tr>
+                      <thead className="bg-gray-50/30 text-[10px] text-gray-400 font-black uppercase border-b">
+                          <tr><th className="p-4">التاريخ</th><th className="p-4 text-right">الطالب</th><th className="p-4">التقييم</th><th className="p-4 text-center">الدرجة</th><th className="p-4 text-center">إجراء</th></tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                          {filteredHistory.map(rec => (
-                              <tr key={rec.id} className="hover:bg-gray-50 group">
-                                  <td className="p-4 text-gray-400 font-mono text-[10px]">{rec.date}</td>
-                                  <td className="p-4 font-bold text-gray-800">{students.find(s => s.id === rec.studentId)?.name}</td>
-                                  <td className="p-4 text-gray-500 font-medium">{rec.title}</td>
-                                  <td className="p-4 text-center font-black text-indigo-700">{rec.score} <span className="text-[10px] text-gray-300">/ {rec.maxScore}</span></td>
-                                  <td className="p-4 text-center">
-                                      <button onClick={() => {if(confirm('حذف السجل؟')) onDeletePerformance(rec.id)}} className="p-2 text-red-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
-                                  </td>
-                              </tr>
-                          ))}
+                          {filteredHistory.map(rec => {
+                              const s = students.find(std => std.id === rec.studentId);
+                              return (
+                                <tr key={rec.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="p-4 text-gray-400 font-mono text-[10px]">{rec.date}</td>
+                                    <td className="p-4 font-bold text-gray-800">
+                                        {s?.name || <span className="text-red-400 flex items-center gap-1"><AlertCircle size={10}/> غير مسجل</span>}
+                                        {s?.className && <span className="mr-2 text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{s.className}</span>}
+                                    </td>
+                                    <td className="p-4 text-gray-500 font-medium">{rec.title}</td>
+                                    <td className="p-4 text-center font-black text-indigo-700">{rec.score} <span className="text-[10px] text-gray-300">/ {rec.maxScore}</span></td>
+                                    <td className="p-4 text-center">
+                                        <button onClick={() => {if(confirm('حذف؟')) onDeletePerformance(rec.id)}} className="p-2 text-red-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                              );
+                          })}
                       </tbody>
                   </table>
-                  {filteredHistory.length === 0 && <div className="p-20 text-center text-gray-300 font-black">سجل الدرجات فارغ حالياً</div>}
+                  {filteredHistory.length === 0 && <div className="p-20 text-center text-gray-300 font-black">لا توجد سجلات حالياً</div>}
               </div>
           </div>
       )}
