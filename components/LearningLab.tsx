@@ -1,9 +1,14 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Student, EnvironmentRecord, LearningStyle } from '../types';
-import { updateStudentLearningStyle, saveEnvironmentRecord, getEnvironmentRecords } from '../services/storageService';
-import { diagnoseLearningStyle, chatWithData } from '../services/geminiService';
-import { BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, History, TrendingUp, Lightbulb, Bot, ChevronRight } from 'lucide-react';
+import { updateStudentLearningStyle, saveEnvironmentRecord, getStudents } from '../services/storageService';
+import { diagnoseLearningStyle, chatWithData, analyzeLearningStyleExcel } from '../services/geminiService';
+import { getWorkbookStructure, getSheetHeadersAndData } from '../services/excelService';
+import { 
+    BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, 
+    History, TrendingUp, Lightbulb, Bot, ChevronRight, FileSpreadsheet, ClipboardList, 
+    PieChart as PieChartIcon, Upload, X, HelpCircle, BarChart, Info
+} from 'lucide-react';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 
 interface Props {
@@ -11,8 +16,42 @@ interface Props {
     currentUserId?: string;
 }
 
-const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
-    const [activeTab, setActiveTab] = useState<'STYLES' | 'ENVIRONMENT' | 'STRATEGY'>('STYLES');
+const VARK_QUESTIONS = [
+    {
+        id: 1,
+        question: "عندما أتعلم مهارة جديدة، أفضل أن:",
+        options: [
+            { text: "أشاهد شخصاً آخر يقوم بها (فيديو أو عرض)", style: "VISUAL" },
+            { text: "أستمع لشخص يشرح لي الخطوات", style: "AUDITORY" },
+            { text: "أقرأ التعليمات المكتوبة بعناية", style: "READ_WRITE" },
+            { text: "أجرب القيام بها بنفسي فوراً", style: "KINESTHETIC" }
+        ]
+    },
+    {
+        id: 2,
+        question: "عندما أحاول تذكر معلومة معينة، فإني أتذكر:",
+        options: [
+            { text: "صورة الصفحة أو المخطط الذي رأيته", style: "VISUAL" },
+            { text: "صوت المعلم وهو ينطق بالمعلومة", style: "AUDITORY" },
+            { text: "الكلمات المكتوبة في دفتري", style: "READ_WRITE" },
+            { text: "ما قمت بفعله أو لمسه أثناء تعلمها", style: "KINESTHETIC" }
+        ]
+    },
+    {
+        id: 3,
+        question: "في وقت فراغي، أفضل:",
+        options: [
+            { text: "مشاهدة الأفلام أو الصور", style: "VISUAL" },
+            { text: "الاستماع للموسيقى أو البودكاست", style: "AUDITORY" },
+            { text: "قراءة كتاب أو كتابة يومياتي", style: "READ_WRITE" },
+            { text: "ممارسة الرياضة أو العمل اليدوي", style: "KINESTHETIC" }
+        ]
+    }
+];
+
+const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId }) => {
+    const [students, setLocalStudents] = useState<Student[]>(initialStudents);
+    const [activeTab, setActiveTab] = useState<'STYLES' | 'ENVIRONMENT' | 'STRATEGY' | 'ASSESSMENT'>('STYLES');
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [observations, setObservations] = useState('');
     const [isDiagnosing, setIsDiagnosing] = useState(false);
@@ -20,10 +59,21 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
     const [aiStrategy, setAiStrategy] = useState('');
     const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
 
+    // Individual Quiz State
+    const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
+    
+    // Bulk Import State
+    const [isImportLoading, setIsImportLoading] = useState(false);
+    const [bulkResult, setBulkResult] = useState<any>(null);
+
     // بيئة الصف
     const [env, setEnv] = useState<Partial<EnvironmentRecord>>({
         lighting: 3, noiseLevel: 2, mood: 'FOCUSED'
     });
+
+    useEffect(() => {
+        setLocalStudents(getStudents());
+    }, [activeTab]);
 
     const handleDiagnose = async () => {
         const s = students.find(x => x.id === selectedStudentId);
@@ -36,6 +86,54 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
             alert('فشل تشخيص النمط.');
         } finally {
             setIsDiagnosing(false);
+        }
+    };
+
+    const handleQuizSubmit = () => {
+        if (!selectedStudentId || Object.keys(quizAnswers).length < VARK_QUESTIONS.length) {
+            alert('يرجى الإجابة على جميع الأسئلة.');
+            return;
+        }
+
+        const counts: any = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0 };
+        // Fix: Explicitly cast style as any to resolve "unknown" indexing error on counts object (line 99 fix).
+        Object.values(quizAnswers).forEach(style => { counts[style as any]++; });
+        
+        let dominantStyle = 'UNKNOWN';
+        let max = 0;
+        Object.entries(counts).forEach(([style, count]: [string, any]) => {
+            if (count > max) { max = count; dominantStyle = style; }
+        });
+
+        updateStudentLearningStyle(selectedStudentId, dominantStyle as LearningStyle);
+        alert(`تم تحديد نمط الطالب: ${dominantStyle}. تم تحديث الملف.`);
+        setQuizAnswers({});
+    };
+
+    const handleFormsImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsImportLoading(true);
+        try {
+            const { workbook, sheetNames } = await getWorkbookStructure(file);
+            const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            
+            const result = await analyzeLearningStyleExcel(JSON.stringify(data.slice(0, 30)));
+            setBulkResult(result);
+
+            // Apply style updates to students
+            if (result.studentAssignments) {
+                result.studentAssignments.forEach((item: any) => {
+                    const match = students.find(s => s.name.includes(item.studentName) || item.studentName.includes(s.name));
+                    if (match) {
+                        updateStudentLearningStyle(match.id, item.style);
+                    }
+                });
+            }
+        } catch (error) {
+            alert('حدث خطأ أثناء تحليل الملف.');
+        } finally {
+            setIsImportLoading(false);
         }
     };
 
@@ -82,19 +180,29 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
         alert('تم رصد حالة البيئة الصفية.');
     };
 
+    const styleStats = useMemo(() => {
+        const stats: any = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0, UNKNOWN: 0 };
+        // Fix: Explicitly cast style value to any to avoid "unknown" indexing error.
+        students.forEach(s => { stats[(s.learningStyle || 'UNKNOWN') as any]++; });
+        return Object.entries(stats).map(([name, value]) => ({ name, value }));
+    }, [students]);
+
+    const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#94a3b8'];
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <BrainCircuit className="text-indigo-600"/> مختبر أنماط وبيئة التعلم
+                        <BrainCircuit className="text-indigo-600"/> مختبر الذكاء والأنماط
                     </h2>
-                    <p className="text-sm text-gray-500">فهم شخصيات الطلاب وتحسين ظروف الحصة.</p>
+                    <p className="text-sm text-gray-500">تحليل شخصيات الطلاب وتهيئة بيئة التعلم المثالية.</p>
                 </div>
-                <div className="flex bg-white rounded-xl border p-1 shadow-sm">
-                    <button onClick={() => setActiveTab('STYLES')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'STYLES' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>أنماط الطلاب</button>
-                    <button onClick={() => setActiveTab('ENVIRONMENT')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'ENVIRONMENT' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>بيئة الصف</button>
-                    <button onClick={() => setActiveTab('STRATEGY')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'STRATEGY' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>استراتيجية AI</button>
+                <div className="flex bg-white rounded-2xl border p-1 shadow-sm overflow-x-auto no-scrollbar max-w-full">
+                    <TabBtn label="التشخيص الذكي" active={activeTab === 'STYLES'} onClick={() => setActiveTab('STYLES')} />
+                    <TabBtn label="اختبار الأنماط" active={activeTab === 'ASSESSMENT'} onClick={() => setActiveTab('ASSESSMENT')} />
+                    <TabBtn label="بيئة الصف" active={activeTab === 'ENVIRONMENT'} onClick={() => setActiveTab('ENVIRONMENT')} />
+                    <TabBtn label="الاستراتيجية" active={activeTab === 'STRATEGY'} onClick={() => setActiveTab('STRATEGY')} />
                 </div>
             </div>
 
@@ -102,7 +210,8 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
                 {activeTab === 'STYLES' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full overflow-hidden">
                         <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col gap-5 overflow-y-auto">
-                            <h3 className="font-bold text-gray-800 border-b pb-3">تشخيص نمط التعلم (AI)</h3>
+                            <h3 className="font-bold text-gray-800 border-b pb-3 flex items-center gap-2"><Bot size={20} className="text-indigo-600"/> تشخيص النمط بالملاحظة (AI)</h3>
+                            <p className="text-xs text-gray-400">أدخل ملاحظاتك السلوكية عن الطالب وسيقوم Gemini بتوقع نمط تعلمه.</p>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">الطالب</label>
                                 <select className="w-full p-3 border rounded-xl bg-gray-50 font-bold" value={selectedStudentId} onChange={e=>setSelectedStudentId(e.target.value)}>
@@ -114,8 +223,8 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
                                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">ملاحظاتك على الطالب</label>
                                 <textarea className="w-full p-4 border rounded-xl bg-gray-50 h-32 outline-none focus:bg-white" value={observations} onChange={e=>setObservations(e.target.value)} placeholder="مثال: يفضل الرسم أثناء الشرح، يتشتت بالصوت، يحب العمل اليدوي..."/>
                             </div>
-                            <button onClick={handleDiagnose} disabled={isDiagnosing || !observations} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
-                                {isDiagnosing ? <Loader2 className="animate-spin"/> : <Sparkles/>} {isDiagnosing ? 'جاري التشخيص...' : 'تحليل النمط'}
+                            <button onClick={handleDiagnose} disabled={isDiagnosing || !observations} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-all hover:bg-indigo-700">
+                                {isDiagnosing ? <Loader2 className="animate-spin"/> : <Sparkles/>} {isDiagnosing ? 'جاري التحليل...' : 'بدء التحليل الذكي'}
                             </button>
                         </div>
 
@@ -123,7 +232,7 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
                             {diagnosis ? (
                                 <div className="space-y-6 animate-slide-up">
                                     <div className="text-center">
-                                        <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-600"><BrainCircuit size={40}/></div>
+                                        <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-600 border-2 border-indigo-100 shadow-inner"><BrainCircuit size={40}/></div>
                                         <h4 className="text-2xl font-black text-indigo-600">النمط: {diagnosis.style === 'VISUAL' ? 'بصري' : diagnosis.style === 'AUDITORY' ? 'سمعي' : diagnosis.style === 'KINESTHETIC' ? 'حركي' : 'قرائي'}</h4>
                                     </div>
                                     <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
@@ -134,10 +243,117 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
                                         <h5 className="font-bold text-green-800 mb-2 flex items-center gap-2"><CheckCircle size={16}/> نصائح للتعامل معه:</h5>
                                         <p className="text-sm text-green-700 leading-relaxed">{diagnosis.tips}</p>
                                     </div>
-                                    <button onClick={saveStyle} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl">حفظ النمط في ملف الطالب</button>
+                                    <button onClick={saveStyle} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl hover:bg-indigo-700 transition-all">حفظ النمط في ملف الطالب</button>
                                 </div>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-30"><BrainCircuit size={80} className="mb-4"/><p className="text-xl font-bold text-center">أدخل الملاحظات لبدء تشخيص النمط بالذكاء الاصطناعي</p></div>
+                                <div className="h-full flex flex-col items-center justify-center text-gray-300">
+                                    <PieChartIcon size={80} className="mb-4 opacity-10"/>
+                                    <p className="text-xl font-bold text-center opacity-40">ملخص أنماط الفصل</p>
+                                    <div className="w-full h-64">
+                                        <ResponsiveContainer>
+                                            <PieChart>
+                                                <Pie data={styleStats} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                                    {styleStats.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                                </Pie>
+                                                <RechartsTooltip />
+                                                <Legend verticalAlign="bottom" height={36}/>
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'ASSESSMENT' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full overflow-hidden">
+                        <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col gap-6 overflow-y-auto">
+                            <div className="flex justify-between items-center border-b pb-4">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2"><HelpCircle className="text-purple-600"/> اختبار الأنماط (VARK)</h3>
+                                <div className="relative">
+                                    <input type="file" id="forms-import" className="hidden" accept=".xlsx" onChange={handleFormsImport}/>
+                                    <label htmlFor="forms-import" className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-xl text-xs font-black cursor-pointer hover:bg-green-100 border border-green-200 shadow-sm">
+                                        {isImportLoading ? <Loader2 className="animate-spin" size={14}/> : <FileSpreadsheet size={14}/>} استيراد من Forms
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">اختيار الطالب</label>
+                                    <select className="w-full p-3 border rounded-xl bg-gray-50 font-bold" value={selectedStudentId} onChange={e=>setSelectedStudentId(e.target.value)}>
+                                        <option value="">-- اختر طالباً --</option>
+                                        {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-6 mt-4">
+                                    {VARK_QUESTIONS.map(q => (
+                                        <div key={q.id} className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                            <p className="font-bold text-gray-700 mb-3">{q.question}</p>
+                                            <div className="space-y-2">
+                                                {q.options.map(opt => (
+                                                    <label key={opt.style} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${quizAnswers[q.id] === opt.style ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white hover:bg-indigo-50 border-transparent shadow-sm'}`}>
+                                                        <input type="radio" name={`q-${q.id}`} value={opt.style} className="hidden" checked={quizAnswers[q.id] === opt.style} onChange={e => setQuizAnswers({...quizAnswers, [q.id]: e.target.value})}/>
+                                                        <span className="text-sm font-medium">{opt.text}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={handleQuizSubmit} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black shadow-xl hover:bg-purple-700 transition-all mt-4">حفظ وتحليل النمط الفردي</button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-3xl border shadow-sm overflow-y-auto custom-scrollbar">
+                            {bulkResult ? (
+                                <div className="space-y-6 animate-fade-in">
+                                    <div className="flex items-center gap-4 bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                                        <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg"><CheckCircle size={32}/></div>
+                                        <div>
+                                            <h4 className="text-xl font-black text-indigo-900">تحليل Forms المكتمل</h4>
+                                            <p className="text-sm text-indigo-600">تم معالجة {bulkResult.studentAssignments.length} استجابة وتحديث الأنماط.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-6 rounded-3xl border shadow-sm">
+                                        <h5 className="font-black text-gray-800 mb-4 flex items-center gap-2"><BarChart size={18} className="text-indigo-600"/> توزيع الأنماط في الملف</h5>
+                                        <div className="space-y-3">
+                                            {Object.entries(bulkResult.stats).map(([style, count]: [string, any], i) => (
+                                                <div key={style} className="flex items-center gap-4">
+                                                    <span className="text-xs font-bold w-20 text-gray-500">{style}</span>
+                                                    <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div className="h-full rounded-full" style={{ width: `${(count/bulkResult.studentAssignments.length)*100}%`, backgroundColor: COLORS[i] }}></div>
+                                                    </div>
+                                                    <span className="text-xs font-black text-gray-700">{count}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100">
+                                        <h5 className="font-black text-yellow-800 mb-4 flex items-center gap-2"><Lightbulb size={18}/> توصيات AI لهذا الفصل</h5>
+                                        <ul className="space-y-3">
+                                            {bulkResult.tips.map((tip: string, i: number) => (
+                                                <li key={i} className="text-sm text-yellow-700 font-medium flex items-start gap-2">
+                                                    <span className="mt-1"><ChevronRight size={14}/></span> {tip}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-300 p-10 text-center">
+                                    <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6"><FileSpreadsheet size={48} className="opacity-10"/></div>
+                                    <h4 className="text-xl font-bold text-gray-400 mb-2">تحليل الاستجابات الجماعية</h4>
+                                    <p className="text-sm max-w-xs leading-relaxed opacity-60">قم برفع ملف Excel المستخرج من مايكروسوفت فورمز ليقوم النظام بتحليل الأنماط لجميع الطلاب دفعة واحدة وتحديث سجلاتهم.</p>
+                                    <div className="mt-8 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-blue-800 text-xs flex gap-3">
+                                        <Info size={16} className="shrink-0"/>
+                                        <p className="text-right">تأكد من وجود عمود "الاسم" في الملف لمطابقة النتائج مع الطلاب المسجلين في النظام.</p>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -213,5 +429,9 @@ const LearningLab: React.FC<Props> = ({ students, currentUserId }) => {
         </div>
     );
 };
+
+const TabBtn = ({ label, icon, active, onClick }: any) => (
+    <button onClick={onClick} className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-lg scale-105' : 'text-gray-500 hover:bg-gray-50'}`}>{icon} {label}</button>
+);
 
 export default LearningLab;

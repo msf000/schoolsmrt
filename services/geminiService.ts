@@ -3,7 +3,6 @@ import { Student, AttendanceRecord, PerformanceRecord, LessonBlock, Exam } from 
 import { getAISettings } from "./storageService";
 
 const getAIClient = () => {
-    // Fix: Use process.env.API_KEY directly for initialization as per guidelines
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
@@ -92,6 +91,31 @@ export const analyzeMicrosoftFormsData = async (rawData: string) => {
       "analysis": "ملخص عام للأداء...",
       "difficultQuestions": ["اسم المفهوم/السؤال الأصعب 1", "..."],
       "recommendations": "نصيحة للمعلم..."
+    }
+    `;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return JSON.parse(response.text || "{}");
+    } catch (e) { throw e; }
+};
+
+export const analyzeLearningStyleExcel = async (rawData: string) => {
+    const { model, config } = getModelConfig({ responseMimeType: "application/json" });
+    const prompt = `
+    حلل بيانات ملف Excel لاستجابات الطلاب على اختبار أنماط التعلم (VARK):
+    "${rawData}"
+    
+    المطلوب:
+    1. ربط كل طالب بنمطه المناسب (VISUAL, AUDITORY, READ_WRITE, KINESTHETIC).
+    2. تقديم ملخص لتوزيع الأنماط في الفصل.
+    3. اقتراح 3 نصائح عامة للمعلم بناءً على غلبة الأنماط المكتشفة.
+    
+    أرجع النتيجة بتنسيق JSON:
+    {
+      "studentAssignments": [{"studentName": "...", "style": "VISUAL|AUDITORY|READ_WRITE|KINESTHETIC"}],
+      "stats": {"VISUAL": 0, "AUDITORY": 0, "READ_WRITE": 0, "KINESTHETIC": 0},
+      "tips": ["نصيحة 1", "نصيحة 2", "نصيحة 3"]
     }
     `;
     try {
