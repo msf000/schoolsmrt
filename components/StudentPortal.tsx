@@ -1,13 +1,13 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, AttendanceStatus, BehaviorStatus, LessonLink, Question } from '../types';
-import { downloadFromSupabase, getAcademicTerms, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, saveExamResult } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, AttendanceStatus, BehaviorStatus, LessonLink, Question, Assignment, TermPeriod } from '../types';
+import { downloadFromSupabase, getAcademicTerms, getAssignments, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, saveExamResult } from '../services/storageService';
 import { 
     User, Users, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Library, LayoutGrid, 
     CalendarDays, RefreshCw, X, Activity, CheckCircle, ChevronLeft, ChevronRight, Check, 
     XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, 
+    // Fix: Added missing Sparkles import to lucide-react
     BookOpen, Zap, Star, TrendingUp, BrainCircuit, Rocket, Trophy, PlayCircle, Crown, 
-    Briefcase, Compass, ShieldCheck, Wind, Radar as RadarIcon 
+    Briefcase, Compass, ShieldCheck, Wind, Radar as RadarIcon, ClipboardList, Globe, ChevronDown, ListFilter, Sparkles
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -28,10 +28,14 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [messages, setMessages] = useState<MessageLog[]>([]);
     const [view, setView] = useState<'DASHBOARD' | 'TEST'>('DASHBOARD');
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
 
     useEffect(() => {
         const allMsgs = getMessages();
         setMessages(allMsgs.filter(m => m.studentId === currentUser.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setAssignments(getAssignments('ALL'));
+        setTerms(getAcademicTerms());
     }, [currentUser]);
 
     const navItems = [
@@ -101,7 +105,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     ) : (
                         <Routes>
                             <Route path="/" element={<StudentDashboard stats={stats} student={currentUser} onStartTest={() => setView('TEST')} />} />
-                            <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
+                            <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} assignments={assignments} terms={terms} />} />
                             <Route path="/messages" element={<StudentMessages messages={messages} />} />
                             <Route path="*" element={<Navigate to="/" />} />
                         </Routes>
@@ -190,29 +194,141 @@ const MedalCard = ({ icon, label, count }: any) => (
     </div>
 );
 
-const StudentEvaluationView = ({ student, performance }: any) => {
-    const myPerf = performance.filter((p: any) => p.studentId === student.id).sort((a:any, b:any) => b.date.localeCompare(a.date));
-    return (
-        <div className="space-y-6 animate-fade-in">
-            <h2 className="text-2xl font-black text-slate-800">سجل الدرجات والتقييمات</h2>
-            <div className="grid grid-cols-1 gap-4">
-                {myPerf.map((p: any) => (
-                    <div key={p.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center group hover:border-indigo-200 transition-all">
-                        <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white ${p.score/p.maxScore >= 0.9 ? 'bg-green-500' : p.score/p.maxScore >= 0.7 ? 'bg-blue-500' : 'bg-red-500'}`}>
-                                {p.score}
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-slate-800">{p.title}</h4>
-                                <p className="text-xs text-slate-400">{p.subject} • {p.date}</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <span className="text-sm font-black text-slate-500">/ {p.maxScore}</span>
-                        </div>
+const StudentEvaluationView = ({ student, performance, assignments, terms }: { student: Student, performance: PerformanceRecord[], assignments: Assignment[], terms: AcademicTerm[] }) => {
+    const currentTerm = useMemo(() => terms.find(t => t.isCurrent) || terms[0], [terms]);
+    const periods = useMemo(() => currentTerm?.periods || [], [currentTerm]);
+    const [selectedPeriodId, setSelectedPeriodId] = useState<string>(periods[0]?.id || '');
+
+    useEffect(() => {
+        if (periods.length > 0 && !selectedPeriodId) setSelectedPeriodId(periods[0].id);
+    }, [periods]);
+
+    // Fix: Explicitly allowed key prop to resolve TypeScript error when used in map
+    const WorkCard = ({ work }: { work: any; key?: React.Key }) => (
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 hover:shadow-md transition-all group">
+            <div className="flex justify-between items-start mb-3">
+                <div className={`p-2 rounded-xl ${work.score / work.maxScore >= 0.9 ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                    {work.finalCategory === 'PLATFORM_EXAM' ? <ClipboardList size={20}/> : <BookOpen size={20}/>}
+                </div>
+                <div className="text-left">
+                    <span className="text-[10px] font-black text-slate-400 uppercase font-mono">{work.date}</span>
+                </div>
+            </div>
+            
+            <h4 className="font-black text-slate-800 text-sm mb-4 line-clamp-2">{work.title}</h4>
+            
+            <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">الدرجة المحصلة</span>
+                    <span className="font-black text-indigo-600 text-lg">{work.score} <span className="text-xs text-slate-300">/ {work.maxScore}</span></span>
+                </div>
+                {work.url ? (
+                    <a href={work.url} target="_blank" rel="noreferrer" className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2">
+                        <Globe size={14}/>
+                        <span className="text-[10px] font-black">عرض العمل</span>
+                    </a>
+                ) : (
+                    <div className={`text-[10px] font-black px-3 py-1 rounded-full ${work.score/work.maxScore >= 0.9 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {Math.round((work.score/work.maxScore)*100)}% إتقان
                     </div>
-                ))}
-                {myPerf.length === 0 && <div className="p-20 text-center text-slate-300 font-bold">لا توجد درجات مرصودة حالياً.</div>}
+                )}
+            </div>
+        </div>
+    );
+
+    const groupedWorks = useMemo(() => {
+        const studentPerf = performance.filter(p => p.studentId === student.id);
+        
+        // ربط سجلات الأداء بالتكليفات لمعرفة الفترة والتبويب والروابط
+        const worksWithDetails = studentPerf.map(p => {
+            const assignment = assignments.find(a => a.id === p.notes || a.title === p.title);
+            return {
+                ...p,
+                periodId: assignment?.periodId,
+                termId: assignment?.termId,
+                url: assignment?.url,
+                // إذا لم يوجد تكليف مرتبط، نعتمد الفئة من سجل الأداء نفسه
+                finalCategory: assignment?.category || p.category || 'OTHER'
+            };
+        });
+
+        // التصفية حسب الفترة المختارة (أو الكل إذا لم تكن هناك فترات)
+        const filtered = selectedPeriodId 
+            ? worksWithDetails.filter(w => w.periodId === selectedPeriodId)
+            : worksWithDetails;
+
+        return {
+            homeworks: filtered.filter(w => w.finalCategory === 'HOMEWORK'),
+            activities: filtered.filter(w => w.finalCategory === 'ACTIVITY'),
+            exams: filtered.filter(w => w.finalCategory === 'PLATFORM_EXAM' || w.finalCategory === 'OTHER')
+        };
+    }, [performance, student.id, assignments, selectedPeriodId]);
+
+    const CategorySection = ({ title, icon, works, colorClass }: any) => (
+        <div className="space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`p-2 rounded-xl ${colorClass} text-white shadow-lg`}>{icon}</div>
+                <h3 className="text-lg font-black text-slate-800">{title}</h3>
+                <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-2 py-0.5 rounded-full">{works.length}</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {works.map((w: any) => <WorkCard key={w.id} work={w} />)}
+                {works.length === 0 && (
+                    <div className="col-span-full py-10 border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center text-slate-300">
+                        <XCircle size={32} className="mb-2 opacity-20"/>
+                        <p className="text-sm font-bold">لا توجد أعمال مرصودة في هذا القسم</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="space-y-10 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                        <TrendingUp className="text-indigo-600"/> سجل الدرجات والتقييمات
+                    </h2>
+                    <p className="text-sm text-slate-500 font-bold mt-1">تتبع رحلتك الأكاديمية ودرجاتك السحابية المحدثة</p>
+                </div>
+
+                {periods.length > 0 && (
+                    <div className="flex bg-white p-1 rounded-2xl border shadow-sm self-stretch md:self-auto">
+                        {periods.map(p => (
+                            <button 
+                                key={p.id} 
+                                onClick={() => setSelectedPeriodId(p.id)}
+                                className={`flex-1 px-6 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${selectedPeriodId === p.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                            >
+                                <ListFilter size={14}/> {p.name}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="space-y-12">
+                <CategorySection 
+                    title="الواجبات المنزلية" 
+                    icon={<BookOpen size={20}/>} 
+                    works={groupedWorks.homeworks} 
+                    colorClass="bg-blue-600"
+                />
+                
+                <CategorySection 
+                    title="الأنشطة الصفية والمشاركة" 
+                    icon={<Sparkles size={20}/>} 
+                    works={groupedWorks.activities} 
+                    colorClass="bg-teal-600"
+                />
+
+                <CategorySection 
+                    title="الاختبارات والتقييمات الدورية" 
+                    icon={<ClipboardList size={20}/>} 
+                    works={groupedWorks.exams} 
+                    colorClass="bg-purple-600"
+                />
             </div>
         </div>
     );
