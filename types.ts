@@ -135,6 +135,7 @@ export interface Assignment {
   periodId?: string;
   sourceMetadata?: string;
   sortOrder?: number;
+  url?: string; // رابط للمشاركة أو مصدر التكليف
 }
 
 export interface SystemUser { 
