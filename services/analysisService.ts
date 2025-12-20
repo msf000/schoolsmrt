@@ -95,14 +95,16 @@ export const generateLocalSeatingPlan = (students: any[], criteria: string) => {
     const seating = [];
     const cols = 4;
     if (criteria.includes('مزج')) {
-        let left = 0; let right = sorted.length - 1; let index = 0;
+        let left = 0; let right = sorted.length - 1; let indexCount = 0;
         while (left <= right) {
-            const student = (index % 2 === 0) ? sorted[left++] : sorted[right--];
-            seating.push({ studentId: student.id, row: Math.floor(index / cols) + 1, col: (index % cols) + 1 });
-            index++;
+            const student = (indexCount % 2 === 0) ? sorted[left++] : sorted[right--];
+            seating.push({ studentId: student.id, row: Math.floor(indexCount / cols) + 1, col: (indexCount % cols) + 1 });
+            indexCount++;
         }
     } else {
-        sorted.forEach((s, i) => { seating.push({ studentId: s.id, row: Math.floor(i / cols) + 1, col: (i % cols) + 1 }); });
+        sorted.forEach((s, i) => { 
+            seating.push({ studentId: s.id, row: Math.floor(i / cols) + 1, col: (i % cols) + 1 }); 
+        });
     }
     return { seating, reasoning: "توزيع إحصائي مبني على متوسط درجات الطلاب لضمان توازن المجموعات." };
 };

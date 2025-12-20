@@ -33,7 +33,6 @@ const NavItem = ({ path, label, icon: Icon, color, isActive }: any) => {
 };
 
 const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, children }) => {
-    // Add navigate hook initialization to fix "Cannot find name 'navigate'" error
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
