@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, LearningStyle } from '../types';
 import { getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { detectAtRiskStudents, calculateClassStats } from '../services/analysisService';
-import { FileText, AlertTriangle, Printer, Download, CheckCircle, TrendingUp, BarChart3, Activity, BrainCircuit, Users, PieChart as PieChartIcon } from 'lucide-react';
+import { FileText, AlertTriangle, Printer, Download, CheckCircle, TrendingUp, BarChart3, Activity, BrainCircuit, Users, PieChart as PieChartIcon, Table, CheckSquare } from 'lucide-react';
 import MonthlyReport from './MonthlyReport';
 import AIReports from './AIReports';
 import CertificatesCenter from './CertificatesCenter';
@@ -90,13 +90,57 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                     <TabBtn label="التقرير الشامل" active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
                     <TabBtn label="الأنماط VARK" active={activeTab==='VARK'} onClick={()=>setActiveTab('VARK')} />
                     <TabBtn label="المتعثرين" active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
-                    <TabBtn label="الحضور الشهري" active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
+                    <TabBtn label="سجل الحضور" active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
                     <TabBtn label="الشهادات" active={activeTab==='CERTIFICATES'} onClick={()=>setActiveTab('CERTIFICATES')} />
                     <TabBtn label="تحليل AI" active={activeTab==='AI'} onClick={()=>setActiveTab('AI')} />
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
+                {activeTab === 'COMPREHENSIVE' && (
+                    <div className="space-y-6">
+                        {/* Quick Access Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                            <button onClick={() => navigate('/works')} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center gap-3 hover:border-indigo-500 transition-all active:scale-95 group">
+                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors"><Table size={24}/></div>
+                                <span className="font-black text-gray-800 text-xs text-center">سجل الدرجات (الكشف)</span>
+                            </button>
+                            <button onClick={() => setActiveTab('MONTHLY')} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center gap-3 hover:border-green-500 transition-all active:scale-95 group">
+                                <div className="p-3 bg-green-50 text-green-600 rounded-2xl group-hover:bg-green-600 group-hover:text-white transition-colors"><CheckSquare size={24}/></div>
+                                <span className="font-black text-gray-800 text-xs text-center">سجل الحضور الشهري</span>
+                            </button>
+                            <button onClick={() => navigate('/leaderboard')} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center gap-3 hover:border-yellow-500 transition-all active:scale-95 group">
+                                <div className="p-3 bg-yellow-50 text-yellow-600 rounded-2xl group-hover:bg-yellow-600 group-hover:text-white transition-colors"><TrendingUp size={24}/></div>
+                                <span className="font-black text-gray-800 text-xs text-center">لوحة الشرف</span>
+                            </button>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border shadow-sm flex flex-col overflow-hidden animate-fade-in">
+                            <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-4 justify-between items-center">
+                                <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="p-2 border rounded-lg text-xs font-bold bg-white"><option value="">-- اختر الفصل --</option>{uniqueClasses.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-right text-sm">
+                                    <thead className="bg-gray-50 font-bold">
+                                        <tr><th className="p-4">اسم الطالب</th><th className="p-4 text-center">النمط</th><th className="p-4 text-center">الإجراء</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {students.filter(s => !selectedClass || s.className === selectedClass).map(s => (
+                                            <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="p-4 font-bold text-gray-800">{s.name}</td>
+                                                <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${s.learningStyle ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-50 text-gray-400'}`}>{s.learningStyle || 'لم يختبر'}</span></td>
+                                                <td className="p-4 text-center">
+                                                    <button onClick={() => navigate('/followup', {state:{studentId:s.id}})} className="text-blue-600 hover:underline font-bold text-xs">عرض الملف</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'VARK' && (
                     <div className="space-y-6 animate-fade-in">
                         <div className="bg-white p-4 rounded-xl border flex justify-between items-center print:hidden">
@@ -106,7 +150,6 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                                 <button onClick={()=>window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2"><Printer size={14}/> طباعة</button>
                             </div>
                         </div>
-
                         {selectedClass ? (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border shadow-sm flex flex-col">
@@ -140,52 +183,8 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                                         "فهم أنماط التعلم يساعدك على تصميم أنشطة صفية تراعي الفروق الفردية وترفع معدلات الاستيعاب بنسبة تصل إلى 40%."
                                     </p>
                                 </div>
-                                <div className="col-span-full bg-white p-8 rounded-[2.5rem] border shadow-sm">
-                                    <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><Users size={20} className="text-teal-600"/> تصنيف الطلاب حسب النمط</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        {['بصري', 'سمعي', 'قرائي', 'حركي'].map(styleName => (
-                                            <div key={styleName} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                                                <h4 className="font-black text-indigo-700 text-xs mb-3 border-b pb-2 uppercase tracking-widest">{styleName}</h4>
-                                                <div className="space-y-2">
-                                                    {students.filter(s => s.className === selectedClass && (
-                                                        (styleName === 'بصري' && s.learningStyle === 'VISUAL') ||
-                                                        (styleName === 'سمعي' && s.learningStyle === 'AUDITORY') ||
-                                                        (styleName === 'قرائي' && s.learningStyle === 'READ_WRITE') ||
-                                                        (styleName === 'حركي' && s.learningStyle === 'KINESTHETIC')
-                                                    )).map(s => <div key={s.id} className="text-xs font-bold text-gray-600 flex items-center gap-2"><div className="w-1 h-1 bg-indigo-400 rounded-full"></div> {s.name}</div>)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
                             </div>
                         ) : <div className="p-20 text-center text-gray-400 font-bold border-2 border-dashed rounded-[3rem]">يرجى اختيار الفصل لعرض تحليل الأنماط</div>}
-                    </div>
-                )}
-                
-                {activeTab === 'COMPREHENSIVE' && (
-                    <div className="bg-white rounded-2xl border shadow-sm flex flex-col overflow-hidden animate-fade-in">
-                        <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-4 justify-between items-center">
-                            <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="p-2 border rounded-lg text-xs font-bold bg-white"><option value="">-- اختر الفصل --</option>{uniqueClasses.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-right text-sm">
-                                <thead className="bg-gray-50 font-bold">
-                                    <tr><th className="p-4">اسم الطالب</th><th className="p-4 text-center">النمط</th><th className="p-4 text-center">الإجراء</th></tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {students.filter(s => !selectedClass || s.className === selectedClass).map(s => (
-                                        <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="p-4 font-bold text-gray-800">{s.name}</td>
-                                            <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${s.learningStyle ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-50 text-gray-400'}`}>{s.learningStyle || 'لم يختبر'}</span></td>
-                                            <td className="p-4 text-center">
-                                                <button onClick={() => navigate('/followup', {state:{studentId:s.id}})} className="text-blue-600 hover:underline font-bold text-xs">عرض الملف</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 )}
 

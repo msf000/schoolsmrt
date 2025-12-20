@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment, AttendanceRecord } from '../types';
 import { getAcademicTerms, getAssignments, getTeacherAssignments, addPerformance } from '../services/storageService';
-import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2 } from 'lucide-react';
+import { PlusCircle, Check, FileSpreadsheet, History, Search, Printer, Edit, Cloud, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2, List } from 'lucide-react';
 import DataImport from './DataImport';
 import { useNavigate } from 'react-router-dom';
 
@@ -119,8 +119,8 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
     <div className="p-4 md:p-6 space-y-6 h-full flex flex-col bg-gray-50 animate-fade-in pb-24">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex bg-white p-1 rounded-xl border shadow-sm w-full md:w-auto overflow-x-auto no-scrollbar">
-            <button onClick={() => setActiveTab('BULK')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>رصد جماعي</button>
-            <button onClick={() => setActiveTab('LOG')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'LOG' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>السجل الكامل</button>
+            <button onClick={() => setActiveTab('BULK')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'BULK' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>رصد جديد</button>
+            <button onClick={() => setActiveTab('LOG')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg font-black text-xs transition-all whitespace-nowrap ${activeTab === 'LOG' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>سجل الدرجات</button>
         </div>
         <button onClick={() => setIsImportModalOpen(true)} className="w-full md:w-auto bg-emerald-600 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-lg active:scale-95"><FileSpreadsheet size={16}/> استيراد Excel</button>
       </div>
@@ -170,7 +170,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                   </div>
                   <div className="p-6 bg-gray-50 border-t flex justify-between items-center">
                       {isSuccess ? <div className="text-emerald-600 font-black text-sm flex items-center gap-2 animate-bounce"><Check size={20}/> تم الحفظ بنجاح!</div> : <div></div>}
-                      <button onClick={handleBulkSubmit} className="bg-indigo-600 text-white px-10 py-3 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">حفظ وإرسال للسحابة</button>
+                      <button onClick={handleBulkSubmit} className="bg-indigo-600 text-white px-10 py-3 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">حفظ السجل</button>
                   </div>
               </div>
           </div>
@@ -181,7 +181,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
               <div className="p-4 border-b bg-gray-50/50 flex flex-wrap gap-4 items-center">
                   <div className="relative flex-1 max-w-md">
                       <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                      <input className="w-full pr-10 pl-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold" placeholder="بحث باسم الطالب أو التقييم..." value={logSearch} onChange={e => setLogSearch(e.target.value)} />
+                      <input className="w-full pr-10 pl-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold" placeholder="بحث في سجل الدرجات..." value={logSearch} onChange={e => setLogSearch(e.target.value)} />
                   </div>
                   <select value={logClass} onChange={e => setLogClass(e.target.value)} className="p-2 border rounded-xl text-xs font-black bg-white">
                       <option value="">كل الفصول</option>
@@ -200,12 +200,14 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
                                   <td className="p-4 font-bold text-gray-800">{students.find(s => s.id === rec.studentId)?.name}</td>
                                   <td className="p-4 text-gray-500 font-medium">{rec.title}</td>
                                   <td className="p-4 text-center font-black text-indigo-700">{rec.score} <span className="text-[10px] text-gray-300">/ {rec.maxScore}</span></td>
-                                  <td className="p-4 text-center"><button onClick={() => {if(confirm('حذف؟')) onDeletePerformance(rec.id)}} className="p-2 text-red-100 group-hover:text-red-500 transition-colors"><Trash2 size={16}/></button></td>
+                                  <td className="p-4 text-center">
+                                      <button onClick={() => {if(confirm('حذف السجل؟')) onDeletePerformance(rec.id)}} className="p-2 text-red-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                  </td>
                               </tr>
                           ))}
                       </tbody>
                   </table>
-                  {filteredHistory.length === 0 && <div className="p-20 text-center text-gray-300 font-black">لا يوجد سجلات مطابقة</div>}
+                  {filteredHistory.length === 0 && <div className="p-20 text-center text-gray-300 font-black">سجل الدرجات فارغ حالياً</div>}
               </div>
           </div>
       )}

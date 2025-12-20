@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsDown, BookOpen, LayoutGrid, List, FilterX, Eye, CalendarDays } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, Search, CheckSquare, Sparkles, Star, ThumbsDown, BookOpen, LayoutGrid, List, FilterX, Eye, CalendarDays, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface AttendanceProps {
@@ -79,6 +79,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-2.5 bg-white rounded-lg shadow-sm"><ChevronLeft size={20}/></button>
             </div>
             <div className="flex gap-2 w-full lg:w-auto">
+                <button onClick={() => navigate('/reports')} className="bg-indigo-50 text-indigo-700 px-4 py-3 rounded-xl font-black text-xs flex items-center gap-2 border border-indigo-100"><History size={16}/> سجل الحضور</button>
                 <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="flex-1 lg:flex-none p-3 border rounded-xl bg-white font-black text-sm outline-none shadow-sm focus:ring-2 focus:ring-indigo-500">
                     <option value="">كل الفصول</option>
                     {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}

@@ -187,7 +187,7 @@ const MedalCard = ({ icon, label, count }: any) => (
 );
 
 const StudentEvaluationView = ({ student, performance, assignments, terms }: any) => {
-    const currentTerm = useMemo(() => terms.find((t: any) => t.isCurrent) || terms[0], [terms]);
+    const currentTerm = useMemo(() => terms.find((t: AcademicTerm) => t.isCurrent) || terms[0], [terms]);
     const periods = useMemo(() => currentTerm?.periods || [], [currentTerm]);
     const [selectedPeriodId, setSelectedPeriodId] = useState<string>(periods[0]?.id || '');
 
@@ -196,14 +196,14 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
     }, [periods]);
 
     const groupedWorks = useMemo(() => {
-        const activeAssignments = assignments.filter((a: any) => 
+        const activeAssignments = assignments.filter((a: Assignment) => 
             (!selectedPeriodId || a.periodId === selectedPeriodId) &&
             (!currentTerm || a.termId === currentTerm.id)
         );
-        const studentPerf = performance.filter((p: any) => p.studentId === student.id);
+        const studentPerf = performance.filter((p: PerformanceRecord) => p.studentId === student.id);
 
-        const worksWithScores = activeAssignments.map((assign: any) => {
-            const scoreRecord = studentPerf.find((p: any) => p.notes === assign.id || p.title === assign.title);
+        const worksWithScores = activeAssignments.map((assign: Assignment) => {
+            const scoreRecord = studentPerf.find((p: PerformanceRecord) => p.notes === assign.id || p.title === assign.title);
             return {
                 id: assign.id,
                 title: assign.title,
@@ -286,11 +286,11 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
 
                 {periods.length > 0 && (
                     <div className="flex bg-white p-1 rounded-xl border shadow-sm self-stretch md:self-auto overflow-x-auto no-scrollbar">
-                        {periods.map((p: any) => (
+                        {periods.map((p: TermPeriod) => (
                             <button 
                                 key={p.id} 
                                 onClick={() => setSelectedPeriodId(p.id)}
-                                className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1 whitespace-nowrap ${selectedPeriodId === p.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500'}`}
+                                className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1 whitespace-nowrap ${selectedPeriodId === p.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-50'}`}
                             >
                                 {p.name}
                             </button>
@@ -312,7 +312,7 @@ const StudentMessages = ({ messages }: any) => (
     <div className="space-y-6 animate-fade-in pb-10">
         <h2 className="text-xl md:text-2xl font-black text-slate-800">التنبيهات والرسائل</h2>
         <div className="space-y-4">
-            {messages.map((m: any) => (
+            {messages.map((m: MessageLog) => (
                 <div key={m.id} className="bg-white p-5 md:p-6 rounded-[1.5rem] border-r-4 border-indigo-500 shadow-sm">
                     <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] font-bold text-slate-400">{formatDualDate(m.date)}</span>
