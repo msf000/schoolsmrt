@@ -4,7 +4,7 @@ import {
   LayoutGrid, Users, CheckSquare, Table, Monitor, 
   BarChart2, Settings, LogOut, Bell, Menu, X, 
   CalendarDays, Trophy, BookOpen, MessageSquare, 
-  Database, Sparkles, BrainCircuit, List, ShieldCheck, ClipboardList, Inbox
+  Database, Sparkles, BrainCircuit, List, ShieldCheck, ClipboardList, Inbox, FileSpreadsheet
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -67,6 +67,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <NavItem path="/schedule" label="الجدول الدراسي" icon={CalendarDays} isActive={location.pathname === '/schedule'} />
                         <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
                         <NavItem path="/behavior" label="الانضباط السلوكي" icon={ShieldCheck} color="text-yellow-600" isActive={location.pathname === '/behavior'} />
+                        <NavItem path="/performance" label="سجل الدرجات العام" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} />
                         <NavItem path="/tasks" label="مدير الواجبات" icon={ClipboardList} color="text-indigo-600" isActive={location.pathname === '/tasks'} />
                         <NavItem path="/leaderboard" label="لوحة الشرف" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/leaderboard'} />
                         <NavItem path="/classroom" label="الإدارة الصفية" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} />
@@ -75,7 +76,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
 
                     <div className="pt-3 mt-2 border-t border-gray-50">
                         <label className={`px-4 text-[9px] font-black text-gray-400 block mb-1 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الأدوات الذكية</label>
-                        <NavItem path="/exams" label="الاختبارات" icon={List} isActive={location.pathname === '/exams'} />
+                        <NavItem path="/exams" label="الاخبارات" icon={List} isActive={location.pathname === '/exams'} />
                         <NavItem path="/forms" label="محلل Forms" icon={BarChart2} color="text-green-600" isActive={location.pathname === '/forms'} />
                         <NavItem path="/lab" label="مختبر التعلم" icon={BrainCircuit} color="text-orange-600" isActive={location.pathname === '/lab'} />
                     </div>
@@ -110,6 +111,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-2">
                              <NavItem path="/behavior" label="الانضباط السلوكي" icon={ShieldCheck} color="text-yellow-600" isActive={location.pathname === '/behavior'} />
+                             <NavItem path="/performance" label="سجل الدرجات العام" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} />
                              <NavItem path="/tasks" label="مدير الواجبات" icon={ClipboardList} color="text-indigo-600" isActive={location.pathname === '/tasks'} />
                              <NavItem path="/leaderboard" label="لوحة الشرف" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/leaderboard'} />
                              <NavItem path="/exams" label="الاختبارات" icon={List} isActive={location.pathname === '/exams'} />
