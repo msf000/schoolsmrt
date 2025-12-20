@@ -6,7 +6,7 @@ import {
     CalendarDays, RefreshCw, X, Activity, CheckCircle, ChevronLeft, ChevronRight, Check, 
     XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, 
     BookOpen, Zap, Star, TrendingUp, BrainCircuit, Rocket, Trophy, PlayCircle, Crown, 
-    Briefcase, Compass, ShieldCheck, Wind, Radar as RadarIcon, ClipboardList, Globe, ChevronDown, ListFilter, Sparkles
+    Briefcase, Compass, ShieldCheck, Wind, Radar as RadarIcon, ClipboardList, Globe, ChevronDown, ListFilter, Sparkles, AlertCircle
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -32,7 +32,6 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
 
     useEffect(() => {
         const loadData = async () => {
-            // جلب البيانات من السحابة لضمان التحديث
             if (navigator.onLine) await downloadFromSupabase();
             const allMsgs = getMessages();
             setMessages(allMsgs.filter(m => m.studentId === currentUser.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -208,7 +207,7 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: { s
     }, [periods]);
 
     const groupedWorks = useMemo(() => {
-        // 1. جلب كافة الأعمال (الأعمدة) المسجلة من قبل المعلم لهذه الفترة
+        // 1. جلب كافة الأعمال المسجلة في جدول الرصد لهذه الفترة
         const activeAssignments = assignments.filter(a => 
             (!selectedPeriodId || a.periodId === selectedPeriodId) &&
             (!currentTerm || a.termId === currentTerm.id)
@@ -217,16 +216,21 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: { s
         // 2. تصفية درجات الطالب الخاصة
         const studentPerf = performance.filter(p => p.studentId === student.id);
 
-        // 3. دمج البيانات: لكل تكليف، نبحث عن درجة الطالب
+        // 3. دمج البيانات مع تحسين منطق المطابقة
         const worksWithScores = activeAssignments.map(assign => {
-            const scoreRecord = studentPerf.find(p => p.notes === assign.id || p.title === assign.title);
+            // نحاول مطابقة الدرجة بالمعرف (notes) أو بالعنوان الدقيق (title)
+            const scoreRecord = studentPerf.find(p => 
+                (p.notes === assign.id) || 
+                (p.title.trim() === assign.title.trim())
+            );
+
             return {
                 id: assign.id,
                 title: assign.title,
                 category: assign.category,
                 maxScore: assign.maxScore,
                 url: assign.url,
-                score: scoreRecord ? scoreRecord.score : null, // null تعني لم يتم الرصد بعد
+                score: scoreRecord ? scoreRecord.score : null,
                 date: scoreRecord ? scoreRecord.date : 'بانتظار الرصد'
             };
         });
@@ -234,48 +238,63 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: { s
         return {
             homeworks: worksWithScores.filter(w => w.category === 'HOMEWORK'),
             activities: worksWithScores.filter(w => w.category === 'ACTIVITY'),
-            exams: worksWithScores.filter(w => w.category === 'PLATFORM_EXAM')
+            exams: worksWithScores.filter(w => w.category === 'PLATFORM_EXAM' || w.category === 'OTHER')
         };
     }, [assignments, performance, student.id, selectedPeriodId, currentTerm]);
 
-    // Fix: Using any for props to allow React internal 'key' prop when mapped
-    const WorkCard = ({ work }: any) => (
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 hover:shadow-md transition-all group">
-            <div className="flex justify-between items-start mb-3">
-                <div className={`p-2 rounded-xl ${work.score !== null && work.score / work.maxScore >= 0.9 ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-600'}`}>
-                    {work.category === 'PLATFORM_EXAM' ? <ClipboardList size={20}/> : <BookOpen size={20}/>}
+    const WorkCard = ({ work }: any) => {
+        const isCompleted = work.score !== null;
+        
+        return (
+            <div className={`p-5 rounded-2xl border-2 transition-all group flex flex-col justify-between h-full bg-white ${
+                isCompleted 
+                ? 'border-emerald-100 shadow-sm hover:border-emerald-300 bg-emerald-50/10' 
+                : 'border-slate-100 shadow-sm opacity-90'
+            }`}>
+                <div className="flex justify-between items-start mb-3">
+                    <div className={`p-2 rounded-xl ${
+                        isCompleted 
+                        ? 'bg-emerald-100 text-emerald-600' 
+                        : 'bg-slate-100 text-slate-400'
+                    }`}>
+                        {work.category === 'PLATFORM_EXAM' ? <ClipboardList size={20}/> : <BookOpen size={20}/>}
+                    </div>
+                    <div className="text-left flex flex-col items-end">
+                        <span className="text-[10px] font-black text-slate-400 uppercase font-mono">{work.date}</span>
+                        {isCompleted && <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full mt-1 flex items-center gap-1"><CheckCircle size={10}/> منجز</span>}
+                    </div>
                 </div>
-                <div className="text-left">
-                    <span className="text-[10px] font-black text-slate-400 uppercase font-mono">{work.date}</span>
-                </div>
-            </div>
-            
-            <h4 className="font-black text-slate-800 text-sm mb-4 line-clamp-2">{work.title}</h4>
-            
-            <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
-                <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">الدرجة المحصلة</span>
-                    {work.score !== null ? (
-                        <span className="font-black text-indigo-600 text-lg">{work.score} <span className="text-xs text-slate-300">/ {work.maxScore}</span></span>
-                    ) : (
-                        <span className="font-bold text-slate-300 text-sm italic">لم ترصد</span>
+                
+                <h4 className={`font-black text-sm mb-4 line-clamp-2 ${isCompleted ? 'text-slate-800' : 'text-slate-500'}`}>{work.title}</h4>
+                
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">الدرجة المحصلة</span>
+                        {isCompleted ? (
+                            <span className="font-black text-indigo-600 text-xl">{work.score} <span className="text-xs text-slate-300">/ {work.maxScore}</span></span>
+                        ) : (
+                            <div className="flex items-center gap-1 text-slate-300 text-sm font-bold italic">
+                                <Clock size={14}/> لم ترصد
+                            </div>
+                        )}
+                    </div>
+                    
+                    {work.url && (
+                        <a href={work.url} target="_blank" rel="noreferrer" className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2">
+                            <Globe size={14}/>
+                            <span className="text-[10px] font-black">عرض العمل</span>
+                        </a>
                     )}
-                </div>
-                {work.url ? (
-                    <a href={work.url} target="_blank" rel="noreferrer" className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2">
-                        <Globe size={14}/>
-                        <span className="text-[10px] font-black">عرض العمل</span>
-                    </a>
-                ) : (
-                    work.score !== null && (
-                        <div className={`text-[10px] font-black px-3 py-1 rounded-full ${work.score/work.maxScore >= 0.9 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    
+                    {!work.url && isCompleted && (
+                        <div className={`text-[10px] font-black px-3 py-1 rounded-full ${work.score/work.maxScore >= 0.9 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                             {Math.round((work.score/work.maxScore)*100)}% إتقان
                         </div>
-                    )
-                )}
+                    )}
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const CategorySection = ({ title, icon, works, colorClass }: any) => (
         <div className="space-y-4">
@@ -288,8 +307,8 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: { s
                 {works.map((w: any) => <WorkCard key={w.id} work={w} />)}
                 {works.length === 0 && (
                     <div className="col-span-full py-10 border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center text-slate-300">
-                        <XCircle size={32} className="mb-2 opacity-20"/>
-                        <p className="text-sm font-bold">لا توجد أعمال مضافة لهذا القسم</p>
+                        <AlertCircle size={32} className="mb-2 opacity-20"/>
+                        <p className="text-sm font-bold">لا توجد أعمال مضافة لهذا القسم في الفترة الحالية</p>
                     </div>
                 )}
             </div>
@@ -303,7 +322,7 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: { s
                     <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
                         <TrendingUp className="text-indigo-600"/> سجل الدرجات والتقييمات السحابي
                     </h2>
-                    <p className="text-sm text-slate-500 font-bold mt-1">عرض كافة الأعمال المرتبطة بجدول الرصد للفترة الحالية</p>
+                    <p className="text-sm text-slate-500 font-bold mt-1">تتبع رحلتك الأكاديمية ودرجاتك المحدثة فورياً</p>
                 </div>
 
                 {periods.length > 0 && (
@@ -337,7 +356,7 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: { s
                 />
 
                 <CategorySection 
-                    title="الاختبارات الدورية" 
+                    title="الاختبارات والتقييمات" 
                     icon={<ClipboardList size={20}/>} 
                     works={groupedWorks.exams} 
                     colorClass="bg-purple-600"
