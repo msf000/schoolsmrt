@@ -9,7 +9,6 @@ import {
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
 
-// Define TeacherPortalProps interface
 interface TeacherPortalProps {
     currentUser: SystemUser;
     onLogout: () => void;
@@ -36,6 +35,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
 
@@ -99,9 +99,33 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                 </div>
             </aside>
 
+            {/* Mobile Drawer */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 z-[100] lg:hidden">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+                    <div className="absolute top-0 right-0 h-full w-4/5 bg-white shadow-2xl flex flex-col animate-slide-right">
+                        <div className="p-6 border-b flex items-center justify-between">
+                            <span className="font-black text-indigo-600">القائمة الرئيسية</span>
+                            <button onClick={() => setIsMobileMenuOpen(false)}><X/></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                             <NavItem path="/behavior" label="الانضباط السلوكي" icon={ShieldCheck} color="text-yellow-600" isActive={location.pathname === '/behavior'} />
+                             <NavItem path="/tasks" label="مدير الواجبات" icon={ClipboardList} color="text-indigo-600" isActive={location.pathname === '/tasks'} />
+                             <NavItem path="/leaderboard" label="لوحة الشرف" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/leaderboard'} />
+                             <NavItem path="/exams" label="الاختبارات" icon={List} isActive={location.pathname === '/exams'} />
+                             <NavItem path="/messages" label="مركز الرسائل" icon={MessageSquare} color="text-teal-600" isActive={location.pathname === '/messages'} />
+                             <NavItem path="/reports" label="التقارير والشهادات" icon={BarChart2} isActive={location.pathname === '/reports'} />
+                             <NavItem path="/custom-tables" label="جداولي الخاصة" icon={Database} isActive={location.pathname === '/custom-tables'} />
+                             <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} />
+                             <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 font-bold mt-10"><LogOut size={20}/> خروج</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 relative">
-                <header className="lg:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-20">
+                <header className="lg:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-20 shrink-0">
                     <div className="flex items-center gap-2">
                          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
                             <Sparkles size={16}/>
@@ -109,16 +133,16 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <span className="font-black text-gray-800 text-sm">المعلم الذكي</span>
                     </div>
                     <div className="flex items-center gap-3">
-                         <button onClick={() => navigate('/inbox')} className="p-2 text-gray-400 hover:text-indigo-600"><Inbox size={20}/></button>
+                         <button onClick={() => navigate('/inbox')} className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"><Inbox size={22}/></button>
                          <div className="w-8 h-8 bg-indigo-50 rounded-full border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">{currentUser.name.charAt(0)}</div>
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-hidden relative">
+                <main className="flex-1 overflow-hidden relative pb-20 lg:pb-0">
                     {children}
                 </main>
 
-                <BottomNavigation role={currentUser.role} onMenuClick={() => setIsSidebarOpen(true)} />
+                <BottomNavigation role={currentUser.role} onMenuClick={() => setIsMobileMenuOpen(true)} />
             </div>
         </div>
     );

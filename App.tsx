@@ -31,7 +31,6 @@ import CustomTablesView from './components/CustomTablesView';
 import ResourcesView from './components/ResourcesView';
 import ScheduleView from './components/ScheduleView';
 import ReloadPrompt from './components/ReloadPrompt';
-import AIChatBot from './components/AIChatBot';
 import AdminDashboard from './components/AdminDashboard';
 import ReportsCenter from './components/ReportsCenter';
 import BehaviorTracking from './components/BehaviorTracking';
@@ -136,7 +135,6 @@ const App: React.FC = () => {
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-            <AIChatBot students={students} attendance={attendance} performance={performance} />
         </TeacherPortal>
     );
 
