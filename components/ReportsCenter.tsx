@@ -4,7 +4,12 @@ import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm,
 import { getAcademicTerms, getTeacherAssignments, saveRemedialPlan, getRemedialPlans } from '../services/storageService';
 import { detectAtRiskStudents, calculateClassStats } from '../services/analysisService';
 import { generateSmartRemedialPlan } from '../services/geminiService';
-import { FileText, AlertTriangle, Printer, Download, CheckCircle, TrendingUp, BarChart3, Activity, BrainCircuit, Users, PieChart as PieChartIcon, Table, CheckSquare, Search, Filter, RefreshCw, Sparkles, Loader2, Save, X, BookOpen, User } from 'lucide-react';
+import { 
+    FileText, AlertTriangle, Printer, Download, CheckCircle, TrendingUp, 
+    BarChart3, Activity, BrainCircuit, Users, PieChart as PieChartIcon, 
+    Table, CheckSquare, Search, Filter, RefreshCw, Sparkles, Loader2, 
+    Save, X, BookOpen, User, History 
+} from 'lucide-react';
 import MonthlyReport from './MonthlyReport';
 import AIReports from './AIReports';
 import CertificatesCenter from './CertificatesCenter';
@@ -12,7 +17,6 @@ import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, PieChart, Pie, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-// Added missing import for formatDualDate
 import { formatDualDate } from '../services/dateService';
 
 interface ReportsCenterProps {
@@ -203,7 +207,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                             )}
                         </div>
                         <div className="p-6 border-t bg-gray-50 flex justify-between items-center gap-4">
-                            <button onClick={() => window.print()} className="px-8 py-3 bg-gray-800 text-white rounded-2xl font-black shadow-lg flex items-center justify-center gap-2"><Printer size={18}/> طباعة</button>
+                            <button onClick={() => window.print()} className="px-8 py-3 bg-gray-800 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><Printer size={18}/> طباعة</button>
                             {currentPlan && !savedRemedialPlans.some(p => p.content === currentPlan) && (
                                 <button onClick={handleSaveRemedial} className="flex-1 py-3 bg-green-600 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 hover:bg-green-700">
                                     <Save size={18}/> اعتماد وحفظ الخطة
