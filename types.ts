@@ -107,7 +107,7 @@ export interface ScheduleItem { id: string; classId: string; day: string; period
 export interface WeeklyPlanItem { id: string; teacherId: string; classId: string; subjectName: string; day: string; period: number; weekStartDate: string; lessonTopic: string; homework: string; }
 export enum AttendanceStatus { PRESENT = 'PRESENT', ABSENT = 'ABSENT', LATE = 'LATE', EXCUSED = 'EXCUSED' }
 export enum BehaviorStatus { POSITIVE = 'POSITIVE', NEGATIVE = 'NEGATIVE', NEUTRAL = 'NEUTRAL' }
-export interface AttendanceRecord { id: string; studentId: string; date: string; status: AttendanceStatus; subject?: string; period?: number; behaviorStatus?: BehaviorStatus; behaviorNote?: string; excuseNote?: string; excuseFile?: string; createdById?: string; }
+export interface AttendanceRecord { id: string; studentId: string; date: string; status: AttendanceStatus; subject?: string; period?: number; behaviorStatus?: BehaviorStatus; behaviorNote?: string; excuseNote?: string; excuseFile?: string; createdById?: string; termId?: string; }
 
 // Add missing TermPeriod interface
 export interface TermPeriod {
