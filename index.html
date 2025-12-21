@@ -3,21 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#3730a3" />
-    <meta name="description" content="نظام متابعة الطلاب الذكي - نسخة المعلم الرسمية" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="description" content="نظام متابعة الطلاب الذكي - تسجيل حضور، درجات، وتقارير" />
     
     <!-- iOS PWA settings -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="المتابع">
+    <meta name="apple-mobile-web-app-title" content="المتابع الذكي">
 
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <title>نظام المتابع الذكي | النسخة الرسمية</title>
+    <title>نظام المتابع الذكي v2.5</title>
     
-    <!-- Google Fonts: Tajawal -->
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     
-    <!-- Tailwind CSS with Official Theme Extension -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -26,92 +26,59 @@
           extend: {
             fontFamily: { sans: ['Tajawal', 'sans-serif'] },
             colors: {
-              primary: {
-                50: '#eef2ff',
-                100: '#e0e7ff',
-                600: '#4f46e5',
-                700: '#4338ca',
-                800: '#3730a3',
-                900: '#312e81',
-              },
-              slate: {
-                50: '#f8fafc',
-                100: '#f1f5f9',
-                200: '#e2e8f0',
-                800: '#1e293b',
-                900: '#0f172a',
-              },
-            },
-            boxShadow: {
-              'premium': '0 10px 40px -10px rgba(0, 0, 0, 0.05)',
-              'active': '0 20px 25px -5px rgba(55, 48, 163, 0.1)',
-              'soft': '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
-            },
-            borderRadius: {
-              'xl': '1rem',
-              '2xl': '1.5rem',
-              '3xl': '2rem',
-              '4xl': '2.5rem',
+              primary: '#4f46e5',
+              secondary: '#0f766e',
+              accent: '#f59e0b',
             }
           }
         }
       }
     </script>
     <style>
-        html, body { 
-          height: 100%; 
-          overflow: hidden; 
-          background-color: #f8fafc; 
-          color: #1e293b;
-          -webkit-tap-highlight-color: transparent; 
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        html, body { height: 100%; overflow: hidden; background-color: #f9fafb; -webkit-tap-highlight-color: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        /* Glassmorphism Effects */
-        .glass-header {
-          background: rgba(255, 255, 255, 0.85);
-          backdrop-filter: blur(12px);
-          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
-        }
-
-        /* Official Animations */
-        @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-official { animation: fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        #root:empty { display: flex; justify-content: center; align-items: center; height: 100vh; background: #f9fafb; }
+        #root:empty::after { content: ''; width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slide-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes zoom-in { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.3s ease-out; }
+        .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0, 0, 0.2, 1); }
+        .animate-slide-right { animation: slide-right 0.3s ease-out; }
+        .animate-zoom-in { animation: zoom-in 0.3s cubic-bezier(0, 0, 0.2, 1); }
+        
+        /* Utility for hiding scrollbars but keeping functionality */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* Layout Balance Helper */
-        .page-grid {
-          display: grid;
-          gap: 1.5rem;
-          padding: 1.5rem;
-        }
     </style>
-  <script type="importmap">
+    
+    <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
+    "react": "https://esm.sh/react@18.2.0?dev",
+    "react-dom": "https://esm.sh/react-dom@18.2.0?dev",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3",
+    "@google/genai": "https://esm.sh/@google/genai@0.2.1",
+    "recharts": "https://esm.sh/recharts@2.12.3",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0",
+    "react-markdown": "https://esm.sh/react-markdown@9.0.1",
+    "xlsx": "https://esm.sh/xlsx@0.18.5",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.7",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
-    "recharts": "https://esm.sh/recharts@^3.6.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "react/": "https://esm.sh/react@^19.2.3/",
     "vite": "https://esm.sh/vite@^7.3.0",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "vite-plugin-pwa": "https://esm.sh/vite-plugin-pwa@^1.2.0",
-    "xlsx": "https://esm.sh/xlsx@^0.18.5",
-    "react-markdown": "https://esm.sh/react-markdown@^10.1.0"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite-plugin-pwa": "https://esm.sh/vite-plugin-pwa@^1.2.0"
   }
 }
 </script>
-</head>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

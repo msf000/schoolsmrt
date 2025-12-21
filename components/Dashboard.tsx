@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  AreaChart, Area, BarChart, Bar
+  PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, Legend
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, BehaviorStatus } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
-import { generateLocalDailyBrief, getTopAchievers } from '../services/analysisService';
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Volume2, BrainCircuit, Zap, Crown } from 'lucide-react';
+import { generateLocalDailyBrief, getLocalPedagogicalTip, detectAtRiskStudents, getTopAchievers } from '../services/analysisService';
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown, AlertTriangle, MessageCircle, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -21,14 +21,19 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   const navigate = useNavigate();
   const [briefing, setBriefing] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [briefMode, setBriefMode] = useState<'AI' | 'STATS'>('STATS');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [briefMode, setBriefMode] = useState<'AI' | 'STATS'>(() => {
+      const saved = localStorage.getItem('dashboard_brief_mode');
+      return (saved as 'AI' | 'STATS') || 'STATS';
+  });
 
   useEffect(() => {
+    localStorage.setItem('dashboard_brief_mode', briefMode);
     if (students.length > 0) {
         if (briefMode === 'AI') loadAiBrief();
         else loadStatsBrief();
     }
-  }, [students.length, briefMode]);
+  }, [currentUser, students.length, briefMode]);
 
   const loadAiBrief = async () => {
     setIsAiLoading(true);
@@ -48,10 +53,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       setBriefing(res);
   };
 
+  const atRiskList = useMemo(() => detectAtRiskStudents(students, attendance, performance), [students, attendance, performance]);
+  const topAchievers = useMemo(() => getTopAchievers(students, attendance, performance), [students, attendance, performance]);
+
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
     const todaysAttendance = attendance.filter(a => a.date === today);
-    const presentCount = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
+    const presentCount = todaysAttendance.filter(a => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE).length;
     const attRate = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 100;
 
     const classes = Array.from(new Set(students.map(s => s.className).filter(Boolean)));
@@ -71,113 +79,137 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     };
   }, [students, attendance, performance]);
 
+  const pedagogicalTip = useMemo(() => getLocalPedagogicalTip(), []);
+
+  const handlePlayBriefing = async () => {
+      if (!briefing || isPlaying) return;
+      setIsPlaying(true);
+      await playTextAsSpeech(briefing);
+      setIsPlaying(false);
+  };
+
   return (
-    <div className="p-8 h-full overflow-y-auto custom-scrollbar space-y-8">
-      
-      {/* Official AI Briefing Banner */}
-      <div className="bg-primary-800 rounded-[2.5rem] p-12 text-white shadow-active relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-1000 pointer-events-none">
-            <BrainCircuit size={220}/>
-          </div>
-          <div className="relative z-10 flex flex-col lg:flex-row items-center gap-12">
-              <div className="w-24 h-24 bg-white/10 backdrop-blur-2xl rounded-[2rem] flex items-center justify-center shrink-0 border border-white/20 shadow-2xl relative">
-                  {isAiLoading ? <Loader2 className="animate-spin text-yellow-300" size={32}/> : <Bot className="text-yellow-300" size={48}/>}
-                  <button onClick={() => setBriefMode(briefMode==='AI'?'STATS':'AI')} className="absolute -bottom-2 -right-2 bg-white text-primary-800 p-2 rounded-xl shadow-lg hover:scale-110 transition-transform">
-                      {briefMode === 'AI' ? <TrendingUp size={16}/> : <Bot size={16}/>}
+    <div className="p-4 md:p-6 space-y-6 animate-fade-in bg-gray-50/50 min-h-full pb-24 overflow-y-auto custom-scrollbar">
+      {/* AI/Stats Header - Responsive */}
+      <div className="bg-indigo-900 rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white shadow-2xl relative overflow-hidden group border border-indigo-700">
+          <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:rotate-12 transition-transform duration-700 pointer-events-none"><Sparkles size={180}/></div>
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-8">
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-white/10 backdrop-blur-2xl rounded-2xl md:rounded-3xl flex flex-col items-center justify-center shrink-0 border border-white/20 shadow-2xl relative">
+                  {isAiLoading ? <Loader2 className="animate-spin text-yellow-400" size={28}/> : (briefMode==='AI' ? <Bot className="text-yellow-400" size={32}/> : <Activity className="text-teal-400" size={32}/>)}
+                  <button 
+                    onClick={() => setBriefMode(briefMode==='AI'?'STATS':'AI')} 
+                    className="absolute -bottom-2 -right-2 bg-white text-indigo-900 p-1.5 rounded-full shadow-lg border border-indigo-200 hover:scale-110 transition-transform"
+                  >
+                      {briefMode === 'AI' ? <TrendingUp size={14}/> : <Bot size={14}/>}
                   </button>
               </div>
-              <div className="flex-1 text-center lg:text-right">
-                  <div className="flex items-center justify-center lg:justify-start gap-4 mb-4">
-                    <h2 className="text-3xl font-black">{briefMode === 'AI' ? 'التحليل الذكي لليوم' : 'موجز الفصل التعليمي'}</h2>
+              <div className="flex-1 text-center md:text-right">
+                  <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                    <h2 className="text-xl md:text-2xl font-black">{briefMode === 'AI' ? 'موجزك الذكي' : 'موجز الفصل'}</h2>
                     {briefing && !isAiLoading && (
-                        <button onClick={() => playTextAsSpeech(briefing)} className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 transition-all border border-white/10">
-                            <Volume2 size={20}/>
+                        <button onClick={handlePlayBriefing} className={`p-1.5 rounded-full transition-all ${isPlaying ? 'bg-yellow-400 text-indigo-900 animate-pulse' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+                            <Volume2 size={16}/>
                         </button>
                     )}
                   </div>
-                  <div className="text-primary-50 text-xl leading-relaxed font-medium italic whitespace-pre-line opacity-90 max-w-4xl">
-                      {isAiLoading ? 'جاري استنتاج البيانات وتوليد التقرير المخصص...' : briefing}
+                  <div className="text-indigo-100 text-sm md:text-lg leading-relaxed opacity-90 italic whitespace-pre-line line-clamp-4 md:line-clamp-none">
+                      {isAiLoading ? 'جاري قراءة البيانات...' : briefing}
                   </div>
               </div>
-              <div className="flex gap-4 w-full lg:w-auto">
-                  <button onClick={() => navigate('/attendance')} className="flex-1 bg-white text-primary-800 px-8 py-4 rounded-2xl font-black hover:shadow-active transition-all text-sm whitespace-nowrap shadow-xl">بدء التحضير</button>
+              <div className="flex gap-2 w-full md:w-auto">
+                  <button onClick={() => navigate('/attendance')} className="flex-1 md:flex-none bg-white text-indigo-900 px-6 py-2.5 rounded-xl font-black hover:scale-105 transition-all shadow-xl text-sm">تحضير</button>
+                  <button onClick={() => navigate('/screen')} className="flex-1 md:flex-none bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-black hover:scale-105 transition-all shadow-xl border border-indigo-500 text-sm">العرض</button>
               </div>
           </div>
       </div>
 
-      {/* Official Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="إجمالي الطلاب" value={stats.totalStudents} icon={<Users/>} color="text-indigo-600 bg-indigo-50" />
-        <StatCard label="نسبة الحضور" value={stats.attRate + '%'} icon={<CheckCircle/>} color="text-emerald-600 bg-emerald-50" />
-        <StatCard label="معدل الإتقان" value={stats.avgPerf + '%'} icon={<TrendingUp/>} color="text-primary-600 bg-primary-50" />
-        <StatCard label="غياب اليوم" value={stats.absentCount} icon={<XCircle/>} color="text-rose-600 bg-rose-50" />
-      </div>
-
-      {/* Analytics Main Section */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-10">
-        <div className="xl:col-span-2 bg-white rounded-[2.5rem] p-10 shadow-premium border border-slate-100">
-            <div className="flex justify-between items-center mb-12">
-                <h3 className="text-xl font-black text-slate-800 flex items-center gap-3">
-                    <BarChart3 size={24} className="text-primary-800"/> مقارنة أداء الفصول الدراسية
-                </h3>
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border">
-                        <div className="w-3 h-3 bg-primary-800 rounded-full"></div> متوسط الفصل
-                    </div>
-                </div>
-            </div>
-            <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.classData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 'bold', fill: '#64748b'}} dy={15} />
-                        <YAxis hide domain={[0, 100]} />
-                        <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} />
-                        <Bar dataKey="performance" fill="#3730a3" radius={[12, 12, 0, 0]} barSize={55} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
+      {/* Quick Actions - Better Grid for Mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
+            <QuickAction color="bg-blue-600" icon={<Calendar size={22}/>} label="الجدول" onClick={()=>navigate('/schedule')}/>
+            <QuickAction color="bg-purple-600" icon={<ClipboardList size={22}/>} label="الرصد" onClick={()=>navigate('/works')}/>
+            <QuickAction color="bg-yellow-600" icon={<Trophy size={22}/>} label="الأبطال" onClick={()=>navigate('/leaderboard')}/>
+            <QuickAction color="bg-green-600" icon={<PenTool size={22}/>} label="التحضير" onClick={()=>navigate('/planning')}/>
         </div>
 
-        <div className="bg-white rounded-[2.5rem] p-10 shadow-premium border border-slate-100 flex flex-col">
-            <h3 className="text-xl font-black text-slate-800 flex items-center gap-3 mb-10">
-                <Crown size={24} className="text-yellow-500"/> نخبة الطلاب
-            </h3>
-            <div className="space-y-4 flex-1">
-                {getTopAchievers(students, attendance, performance).map((item, idx) => (
-                    <div key={item.student.id} className="flex items-center justify-between p-5 bg-slate-50 border border-transparent rounded-[1.5rem] hover:border-primary-200 transition-all group cursor-pointer" onClick={() => navigate('/followup', {state: {studentId: item.student.id}})}>
-                        <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm ${idx === 0 ? 'bg-yellow-400 text-white shadow-lg' : 'bg-white text-slate-500 border shadow-sm'}`}>
-                                {idx + 1}
-                            </div>
-                            <div>
-                                <p className="font-bold text-slate-700">{item.student.name}</p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase">{item.student.className}</p>
-                            </div>
+        <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col h-48 md:h-auto overflow-hidden">
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="font-black text-gray-800 flex items-center gap-2 text-xs"><Crown size={16} className="text-yellow-500"/> أبطال الفصل</h3>
+                <button onClick={()=>navigate('/leaderboard')} className="text-[10px] font-black text-indigo-600 hover:underline">الكل</button>
+            </div>
+            <div className="space-y-2 flex-1 overflow-y-auto no-scrollbar">
+                {topAchievers.map((item, idx) => (
+                    <div key={item.student.id} onClick={()=>navigate('/followup', {state:{studentId: item.student.id}})} className="flex items-center justify-between p-2 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors group">
+                        <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] ${idx === 0 ? 'bg-yellow-400 text-white' : 'bg-gray-100 text-gray-500'}`}>{idx+1}</div>
+                            <span className="text-[11px] font-bold text-gray-700 truncate w-24 md:w-auto">{item.student.name.split(' ')[0]} {item.student.name.split(' ')[1]}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-primary-800 font-black bg-white px-3 py-1.5 rounded-xl shadow-sm">
-                            <Zap size={14} className="text-yellow-500" fill="currentColor"/> {Math.round(item.score)}
-                        </div>
+                        <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px]"><Zap size={10} fill="currentColor"/> {Math.round(item.score)}</div>
                     </div>
                 ))}
             </div>
-            <button onClick={() => navigate('/leaderboard')} className="mt-10 w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-black transition-all flex items-center justify-center gap-3 group">
-                لوحة الشرف الكاملة <ArrowRight size={20} className="group-hover:translate-x-[-4px] transition-transform"/>
-            </button>
+        </div>
+      </div>
+
+      {/* KPI Cards - Stack on Mobile */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+        <StatCard label="الطلاب" value={stats.totalStudents} icon={<Users size={20}/>} color="bg-blue-50 text-blue-600" />
+        <StatCard label="الحضور" value={stats.attRate + '%'} icon={<CheckCircle size={20}/>} color="bg-green-600 text-white" />
+        <StatCard label="المعدل" value={stats.avgPerf + '%'} icon={<TrendingUp size={20}/>} color="bg-purple-50 text-purple-600" />
+        <StatCard label="الغياب" value={stats.absentCount} icon={<XCircle size={20}/>} color="bg-red-50 text-red-600" />
+      </div>
+
+      {/* Charts & Tips */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-10">
+        <div className="lg:col-span-2 bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
+          <h3 className="text-lg font-black text-gray-800 flex items-center gap-3 mb-6">
+              <BarChart3 size={20} className="text-indigo-600"/> أداء الفصول
+          </h3>
+          <div className="h-[250px] md:h-[350px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.classData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <YAxis hide domain={[0, 100]} />
+                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                <Bar dataKey="performance" fill="#4f46e5" radius={[8, 8, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-indigo-600 rounded-[2rem] p-6 md:p-8 text-white flex flex-col justify-between shadow-xl relative overflow-hidden group">
+            <Sparkles className="absolute -bottom-10 -right-10 opacity-10 group-hover:rotate-45 transition-transform duration-700 pointer-events-none" size={150}/>
+            <div>
+                <h3 className="text-lg font-black mb-3">نصيحة اليوم</h3>
+                <p className="opacity-90 leading-relaxed italic text-sm md:text-base">"{pedagogicalTip}"</p>
+            </div>
+            <div className="mt-6 flex justify-center">
+                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center border border-white/20">
+                    <Award size={32} className="text-yellow-400"/>
+                </div>
+            </div>
         </div>
       </div>
     </div>
   );
 };
 
+const QuickAction = ({ color, icon, label, onClick }: any) => (
+    <button onClick={onClick} className={`${color} p-4 rounded-3xl text-white shadow-lg active:scale-95 transition-all flex flex-col items-center gap-2 group shrink-0`}>
+        <div className="bg-white/20 p-2 rounded-xl group-hover:rotate-12 transition-transform">{icon}</div>
+        <span className="font-black text-[10px] md:text-xs whitespace-nowrap">{label}</span>
+    </button>
+);
+
 const StatCard = ({ label, value, icon, color }: any) => (
-  <div className="bg-white rounded-[2rem] p-8 flex items-center justify-between shadow-premium border border-slate-100 hover:scale-[1.02] transition-all cursor-default group">
+  <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between transition-all hover:border-indigo-200">
     <div>
-      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">{label}</p>
-      <h3 className="text-4xl font-black text-slate-800 group-hover:text-primary-800 transition-colors">{value}</h3>
+      <p className="text-gray-400 text-[9px] md:text-xs font-bold uppercase tracking-widest mb-1">{label}</p>
+      <h3 className="text-xl md:text-3xl font-black text-gray-800">{value}</h3>
     </div>
-    <div className={`w-16 h-16 rounded-[1.5rem] ${color} flex items-center justify-center shadow-soft group-hover:scale-110 transition-transform`}>
-      {React.cloneElement(icon as React.ReactElement, { size: 32 })}
+    <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl ${color} flex items-center justify-center shrink-0`}>
+      {React.cloneElement(icon as React.ReactElement, { size: 18 })}
     </div>
   </div>
 );
