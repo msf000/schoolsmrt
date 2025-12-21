@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
 import { Student, AttendanceRecord, PerformanceRecord, LessonBlock, Exam } from "../types";
 import { getAISettings } from "./storageService";
@@ -68,10 +69,42 @@ const getModelConfig = (extraConfig?: any) => {
         model: 'gemini-3-flash-preview',
         config: {
             temperature: settings.temperature || 0.7,
-            systemInstruction: settings.systemInstruction || "أنت مساعد تعليمي ذكي خبير في علم النفس التربوي ونموذج VARK. مهمتك تحليل استجابات الطلاب بدقة.",
+            systemInstruction: settings.systemInstruction || "أنت مساعد تعليمي ذكي خبير في علم النفس التربوي ونموذج VARK. مهمتك تحليل استجابات الطلاب بدقة وتطوير خطط دعم تعليمي.",
             ...extraConfig
         }
     };
+};
+
+export const generateSmartRemedialPlan = async (student: Student, performance: PerformanceRecord[]) => {
+    const { model, config } = getModelConfig();
+    const lowGrades = performance.filter(p => (p.score / p.maxScore) < 0.6);
+    const strengths = performance.filter(p => (p.score / p.maxScore) >= 0.85);
+
+    const prompt = `
+    صمم خطة علاجية تشخيصية متكاملة للطالب: ${student.name}.
+    
+    البيانات المتاحة:
+    - نمط التعلم (VARK): ${student.learningStyle || 'غير محدد'}.
+    - المهارات المتعثرة: ${lowGrades.map(g => `${g.title} (${g.score}/${g.maxScore})`).join(', ')}.
+    - مهارات القوة للتحفيز: ${strengths.map(g => g.title).join(', ')}.
+    
+    المطلوب تنسيق Markdown يشمل:
+    1. تشخيص تربوي لأسباب التعثر.
+    2. أهداف علاجية محددة.
+    3. أنشطة مقترحة تراعي نمط تعلمه (${student.learningStyle}).
+    4. نصيحة مخصصة لولي الأمر.
+    5. معيار التحقق من التحسن.
+    
+    استخدم لغة تربوية مشجعة وبالعربية.
+    `;
+    
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "لم نتمكن من توليد الخطة حالياً.";
+    } catch (e) {
+        return "حدث خطأ في الاتصال بالذكاء الاصطناعي.";
+    }
 };
 
 export const analyzeLearningStyleExcel = async (rawData: string) => {
