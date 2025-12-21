@@ -1,6 +1,6 @@
+
 export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC' | 'UNKNOWN';
 
-// Add missing PerformanceCategory type
 export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
 
 export interface Student {
@@ -22,7 +22,60 @@ export interface Student {
   password?: string;
   seatIndex?: number;
   learningStyle?: LearningStyle;
-  behaviorPoints?: number; // نقاط السلوك التراكمية
+  behaviorPoints?: number;
+}
+
+// Added Teacher interface to fix import errors in services/storageService.ts, components/SchoolManagement.tsx, etc.
+export interface Teacher {
+  id: string;
+  name: string;
+  nationalId: string;
+  email?: string;
+  phone?: string;
+  subjectSpecialty?: string;
+  password?: string;
+  schoolId?: string;
+  managerId?: string;
+  subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE';
+  subscriptionEndDate?: string;
+}
+
+// Added Subject interface to fix import errors in services/storageService.ts, components/SchoolManagement.tsx, etc.
+export interface Subject {
+  id: string;
+  name: string;
+  teacherId?: string;
+}
+
+// Added ScheduleItem interface to fix import errors in services/storageService.ts, components/Attendance.tsx, etc.
+export interface ScheduleItem {
+  id: string;
+  classId: string;
+  subjectName: string;
+  day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+  period: number;
+  teacherId?: string;
+}
+
+// Added TeacherAssignment interface to fix import errors in services/storageService.ts, components/SchoolManagement.tsx, etc.
+export interface TeacherAssignment {
+  id: string;
+  classId: string;
+  subjectName: string;
+  teacherId: string;
+}
+
+// Added WeeklyPlanItem interface to fix import errors in services/storageService.ts, components/StudentPortal.tsx, etc.
+export interface WeeklyPlanItem {
+  id: string;
+  teacherId: string;
+  classId: string;
+  subjectName: string;
+  day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+  period: number;
+  weekStartDate: string;
+  lessonTopic: string;
+  homework: string;
 }
 
 export interface BehaviorIncident {
@@ -30,11 +83,11 @@ export interface BehaviorIncident {
     studentId: string;
     teacherId: string;
     type: 'POSITIVE' | 'NEGATIVE';
-    category: string; // مثال: تأخر، مشاركة، تنمر، نظافة
+    category: string;
     points: number;
     date: string;
     note: string;
-    actionTaken?: string; // الإجراء المتخذ
+    actionTaken?: string;
 }
 
 export interface Task {
@@ -47,83 +100,33 @@ export interface Task {
     dueDate: string;
     type: 'HOMEWORK' | 'PROJECT' | 'RESEARCH';
     maxScore: number;
-    submissions: string[]; // قائمة معرفات الطلاب الذين سلموا
+    submissions: string[];
 }
 
-export interface FormsQuestionAnalysis {
-    id: string;
-    text: string;
-    learningOutcome: string;
-    unitName?: string;
-    successRate: number;
-    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    commonErrors: [string, number][];
-}
-
-export interface FormsDetailedResult {
-    id: string;
-    examTitle: string;
-    className: string;
-    date: string;
-    teacherId: string;
-    questions: FormsQuestionAnalysis[];
-    studentResponses: Record<string, {
-        score: number;
-        total: number;
-        answers: Record<string, string>;
-    }>;
-}
-
-export interface EnvironmentRecord {
-    id: string;
-    teacherId: string;
-    classId: string;
-    date: string;
-    lighting: number; 
-    noiseLevel: number; 
-    mood: 'HAPPY' | 'TIRED' | 'FOCUSED' | 'BORED';
-    notes?: string;
-}
-
-export interface School {
-  id: string;
-  name: string;
-  ministryCode: string;
-  managerName: string;
-  managerNationalId: string;
-  type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL';
-  phone: string;
-  studentCount: number;
-  educationAdministration: string;
-}
-
-export interface EducationalStage { id: string; name: string; }
-export interface GradeLevel { id: string; stageId: string; name: string; }
-export interface ClassRoom { id: string; gradeLevelId: string; name: string; }
-export interface Teacher { id: string; name: string; nationalId?: string; email?: string; phone?: string; password?: string; subjectSpecialty?: string; schoolId?: string; managerId?: string; subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE'; subscriptionEndDate?: string; }
-export interface TeacherAssignment { id: string; classId: string; subjectName: string; teacherId: string; }
-export interface Subject { id: string; name: string; teacherId?: string; }
-export interface ScheduleItem { id: string; classId: string; day: string; period: number; subjectName: string; teacherId?: string; }
-export interface WeeklyPlanItem { id: string; teacherId: string; classId: string; subjectName: string; day: string; period: number; weekStartDate: string; lessonTopic: string; homework: string; }
 export enum AttendanceStatus { PRESENT = 'PRESENT', ABSENT = 'ABSENT', LATE = 'LATE', EXCUSED = 'EXCUSED' }
 export enum BehaviorStatus { POSITIVE = 'POSITIVE', NEGATIVE = 'NEGATIVE', NEUTRAL = 'NEUTRAL' }
-export interface AttendanceRecord { id: string; studentId: string; date: string; status: AttendanceStatus; subject?: string; period?: number; behaviorStatus?: BehaviorStatus; behaviorNote?: string; excuseNote?: string; excuseFile?: string; createdById?: string; termId?: string; }
 
-// Add missing TermPeriod interface
-export interface TermPeriod {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
+export interface AttendanceRecord { 
+  id: string; 
+  studentId: string; 
+  date: string; 
+  status: AttendanceStatus; 
+  subject?: string; 
+  period?: number; 
+  behaviorStatus?: BehaviorStatus; 
+  behaviorNote?: string; 
+  participationScore?: number; // تقييم التفاعل من 1 إلى 5
+  excuseNote?: string; 
+  excuseFile?: string; 
+  createdById?: string; 
+  termId?: string; 
 }
 
-// Update AcademicTerm to use TermPeriod
 export interface AcademicTerm { id: string; name: string; startDate: string; endDate: string; isCurrent: boolean; teacherId?: string; periods?: TermPeriod[]; }
+export interface TermPeriod { id: string; name: string; startDate: string; endDate: string; }
 
-// Update PerformanceRecord category type
 export interface PerformanceRecord { id: string; studentId: string; subject: string; title: string; category?: PerformanceCategory; score: number; maxScore: number; date: string; notes?: string; url?: string; createdById?: string; }
 
-// Add missing Assignment interface
 export interface Assignment {
   id: string;
   title: string;
@@ -135,7 +138,7 @@ export interface Assignment {
   periodId?: string;
   sourceMetadata?: string;
   sortOrder?: number;
-  url?: string; // رابط للمشاركة أو مصدر التكليف
+  url?: string;
 }
 
 export interface SystemUser { 
@@ -168,3 +171,27 @@ export interface TrackingSheet { id: string; title: string; subject: string; cla
 export interface RemedialPlan { id: string; studentId: string; teacherId: string; subject: string; topic: string; content: string; date: string; }
 export interface AISettings { modelId: string; temperature: number; enableReports: boolean; enableQuiz: boolean; enablePlanning: boolean; systemInstruction: string; }
 export interface UserTheme { mode: 'LIGHT' | 'DARK'; backgroundStyle: 'FLAT' | 'GRADIENT'; }
+export interface EnvironmentRecord { id: string; teacherId: string; classId: string; date: string; lighting: number; noiseLevel: number; mood: 'HAPPY' | 'TIRED' | 'FOCUSED' | 'BORED'; notes?: string; }
+export interface School { id: string; name: string; ministryCode: string; managerName: string; managerNationalId: string; type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL'; phone: string; studentCount: number; educationAdministration: string; }
+
+// Added FormsDetailedResult interface to fix import errors in services/storageService.ts and components/FormsAnalyzer.tsx
+export interface FormsDetailedResult {
+  id: string;
+  examTitle: string;
+  className: string;
+  date: string;
+  teacherId: string;
+  questions: {
+    id: string;
+    text: string;
+    learningOutcome: string;
+    successRate: number;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    commonErrors: string[];
+  }[];
+  studentResponses: Record<string, {
+    score: number;
+    total: number;
+    answers: Record<string, string>;
+  }>;
+}
