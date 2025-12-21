@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory, TermPeriod } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, bulkAddPerformance, getPerformance, getStudents, getTeacherAssignments } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-// Added Database icon to the imports list
 import { Table, Plus, Trash2, Settings, Calendar, X, Check, RefreshCw, Loader2, Zap, CloudLightning, ListFilter, Tag, Printer, CheckCircle, PieChart, Sheet, ArrowUpDown, Link as LinkIcon, Edit3, Target, Layout, ExternalLink, Globe, Save, Layers, BarChart, TrendingUp, Download, FileSpreadsheet, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -117,7 +116,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
     // --- Calculations ---
     
-    // نسبة الإنجاز = (مجموع الدرجات المحصلة / مجموع الدرجات القصوى)
+    // نسبة الإنجاز = (مجموع الدرجات المحصلة / مجموع الدرجات القصوى للأعمدة المعروضة)
     const calculateAchievement = useCallback((studentId: string) => {
         const targetAssigns = filteredAssignments;
         if (targetAssigns.length === 0) return 0;
@@ -130,18 +129,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             const val = parseFloat(studentScores[a.id]);
             if (!isNaN(val)) {
                 totalEarned += val;
-                totalPossible += a.maxScore;
-            } else {
-                // If not entered, we still count the maxScore as possible but 0 earned
-                totalPossible += a.maxScore;
             }
+            totalPossible += a.maxScore;
         });
 
         if (totalPossible === 0) return 0;
         return Math.round((totalEarned / totalPossible) * 100);
     }, [scores, filteredAssignments]);
 
-    // أعمال السنة حسب الفترة المختارة
     const calculateYearWork = useCallback((studentId: string) => {
         const studentPerf = performance.filter(p => {
             const assign = assignments.find(a => a.id === p.notes || a.title === p.title);
@@ -316,10 +311,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                         <option value="">-- المادة --</option>
                         {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
+                    <select className="p-3 border-2 border-gray-50 rounded-2xl bg-gray-50 text-xs font-black outline-none shadow-sm min-w-[140px] focus:bg-white focus:border-indigo-500 transition-all" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+                        <option value="">-- كل الفصول --</option>
+                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
                 </div>
                 <div className="flex gap-2 relative z-10">
-                    <button onClick={handleExportExcel} className="p-3 bg-white text-emerald-600 border-2 border-gray-50 rounded-2xl hover:bg-emerald-50 shadow-sm transition-all"><FileSpreadsheet size={22}/></button>
-                    <button onClick={() => window.print()} className="p-3 bg-white text-slate-600 border-2 border-gray-50 rounded-2xl hover:bg-slate-50 shadow-sm transition-all"><Printer size={22}/></button>
+                    <button onClick={handleExportExcel} className="p-3 bg-white text-emerald-600 border-2 border-gray-50 rounded-2xl hover:bg-emerald-50 shadow-sm transition-all" title="تصدير Excel"><FileSpreadsheet size={22}/></button>
+                    <button onClick={() => window.print()} className="p-3 bg-white text-slate-600 border-2 border-gray-50 rounded-2xl hover:bg-slate-50 shadow-sm transition-all" title="طباعة الكشف"><Printer size={22}/></button>
                     <button onClick={syncFromSheet} disabled={isSyncing} className="flex-1 md:flex-none bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all">
                         {isSyncing ? <RefreshCw className="animate-spin" size={16}/> : <RefreshCw size={16}/>} تحديث من الملف
                     </button>
@@ -382,7 +381,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                             <td className="p-3 text-right font-black text-slate-700 sticky right-0 bg-white z-10 border-l border-gray-50"><span className="truncate">{student.name}</span></td>
                                             {categories.map(cat => <td key={cat.id} className="p-3 border-l border-gray-50 font-bold text-slate-600">{(res as any)[cat.id] || 0}</td>)}
                                             <td className="p-3 border-l border-gray-50 font-bold text-emerald-600">{(res as any).att || 0}</td>
-                                            <td className="p-3 border-l border-gray-50 font-black text-indigo-900 bg-indigo-50/40 text-lg">{(res as any).total || 0}</td>
+                                            <td className="p-3 border-l border-gray-50 font-black text-indigo-950 bg-indigo-50/40 text-lg">{(res as any).total || 0}</td>
                                         </tr>
                                     );
                                 }
