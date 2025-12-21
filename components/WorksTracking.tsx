@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, Assignment, SystemUser, Subject, AcademicTerm, PerformanceCategory, TermPeriod } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, bulkAddPerformance, getPerformance, getStudents, getTeacherAssignments } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Table, Plus, Trash2, Settings, Calendar, X, Check, RefreshCw, Loader2, Zap, CloudLightning, ListFilter, Tag, Printer, CheckCircle, PieChart, Sheet, ArrowUpDown, Link as LinkIcon, Edit3, Target, Layout, ExternalLink, Globe, Save, Layers, BarChart, TrendingUp, AlertCircle, Database } from 'lucide-react';
+// Added Database icon to the imports list
+import { Table, Plus, Trash2, Settings, Calendar, X, Check, RefreshCw, Loader2, Zap, CloudLightning, ListFilter, Tag, Printer, CheckCircle, PieChart, Sheet, ArrowUpDown, Link as LinkIcon, Edit3, Target, Layout, ExternalLink, Globe, Save, Layers, BarChart, TrendingUp, Download, FileSpreadsheet, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 
 interface WorksTrackingProps {
     students: Student[];
@@ -21,7 +23,7 @@ const DEFAULT_CATEGORIES = [
 
 const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents, performance, attendance, onAddPerformance, currentUser }) => {
     const navigate = useNavigate();
-    const isManager = currentUser?.role === 'SCHOOL_MANAGER';
+    const isManager = currentUser?.role === 'SCHOOL_MANAGER' || currentUser?.role === 'SUPER_ADMIN';
     
     const students = useMemo(() => {
         return [...initialStudents].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
@@ -68,12 +70,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
     // --- Sync Data ---
     useEffect(() => {
         if (currentUser) {
-            setTerms(getAcademicTerms(currentUser.id));
-            setAssignments(getTeacherAssignments(currentUser.id)); // Fix: fetch user-specific assignments
+            const loadedTerms = getAcademicTerms(currentUser.id);
+            setTerms(loadedTerms);
             setSubjects(getSubjects(currentUser.id));
-            setWeeklyPlans(getWeeklyPlans(currentUser.id));
-            setMyLessonPlans(getLessonPlans(currentUser.id));
-            setPeriodTimings(getTeacherPeriodTimings(currentUser.id));
+            setAssignments(getAssignments('ALL', currentUser.id, isManager));
+            
+            if (!selectedTermId && loadedTerms.length > 0) {
+                const current = loadedTerms.find(t => t.isCurrent) || loadedTerms[0];
+                setSelectedTermId(current.id);
+            }
         }
     }, [currentUser, isSettingsOpen, isManager]);
 
@@ -110,20 +115,89 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         return Array.from(classes).sort();
     }, [initialStudents, currentUser]);
 
-    // --- Handlers ---
+    // --- Calculations ---
     
-    // المزامنة الفعلية من ملف قوقل شيت إلى السجل
+    // نسبة الإنجاز = (مجموع الدرجات المحصلة / مجموع الدرجات القصوى)
+    const calculateAchievement = useCallback((studentId: string) => {
+        const targetAssigns = filteredAssignments;
+        if (targetAssigns.length === 0) return 0;
+        
+        const studentScores = scores[studentId] || {};
+        let totalEarned = 0;
+        let totalPossible = 0;
+
+        targetAssigns.forEach(a => {
+            const val = parseFloat(studentScores[a.id]);
+            if (!isNaN(val)) {
+                totalEarned += val;
+                totalPossible += a.maxScore;
+            } else {
+                // If not entered, we still count the maxScore as possible but 0 earned
+                totalPossible += a.maxScore;
+            }
+        });
+
+        if (totalPossible === 0) return 0;
+        return Math.round((totalEarned / totalPossible) * 100);
+    }, [scores, filteredAssignments]);
+
+    // أعمال السنة حسب الفترة المختارة
+    const calculateYearWork = useCallback((studentId: string) => {
+        const studentPerf = performance.filter(p => {
+            const assign = assignments.find(a => a.id === p.notes || a.title === p.title);
+            return p.studentId === studentId && 
+                   p.subject === selectedSubject && 
+                   (!selectedTermId || p.date >= (activeTerm?.startDate || '')) &&
+                   (!selectedPeriodId || assign?.periodId === selectedPeriodId);
+        });
+        
+        const getCategoryScore = (catId: string) => {
+            const activeAssigns = assignments.filter(a => 
+                a.category === catId && 
+                (!selectedTermId || a.termId === selectedTermId) &&
+                (!selectedPeriodId || a.periodId === selectedPeriodId)
+            );
+            if (activeAssigns.length === 0) return 0;
+            const weight = weights[catId] || 0;
+            
+            const totalMax = activeAssigns.reduce((sum, a) => sum + a.maxScore, 0);
+            const totalEarned = studentPerf.filter(p => {
+                const assign = assignments.find(a => a.id === p.notes || a.title === p.title);
+                return assign?.category === catId;
+            }).reduce((sum, item) => sum + item.score, 0);
+            
+            return (totalEarned / (totalMax || 1)) * weight;
+        };
+
+        const results: Record<string, number> = {};
+        let total = 0;
+        categories.forEach(cat => {
+            const score = getCategoryScore(cat.id);
+            results[cat.id] = Math.round(score * 100) / 100;
+            total += score;
+        });
+
+        const studentAtt = attendance.filter(a => a.studentId === studentId);
+        const attRate = studentAtt.length > 0 ? (studentAtt.filter(a => a.status === 'PRESENT').length / studentAtt.length) : 1;
+        const attScore = attRate * (weights.ATTENDANCE || 5);
+        results['att'] = Math.round(attScore * 100) / 100;
+        total += attScore;
+        results['total'] = Math.round(total * 10) / 10;
+        
+        return results;
+    }, [performance, selectedSubject, weights, attendance, assignments, categories, selectedTermId, selectedPeriodId, activeTerm]);
+
+    // --- Handlers ---
     const syncFromSheet = async () => {
         if (!googleSheetUrl || !selectedSubject) return alert('يرجى التأكد من اختيار المادة وربط ملف قوقل شيت من الإعدادات');
         setIsSyncing(true);
         try {
-            const { workbook, sheetNames } = await fetchWorkbookStructureUrl(googleSheetUrl);
+            const { workbook } = await fetchWorkbookStructureUrl(googleSheetUrl);
             const syncedScores = { ...scores };
-            
-            // للأعمدة التي لها metadata (مربوطة بقوقل شيت)
             const linkedAssignments = filteredAssignments.filter(a => a.sourceMetadata);
+            
             if (linkedAssignments.length === 0) {
-                alert('لا توجد أعمدة مربوطة بقوقل شيت في هذا التبويب. اربط الأعمدة من الإعدادات أولاً.');
+                alert('لا توجد أعمدة مربوطة بقوقل شيت في هذا التبويب.');
                 setIsSyncing(false);
                 return;
             }
@@ -146,7 +220,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             });
 
             setScores(syncedScores);
-            alert('تمت مزامنة الدرجات من الملف بنجاح! لا تنسَ الضغط على "حفظ" لتثبيتها.');
+            alert('تمت مزامنة الدرجات من الملف بنجاح! اضغط "حفظ" للتثبيت.');
         } catch (e) {
             alert('خطأ في المزامنة: تأكد من وصول الإنترنت وأن الملف متاح للعامة.');
         } finally {
@@ -197,63 +271,26 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         }
     };
 
-    const calculateAchievement = useCallback((studentId: string) => {
-        if (activeTab === 'YEAR_WORK') return 100;
-        const targetAssigns = filteredAssignments;
-        if (targetAssigns.length === 0) return 0;
-        const studentScores = scores[studentId] || {};
-        let completed = 0;
-        targetAssigns.forEach(a => {
-            if (studentScores[a.id] !== undefined && studentScores[a.id] !== '') completed++;
-        });
-        return Math.round((completed / targetAssigns.length) * 100);
-    }, [scores, filteredAssignments, activeTab]);
-
-    const calculateYearWork = useCallback((studentId: string) => {
-        // فلترة الأداء بناءً على المادة والفترة المحددة حصراً
-        const studentPerf = performance.filter(p => {
-            const assign = assignments.find(a => a.id === p.notes || a.title === p.title);
-            return p.studentId === studentId && 
-                   p.subject === selectedSubject && 
-                   (!selectedTermId || p.date >= (activeTerm?.startDate || '')) &&
-                   (!selectedPeriodId || assign?.periodId === selectedPeriodId);
-        });
-        
-        const getCategoryScore = (catId: string) => {
-            const activeAssigns = assignments.filter(a => 
-                a.category === catId && 
-                (!selectedTermId || a.termId === selectedTermId) &&
-                (!selectedPeriodId || a.periodId === selectedPeriodId)
-            );
-            if (activeAssigns.length === 0) return 0;
-            const weight = weights[catId] || 0;
-            
-            const totalMax = activeAssigns.reduce((sum, a) => sum + a.maxScore, 0);
-            const totalEarned = studentPerf.filter(p => {
-                const assign = assignments.find(a => a.id === p.notes || a.title === p.title);
-                return assign?.category === catId;
-            }).reduce((sum, item) => sum + item.score, 0);
-            
-            return (totalEarned / (totalMax || 1)) * weight;
-        };
-
-        const results: Record<string, number> = {};
-        let total = 0;
-        categories.forEach(cat => {
-            const score = getCategoryScore(cat.id);
-            results[cat.id] = Math.round(score * 100) / 100;
-            total += score;
+    const handleExportExcel = () => {
+        const exportData = students.filter(s => !selectedClass || s.className === selectedClass).map((s, idx) => {
+            const row: any = { 'م': idx + 1, 'اسم الطالب': s.name, 'الفصل': s.className || '-' };
+            if (activeTab === 'YEAR_WORK') {
+                const res = calculateYearWork(s.id);
+                categories.forEach(cat => row[cat.label] = (res as any)[cat.id] || 0);
+                row['الحضور'] = (res as any).att || 0;
+                row['المجموع النهائي'] = (res as any).total || 0;
+            } else {
+                filteredAssignments.forEach(a => row[a.title] = scores[s.id]?.[a.id] || '-');
+                row['نسبة الإنجاز'] = `${calculateAchievement(s.id)}%`;
+            }
+            return row;
         });
 
-        const studentAtt = attendance.filter(a => a.studentId === studentId);
-        const attRate = studentAtt.length > 0 ? (studentAtt.filter(a => a.status === 'PRESENT').length / studentAtt.length) : 1;
-        const attScore = attRate * (weights.ATTENDANCE || 5);
-        results['att'] = Math.round(attScore * 100) / 100;
-        total += attScore;
-        results['total'] = Math.round(total * 10) / 10;
-        
-        return results;
-    }, [performance, selectedSubject, weights, attendance, assignments, categories, selectedTermId, selectedPeriodId, activeTerm]);
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "سجل الرصد");
+        XLSX.writeFile(wb, `سجل_الرصد_${activeTab}_${new Date().getTime()}.xlsx`);
+    };
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-[#F8FAFC] animate-fade-in relative overflow-hidden font-tajawal">
@@ -279,12 +316,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                         <option value="">-- المادة --</option>
                         {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
-                    <select className="p-3 border-2 border-gray-50 rounded-2xl bg-gray-50 text-xs font-black outline-none shadow-sm min-w-[140px] focus:bg-white focus:border-indigo-500 transition-all" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
-                        <option value="">-- كل الفصول --</option>
-                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
                 </div>
                 <div className="flex gap-2 relative z-10">
+                    <button onClick={handleExportExcel} className="p-3 bg-white text-emerald-600 border-2 border-gray-50 rounded-2xl hover:bg-emerald-50 shadow-sm transition-all"><FileSpreadsheet size={22}/></button>
+                    <button onClick={() => window.print()} className="p-3 bg-white text-slate-600 border-2 border-gray-50 rounded-2xl hover:bg-slate-50 shadow-sm transition-all"><Printer size={22}/></button>
                     <button onClick={syncFromSheet} disabled={isSyncing} className="flex-1 md:flex-none bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all">
                         {isSyncing ? <RefreshCw className="animate-spin" size={16}/> : <RefreshCw size={16}/>} تحديث من الملف
                     </button>
@@ -315,9 +350,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                 <th className="p-4 text-right sticky right-0 bg-[#F8FAFC] z-40 w-80 border-l border-gray-50 shadow-sm">بيانات الطالب</th>
                                 {activeTab === 'YEAR_WORK' ? (
                                     <>
-                                        {categories.map(cat => <th key={cat.id} className="p-2 border-l border-gray-50 text-indigo-900">{cat.label} ({weights[cat.id] || 0})</th>)}
-                                        <th className="p-2 border-l border-gray-50 text-emerald-700">المواظبة ({weights.ATTENDANCE})</th>
-                                        <th className="p-2 border-l border-gray-50 bg-indigo-50 text-indigo-950 text-lg">المجموع</th>
+                                        {categories.map(cat => <th key={cat.id} className="p-2 border-l border-gray-50 text-indigo-900 font-black">{cat.label} ({weights[cat.id] || 0})</th>)}
+                                        <th className="p-2 border-l border-gray-50 text-emerald-700 font-black">المواظبة ({weights.ATTENDANCE})</th>
+                                        <th className="p-2 border-l border-gray-50 bg-indigo-50 text-indigo-950 font-black text-lg">المجموع</th>
                                     </>
                                 ) : (
                                     filteredAssignments.map(a => (
@@ -347,7 +382,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                             <td className="p-3 text-right font-black text-slate-700 sticky right-0 bg-white z-10 border-l border-gray-50"><span className="truncate">{student.name}</span></td>
                                             {categories.map(cat => <td key={cat.id} className="p-3 border-l border-gray-50 font-bold text-slate-600">{(res as any)[cat.id] || 0}</td>)}
                                             <td className="p-3 border-l border-gray-50 font-bold text-emerald-600">{(res as any).att || 0}</td>
-                                            <td className="p-3 border-l border-gray-50 font-black text-indigo-950 bg-indigo-50/40 text-lg">{(res as any).total || 0}</td>
+                                            <td className="p-3 border-l border-gray-50 font-black text-indigo-900 bg-indigo-50/40 text-lg">{(res as any).total || 0}</td>
                                         </tr>
                                     );
                                 }
@@ -456,7 +491,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                         <td className="p-4"><input className="w-full p-2 border-none bg-transparent font-black text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-xl" value={a.title} onChange={e => handleUpdateAssignment(a.id, { title: e.target.value })} /></td>
                                                         <td className="p-4"><input type="number" className="w-20 p-2 border border-slate-200 rounded-xl text-center font-black text-xs text-indigo-600" value={a.maxScore} onChange={e => handleUpdateAssignment(a.id, { maxScore: parseFloat(e.target.value) })} /></td>
                                                         <td className="p-4"><input className="w-full p-2 border border-slate-200 rounded-xl text-[9px] dir-ltr text-right opacity-60 focus:opacity-100 font-mono" value={a.url || ''} onChange={e => handleUpdateAssignment(a.id, { url: e.target.value })} placeholder="https://..." /></td>
-                                                        <td className="p-4 text-center"><button onClick={() => { if(confirm('حذف العمود؟')) { deleteAssignment(a.id); setAssignments(prev => prev.filter(x => x.id !== a.id)); } }} className="p-2.5 text-red-200 hover:text-red-500 transition-colors"><Trash2 size={20}/></button></td>
+                                                        <td className="p-4 text-center"><button onClick={() => { if(confirm('حذف العمود؟')) { deleteAssignment(a.id); setAssignments(prev => prev.filter(x => x.id !== a.id)); } }} className="p-2.5 text-red-200 hover:text-red-600 transition-colors"><Trash2 size={20}/></button></td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -526,9 +561,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                         </div>
                                     </div>
                                     <div className="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between">
-                                        {/* Fix: Explicitly cast Object.values(weights) to number[] to resolve TypeScript error on line 532 */}
                                         <div className="text-sm font-bold text-slate-500">المجموع النهائي: <span className="text-orange-600 font-black text-2xl ml-2">{(Object.values(weights) as number[]).reduce((a, b) => a + b, 0)}</span></div>
-                                        <button onClick={()=>{localStorage.setItem('works_weights', JSON.stringify(weights)); alert('تم حفظ توزيع الأوزان بنجاح!');}} className="bg-orange-600 text-white px-10 py-4 rounded-2xl font-black shadow-2xl hover:bg-orange-700 transition-all flex items-center gap-3"><Check size={20}/> اعتماد التوزيع</button>
+                                        <button onClick={()=>{localStorage.setItem('works_weights', JSON.stringify(weights)); alert('تم حفظ توزيع الأوزان بنجاح!');}} className="bg-orange-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:bg-orange-700 transition-all flex items-center gap-3"><Check size={20}/> اعتماد التوزيع</button>
                                     </div>
                                 </div>
                             )}
