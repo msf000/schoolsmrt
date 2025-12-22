@@ -1,13 +1,13 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
-import { Student, AttendanceRecord, PerformanceRecord, LessonBlock, Exam } from "../types";
+import { Student, AttendanceRecord, PerformanceRecord, LessonBlock, Exam, AttendanceStatus } from "../types";
 import { getAISettings } from "./storageService";
 
 const getAIClient = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
-// وظائف مساعدة لمعالجة الصوت الخام (PCM)
+// وظائف مساعدة لمعالجة الصوت
 function decodeBase64(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -30,6 +30,91 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
   }
   return buffer;
 }
+
+export const generateLessonSuccessKeys = async (topic: string, grade: string) => {
+    const { model, config } = getModelConfig();
+    const prompt = `
+    أنت موجه تربوي. موضوع الدرس اليوم هو "${topic}" للصف "${grade}".
+    المطلوب: توليد 3 "مفاتيح نجاح" مختصرة جداً للمعلم ليركز عليها في الحصة لضمان نواتج تعلم عالية.
+    أرجع JSON فقط: {"keys": ["مفتاح 1", "مفتاح 2", "مفتاح 3"]}
+    `;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config: { ...config, responseMimeType: "application/json" } });
+        return JSON.parse(response.text || '{"keys":[]}');
+    } catch (e) {
+        return { keys: ["شرح المفاهيم الأساسية", "تطبيق عملي", "تقييم ختامي"] };
+    }
+};
+
+export const predictStudentFuture = async (student: Student, performance: PerformanceRecord[], attendance: AttendanceRecord[]) => {
+    const { model, config } = getModelConfig();
+    const prompt = `
+    حلل البيانات التالية للطالب ${student.name} وتنبأ بمستواه في الاختبار القادم:
+    الدرجات الأخيرة: ${JSON.stringify(performance.slice(-5).map(p=>p.score/p.maxScore))}
+    الالتزام (حضور/غياب): ${JSON.stringify(attendance.slice(-10).map(a=>a.status))}
+    
+    المطلوب: أرجع تنبؤاً تربوياً (تحسن/استقرار/تراجع) مع نصيحة واحدة للمعلم.
+    تنسيق Markdown مختصر جداً.
+    `;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "لا توجد بيانات كافية للتنبؤ حالياً.";
+    } catch (e) {
+        return "فشل التنبؤ الذكي.";
+    }
+};
+
+export const generateEngagementQuestion = async (student: Student, lessonTopic: string) => {
+    const { model, config } = getModelConfig();
+    const prompt = `
+    أنت معلم محفز. الطالب "${student.name}" يحتاج للمشاركة اليوم.
+    موضوع الدرس الحالي: "${lessonTopic}".
+    نمط تعلم الطالب: "${student.learningStyle || 'غير محدد'}".
+    
+    المطلوب: توليد سؤال واحد مشجع وقصير موجه للطالب مباشرة ليشارك به في الحصة.
+    إذا كان نمطه بصري، اجعل السؤال عن رؤية شيء.
+    إذا كان حركي، اطلب منه تمثيل أو القيام بشيء.
+    بالعربية فقط.
+    `;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "كيف تصف موضوع اليوم من وجهة نظرك؟";
+    } catch (e) {
+        return "ما رأيك فيما شرحناه للتو؟";
+    }
+};
+
+export const processVoiceAttendance = async (audioBase64: string, studentNames: string[]) => {
+    const ai = getAIClient();
+    const prompt = `
+    أنت مساعد تحضير صوتي. استمع للمقطع الصوتي وحدد حالة الحضور للطلاب المذكورين.
+    الطلاب المسجلون: ${studentNames.join(', ')}.
+    المطلوب: استخراج قائمة JSON بالطلاب وحالتهم (PRESENT أو ABSENT).
+    تنسيق الإخراج: {"updates": [{"name": "اسم الطالب", "status": "PRESENT|ABSENT"}]}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-native-audio-preview-09-2025",
+            contents: [
+                {
+                    parts: [
+                        { inlineData: { mimeType: 'audio/pcm;rate=16000', data: audioBase64 } },
+                        { text: prompt }
+                    ]
+                }
+            ],
+            config: { responseMimeType: "application/json" }
+        });
+        return JSON.parse(response.text || "{}");
+    } catch (e) {
+        console.error("Voice Processing Error:", e);
+        return { updates: [] };
+    }
+};
 
 export const playTextAsSpeech = async (text: string) => {
     const ai = getAIClient();
@@ -113,13 +198,6 @@ export const analyzeLearningStyleExcel = async (rawData: string) => {
     حلل بيانات ملف Excel التالية (استجابات الطلاب على اختبار أنماط التعلم VARK):
     "${rawData}"
     
-    البيانات تحتوي على أعمدة تشمل اسم الطالب وإجاباته على مواقف تعليمية مختلفة.
-    
-    المطلوب بدقة:
-    1. لكل طالب، حلل إجاباته (سواء كانت نصية أو خيارات) وحدد النمط الغالب (VISUAL, AUDITORY, READ_WRITE, KINESTHETIC).
-    2. استخرج "توزيع الأنماط" كأرقام للفصل كاملاً.
-    3. قدم 3 نصائح تعليمية عملية للمعلم بناءً على النتائج.
-    
     تنسيق الإخراج JSON حصراً:
     {
       "studentAssignments": [{"studentName": "اسم الطالب من الملف", "style": "النمط المحدد بالإنجليزية", "confidence": "high|medium"}],
@@ -138,9 +216,8 @@ export const diagnoseLearningStyle = async (studentName: string, observations: s
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
     const prompt = `
     بناءً على الملاحظات السلوكية التالية للطالب ${studentName}: "${observations}".
-    حدد نمط التعلم الأنسب له وفق نموذج VARK (بصري، سمعي، قرائي، حركي).
-    
-    أرجع JSON: {"style": "VISUAL|AUDITORY|READ_WRITE|KINESTHETIC", "reasoning": "سبب اختيار هذا النمط باختصار...", "tips": "نصائح تعليمية مخصصة..."}
+    حدد نمط التعلم الأنسب له وفق نموذج VARK.
+    أرجع JSON: {"style": "VISUAL|AUDITORY|READ_WRITE|KINESTHETIC", "reasoning": "...", "tips": "..."}
     `;
     try {
         const ai = getAIClient();
@@ -155,9 +232,8 @@ export const chatWithData = async (query: string, context: { students: any[], at
     لديك البيانات التالية للمدرسة:
     - الطلاب: ${JSON.stringify(context.students.slice(0, 50))}
     - ملخص الحضور: ${context.attendance.length} سجل
-    - ملخص الدرجات: ${context.performance.length} سجل
     
-    أجب على سؤال المعلم التالي بناءً على هذه البيانات فقط وبأسلوب تربوي:
+    أجب على سؤال المعلم التالي بناءً على هذه البيانات:
     السؤال: ${query}
     `;
     try {
@@ -173,9 +249,8 @@ export const generateDailyBriefing = async (students: Student[], attendance: Att
     const context = {
         totalStudents: students.length,
         absentToday: attendance.filter(a => a.date === today && a.status === 'ABSENT').length,
-        lowGrades: performance.filter(p => (p.score / (p.maxScore || 10)) < 0.6).length,
     };
-    const prompt = `بناءً على بيانات اليوم: ${JSON.stringify(context)}. اكتب ملخصاً تربوياً ملهماً من 3 نقاط للمعلم ليوم دراسي ناجح (استخدم الإيموجي).`;
+    const prompt = `بناءً على بيانات اليوم: ${JSON.stringify(context)}. اكتب ملخصاً تربوياً ملهماً من 3 نقاط للمعلم ليوم دراسي ناجح.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -189,7 +264,7 @@ export const generateStudentAnalysis = async (student: Student, attendance: Atte
     حلل أداء الطالب: ${student.name}. 
     الحضور: ${attendance.length} سجل، الغياب: ${attendance.filter(a=>a.status==='ABSENT').length}. 
     الدرجات: ${JSON.stringify(performance.map(p=>({t:p.title, s:p.score, m:p.maxScore})))}.
-    اكتب تقريراً تربوياً مختصراً باللغة العربية Markdown يشمل: نقاط القوة، التحديات، وتوصية للمستقبل.
+    اكتب تقريراً تربوياً مختصراً بالعربية Markdown يشمل: نقاط القوة، التحديات، وتوصية.
     `;
     try {
         const ai = getAIClient();
@@ -202,8 +277,8 @@ export const suggestSeatingPlan = async (students: any[], criteria: string) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
     const prompt = `
     لديك قائمة طلاب: ${JSON.stringify(students.map(s => ({id: s.id, name: s.name, level: s.stats?.gradeAvg})))}.
-    المطلوب: إعادة توزيع المقاعد في الفصل (صفوف وأعمدة) بناءً على المعيار التالي: "${criteria}".
-    أرجع النتيجة كـ JSON حصراً: {"seating": [{"studentId": "...", "row": 1, "col": 1}], "reasoning": "شرح تربوي للتوزيع..."}. استخدم العربية.
+    المطلوب: إعادة توزيع المقاعد في الفصل بناءً على: "${criteria}".
+    أرجع JSON حصراً: {"seating": [{"studentId": "...", "row": 1, "col": 1}], "reasoning": "..."}.
     `;
     try {
         const ai = getAIClient();
@@ -214,7 +289,7 @@ export const suggestSeatingPlan = async (students: any[], criteria: string) => {
 
 export const generateParentMessage = async (studentName: string, topic: string, tone: string) => {
     const { model, config } = getModelConfig();
-    const prompt = `اكتب رسالة ${tone === 'URGENT' ? 'عاجلة وحازمة' : tone === 'FRIENDLY' ? 'ودية ودافئة' : 'رسمية'} لولي أمر الطالب ${studentName} حول موضوع: ${topic}. استخدم اللغة العربية الفصحى.`;
+    const prompt = `اكتب رسالة لولي أمر الطالب ${studentName} حول: ${topic}. النبرة: ${tone}. بالعربية.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -224,7 +299,7 @@ export const generateParentMessage = async (studentName: string, topic: string, 
 
 export const generateRemedialPlan = async (name: string, grade: string, subject: string, topic: string) => {
     const { model, config } = getModelConfig();
-    const prompt = `صمم خطة علاجية مختصرة للطالب ${name} في الصف ${grade} لمادة ${subject} في موضوع ${topic}. يجب أن تشمل أهدافاً وأنشطة بسيطة.`;
+    const prompt = `صمم خطة علاجية للطالب ${name} في مادة ${subject} موضوع ${topic}. بالعربية.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -234,7 +309,7 @@ export const generateRemedialPlan = async (name: string, grade: string, subject:
 
 export const generateLessonPlan = async (subject: string, topic: string, grade: string, duration: string) => {
     const { model, config } = getModelConfig();
-    const prompt = `أعد تحضير درس ${subject} بعنوان ${topic} لطلاب ${grade}. المدة ${duration} دقيقة. الخطة يجب أن تشمل: التمهيد، الأهداف، العرض، والتقويم.`;
+    const prompt = `أعد تحضير درس ${subject} بعنوان ${topic} لطلاب ${grade}. بالعربية.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -244,7 +319,7 @@ export const generateLessonPlan = async (subject: string, topic: string, grade: 
 
 export const generateQuiz = async (subject: string, topic: string, grade: string, count: number, difficulty: string) => {
     const { model, config } = getModelConfig();
-    const prompt = `أنشئ اختباراً في ${subject} حول موضوع ${topic} لطلاب ${grade}. العدد: ${count} أسئلة، مستوى الصعوبة: ${difficulty}.`;
+    const prompt = `أنشئ اختباراً في ${subject} موضوع ${topic}. العدد: ${count}، صعوبة: ${difficulty}. بالعربية.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -254,8 +329,7 @@ export const generateQuiz = async (subject: string, topic: string, grade: string
 
 export const generateStructuredQuiz = async (subject: string, topic: string, grade: string, count: number, difficulty: string) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `Generate a ${difficulty} difficulty MCQ quiz in ${subject} about ${topic} for ${grade}. 
-    Quantity: ${count}. JSON: [{"question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": "..."}]. Use Arabic.`;
+    const prompt = `Generate a ${difficulty} difficulty MCQ quiz in ${subject} about ${topic}. JSON: [{"question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": "..."}]. Arabic.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -265,8 +339,7 @@ export const generateStructuredQuiz = async (subject: string, topic: string, gra
 
 export const generateLessonBlocks = async (subject: string, topic: string, grade: string, options: any) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `Prepare lesson structure for ${topic} in ${subject} for ${grade}. 
-    JSON: [{"id": "1", "type": "CONTENT|ACTIVITY|ASSESSMENT", "title": "...", "content": "..."}]. Arabic.`;
+    const prompt = `Prepare lesson structure for ${topic} in ${subject}. JSON: [{"id": "1", "type": "CONTENT|ACTIVITY|ASSESSMENT", "title": "...", "content": "..."}]. Arabic.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -277,20 +350,11 @@ export const generateLessonBlocks = async (subject: string, topic: string, grade
 export const parseRawDataWithAI = async (text: string, type: string, imageBase64?: string) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
     const ai = getAIClient();
-    const prompt = `Extract ${type} data as JSON array from the following input. Use Arabic. 
-    Fields needed: nationalId, studentName, gradeLevel, className, score, total, status, date.`;
-    
-    // Fix: contents should be a string for single prompts in the SDK
+    const prompt = `Extract ${type} data as JSON array. Fields: nationalId, studentName, gradeLevel, score, status. Arabic.`;
     let contents: any = prompt + "\n" + text;
     if (imageBase64) {
-        contents = {
-            parts: [
-                { inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } },
-                { text: prompt + "\n" + text }
-            ]
-        };
+        contents = { parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } }, { text: prompt + "\n" + text }] };
     }
-
     try {
         const response = await ai.models.generateContent({ model, contents, config });
         return JSON.parse(response.text || "[]");
@@ -299,8 +363,7 @@ export const parseRawDataWithAI = async (text: string, type: string, imageBase64
 
 export const predictColumnMapping = async (headers: string[], targetFields: any[], sampleData: any[]) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `Map these Excel headers ${JSON.stringify(headers)} to system fields ${JSON.stringify(targetFields)}. 
-    Return JSON mapping: {"systemField": "excelHeaderName"}.`;
+    const prompt = `Map Excel headers ${JSON.stringify(headers)} to system fields ${JSON.stringify(targetFields)}. JSON: {"systemField": "excelHeaderName"}.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -310,29 +373,17 @@ export const predictColumnMapping = async (headers: string[], targetFields: any[
 
 export const gradeExamPaper = async (imageBase64: string, exam: Exam) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `Grade this student exam paper based on: ${JSON.stringify(exam)}. 
-    JSON Output: {"studentNameDetected": "...", "totalScore": 5, "maxTotalScore": 10, "questions": [{"index": 1, "isCorrect": true, "studentAnswer": "..."}]}`;
-    
+    const prompt = `Grade student paper for: ${JSON.stringify(exam)}. JSON: {"totalScore": 5, "questions": [...]}`;
     try {
         const ai = getAIClient();
-        const response = await ai.models.generateContent({
-            model,
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } },
-                    { text: prompt }
-                ]
-            },
-            config
-        });
+        const response = await ai.models.generateContent({ model, contents: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } }, { text: prompt }] }, config });
         return JSON.parse(response.text || "{}");
     } catch (e) { return null; }
 };
 
 export const generateCurriculumMap = async (subject: string, grade: string, term: string) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `Generate a Saudi curriculum map for ${subject}, ${grade}, ${term}. 
-    JSON: [{"unitTitle": "...", "lessons": [{"title": "..."}]}]. Arabic.`;
+    const prompt = `Generate Saudi curriculum map for ${subject}. JSON: [{"unitTitle": "...", "lessons": [{"title": "..."}]}]. Arabic.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -344,15 +395,13 @@ export const checkAIConnection = async () => {
     try {
         const ai = getAIClient();
         await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: 'ping' });
-        return { success: true, message: "متصل بـ Gemini بنجاح" };
-    } catch (e: any) {
-        return { success: false, message: e.message || "فشل الاتصال" };
-    }
+        return { success: true, message: "متصل بـ Gemini" };
+    } catch (e: any) { return { success: false, message: "فشل الاتصال" }; }
 };
 
 export const generateSlideQuestions = async (context: string) => {
     const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const prompt = `Generate 3 MCQ questions from: "${context}". JSON: [{"question": "...", "options": ["...", "..."], "correctAnswer": "..."}]. Arabic.`;
+    const prompt = `Generate 3 MCQ from: "${context}". JSON: [{"question": "...", "options": [...], "correctAnswer": "..."}]. Arabic.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -362,7 +411,7 @@ export const generateSlideQuestions = async (context: string) => {
 
 export const suggestQuickActivity = async (topic: string) => {
     const { model, config } = getModelConfig();
-    const prompt = `Suggest a 2-minute energetic classroom activity for topic: ${topic}. Short, clear, Arabic.`;
+    const prompt = `Suggest a 2-minute energetic classroom activity for: ${topic}. Arabic.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });

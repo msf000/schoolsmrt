@@ -6,8 +6,9 @@ import {
 } from 'recharts';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, BehaviorStatus } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
-import { generateLocalDailyBrief, getLocalPedagogicalTip, detectAtRiskStudents, getTopAchievers } from '../services/analysisService';
-import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown, AlertTriangle, MessageCircle, ChevronLeft, Target } from 'lucide-react';
+import { generateLocalDailyBrief, getLocalPedagogicalTip, detectAtRiskStudents, getTopAchievers, getDailyFocusStudents } from '../services/analysisService';
+/* Added Check to the lucide-react imports to fix the error on line 165 */
+import { Users, CheckCircle, XCircle, TrendingUp, Activity, BarChart3, ArrowRight, Sparkles, Bot, Loader2, Award, Volume2, BrainCircuit, Calendar, PenTool, ClipboardList, FileText, Trophy, Zap, Crown, AlertTriangle, MessageCircle, ChevronLeft, Target, Lightbulb, CheckSquare, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
@@ -28,6 +29,12 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       return (saved as 'AI' | 'STATS') || 'STATS';
   });
 
+  // Track daily tasks completion
+  const [completedMissionIds, setCompletedMissionIds] = useState<Set<string>>(() => {
+      const saved = localStorage.getItem('dashboard_completed_missions');
+      return new Set(saved ? JSON.parse(saved) : []);
+  });
+
   useEffect(() => {
     localStorage.setItem('dashboard_brief_mode', briefMode);
     if (students.length > 0) {
@@ -35,6 +42,10 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         else loadStatsBrief();
     }
   }, [currentUser, students.length, briefMode]);
+
+  useEffect(() => {
+      localStorage.setItem('dashboard_completed_missions', JSON.stringify(Array.from(completedMissionIds)));
+  }, [completedMissionIds]);
 
   const loadAiBrief = async () => {
     setIsAiLoading(true);
@@ -55,6 +66,15 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   };
 
   const topAchievers = useMemo(() => getTopAchievers(students, attendance, performance), [students, attendance, performance]);
+  const focusStudents = useMemo(() => getDailyFocusStudents(students, attendance, performance), [students, attendance, performance]);
+
+  const toggleMission = (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newSet = new Set(completedMissionIds);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      setCompletedMissionIds(newSet);
+  };
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -82,8 +102,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
         avgParticipation
     };
   }, [students, attendance, performance]);
-
-  const pedagogicalTip = useMemo(() => getLocalPedagogicalTip(), []);
 
   const handlePlayBriefing = async () => {
       if (!briefing || isPlaying) return;
@@ -124,6 +142,60 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
       </div>
 
+      {/* Daily Progress & Missions Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-indigo-100 flex flex-col">
+              <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-black text-gray-800 flex items-center gap-3">
+                    <Target size={20} className="text-indigo-600"/> مهمتك اليوم: طلاب للتركيز
+                  </h3>
+                  <div className="flex items-center gap-2">
+                      <div className="h-2 w-24 bg-gray-100 rounded-full overflow-hidden border">
+                          <div className="h-full bg-emerald-500 transition-all duration-700" style={{width: `${(completedMissionIds.size / (focusStudents.length || 1)) * 100}%`}}></div>
+                      </div>
+                      <span className="text-[10px] font-black text-emerald-600">{completedMissionIds.size}/{focusStudents.length} تم</span>
+                  </div>
+              </div>
+              <div className="space-y-4 flex-1">
+                  {focusStudents.map(item => {
+                      const isDone = completedMissionIds.has(item!.student.id);
+                      return (
+                        <div key={item!.student.id} onClick={() => navigate('/followup', {state:{studentId: item!.student.id}})} className={`flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all border group relative overflow-hidden ${isDone ? 'bg-emerald-50/50 border-emerald-100' : 'bg-gray-50 border-transparent hover:border-indigo-100 hover:bg-indigo-50'}`}>
+                            <div className="flex items-center gap-4 relative z-10">
+                                <button onClick={(e) => toggleMission(item!.student.id, e)} className={`p-1.5 rounded-lg border transition-all ${isDone ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-white text-gray-300 group-hover:border-indigo-300'}`}>
+                                    {isDone ? <Check size={14}/> : <div className="w-3.5 h-3.5"></div>}
+                                </button>
+                                <div>
+                                    <h4 className={`font-bold text-sm transition-all ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item!.student.name}</h4>
+                                    <div className="flex gap-2 mt-1">
+                                        {item!.reasons.map((r, i) => (
+                                            <span key={i} className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isDone ? 'bg-gray-100 text-gray-400' : 'bg-indigo-100 text-indigo-700'}`}>{r}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <ChevronLeft className={`transition-all ${isDone ? 'text-emerald-300' : 'text-gray-300'}`} size={18}/>
+                        </div>
+                      );
+                  })}
+                  {focusStudents.length === 0 && <p className="text-center py-10 text-gray-400 italic">جميع الطلاب بمستوى تفاعل جيد اليوم!</p>}
+              </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-indigo-50 to-white p-8 rounded-[2rem] shadow-sm border border-indigo-100 flex flex-col justify-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 p-10 opacity-5 pointer-events-none"><BrainCircuit size={180}/></div>
+              <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg"><Lightbulb size={24}/></div>
+                  <div>
+                    <h3 className="font-black text-gray-800">نصيحة تربوية لليوم</h3>
+                    <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Pedagogical Insight</p>
+                  </div>
+              </div>
+              <p className="text-indigo-950 font-bold text-lg leading-relaxed italic relative z-10">" {getLocalPedagogicalTip()} "</p>
+          </div>
+      </div>
+
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
         <StatCard label="الطلاب" value={stats.totalStudents} icon={<Users size={20}/>} color="bg-blue-50 text-blue-600" />
         <StatCard label="الحضور" value={stats.attRate + '%'} icon={<CheckCircle size={20}/>} color="bg-green-600 text-white" />
@@ -132,6 +204,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-10">
+        {/* Class Performance Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
           <h3 className="text-lg font-black text-gray-800 flex items-center gap-3 mb-6">
               <BarChart3 size={20} className="text-indigo-600"/> متوسط الأداء لكل فصل
@@ -149,6 +222,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
         </div>
 
+        {/* Top Achievers Widget */}
         <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="font-black text-gray-800 flex items-center gap-2 text-sm"><Crown size={16} className="text-yellow-500"/> أبطال الفصل (XP)</h3>

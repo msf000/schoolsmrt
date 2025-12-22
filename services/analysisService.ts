@@ -1,3 +1,4 @@
+
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, LearningStyle, BehaviorIncident } from '../types';
 
 /**
@@ -57,6 +58,42 @@ export const detectAtRiskStudents = (students: Student[], attendance: Attendance
         }
         return risks.length > 0 ? { student: s, risks } : null;
     }).filter(item => item !== null) as { student: Student, risks: string[] }[];
+};
+
+export const getDailyFocusStudents = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
+    return students.map(s => {
+        const sAtt = attendance.filter(a => a.studentId === s.id).slice(-5);
+        const sPerf = performance.filter(p => p.studentId === s.id).slice(-3);
+        
+        let priority = 0;
+        let reasons: string[] = [];
+
+        // معيار 1: انقطاع التفاعل (النجوم)
+        const avgPart = sAtt.reduce((acc, curr) => acc + (curr.participationScore || 0), 0) / (sAtt.length || 1);
+        if (avgPart < 2 && sAtt.length > 0) {
+            priority += 2;
+            reasons.push("خامل صفياً مؤخراً");
+        }
+
+        // معيار 2: غياب متقطع
+        const recentAbsences = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+        if (recentAbsences >= 2) {
+            priority += 3;
+            reasons.push("تذبذب في الحضور");
+        }
+
+        // معيار 3: متفوق يحتاج تحدي
+        const avgPerf = sPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0) / (sPerf.length || 1);
+        if (avgPerf > 0.95) {
+            priority += 1;
+            reasons.push("متفوق يحتاج إثراء");
+        }
+
+        return priority > 0 ? { student: s, priority, reasons } : null;
+    })
+    .filter(x => x !== null)
+    .sort((a, b) => b!.priority - a!.priority)
+    .slice(0, 3);
 };
 
 export const getTopAchievers = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
