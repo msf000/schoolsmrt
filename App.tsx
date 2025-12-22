@@ -1,12 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
-    getStudents, getAttendance, getPerformance, saveAttendance, 
-    addPerformance, deletePerformance, bulkAddPerformance, 
-    bulkUpsertStudents, getUserTheme,
-    addStudent, updateStudent, deleteStudent,
-    downloadFromSupabase, initAutoSync
+    fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
+    addPerformance, deletePerformance, getUserTheme,
+    addStudent, updateStudent, deleteStudent
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 import Login from './components/Login';
@@ -38,7 +36,7 @@ import BehaviorTracking from './components/BehaviorTracking';
 import TasksManager from './components/TasksManager';
 import TeacherInbox from './components/TeacherInbox';
 import CertificatesCenter from './components/CertificatesCenter';
-import { Cloud, Loader2 } from 'lucide-react';
+import { Cloud, Loader2, DatabaseZap } from 'lucide-react';
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(() => {
@@ -49,43 +47,39 @@ const App: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
-    const [theme, setTheme] = useState<UserTheme>(getUserTheme());
-    const [isCloudLoading, setIsCloudLoading] = useState(false);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [theme] = useState<UserTheme>(getUserTheme());
+    const [isLoading, setIsLoading] = useState(false);
     
     const navigate = useNavigate();
     const location = useLocation();
 
-    useEffect(() => {
-        const initApp = async () => {
-            loadData();
-            if (currentUser) await syncCloudData();
-            setIsInitialLoad(false);
-        };
-        initApp();
-    }, []);
-
-    const loadData = () => {
-        setStudents(getStudents());
-        setAttendance(getAttendance());
-        setPerformance(getPerformance());
-    };
-
-    const syncCloudData = async () => {
-        setIsCloudLoading(true);
+    // جلب البيانات من السحابة حصراً
+    const refreshCloudData = useCallback(async () => {
+        if (!currentUser) return;
+        setIsLoading(true);
         try {
-            await downloadFromSupabase();
-            loadData();
-            await initAutoSync();
-        } catch (e) { console.error("Cloud Sync Failed:", e); }
-        finally { setIsCloudLoading(false); }
-    };
+            const [st, att, perf] = await Promise.all([
+                fetchStudents(),
+                fetchAttendance(currentUser.id),
+                fetchPerformance(currentUser.id)
+            ]);
+            setStudents(st);
+            setAttendance(att);
+            setPerformance(perf);
+        } catch (e) {
+            console.error("Cloud Data Fetch Error:", e);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (currentUser) refreshCloudData();
+    }, [currentUser, refreshCloudData]);
 
     const handleLoginSuccess = (user: any, rememberMe: boolean) => {
         setCurrentUser(user);
         if (rememberMe) localStorage.setItem('current_user', JSON.stringify(user));
-        loadData();
-        syncCloudData();
         navigate('/');
     };
 
@@ -95,11 +89,11 @@ const App: React.FC = () => {
         navigate('/login');
     };
 
-    if (isInitialLoad && currentUser) {
+    if (isLoading && !students.length) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
-                <Loader2 className="animate-spin text-indigo-600 mb-4" size={40} />
-                <p className="text-gray-500 font-bold animate-pulse">جاري تأمين الجلسة...</p>
+                <DatabaseZap className="animate-bounce text-indigo-600 mb-4" size={48} />
+                <p className="text-gray-500 font-black text-lg animate-pulse">جاري جلب البيانات من السحابة...</p>
             </div>
         );
     }
@@ -108,27 +102,27 @@ const App: React.FC = () => {
 
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
-            {isCloudLoading && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white px-4 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 shadow-xl animate-bounce">
-                    <Cloud className="animate-pulse" size={14}/> جاري تحديث البيانات سحابياً...
+            {isLoading && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-black flex items-center gap-3 shadow-2xl animate-pulse border-2 border-white/20">
+                    <Cloud className="animate-spin" size={16}/> جاري تحديث السحابة...
                 </div>
             )}
             <Routes>
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v: string) => navigate(v)} />} />
-                <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={(s: Student) => { addStudent(s); loadData(); }} onUpdateStudent={(s: Student) => { updateStudent(s); loadData(); }} onDeleteStudent={(id: string) => { deleteStudent(id); loadData(); }} onImportStudents={(data: Student[]) => { bulkUpsertStudents(data); loadData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={(recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={(rec: PerformanceRecord | PerformanceRecord[]) => { addPerformance(rec); loadData(); }} onImportPerformance={(recs: PerformanceRecord[]) => { bulkAddPerformance(recs); loadData(); }} onDeletePerformance={(id: string) => { deletePerformance(id); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={async (s) => { await addStudent(s); refreshCloudData(); }} onUpdateStudent={async (s) => { await updateStudent(s); refreshCloudData(); }} onDeleteStudent={async (id) => { await deleteStudent(id); refreshCloudData(); }} onImportStudents={async (data) => { /* bulk import to supabase */ refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={async (recs) => { await addPerformance(recs); refreshCloudData(); }} onImportPerformance={async (recs) => { await addPerformance(recs); refreshCloudData(); }} onDeletePerformance={async (id) => { await deletePerformance(id); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
                 <Route path="/tasks" element={<TasksManager students={students} currentUser={currentUser as SystemUser} />} />
                 <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={setTheme}/>} />
-                <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={(recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); }}/>} />
+                <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={()=>{}}/>} />
+                <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }}/>} />
                 <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
                 <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={(recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); }} />} />
-                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={(recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); }} onImportAttendance={(recs: AttendanceRecord[])=>{ saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={(recs: PerformanceRecord[])=>{ bulkAddPerformance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} />} />
+                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} onImportAttendance={async (recs)=>{ await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={async (recs)=>{ await addPerformance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
                 <Route path="/lab" element={<LearningLab students={students} currentUserId={currentUser?.id} />} />
                 <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser as SystemUser} />} />
@@ -153,7 +147,7 @@ const App: React.FC = () => {
                 ) : (
                     <Route path="/*" element={teacherRoutes} />
                 )}
-                <Route path="/screen" element={<ClassroomScreen students={students} attendance={attendance} onSaveAttendance={(recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/screen" element={<ClassroomScreen students={students} attendance={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
             </Routes>
         </div>
     );

@@ -4,10 +4,10 @@ import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser
 import { 
     CheckCircle, XCircle, Clock, Users, Search, Sparkles, 
     Calendar as CalendarIcon, Loader2, UserCheck, Timer, 
-    History, Trash2, RefreshCw, Database, AlertCircle, Check
+    History, Trash2, RefreshCw, Database, AlertCircle, Check, CloudUpload
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSchedules, getTeacherAssignments, getTeacherPeriodTimings, getSubjects, saveAttendance, deleteAttendance, downloadFromSupabase } from '../services/storageService';
+import { fetchSchedules, fetchTeacherAssignments, fetchTeacherPeriodTimings, fetchSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
 
 interface AttendanceProps {
   students: Student[];
@@ -26,17 +26,16 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [selectedSubject, setSelectedSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // History Filters
   const [historySearch, setHistorySearch] = useState('');
   const [historyClass, setHistoryClass] = useState('');
 
+  // استخراج الفصول المسجلة للمعلم
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
-    if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach(a => classes.add(a.classId));
     return Array.from(classes).sort();
-  }, [students, currentUser]);
+  }, [students]);
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
@@ -56,21 +55,8 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     }).sort((a, b) => b.date.localeCompare(a.date));
   }, [attendanceHistory, historySearch, historyClass, students]);
 
-  const handleRefreshCache = async () => {
-    setIsRefreshing(true);
-    try {
-        await downloadFromSupabase();
-        window.location.reload(); // إعادة تحميل التطبيق بالكامل لضمان تحديث الكاش
-    } catch (e) {
-        alert('فشل تحديث البيانات من السحابة');
-    } finally {
-        setIsRefreshing(false);
-    }
-  };
-
   const handleUpdate = async (studentId: string, status: AttendanceStatus) => {
     const sub = selectedSubject || 'عام';
-    // المعرف الفريد لضمان عدم التكرار (Upsert Key)
     const recordId = `${studentId}_${selectedDate}_${selectedPeriod}_${sub.replace(/\s+/g, '_')}`;
     
     const record: AttendanceRecord = {
@@ -84,46 +70,43 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     };
     
     setIsSyncing(true);
-    await saveAttendance([record]);
-    // تحديث الواجهة فوراً
-    const newHistory = [...attendanceHistory];
-    const idx = newHistory.findIndex(a => a.id === recordId);
-    if (idx !== -1) newHistory[idx] = record; else newHistory.push(record);
-    onSaveAttendance(newHistory);
-    setIsSyncing(false);
+    try {
+        await saveAttendance([record]);
+        onSaveAttendance([record]); // سيقوم App.tsx بتحديث الحالة وإعادة الجلب إذا لزم الأمر
+    } catch (e) {
+        alert('حدث خطأ في الاتصال بالسحابة. يرجى المحاولة لاحقاً.');
+    } finally {
+        setIsSyncing(false);
+    }
   };
 
   const handleDeleteRecord = async (id: string) => {
-    if (confirm('حذف هذا السجل نهائياً من السحابة؟')) {
+    if (confirm('هل أنت متأكد من حذف هذا السجل نهائياً من السحابة؟')) {
         setIsSyncing(true);
-        await deleteAttendance(id);
-        onSaveAttendance(attendanceHistory.filter(a => a.id !== id));
-        setIsSyncing(false);
+        try {
+            await deleteAttendance(id);
+            onSaveAttendance(attendanceHistory.filter(a => a.id !== id));
+        } catch (e) {
+            alert('فشل الحذف من السحابة');
+        } finally {
+            setIsSyncing(false);
+        }
     }
   };
 
   return (
     <div className="p-4 md:p-6 h-full flex flex-col bg-[#F8FAFC] animate-fade-in pb-24 font-tajawal overflow-hidden">
       
-      {/* Upper Control Bar */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-          <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
               <button onClick={() => setActiveTab('RECORD')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>
                   <UserCheck size={16}/> رصد الحضور
               </button>
               <button onClick={() => setActiveTab('HISTORY')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>
-                  <History size={16}/> سجل البيانات
+                  <History size={16}/> سجل البيانات السحابي
               </button>
           </div>
-
-          <button 
-            onClick={handleRefreshCache} 
-            disabled={isRefreshing}
-            className="flex items-center gap-2 bg-white border border-slate-200 px-5 py-2.5 rounded-2xl text-xs font-black text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
-          >
-            {isRefreshing ? <Loader2 size={16} className="animate-spin text-indigo-600"/> : <RefreshCw size={16}/>}
-            تحديث ومزامنة البيانات
-          </button>
+          {isSyncing && <div className="text-indigo-600 text-xs font-black flex items-center gap-2 animate-pulse"><CloudUpload size={16}/> جاري تحديث السحابة...</div>}
       </div>
 
       {activeTab === 'RECORD' ? (
@@ -134,12 +117,11 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-teal-500"></div>
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-black text-slate-800">تحضير الفصل</h2>
+                    <h2 className="text-2xl font-black text-slate-800">تحضير الفصل المباشر</h2>
                     <div className="flex items-center gap-4 text-slate-400 text-[10px] font-black uppercase tracking-wider">
                         <span className="flex items-center gap-1"><CalendarIcon size={14}/> {selectedDate}</span>
                         <div className="h-3 w-px bg-slate-200"></div>
                         <span className="flex items-center gap-1"><Timer size={14}/> الحصة {selectedPeriod}</span>
-                        {isSyncing && <span className="text-indigo-600 flex items-center gap-1 animate-pulse"><RefreshCw size={12} className="animate-spin"/> جاري المزامنة...</span>}
                     </div>
                 </div>
 
@@ -182,7 +164,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                             </div>
                             <div className="flex-1 overflow-hidden">
                                 <h4 className="text-sm font-black text-slate-800 truncate">{student.name}</h4>
-                                <p className="text-[10px] text-slate-400 font-bold mt-1">رقم الهوية: {student.nationalId?.slice(-4)}****</p>
+                                <p className="text-[10px] text-slate-400 font-bold mt-1">سجل سحابي مباشر</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-50">
@@ -210,7 +192,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black border border-indigo-100 flex items-center gap-2">
-                        <Database size={14}/> السجلات السحابية: {attendanceHistory.length}
+                        <Database size={14}/> إجمالي السجلات في السحابة: {attendanceHistory.length}
                     </div>
                 </div>
             </div>
@@ -246,11 +228,11 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
         </div>
       )}
 
-      {/* Cloud Status */}
+      {/* Cloud Direct Status */}
       <div className="fixed bottom-24 left-6 pointer-events-none">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold animate-slide-up pointer-events-auto border border-white/10">
-              {navigator.onLine ? <Check size={14} className="text-emerald-400"/> : <AlertCircle size={14} className="text-amber-400"/>}
-              حالة السحابة: <span className={navigator.onLine ? "text-emerald-400" : "text-amber-400"}>{navigator.onLine ? "متصل (المزامنة فورية)" : "أوفلاين (كاش محلي)"}</span>
+              <Check size={14} className="text-emerald-400"/>
+              قاعدة البيانات: <span className="text-emerald-400">سحابية مباشرة</span>
           </div>
       </div>
     </div>
