@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, ScheduleItem } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, ScheduleItem, Subject } from '../types';
 import { 
     CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, 
     Search, Sparkles, Star, ThumbsDown, BookOpen, 
@@ -8,7 +8,7 @@ import {
     Zap, Loader2, ShieldCheck, UserCheck, Timer, CalendarDays, CalendarSearch
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSchedules, getTeacherAssignments, getTeacherPeriodTimings, getWeeklyPlans, saveAttendance } from '../services/storageService';
+import { getSchedules, getTeacherAssignments, getTeacherPeriodTimings, getSubjects, saveAttendance } from '../services/storageService';
 
 interface AttendanceProps {
   students: Student[];
@@ -32,6 +32,14 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [selectedSubject, setSelectedSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isAutoDetected, setIsAutoDetected] = useState(false);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+
+  // Load basic data
+  useEffect(() => {
+      if (currentUser) {
+          setAllSubjects(getSubjects(currentUser.id));
+      }
+  }, [currentUser]);
 
   // Load schedule data
   const mySchedules = useMemo(() => {
@@ -40,19 +48,13 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   }, [currentUser]);
 
   const timings = useMemo(() => currentUser ? getTeacherPeriodTimings(currentUser.id) : [], [currentUser]);
-  
-  // Calculate day name based on selected date to update the timeline
-  const dayName = useMemo(() => {
-      const d = new Date(selectedDate);
-      return d.toLocaleDateString('en-US', { weekday: 'long' });
-  }, [selectedDate]);
+  const dayName = useMemo(() => new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }), [selectedDate]);
 
-  // Today's (or selected day's) specific schedule for the timeline
   const daySchedules = useMemo(() => {
       return mySchedules.filter(s => s.day === dayName).sort((a,b) => a.period - b.period);
   }, [mySchedules, dayName]);
 
-  // 1. Auto-detect current session (Only if date is today)
+  // Auto-detect current session
   useEffect(() => {
       const today = new Date().toISOString().split('T')[0];
       if (!currentUser || isAutoDetected || selectedDate !== today) return;
@@ -61,8 +63,9 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       
       const currentPeriodIdx = timings.findIndex(t => {
-          const [start, end] = t.split(' - ');
-          return currentTime >= start && currentTime <= end;
+          const times = t.split(' - ');
+          if (times.length < 2) return false;
+          return currentTime >= times[0] && currentTime <= times[1];
       });
 
       if (currentPeriodIdx !== -1) {
@@ -93,23 +96,30 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   }, [students, selectedClass, searchTerm]);
 
   const currentPeriodRecords = useMemo(() => {
-    return attendanceHistory.filter(a => a.date === selectedDate && a.period === selectedPeriod && a.subject === selectedSubject);
+    return attendanceHistory.filter(a => 
+        a.date === selectedDate && 
+        a.period === selectedPeriod && 
+        a.subject === (selectedSubject || 'عام')
+    );
   }, [attendanceHistory, selectedDate, selectedPeriod, selectedSubject]);
 
   const handleUpdate = (studentId: string, status: AttendanceStatus, bStatus?: BehaviorStatus, pScore?: number) => {
+    const subjectToSave = selectedSubject || 'عام';
+    
+    // Find existing by full context (Student + Date + Period + Subject)
     const existing = attendanceHistory.find(a => 
       a.studentId === studentId && 
       a.date === selectedDate && 
       a.period === selectedPeriod &&
-      a.subject === selectedSubject
+      a.subject === subjectToSave
     );
 
     const record: AttendanceRecord = {
-      id: existing?.id || `${studentId}-${selectedDate}-${selectedPeriod}-${Date.now()}`,
+      id: existing?.id || `${studentId}-${selectedDate}-${selectedPeriod}-${subjectToSave}-${Date.now()}`,
       studentId,
       date: selectedDate,
       period: selectedPeriod,
-      subject: selectedSubject,
+      subject: subjectToSave,
       status,
       behaviorStatus: bStatus || existing?.behaviorStatus || BehaviorStatus.NEUTRAL,
       participationScore: pScore !== undefined ? pScore : (existing?.participationScore || 0),
@@ -119,14 +129,16 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   };
 
   const markAllPresent = () => {
+      if (!selectedClass) return;
+      const subjectToSave = selectedSubject || 'عام';
       const records: AttendanceRecord[] = filteredStudents.map(s => {
           const existing = currentPeriodRecords.find(a => a.studentId === s.id);
           return {
-            id: existing?.id || `${s.id}-${selectedDate}-${selectedPeriod}-${Date.now()}`,
+            id: existing?.id || `${s.id}-${selectedDate}-${selectedPeriod}-${subjectToSave}-${Date.now()}`,
             studentId: s.id,
             date: selectedDate,
             period: selectedPeriod,
-            subject: selectedSubject,
+            subject: subjectToSave,
             status: AttendanceStatus.PRESENT,
             createdById: currentUser?.id
           };
@@ -144,15 +156,14 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   return (
     <div className="p-4 md:p-6 h-full flex flex-col bg-slate-50/50 animate-fade-in pb-24 font-tajawal">
       
-      {/* 📅 Daily Schedule Timeline Bar */}
+      {/* 📅 Daily Schedule Timeline */}
       <div className="mb-6">
           <div className="flex items-center justify-between mb-3 px-2">
             <h3 className="text-sm font-black text-slate-700 flex items-center gap-2">
-                <CalendarDays size={18} className="text-indigo-600"/> جدول يوم {dayNamesAr[dayName]}
+                <CalendarDays size={18} className="text-indigo-600"/> جدول يوم {dayNamesAr[dayName] || dayName}
             </h3>
             <div className="flex items-center gap-4">
-                {/* 🗓️ New Date Modifier UI */}
-                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border shadow-sm group hover:border-indigo-300 transition-all">
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border shadow-sm hover:border-indigo-300 transition-all">
                     <CalendarSearch size={14} className="text-indigo-500"/>
                     <input 
                         type="date" 
@@ -161,7 +172,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         className="bg-transparent text-[11px] font-black outline-none cursor-pointer text-slate-700"
                     />
                 </div>
-                <button onClick={() => navigate('/schedule')} className="text-[10px] font-black text-indigo-600 hover:underline">إدارة الجدول</button>
+                <button onClick={() => navigate('/schedule')} className="text-[10px] font-black text-indigo-600 hover:underline">تعديل الجدول</button>
             </div>
           </div>
           <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
@@ -184,9 +195,8 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                   );
               })}
               {daySchedules.length === 0 && (
-                  <div className="p-8 bg-amber-50 text-amber-700 rounded-3xl border border-amber-100 text-xs font-bold w-full text-center flex flex-col items-center gap-2">
-                      <CalendarIcon size={32} className="opacity-20"/>
-                      لا توجد حصص مجدولة في هذا اليوم المختار
+                  <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl border border-amber-100 text-[10px] font-bold w-full text-center">
+                      لا توجد حصص مجدولة لهذا اليوم. يمكنك اختيار المادة والفصل يدوياً أدناه.
                   </div>
               )}
           </div>
@@ -199,7 +209,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
             <div className="space-y-1">
                 <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-2xl font-black text-slate-800">تحضير: {selectedSubject || '...'}</h2>
+                    <h2 className="text-2xl font-black text-slate-800">تحضير: {selectedSubject || 'المادة العامة'}</h2>
                     {isAutoDetected && (
                         <span className="flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-lg text-[10px] font-black border border-green-100 animate-pulse">
                             <Zap size={10} fill="currentColor"/> الحصة الحالية
@@ -221,19 +231,27 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
                     <Users size={16} className="text-slate-400 mr-2"/>
                     <select value={selectedClass} onChange={e => {setSelectedClass(e.target.value); setIsAutoDetected(false);}} className="bg-transparent font-black text-xs outline-none min-w-[100px] cursor-pointer text-slate-700">
-                        <option value="">الفصل...</option>
+                        <option value="">اختر الفصل...</option>
                         {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                     <div className="w-px h-6 bg-slate-200 mx-1"></div>
                     <BookOpen size={16} className="text-slate-400"/>
                     <select value={selectedSubject} onChange={e => {setSelectedSubject(e.target.value); setIsAutoDetected(false);}} className="bg-transparent font-black text-xs outline-none min-w-[100px] cursor-pointer text-indigo-600">
                         <option value="">المادة...</option>
-                        {mySchedules.filter(s => !selectedClass || s.classId === selectedClass).map(s => <option key={s.id} value={s.subjectName}>{s.subjectName}</option>)}
+                        {/* Merge schedule subjects with all subjects for redundancy */}
+                        {Array.from(new Set([...daySchedules.map(s => s.subjectName), ...allSubjects.map(s => s.name)])).map(name => (
+                            <option key={name} value={name}>{name}</option>
+                        ))}
+                    </select>
+                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                    <Timer size={16} className="text-slate-400"/>
+                    <select value={selectedPeriod} onChange={e => {setSelectedPeriod(Number(e.target.value)); setIsAutoDetected(false);}} className="bg-transparent font-black text-xs outline-none cursor-pointer">
+                        {[1,2,3,4,5,6,7,8].map(p => <option key={p} value={p}>ح{p}</option>)}
                     </select>
                 </div>
 
                 <button onClick={markAllPresent} disabled={!selectedClass} className="flex-1 lg:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95 disabled:opacity-50">
-                    تحضير الجميع
+                    تحضير الفصل كاملاً
                 </button>
             </div>
         </div>

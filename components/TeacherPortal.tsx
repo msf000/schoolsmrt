@@ -71,16 +71,17 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <NavItem path="/performance" label="الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} />
                         <NavItem path="/works" label="سجل الرصد (كشف)" icon={Table} isActive={location.pathname === '/works'} />
                         <NavItem path="/tasks" label="الواجبات" icon={ClipboardList} color="text-indigo-600" isActive={location.pathname === '/tasks'} />
+                        <NavItem path="/leaderboard" label="لوحة الشرف" icon={Trophy} color="text-yellow-500" isActive={location.pathname === '/leaderboard'} />
                     </div>
 
                     <div className="pt-3 mt-2 border-t border-gray-50">
                         <label className={`px-4 text-[9px] font-black text-gray-400 block mb-1 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الأدوات والتقارير</label>
                         <NavItem path="/classroom" label="شاشة الفصل" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} />
                         <NavItem path="/exams" label="الاختبارات" icon={List} isActive={location.pathname === '/exams'} />
-                        <NavItem path="/forms" label="محلل Forms" icon={BarChart2} color="text-green-600" isActive={location.pathname === '/forms'} />
                         <NavItem path="/lab" label="مختبر VARK" icon={BrainCircuit} color="text-orange-600" isActive={location.pathname === '/lab'} />
                         <NavItem path="/reports" label="مركز التقارير" icon={BarChart2} isActive={location.pathname === '/reports'} />
                         <NavItem path="/messages" label="الرسائل" icon={MessageSquare} color="text-teal-600" isActive={location.pathname === '/messages'} />
+                        <NavItem path="/certificates" label="الشهادات" icon={Award} color="text-purple-600" isActive={location.pathname === '/certificates'} />
                     </div>
                 </nav>
 

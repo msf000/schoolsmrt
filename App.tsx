@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -36,6 +37,7 @@ import ReportsCenter from './components/ReportsCenter';
 import BehaviorTracking from './components/BehaviorTracking';
 import TasksManager from './components/TasksManager';
 import TeacherInbox from './components/TeacherInbox';
+import CertificatesCenter from './components/CertificatesCenter';
 import { Cloud, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -124,6 +126,7 @@ const App: React.FC = () => {
                 <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
                 <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={(recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); }} />} />
                 <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={(recs: AttendanceRecord[]) => { saveAttendance(recs); loadData(); }} onImportAttendance={(recs: AttendanceRecord[])=>{ saveAttendance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={(recs: PerformanceRecord[])=>{ bulkAddPerformance(recs); loadData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
