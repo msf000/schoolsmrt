@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, SystemUser, PerformanceRecord, EnvironmentRecord } from '../types';
+import { Student, AttendanceRecord, SystemUser, PerformanceRecord, EnvironmentRecord, TeacherAssignment } from '../types';
 import { 
     MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid, Users, Shuffle
 } from 'lucide-react';
@@ -31,7 +31,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     const [selectedClass, setSelectedClass] = useState('');
     const [isArranging, setIsArranging] = useState(false);
     const [arrangeMethod, setArrangeMethod] = useState<'AI' | 'LOCAL'>('LOCAL');
-    const [aiCriterion, setAiCriterion] = useState('مزج المستويات (متفوق بجانب ضعيف)');
+    const [aiCriterion, setAiCriterion] = useState('مزج المستويات (مزج المستويات (متفوق بجانب ضعيف)');
     const [envHistory, setEnvHistory] = useState<EnvironmentRecord[]>([]);
     
     const [groupSize, setGroupSize] = useState(4);
@@ -41,7 +41,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set(students.map(s => s.className).filter(Boolean));
-        if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach(a => classes.add(a.classId));
+        if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach((a: TeacherAssignment) => classes.add(a.classId));
         return Array.from(classes).sort();
     }, [students, currentUser]);
 
@@ -154,7 +154,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         <div className="p-4 bg-indigo-50 border-b flex flex-wrap justify-between items-center gap-4">
                             <h4 className="font-bold text-indigo-900 text-sm">توزيع المقاعد الذكي</h4>
                             <div className="flex gap-2">
-                                <select value={aiCriterion} onChange={e=>setAiCriterion(e.target.value)} className="text-xs p-2 border rounded-lg bg-white outline-none"><option>مزج المستويات (متفوق بجانب متعثر)</option><option>ترتيب حسب المستوى (تصاعدي)</option></select>
+                                <select value={aiCriterion} onChange={e=>setAiCriterion(e.target.value)} className="text-xs p-2 border rounded-lg bg-white outline-none"><option>مزج المستويات (مزج المستويات (متفوق بجانب متعثر)</option><option>ترتيب حسب المستوى (تصاعدي)</option></select>
                                 <button onClick={() => handleArrange('LOCAL')} disabled={isArranging} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-md disabled:opacity-50">{isArranging && arrangeMethod === 'LOCAL' ? <Loader2 size={14} className="animate-spin"/> : <RotateCcw size={14}/>} توزيع إحصائي</button>
                             </div>
                         </div>

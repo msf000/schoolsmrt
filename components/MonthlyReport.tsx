@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm, Subject, SystemUser } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm, Subject, SystemUser, TeacherAssignment } from '../types';
 import { Calendar, Printer, Filter, Loader2, FileSpreadsheet, Search } from 'lucide-react';
 import { getReportHeaderConfig, getSubjects, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
@@ -42,7 +41,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance
       setSubjects(getSubjects(currentUser?.id));
       const loadedTerms = getAcademicTerms(currentUser?.id);
       setTerms(loadedTerms);
-      const current = loadedTerms.find(t => t.isCurrent);
+      const current = loadedTerms.find((t: AcademicTerm) => t.isCurrent);
       if (current) {
           setSelectedTermId(current.id);
           setStartDate(current.startDate);
@@ -55,8 +54,8 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance
       const classes = new Set<string>();
       students.forEach(s => { if (s.className) classes.add(s.className); });
       // Add manual classes
-      const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
-      manualClasses.forEach(c => classes.add(c));
+      const manualClasses = getTeacherAssignments(currentUser?.id).map((a: TeacherAssignment) => a.classId);
+      manualClasses.forEach((c: string) => classes.add(c));
       return Array.from(classes).sort();
   }, [students, currentUser]);
 

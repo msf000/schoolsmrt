@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm, SystemUser } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm, SystemUser, TeacherAssignment } from '../types';
 import { getMessages, saveMessage, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
 import { generateParentMessage } from '../services/geminiService';
 import { MessageSquare, Send, Clock, User, Filter, AlertTriangle, CheckCircle, Sparkles, Smartphone, Mail, History, Copy, X, Loader2, Bot, Calendar, Bell } from 'lucide-react';
@@ -45,7 +44,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
     const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
     const [messageText, setMessageText] = useState('');
     const [previewMessage, setPreviewMessage] = useState('');
-    const [sendMethod, setSendMethod] = useState<'WHATSAPP' | 'PORTAL'>('WHATSAPP');
+    const [sendMethod, setSendMethod] = useState<'WHATSAPP' | 'PORTAL' | 'SMS'>('WHATSAPP');
 
     // AI Generation State
     const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -63,7 +62,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         setHistory(getMessages(currentUser?.id)); // Filter by current user
         const loadedTerms = getAcademicTerms(currentUser?.id);
         setTerms(loadedTerms);
-        const active = loadedTerms.find(t => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
+        const active = loadedTerms.find((t: AcademicTerm) => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
         setCurrentTerm(active);
         
         // Handle incoming pre-selection from Students List
@@ -84,8 +83,8 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
         // Add manual classes
-        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
-        manualClasses.forEach(c => classes.add(c));
+        const manualClasses = getTeacherAssignments(currentUser?.id).map((a: TeacherAssignment) => a.classId);
+        manualClasses.forEach((c: string) => classes.add(c));
         return Array.from(classes).sort();
     }, [students, currentUser]);
 

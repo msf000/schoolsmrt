@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ScanLine, Camera, Upload, Check, X, RefreshCw, BrainCircuit, Save, FileText, Image as ImageIcon } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, SystemUser } from '../types';

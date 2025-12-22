@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, Sheet, ArrowRight, Table, CheckSquare, Square, RefreshCw, PlusCircle, AlertTriangle, Trash2, ArrowRightCircle, X, Database, Globe, MousePointerClick, Clipboard, Download, Sparkles, BrainCircuit } from 'lucide-react';
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData, extractGoogleSheetId, fetchGoogleSheetData } from '../services/excelService';
 import { predictColumnMapping } from '../services/geminiService';
-import { Student, CustomTable, SystemUser } from '../types';
+import { Student, CustomTable, SystemUser, TeacherAssignment, ScheduleItem } from '../types';
 // Fix: Use actual exported members from storageService.ts
 import { addCustomTable, getCustomTables, deleteCustomTable, getSchedules } from '../services/storageService';
 import * as XLSX from 'xlsx';
@@ -276,8 +275,8 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
           if (!cleanRowId && (enrichedRow.studentName || enrichedRow.name)) {
               const nameToSearch = (enrichedRow.studentName || enrichedRow.name).trim();
               if (nameToSearch) {
-                  matchedStudent = existingStudents.find(s => s.name.trim() === nameToSearch) || 
-                                   existingStudents.find(s => s.name.includes(nameToSearch) || nameToSearch.includes(s.name));
+                  matchedStudent = existingStudents.find((s: Student) => s.name.trim() === nameToSearch) || 
+                                   existingStudents.find((s: Student) => s.name.includes(nameToSearch) || nameToSearch.includes(s.name));
                   
                   if (matchedStudent && matchedStudent.nationalId) {
                       enrichedRow.nationalId = matchedStudent.nationalId;
@@ -285,17 +284,17 @@ const DataImport: React.FC<DataImportProps> = ({ onImportStudents, onImportPerfo
                   }
               }
           } else if (cleanRowId) {
-              matchedStudent = existingStudents.find(s => s.nationalId === cleanRowId);
+              matchedStudent = existingStudents.find((s: Student) => s.nationalId === cleanRowId);
           }
 
           // 2. Match Schedule
           if ((dataType === 'ATTENDANCE' || dataType === 'PERFORMANCE') && currentUser) {
               const rowDate = enrichedRow.date || new Date().toISOString().split('T')[0];
               const dayName = getDayName(rowDate);
-              const teacherSchedule = allSchedules.filter(s => s.day === dayName && s.teacherId === currentUser.id);
+              const teacherSchedule = allSchedules.filter((s: ScheduleItem) => s.day === dayName && s.teacherId === currentUser.id);
 
               if (matchedStudent && matchedStudent.className && teacherSchedule.length > 0) {
-                  const classSchedule = teacherSchedule.filter(s => s.classId === matchedStudent?.className);
+                  const classSchedule = teacherSchedule.filter((s: ScheduleItem) => s.classId === matchedStudent?.className);
                   if (classSchedule.length === 1 && (!enrichedRow.subject || !enrichedRow.period)) {
                       if (!enrichedRow.subject) enrichedRow.subject = classSchedule[0].subjectName;
                       if (!enrichedRow.period) enrichedRow.period = classSchedule[0].period;

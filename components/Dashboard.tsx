@@ -1,10 +1,9 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area, BarChart, Bar, Legend
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, ScheduleItem } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, ScheduleItem, Task, BehaviorIncident } from '../types';
 import { generateDailyBriefing, playTextAsSpeech } from '../services/geminiService';
 import { generateLocalDailyBrief, getLocalPedagogicalTip, getTopAchievers, getDailyFocusStudents, getClassPulseData, getUrgentAlerts } from '../services/analysisService';
 // Added Table and ZapOff to the import list below to fix "Cannot find name" errors on lines 149 and 203
@@ -78,14 +77,14 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       const timings = getTeacherPeriodTimings(currentUser.id);
-      const schedules = getSchedules().filter(s => s.teacherId === currentUser.id && s.day === dayName);
+      const schedules = getSchedules().filter((s: ScheduleItem) => s.teacherId === currentUser.id && s.day === dayName);
 
-      const periodIdx = timings.findIndex(t => {
+      const periodIdx = timings.findIndex((t: string) => {
           const [start, end] = t.split(' - ');
           return currentTime >= start && currentTime <= end;
       });
 
-      if (periodIdx !== -1) return schedules.find(s => s.period === (periodIdx + 1));
+      if (periodIdx !== -1) return schedules.find((s: ScheduleItem) => s.period === (periodIdx + 1));
       return null;
   }, [currentUser]);
 
@@ -107,7 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
     const avgParticipation = participation.length > 0 ? (participation.reduce((a,b)=>a+(b.participationScore||0),0)/participation.length).toFixed(1) : '0';
 
     const tasks = getTasks(currentUser?.id);
-    const submissions = tasks.reduce((acc, curr) => acc + curr.submissions.length, 0);
+    const submissions = tasks.reduce((acc: number, curr: Task) => acc + curr.submissions.length, 0);
 
     const behaviorCount = getBehaviorIncidents(currentUser?.id).length;
 
@@ -244,7 +243,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                           <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                           <YAxis hide domain={[0, 100]} />
-                          <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                          <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0(0 / 0.1)'}} />
                           <Area type="monotone" dataKey="participation" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorPart)" />
                           <Area type="monotone" dataKey="grades" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorGrade)" />
                       </AreaChart>
@@ -339,7 +338,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 const QuickActionBtn = ({ icon, label, onClick, color }: any) => (
     <button onClick={onClick} className="flex flex-col items-center gap-2 group">
         <div className={`w-14 h-14 md:w-16 md:h-16 rounded-[1.5rem] md:rounded-[2rem] ${color} text-white flex items-center justify-center shadow-lg group-hover:scale-110 active:scale-95 transition-all`}>
-            {React.cloneElement(icon, { size: 24 })}
+            {/* Fix: cast icon to ReactElement to avoid property check error on 'size' */}
+            {React.cloneElement(icon as React.ReactElement, { size: 24 } as any)}
         </div>
         <span className="text-[9px] md:text-[10px] font-black text-slate-500 text-center line-clamp-1">{label}</span>
     </button>
@@ -352,7 +352,7 @@ const StatCard = ({ label, value, icon, color }: any) => (
       <h3 className="text-2xl font-black text-slate-800">{value}</h3>
     </div>
     <div className={`w-12 h-12 rounded-2xl ${color} flex items-center justify-center shrink-0 shadow-inner`}>
-      {React.cloneElement(icon as React.ReactElement, { size: 20 })}
+      {React.cloneElement(icon as React.ReactElement, { size: 20 } as any)}
     </div>
   </div>
 );

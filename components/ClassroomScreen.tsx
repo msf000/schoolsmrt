@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser, StoredLessonPlan } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, LessonLink, BehaviorStatus, SystemUser, StoredLessonPlan, TeacherAssignment } from '../types';
 import { 
     Users, Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, User, Maximize, AlertCircle, Monitor, X, Upload, ChevronLeft, ChevronRight, 
     PenTool, Eraser, Trash2, Image as ImageIcon, BookOpen, CheckCircle, Minimize, Sparkles, Star, Siren, List, Music, Armchair, Bell, ThumbsUp, ThumbsDown, MicOff, XCircle, BrainCircuit, Loader2, Plus, LogOut, ArrowRight
@@ -25,7 +24,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => { if (s.className) classes.add(s.className); });
-        if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach(a => classes.add(a.classId));
+        if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach((a: TeacherAssignment) => classes.add(a.classId));
         return Array.from(classes).sort();
     }, [students, currentUser]);
 

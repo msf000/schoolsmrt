@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { parseRawDataWithAI } from '../services/geminiService';
 import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download, Image as ImageIcon, Upload, X, CalendarClock } from 'lucide-react';
@@ -66,10 +65,10 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                 const searchName = (enrichedRow.studentName || enrichedRow.name).trim();
                 if (searchName) {
                     // Try Exact Match first
-                    matchedStudent = existingStudents.find(s => s.name.trim() === searchName);
+                    matchedStudent = existingStudents.find((s: Student) => s.name.trim() === searchName);
                     // Try Fuzzy if not found (contains)
                     if (!matchedStudent) {
-                        matchedStudent = existingStudents.find(s => s.name.includes(searchName) || searchName.includes(s.name));
+                        matchedStudent = existingStudents.find((s: Student) => s.name.includes(searchName) || searchName.includes(s.name));
                     }
                     
                     if (matchedStudent && matchedStudent.nationalId) {
@@ -79,7 +78,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                 }
             } else if (enrichedRow.nationalId) {
                 // If we have nationalId, assume we matched the student (find object for context)
-                matchedStudent = existingStudents.find(s => s.nationalId === String(enrichedRow.nationalId));
+                matchedStudent = existingStudents.find((s: Student) => s.nationalId === String(enrichedRow.nationalId));
             }
 
             // 2. MATCH SCHEDULE (Attendance Only)
@@ -90,14 +89,14 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                 enrichedRow.date = rowDate; // Ensure date is set
 
                 // Filter schedule for THIS teacher on THIS day
-                const teacherSchedule = allSchedules.filter(s => 
+                const teacherSchedule = allSchedules.filter((s: ScheduleItem) => 
                     s.day === dayName && 
                     s.teacherId === currentUser.id
                 );
 
                 // If student matched, narrow down schedule by student's class
                 if (matchedStudent && matchedStudent.className && teacherSchedule.length > 0) {
-                    const classSchedule = teacherSchedule.filter(s => s.classId === matchedStudent?.className);
+                    const classSchedule = teacherSchedule.filter((s: ScheduleItem) => s.classId === matchedStudent?.className);
                     
                     if (classSchedule.length === 1 && (!enrichedRow.subject || !enrichedRow.period)) {
                         if (!enrichedRow.subject) enrichedRow.subject = classSchedule[0].subjectName;
@@ -114,7 +113,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     }
                     // Scenario B: Has Period, Missing Subject -> Lookup Subject
                     else if (enrichedRow.period && !enrichedRow.subject) {
-                        const match = teacherSchedule.find(s => s.period === Number(enrichedRow.period));
+                        const match = teacherSchedule.find((s: ScheduleItem) => s.period === Number(enrichedRow.period));
                         if (match) {
                             enrichedRow.subject = match.subjectName;
                             enrichedRow._autoMatchedSchedule = true;
@@ -123,7 +122,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     // Scenario C: Has Subject, Missing Period -> Lookup Period
                     else if (enrichedRow.subject && !enrichedRow.period) {
                         // Find matches by subject name
-                        const matches = teacherSchedule.filter(s => s.subjectName === enrichedRow.subject);
+                        const matches = teacherSchedule.filter((s: ScheduleItem) => s.subjectName === enrichedRow.subject);
                         if (matches.length === 1) {
                             enrichedRow.period = matches[0].period;
                             enrichedRow._autoMatchedSchedule = true;

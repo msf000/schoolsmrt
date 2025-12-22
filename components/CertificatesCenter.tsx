@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig } from '../types';
+import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, AcademicTerm, TeacherAssignment } from '../types';
 import { getSchools, getAcademicTerms, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
 import { Award, Printer, CheckSquare, Search, LayoutTemplate, TrendingUp, Medal, Star, ThumbsUp } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
@@ -37,7 +36,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
 
     useEffect(() => {
         const terms = getAcademicTerms(currentUser?.id);
-        const currentTerm = terms.find(t => t.isCurrent);
+        const currentTerm = terms.find((t: AcademicTerm) => t.isCurrent);
         if (currentTerm) {
             setCustomText(`نظير جهوده المتميزة ومستواه الرائع خلال ${currentTerm.name}، متمنين له دوام التوفيق.`);
         }
@@ -59,8 +58,8 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
         // Add manual classes
-        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
-        manualClasses.forEach(c => classes.add(c));
+        const manualClasses = getTeacherAssignments(currentUser?.id).map((a: TeacherAssignment) => a.classId);
+        manualClasses.forEach((c: string) => classes.add(c));
         return Array.from(classes).sort();
     }, [students, currentUser]);
 
@@ -114,7 +113,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
-            {/* ... (Controls UI remains same) ... */}
             <div className="flex justify-between items-center mb-6 print:hidden">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -136,7 +134,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
             <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden print:hidden">
                 <div className="w-full lg:w-1/3 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
                     
-                    {/* Templates & Text Editor */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                         <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2"><LayoutTemplate size={16}/> اختر القالب</h3>
                         <div className="grid grid-cols-2 gap-2">
@@ -162,7 +159,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                         />
                     </div>
 
-                    {/* Selection List */}
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[300px]">
                         <div className="flex flex-col gap-3 mb-3">
                             <div className="flex gap-2">
@@ -193,7 +189,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                     </div>
                 </div>
 
-                {/* Right: Preview */}
                 <div className="flex-1 bg-gray-200 rounded-xl overflow-y-auto p-8 flex items-start justify-center custom-scrollbar">
                     <div className="scale-[0.8] origin-top shadow-2xl">
                         <CertificateView 
@@ -209,7 +204,6 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
                 </div>
             </div>
 
-            {/* PRINT AREA */}
             <div className="hidden print:block">
                 {students.filter(s => selectedStudents.has(s.id)).map(student => (
                     <div key={student.id} className="break-after-page w-full h-screen flex items-center justify-center">
@@ -232,16 +226,11 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
 const CertificateView = ({ student, template, text, teacherName, schoolName, managerName, signature }: any) => {
     return (
         <div className={`w-[297mm] h-[210mm] bg-white relative flex flex-col items-center p-16 border-[16px] border-double ${template.border} shadow-sm print:shadow-none`}>
-            {/* Decorative Background Pattern */}
             <div className={`absolute inset-0 opacity-5 pointer-events-none ${template.bg} pattern-grid-lg`}></div>
-            
-            {/* Corner Decorations */}
             <div className={`absolute top-0 left-0 w-32 h-32 border-t-8 border-l-8 ${template.border} rounded-tl-3xl opacity-50`}></div>
             <div className={`absolute top-0 right-0 w-32 h-32 border-t-8 border-r-8 ${template.border} rounded-tr-3xl opacity-50`}></div>
             <div className={`absolute bottom-0 left-0 w-32 h-32 border-b-8 border-l-8 ${template.border} rounded-bl-3xl opacity-50`}></div>
             <div className={`absolute bottom-0 right-0 w-32 h-32 border-b-8 border-r-8 ${template.border} rounded-br-3xl opacity-50`}></div>
-
-            {/* Header */}
             <div className="w-full flex justify-between items-start opacity-70 mb-8 relative z-10">
                 <div className="text-right text-sm font-bold">
                     <p>المملكة العربية السعودية</p>
@@ -252,18 +241,12 @@ const CertificateView = ({ student, template, text, teacherName, schoolName, man
                     <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
                 </div>
             </div>
-
-            {/* Icon */}
             <div className={`mb-6 p-4 rounded-full border-4 ${template.border} bg-white relative z-10`}>
                 <template.icon size={64} className={template.color} />
             </div>
-
-            {/* Title */}
             <h1 className={`text-6xl font-black ${template.color} mb-8 font-serif relative z-10 tracking-wide`}>
                 {template.title}
             </h1>
-
-            {/* Body */}
             <div className="flex-1 flex flex-col items-center justify-center w-3/4 text-center relative z-10">
                 <p className="text-2xl text-gray-600 font-medium mb-4">تتشرف إدارة المدرسة بمنح الطالب:</p>
                 <h2 className="text-5xl font-black text-gray-900 border-b-4 border-gray-300 pb-2 mb-8 w-full px-10">{student.name}</h2>
@@ -271,8 +254,6 @@ const CertificateView = ({ student, template, text, teacherName, schoolName, man
                     {text}
                 </p>
             </div>
-
-            {/* Signatures */}
             <div className="w-full flex justify-between px-32 mt-12 relative z-10 items-end">
                 <div className="text-center flex flex-col items-center">
                     <p className="font-bold text-gray-500 mb-4 text-xl">معلم المادة</p>

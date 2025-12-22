@@ -131,12 +131,12 @@ export const addSchool = async (s: School) => {
 
 export const updateSchool = async (s: School) => {
     await supabase.from('schools').update(s).eq('id', s.id);
-    sessionCache.schools = sessionCache.schools.map((x: any) => x.id === s.id ? s : x);
+    sessionCache.schools = sessionCache.schools.map((x: School) => x.id === s.id ? s : x);
 };
 
 export const deleteSchool = async (id: string) => {
     await supabase.from('schools').delete().eq('id', id);
-    sessionCache.schools = sessionCache.schools.filter((x: any) => x.id !== id);
+    sessionCache.schools = sessionCache.schools.filter((x: School) => x.id !== id);
 };
 
 export const addSystemUser = async (u: SystemUser) => {
@@ -153,12 +153,12 @@ export const updateSystemUser = async (u: SystemUser) => {
     };
     if (u.password) (dbUser as any).password = u.password;
     await supabase.from('system_users').update(dbUser).eq('id', u.id);
-    sessionCache.systemUsers = sessionCache.systemUsers.map((x: any) => x.id === u.id ? u : x);
+    sessionCache.systemUsers = sessionCache.systemUsers.map((x: SystemUser) => x.id === u.id ? u : x);
 };
 
 export const deleteSystemUser = async (id: string) => {
     await supabase.from('system_users').delete().eq('id', id);
-    sessionCache.systemUsers = sessionCache.systemUsers.filter((x: any) => x.id !== id);
+    sessionCache.systemUsers = sessionCache.systemUsers.filter((x: SystemUser) => x.id !== id);
 };
 
 export const addTeacher = async (t: Teacher) => {
@@ -172,13 +172,14 @@ export const addTeacher = async (t: Teacher) => {
 
 export const updateTeacher = async (t: Teacher) => {
     await supabase.from('teachers').update(t).eq('id', t.id);
-    sessionCache.teachers = sessionCache.teachers.map((x: any) => x.id === t.id ? t : x);
+    sessionCache.teachers = sessionCache.teachers.map((x: Teacher) => x.id === t.id ? t : x);
 };
 
 // --- دوال الرصد والطلاب السحابية ---
 
 export const fetchStudents = async (): Promise<Student[]> => {
-    const { data } = await supabase.from('students').select('*').order('name');
+    const { data, error } = await supabase.from('students').select('*').order('name');
+    if (error) throw error;
     sessionCache.students = data || [];
     return sessionCache.students;
 };
@@ -192,16 +193,16 @@ export const addStudent = async (s: Student) => {
 
 export const updateStudent = async (s: Student) => {
     await supabase.from('students').update(s).eq('id', s.id);
-    sessionCache.students = sessionCache.students.map((x: any) => x.id === s.id ? s : x);
+    sessionCache.students = sessionCache.students.map((x: Student) => x.id === s.id ? s : x);
 };
 
 export const deleteStudent = async (id: string) => {
     await supabase.from('students').delete().eq('id', id);
-    sessionCache.students = sessionCache.students.filter((x: any) => x.id !== id);
+    sessionCache.students = sessionCache.students.filter((x: Student) => x.id !== id);
 };
 
 export const updateStudentLearningStyle = async (id: string, style: LearningStyle) => {
-    const student = sessionCache.students.find((s: any) => s.id === id);
+    const student = sessionCache.students.find((s: Student) => s.id === id);
     if (student) {
         student.learningStyle = style;
         await updateStudent(student);
@@ -221,14 +222,14 @@ export const getAttendance = (): AttendanceRecord[] => sessionCache.attendance;
 export const saveAttendance = async (recs: AttendanceRecord[]) => {
     await supabase.from('attendance').upsert(recs);
     recs.forEach(r => {
-        const idx = sessionCache.attendance.findIndex((x: any) => x.id === r.id);
+        const idx = sessionCache.attendance.findIndex((x: AttendanceRecord) => x.id === r.id);
         if (idx !== -1) sessionCache.attendance[idx] = r; else sessionCache.attendance.push(r);
     });
 };
 
 export const deleteAttendance = async (id: string) => {
     await supabase.from('attendance').delete().eq('id', id);
-    sessionCache.attendance = sessionCache.attendance.filter((x: any) => x.id !== id);
+    sessionCache.attendance = sessionCache.attendance.filter((x: AttendanceRecord) => x.id !== id);
 };
 
 export const fetchPerformance = async (teacherId?: string): Promise<PerformanceRecord[]> => {
@@ -245,14 +246,14 @@ export const addPerformance = async (recs: PerformanceRecord | PerformanceRecord
     const data = Array.isArray(recs) ? recs : [recs];
     await supabase.from('performance').upsert(data);
     data.forEach(r => {
-        const idx = sessionCache.performance.findIndex((x: any) => x.id === r.id);
+        const idx = sessionCache.performance.findIndex((x: PerformanceRecord) => x.id === r.id);
         if (idx !== -1) sessionCache.performance[idx] = r; else sessionCache.performance.push(r);
     });
 };
 
 export const deletePerformance = async (id: string) => {
     await supabase.from('performance').delete().eq('id', id);
-    sessionCache.performance = sessionCache.performance.filter((x: any) => x.id !== id);
+    sessionCache.performance = sessionCache.performance.filter((x: PerformanceRecord) => x.id !== id);
 };
 
 export const bulkAddPerformance = addPerformance;
@@ -274,8 +275,8 @@ export const fetchAssignments = async (tid?: string) => {
 
 export const getAssignments = (category?: string, tid?: string, isManager?: boolean) => {
     let list = sessionCache.actualAssignments;
-    if (tid && !isManager) list = list.filter((a: any) => a.teacherId === tid);
-    if (category && category !== 'ALL') list = list.filter((a: any) => a.category === category);
+    if (tid && !isManager) list = list.filter((a: Assignment) => a.teacherId === tid);
+    if (category && category !== 'ALL') list = list.filter((a: Assignment) => a.category === category);
     return list;
 };
 
@@ -287,22 +288,22 @@ export const saveAssignment = async (a: Assignment) => {
         sort_order: a.sortOrder, url: a.url
     };
     await supabase.from('assignments').upsert(dbObj);
-    const idx = sessionCache.actualAssignments.findIndex((x: any) => x.id === a.id);
+    const idx = sessionCache.actualAssignments.findIndex((x: Assignment) => x.id === a.id);
     if (idx !== -1) sessionCache.actualAssignments[idx] = a; else sessionCache.actualAssignments.push(a);
 };
 
 export const deleteAssignment = async (id: string) => {
     await supabase.from('assignments').delete().eq('id', id);
-    sessionCache.actualAssignments = sessionCache.actualAssignments.filter((x: any) => x.id !== id);
+    sessionCache.actualAssignments = sessionCache.actualAssignments.filter((x: Assignment) => x.id !== id);
 };
 
 export const fetchSubjects = async (tid: string) => {
     const { data } = await supabase.from('subjects').select('*').eq('teacher_id', tid);
     sessionCache.subjects = data || []; return data || [];
 };
-export const getSubjects = (tid?: string) => tid ? sessionCache.subjects.filter((s: any) => s.teacher_id === tid) : sessionCache.subjects;
+export const getSubjects = (tid?: string) => tid ? sessionCache.subjects.filter((s: Subject) => s.teacherId === tid) : sessionCache.subjects;
 export const addSubject = async (s: any) => { await supabase.from('subjects').insert({id: s.id, name: s.name, teacher_id: s.teacherId}); sessionCache.subjects.push(s); };
-export const deleteSubject = async (id: string) => { await supabase.from('subjects').delete().eq('id', id); sessionCache.subjects = sessionCache.subjects.filter((x:any)=>x.id!==id); };
+export const deleteSubject = async (id: string) => { await supabase.from('subjects').delete().eq('id', id); sessionCache.subjects = sessionCache.subjects.filter((x:Subject)=>x.id!==id); };
 
 export const fetchSchedules = async (tid: string) => {
     const { data } = await supabase.from('schedules').select('*').eq('teacher_id', tid);
@@ -322,7 +323,7 @@ export const saveScheduleItem = async (s: ScheduleItem) => {
 
 export const deleteScheduleItem = async (id: string) => {
     await supabase.from('schedules').delete().eq('id', id);
-    sessionCache.schedules = sessionCache.schedules.filter((x: any) => x.id !== id);
+    sessionCache.schedules = sessionCache.schedules.filter((x: ScheduleItem) => x.id !== id);
 };
 
 export const fetchTeacherAssignments = async (tid: string) => {
@@ -330,7 +331,7 @@ export const fetchTeacherAssignments = async (tid: string) => {
     sessionCache.assignments = (data || []).map((d:any)=>({id:d.id, classId:d.class_id, subjectName:d.subject_name, teacherId:d.teacher_id}));
     return sessionCache.assignments;
 };
-export const getTeacherAssignments = (tid?: string) => tid ? sessionCache.assignments.filter((a:any)=>a.teacherId===tid) : sessionCache.assignments;
+export const getTeacherAssignments = (tid?: string) => tid ? sessionCache.assignments.filter((a:TeacherAssignment)=>a.teacherId===tid) : sessionCache.assignments;
 
 export const addTeacherAssignment = async (a: TeacherAssignment) => {
     await supabase.from('teacher_class_map').insert({
@@ -341,7 +342,7 @@ export const addTeacherAssignment = async (a: TeacherAssignment) => {
 
 export const deleteTeacherAssignment = async (id: string) => {
     await supabase.from('teacher_class_map').delete().eq('id', id);
-    sessionCache.assignments = sessionCache.assignments.filter((x: any) => x.id !== id);
+    sessionCache.assignments = sessionCache.assignments.filter((x: TeacherAssignment) => x.id !== id);
 };
 
 export const fetchAcademicTerms = async (tid?: string) => {
@@ -353,7 +354,7 @@ export const fetchAcademicTerms = async (tid?: string) => {
     }));
     return sessionCache.academicTerms;
 };
-export const getAcademicTerms = (tid?: string) => tid ? sessionCache.academicTerms.filter((t:any)=>t.teacherId===tid) : sessionCache.academicTerms;
+export const getAcademicTerms = (tid?: string) => tid ? sessionCache.academicTerms.filter((t:AcademicTerm)=>t.teacherId===tid) : sessionCache.academicTerms;
 
 export const saveAcademicTerm = async (t: AcademicTerm) => {
     const dbObj = {
@@ -361,19 +362,19 @@ export const saveAcademicTerm = async (t: AcademicTerm) => {
         is_current: t.isCurrent, teacher_id: t.teacherId, periods: JSON.stringify(t.periods)
     };
     await supabase.from('academic_terms').upsert(dbObj);
-    const idx = sessionCache.academicTerms.findIndex((x: any) => x.id === t.id);
+    const idx = sessionCache.academicTerms.findIndex((x: AcademicTerm) => x.id === t.id);
     if (idx !== -1) sessionCache.academicTerms[idx] = t; else sessionCache.academicTerms.push(t);
 };
 
 export const deleteAcademicTerm = async (id: string) => {
     await supabase.from('academic_terms').delete().eq('id', id);
-    sessionCache.academicTerms = sessionCache.academicTerms.filter((x: any) => x.id !== id);
+    sessionCache.academicTerms = sessionCache.academicTerms.filter((x: AcademicTerm) => x.id !== id);
 };
 
 export const setCurrentTerm = async (id: string, tid: string) => {
     await supabase.from('academic_terms').update({ is_current: false }).eq('teacher_id', tid);
     await supabase.from('academic_terms').update({ is_current: true }).eq('id', id);
-    sessionCache.academicTerms = sessionCache.academicTerms.map((t: any) => {
+    sessionCache.academicTerms = sessionCache.academicTerms.map((t: AcademicTerm) => {
         if (t.teacherId === tid) return { ...t, isCurrent: t.id === id };
         return t;
     });
@@ -385,16 +386,16 @@ export const fetchTasks = async (tid?: string) => {
     const { data } = await q;
     sessionCache.tasks = data || []; return data || [];
 };
-export const getTasks = (tid?: string) => tid ? sessionCache.tasks.filter((t:any)=>t.teacher_id===tid) : sessionCache.tasks;
+export const getTasks = (tid?: string) => tid ? sessionCache.tasks.filter((t:Task)=>t.teacherId===tid) : sessionCache.tasks;
 
 export const saveTask = async (t: Task) => {
     await supabase.from('tasks').upsert(t);
-    const idx = sessionCache.tasks.findIndex((x: any) => x.id === t.id);
+    const idx = sessionCache.tasks.findIndex((x: Task) => x.id === t.id);
     if (idx !== -1) sessionCache.tasks[idx] = t; else sessionCache.tasks.push(t);
 };
 
 export const submitTask = async (taskId: string, studentId: string) => {
-    const task = sessionCache.tasks.find((t: any) => t.id === taskId);
+    const task = sessionCache.tasks.find((t: Task) => t.id === taskId);
     if (task && !task.submissions.includes(studentId)) {
         task.submissions.push(studentId);
         await saveTask(task);
@@ -407,15 +408,15 @@ export const fetchBehaviorIncidents = async (tid?: string) => {
     const { data } = await q;
     sessionCache.behavior = data || []; return data || [];
 };
-export const getBehaviorIncidents = (tid?: string) => tid ? sessionCache.behavior.filter((b:any)=>b.teacher_id===tid) : sessionCache.behavior;
+export const getBehaviorIncidents = (tid?: string) => tid ? sessionCache.behavior.filter((b:BehaviorIncident)=>b.teacherId===tid) : sessionCache.behavior;
 
 export const saveBehaviorIncident = async (i: BehaviorIncident) => {
     await supabase.from('behavior_incidents').upsert(i);
-    const idx = sessionCache.behavior.findIndex((x: any) => x.id === i.id);
+    const idx = sessionCache.behavior.findIndex((x: BehaviorIncident) => x.id === i.id);
     if (idx !== -1) sessionCache.behavior[idx] = i; else sessionCache.behavior.push(i);
     
     // Update student points in cache and DB
-    const student = sessionCache.students.find((s: any) => s.id === i.studentId);
+    const student = sessionCache.students.find((s: Student) => s.id === i.studentId);
     if (student) {
         student.behaviorPoints = (student.behaviorPoints || 0) + i.points;
         await updateStudent(student);
@@ -436,7 +437,7 @@ export const fetchExams = async (tid?: string) => {
     return sessionCache.exams;
 };
 
-export const getExams = (tid?: string) => tid ? sessionCache.exams.filter((e: any) => e.teacherId === tid) : sessionCache.exams;
+export const getExams = (tid?: string) => tid ? sessionCache.exams.filter((e: Exam) => e.teacherId === tid) : sessionCache.exams;
 
 export const saveExam = async (e: Exam) => {
     const dbObj = { 
@@ -445,13 +446,13 @@ export const saveExam = async (e: Exam) => {
         created_at: e.createdAt, teacher_id: e.teacherId, date: e.date 
     };
     await supabase.from('exams').upsert(dbObj);
-    const idx = sessionCache.exams.findIndex((x: any) => x.id === e.id);
+    const idx = sessionCache.exams.findIndex((x: Exam) => x.id === e.id);
     if (idx !== -1) sessionCache.exams[idx] = e; else sessionCache.exams.push(e);
 };
 
 export const deleteExam = async (id: string) => {
     await supabase.from('exams').delete().eq('id', id);
-    sessionCache.exams = sessionCache.exams.filter((x: any) => x.id !== id);
+    sessionCache.exams = sessionCache.exams.filter((x: Exam) => x.id !== id);
 };
 
 export const fetchExamResults = async (eid?: string) => {
@@ -464,18 +465,18 @@ export const fetchExamResults = async (eid?: string) => {
     return sessionCache.examResults;
 };
 
-export const getExamResults = (eid?: string) => eid ? sessionCache.examResults.filter((r: any) => r.examId === eid) : sessionCache.examResults;
+export const getExamResults = (eid?: string) => eid ? sessionCache.examResults.filter((r: ExamResult) => r.examId === eid) : sessionCache.examResults;
 
 export const saveExamResult = async (r: ExamResult) => {
     const dbObj = { id: r.id, exam_id: r.examId, student_id: r.studentId, score: r.score, total_score: r.totalScore, answers: r.answers, date: r.date };
     await supabase.from('exam_results').upsert(dbObj);
-    const idx = sessionCache.examResults.findIndex((x: any) => x.id === r.id);
+    const idx = sessionCache.examResults.findIndex((x: ExamResult) => x.id === r.id);
     if (idx !== -1) sessionCache.examResults[idx] = r; else sessionCache.examResults.push(r);
 };
 
 export const deleteExamResult = async (id: string) => {
     await supabase.from('exam_results').delete().eq('id', id);
-    sessionCache.examResults = sessionCache.examResults.filter((x: any) => x.id !== id);
+    sessionCache.examResults = sessionCache.examResults.filter((x: ExamResult) => x.id !== id);
 };
 
 // --- Question Bank ---
@@ -488,18 +489,18 @@ export const fetchQuestionBank = async (tid: string) => {
     return sessionCache.questionBank;
 };
 
-export const getQuestionBank = (tid?: string) => tid ? sessionCache.questionBank.filter((q: any) => q.teacherId === tid) : sessionCache.questionBank;
+export const getQuestionBank = (tid?: string) => tid ? sessionCache.questionBank.filter((q: Question) => q.teacherId === tid) : sessionCache.questionBank;
 
 export const saveQuestionToBank = async (q: Question) => {
     const dbObj = { id: q.id, text: q.text, type: q.type, options: q.options, correct_answer: q.correctAnswer, points: q.points, teacher_id: q.teacherId, subject: q.subject, grade_level: q.gradeLevel };
     await supabase.from('question_bank').upsert(dbObj);
-    const idx = sessionCache.questionBank.findIndex((x: any) => x.id === q.id);
+    const idx = sessionCache.questionBank.findIndex((x: Question) => x.id === q.id);
     if (idx !== -1) sessionCache.questionBank[idx] = q; else sessionCache.questionBank.push(q);
 };
 
 export const deleteQuestionFromBank = async (id: string) => {
     await supabase.from('question_bank').delete().eq('id', id);
-    sessionCache.questionBank = sessionCache.questionBank.filter((x: any) => x.id !== id);
+    sessionCache.questionBank = sessionCache.questionBank.filter((x: Question) => x.id !== id);
 };
 
 // --- Messages ---
@@ -514,7 +515,7 @@ export const fetchMessages = async (tid?: string) => {
     return sessionCache.messages;
 };
 
-export const getMessages = (tid?: string) => tid ? sessionCache.messages.filter((m: any) => m.teacherId === tid) : sessionCache.messages;
+export const getMessages = (tid?: string) => tid ? sessionCache.messages.filter((m: MessageLog) => m.teacherId === tid) : sessionCache.messages;
 
 export const saveMessage = async (m: MessageLog) => {
     const dbObj = { id: m.id, student_id: m.studentId, student_name: m.studentName, parent_phone: m.parentPhone, type: m.type, content: m.content, status: m.status, date: m.date, sent_by: m.sentBy, teacher_id: m.teacherId };
@@ -532,7 +533,7 @@ export const fetchCustomTables = async (tid: string) => {
     return sessionCache.customTables;
 };
 
-export const getCustomTables = (tid?: string) => tid ? sessionCache.customTables.filter((t: any) => t.teacherId === tid) : sessionCache.customTables;
+export const getCustomTables = (tid?: string) => tid ? sessionCache.customTables.filter((t: CustomTable) => t.teacherId === tid) : sessionCache.customTables;
 
 export const addCustomTable = async (t: CustomTable) => {
     const dbObj = { id: t.id, name: t.name, created_at: t.createdAt, columns: t.columns, rows: t.rows, source_url: t.sourceUrl, last_updated: t.lastUpdated, teacher_id: t.teacherId };
@@ -542,7 +543,7 @@ export const addCustomTable = async (t: CustomTable) => {
 
 export const deleteCustomTable = async (id: string) => {
     await supabase.from('custom_tables').delete().eq('id', id);
-    sessionCache.customTables = sessionCache.customTables.filter((x: any) => x.id !== id);
+    sessionCache.customTables = sessionCache.customTables.filter((x: CustomTable) => x.id !== id);
 };
 
 // --- Lesson Plans ---
@@ -555,18 +556,18 @@ export const fetchLessonPlans = async (tid: string) => {
     return sessionCache.lessonPlans;
 };
 
-export const getLessonPlans = (tid?: string) => tid ? sessionCache.lessonPlans.filter((p: any) => p.teacherId === tid) : sessionCache.lessonPlans;
+export const getLessonPlans = (tid?: string) => tid ? sessionCache.lessonPlans.filter((p: StoredLessonPlan) => p.teacherId === tid) : sessionCache.lessonPlans;
 
 export const saveLessonPlan = async (p: StoredLessonPlan) => {
     const dbObj = { id: p.id, teacher_id: p.teacherId, lesson_id: p.lessonId, subject: p.subject, topic: p.topic, content_json: p.contentJson, resources: p.resources, created_at: p.createdAt };
     await supabase.from('lesson_plans').upsert(dbObj);
-    const idx = sessionCache.lessonPlans.findIndex((x: any) => x.id === p.id);
+    const idx = sessionCache.lessonPlans.findIndex((x: StoredLessonPlan) => x.id === p.id);
     if (idx !== -1) sessionCache.lessonPlans[idx] = p; else sessionCache.lessonPlans.push(p);
 };
 
 export const deleteLessonPlan = async (id: string) => {
     await supabase.from('lesson_plans').delete().eq('id', id);
-    sessionCache.lessonPlans = sessionCache.lessonPlans.filter((x: any) => x.id !== id);
+    sessionCache.lessonPlans = sessionCache.lessonPlans.filter((x: StoredLessonPlan) => x.id !== id);
 };
 
 // --- Lesson Links ---
@@ -584,13 +585,13 @@ export const getLessonLinks = () => sessionCache.lessonLinks;
 export const saveLessonLink = async (l: LessonLink) => {
     const dbObj = { id: l.id, title: l.title, url: l.url, teacher_id: l.teacherId, created_at: l.createdAt, grade_level: l.gradeLevel, class_name: l.className };
     await supabase.from('lesson_links').upsert(dbObj);
-    const idx = sessionCache.lessonLinks.findIndex((x: any) => x.id === l.id);
+    const idx = sessionCache.lessonLinks.findIndex((x: LessonLink) => x.id === l.id);
     if (idx !== -1) sessionCache.lessonLinks[idx] = l; else sessionCache.lessonLinks.push(l);
 };
 
 export const deleteLessonLink = async (id: string) => {
     await supabase.from('lesson_links').delete().eq('id', id);
-    sessionCache.lessonLinks = sessionCache.lessonLinks.filter((x: any) => x.id !== id);
+    sessionCache.lessonLinks = sessionCache.lessonLinks.filter((x: LessonLink) => x.id !== id);
 };
 
 // --- Weekly Plans ---
@@ -603,12 +604,12 @@ export const fetchWeeklyPlans = async (tid: string) => {
     return sessionCache.weeklyPlans;
 };
 
-export const getWeeklyPlans = (tid?: string) => tid ? sessionCache.weeklyPlans.filter((p: any) => p.teacherId === tid) : sessionCache.weeklyPlans;
+export const getWeeklyPlans = (tid?: string) => tid ? sessionCache.weeklyPlans.filter((p: WeeklyPlanItem) => p.teacherId === tid) : sessionCache.weeklyPlans;
 
 export const saveWeeklyPlanItem = async (p: WeeklyPlanItem) => {
-    const dbObj = { id: p.id, teacher_id: p.teacherId, class_id: p.classId, subject_name: p.subjectName, day: p.day, period: p.period, week_start_date: p.weekStartDate, lesson_topic: p.lesson_topic, homework: p.homework };
+    const dbObj = { id: p.id, teacher_id: p.teacherId, class_id: p.classId, subject_name: p.subjectName, day: p.day, period: p.period, week_start_date: p.weekStartDate, lesson_topic: p.lessonTopic, homework: p.homework };
     await supabase.from('weekly_plans').upsert(dbObj);
-    const idx = sessionCache.weeklyPlans.findIndex((x: any) => x.id === p.id);
+    const idx = sessionCache.weeklyPlans.findIndex((x: WeeklyPlanItem) => x.id === p.id);
     if (idx !== -1) sessionCache.weeklyPlans[idx] = p; else sessionCache.weeklyPlans.push(p);
 };
 
@@ -624,12 +625,12 @@ export const fetchRemedialPlans = async (tid?: string) => {
     return sessionCache.remedialPlans;
 };
 
-export const getRemedialPlans = (tid?: string) => tid ? sessionCache.remedialPlans.filter((p: any) => p.teacherId === tid) : sessionCache.remedialPlans;
+export const getRemedialPlans = (tid?: string) => tid ? sessionCache.remedialPlans.filter((p: RemedialPlan) => p.teacherId === tid) : sessionCache.remedialPlans;
 
 export const saveRemedialPlan = async (p: RemedialPlan) => {
     const dbObj = { id: p.id, student_id: p.studentId, teacher_id: p.teacherId, subject: p.subject, topic: p.topic, content: p.content, date: p.date };
     await supabase.from('remedial_plans').upsert(dbObj);
-    const idx = sessionCache.remedialPlans.findIndex((x: any) => x.id === p.id);
+    const idx = sessionCache.remedialPlans.findIndex((x: RemedialPlan) => x.id === p.id);
     if (idx !== -1) sessionCache.remedialPlans[idx] = p; else sessionCache.remedialPlans.push(p);
 };
 
@@ -643,18 +644,18 @@ export const fetchFormsDetailedResults = async (tid: string) => {
     return sessionCache.formsResults;
 };
 
-export const getFormsDetailedResults = (tid?: string) => tid ? sessionCache.formsResults.filter((r: any) => r.teacherId === tid) : sessionCache.formsResults;
+export const getFormsDetailedResults = (tid?: string) => tid ? sessionCache.formsResults.filter((r: FormsDetailedResult) => r.teacherId === tid) : sessionCache.formsResults;
 
 export const saveFormsDetailedResult = async (r: FormsDetailedResult) => {
     const dbObj = { id: r.id, exam_title: r.examTitle, class_name: r.className, date: r.date, teacher_id: r.teacherId, questions: r.questions, student_responses: r.studentResponses };
     await supabase.from('forms_results').upsert(dbObj);
-    const idx = sessionCache.formsResults.findIndex((x: any) => x.id === r.id);
+    const idx = sessionCache.formsResults.findIndex((x: FormsDetailedResult) => x.id === r.id);
     if (idx !== -1) sessionCache.formsResults[idx] = r; else sessionCache.formsResults.push(r);
 };
 
 export const deleteFormsDetailedResult = async (id: string) => {
     await supabase.from('forms_results').delete().eq('id', id);
-    sessionCache.formsResults = sessionCache.formsResults.filter((x: any) => x.id !== id);
+    sessionCache.formsResults = sessionCache.formsResults.filter((x: FormsDetailedResult) => x.id !== id);
 };
 
 // --- Environment Records ---
@@ -667,12 +668,12 @@ export const fetchEnvironmentRecords = async (cid: string) => {
     return sessionCache.environmentRecords;
 };
 
-export const getEnvironmentRecords = (cid?: string) => cid ? sessionCache.environmentRecords.filter((r: any) => r.classId === cid) : sessionCache.environmentRecords;
+export const getEnvironmentRecords = (cid?: string) => cid ? sessionCache.environmentRecords.filter((r: EnvironmentRecord) => r.classId === cid) : sessionCache.environmentRecords;
 
 export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
     const dbObj = { id: r.id, teacher_id: r.teacherId, class_id: r.classId, date: r.date, lighting: r.lighting, noise_level: r.noiseLevel, mood: r.mood, notes: r.notes };
     await supabase.from('environment_records').upsert(dbObj);
-    const idx = sessionCache.environmentRecords.findIndex((x: any) => x.id === r.id);
+    const idx = sessionCache.environmentRecords.findIndex((x: EnvironmentRecord) => x.id === r.id);
     if (idx !== -1) sessionCache.environmentRecords[idx] = r; else sessionCache.environmentRecords.push(r);
 };
 
@@ -686,18 +687,18 @@ export const fetchTrackingSheets = async (tid: string) => {
     return sessionCache.trackingSheets;
 };
 
-export const getTrackingSheets = (tid?: string) => tid ? sessionCache.trackingSheets.filter((s: any) => s.teacherId === tid) : sessionCache.trackingSheets;
+export const getTrackingSheets = (tid?: string) => tid ? sessionCache.trackingSheets.filter((s: TrackingSheet) => s.teacherId === tid) : sessionCache.trackingSheets;
 
 export const saveTrackingSheet = async (s: TrackingSheet) => {
     const dbObj = { id: s.id, title: s.title, subject: s.subject, class_name: s.className, teacher_id: s.teacherId, created_at: s.createdAt, columns: s.columns, scores: s.scores };
     await supabase.from('tracking_sheets').upsert(dbObj);
-    const idx = sessionCache.trackingSheets.findIndex((x: any) => x.id === s.id);
+    const idx = sessionCache.trackingSheets.findIndex((x: TrackingSheet) => x.id === s.id);
     if (idx !== -1) sessionCache.trackingSheets[idx] = s; else sessionCache.trackingSheets.push(s);
 };
 
 export const deleteTrackingSheet = async (id: string) => {
     await supabase.from('tracking_sheets').delete().eq('id', id);
-    sessionCache.trackingSheets = sessionCache.trackingSheets.filter((x: any) => x.id !== id);
+    sessionCache.trackingSheets = sessionCache.trackingSheets.filter((x: TrackingSheet) => x.id !== id);
 };
 
 // --- Curriculum ---
@@ -710,18 +711,18 @@ export const fetchCurriculumUnits = async (tid: string) => {
     return sessionCache.curriculumUnits;
 };
 
-export const getCurriculumUnits = (tid?: string) => tid ? sessionCache.curriculumUnits.filter((u: any) => u.teacherId === tid) : sessionCache.curriculumUnits;
+export const getCurriculumUnits = (tid?: string) => tid ? sessionCache.curriculumUnits.filter((u: CurriculumUnit) => u.teacherId === tid) : sessionCache.curriculumUnits;
 
 export const saveCurriculumUnit = async (u: CurriculumUnit) => {
     const dbObj = { id: u.id, teacher_id: u.teacherId, subject: u.subject, grade_level: u.gradeLevel, title: u.title, order_index: u.orderIndex };
     await supabase.from('curriculum_units').upsert(dbObj);
-    const idx = sessionCache.curriculumUnits.findIndex((x: any) => x.id === u.id);
+    const idx = sessionCache.curriculumUnits.findIndex((x: CurriculumUnit) => x.id === u.id);
     if (idx !== -1) sessionCache.curriculumUnits[idx] = u; else sessionCache.curriculumUnits.push(u);
 };
 
 export const deleteCurriculumUnit = async (id: string) => {
     await supabase.from('curriculum_units').delete().eq('id', id);
-    sessionCache.curriculumUnits = sessionCache.curriculumUnits.filter((x: any) => x.id !== id);
+    sessionCache.curriculumUnits = sessionCache.curriculumUnits.filter((x: CurriculumUnit) => x.id !== id);
 };
 
 export const fetchCurriculumLessons = async () => {
@@ -743,17 +744,17 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
         is_completed: l.isCompleted, completed_at: l.completedAt 
     };
     await supabase.from('curriculum_lessons').upsert(dbObj);
-    const idx = sessionCache.curriculumLessons.findIndex((x: any) => x.id === l.id);
+    const idx = sessionCache.curriculumLessons.findIndex((x: CurriculumLesson) => x.id === l.id);
     if (idx !== -1) sessionCache.curriculumLessons[idx] = l; else sessionCache.curriculumLessons.push(l);
 };
 
 export const deleteCurriculumLesson = async (id: string) => {
     await supabase.from('curriculum_lessons').delete().eq('id', id);
-    sessionCache.curriculumLessons = sessionCache.curriculumLessons.filter((x: any) => x.id !== id);
+    sessionCache.curriculumLessons = sessionCache.curriculumLessons.filter((x: CurriculumLesson) => x.id !== id);
 };
 
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => {
-    const lesson = sessionCache.curriculumLessons.find((l: any) => l.id === id);
+    const lesson = sessionCache.curriculumLessons.find((l: CurriculumLesson) => l.id === id);
     if (lesson) {
         lesson.isCompleted = completed;
         lesson.completedAt = completed ? new Date().toISOString() : undefined;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, SystemUser } from '../types';
 import { generateStudentAnalysis } from '../services/geminiService';
@@ -31,7 +30,7 @@ const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance
   useEffect(() => {
       const loadedTerms = getAcademicTerms(currentUser?.id);
       setTerms(loadedTerms);
-      const current = loadedTerms.find(t => t.isCurrent);
+      const current = loadedTerms.find((t: AcademicTerm) => t.isCurrent);
       if (current) setSelectedTermId(current.id);
       else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
   }, [currentUser]);
