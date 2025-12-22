@@ -3,6 +3,7 @@ import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/ge
 import { Student, AttendanceRecord, PerformanceRecord, LessonBlock, Exam, AttendanceStatus } from "../types";
 import { getAISettings } from "./storageService";
 
+// Fix: Always create a new client right before making an API call to ensure the latest API key
 const getAIClient = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
@@ -41,6 +42,7 @@ export const generateLessonSuccessKeys = async (topic: string, grade: string) =>
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config: { ...config, responseMimeType: "application/json" } });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || '{"keys":[]}');
     } catch (e) {
         return { keys: ["شرح المفاهيم الأساسية", "تطبيق عملي", "تقييم ختامي"] };
@@ -60,6 +62,7 @@ export const predictStudentFuture = async (student: Student, performance: Perfor
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "لا توجد بيانات كافية للتنبؤ حالياً.";
     } catch (e) {
         return "فشل التنبؤ الذكي.";
@@ -81,6 +84,7 @@ export const generateEngagementQuestion = async (student: Student, lessonTopic: 
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "كيف تصف موضوع اليوم من وجهة نظرك؟";
     } catch (e) {
         return "ما رأيك فيما شرحناه للتو؟";
@@ -109,6 +113,7 @@ export const processVoiceAttendance = async (audioBase64: string, studentNames: 
             ],
             config: { responseMimeType: "application/json" }
         });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "{}");
     } catch (e) {
         console.error("Voice Processing Error:", e);
@@ -126,7 +131,7 @@ export const playTextAsSpeech = async (text: string) => {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
                     voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: 'Kore' },
+                        voiceName: 'Kore',
                     },
                 },
             },
@@ -186,6 +191,7 @@ export const generateSmartRemedialPlan = async (student: Student, performance: P
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "لم نتمكن من توليد الخطة حالياً.";
     } catch (e) {
         return "حدث خطأ في الاتصال بالذكاء الاصطناعي.";
@@ -208,6 +214,7 @@ export const analyzeLearningStyleExcel = async (rawData: string) => {
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "{}");
     } catch (e) { throw e; }
 };
@@ -222,6 +229,7 @@ export const diagnoseLearningStyle = async (studentName: string, observations: s
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "{}");
     } catch (e) { return null; }
 };
@@ -239,6 +247,7 @@ export const chatWithData = async (query: string, context: { students: any[], at
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "عذراً، لم أستطع تحليل البيانات حالياً.";
     } catch (e) { return "حدث خطأ في الاتصال بالمساعد الذكي."; }
 };
@@ -254,6 +263,7 @@ export const generateDailyBriefing = async (students: Student[], attendance: Att
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "جاهز ليوم دراسي مميز! 🚀";
     } catch (e) { return "بالتوفيق في يومك الدراسي! ✨"; }
 };
@@ -269,6 +279,7 @@ export const generateStudentAnalysis = async (student: Student, attendance: Atte
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "التحليل غير متاح.";
     } catch (e) { return "خطأ في الاتصال بالذكاء الاصطناعي."; }
 };
@@ -283,6 +294,7 @@ export const suggestSeatingPlan = async (students: any[], criteria: string) => {
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "{}");
     } catch (e) { return null; }
 };
@@ -293,6 +305,7 @@ export const generateParentMessage = async (studentName: string, topic: string, 
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "";
     } catch (e) { return ""; }
 };
@@ -303,6 +316,7 @@ export const generateRemedialPlan = async (name: string, grade: string, subject:
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "";
     } catch (e) { return ""; }
 };
@@ -313,6 +327,7 @@ export const generateLessonPlan = async (subject: string, topic: string, grade: 
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "";
     } catch (e) { return ""; }
 };
@@ -323,6 +338,7 @@ export const generateQuiz = async (subject: string, topic: string, grade: string
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "";
     } catch (e) { return ""; }
 };
@@ -333,6 +349,7 @@ export const generateStructuredQuiz = async (subject: string, topic: string, gra
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "[]");
     } catch (e) { return []; }
 };
@@ -343,6 +360,7 @@ export const generateLessonBlocks = async (subject: string, topic: string, grade
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "[]");
     } catch (e) { return []; }
 };
@@ -357,6 +375,7 @@ export const parseRawDataWithAI = async (text: string, type: string, imageBase64
     }
     try {
         const response = await ai.models.generateContent({ model, contents, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "[]");
     } catch (e) { return []; }
 };
@@ -367,6 +386,7 @@ export const predictColumnMapping = async (headers: string[], targetFields: any[
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "{}");
     } catch (e) { return {}; }
 };
@@ -377,6 +397,7 @@ export const gradeExamPaper = async (imageBase64: string, exam: Exam) => {
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } }, { text: prompt }] }, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "{}");
     } catch (e) { return null; }
 };
@@ -387,6 +408,7 @@ export const generateCurriculumMap = async (subject: string, grade: string, term
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "[]");
     } catch (e) { return []; }
 };
@@ -405,6 +427,7 @@ export const generateSlideQuestions = async (context: string) => {
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return JSON.parse(response.text || "[]");
     } catch (e) { return []; }
 };
@@ -415,6 +438,7 @@ export const suggestQuickActivity = async (topic: string) => {
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
+        // Fix: Use .text property directly
         return response.text || "";
     } catch (e) { return ""; }
 };
