@@ -10,7 +10,7 @@ import { generateLocalDailyBrief, getLocalPedagogicalTip, getTopAchievers, getDa
 // Added Table and ZapOff to the import list below to fix "Cannot find name" errors on lines 149 and 203
 import { Users, CheckCircle, TrendingUp, Activity, BarChart3, Sparkles, Bot, Loader2, Volume2, BrainCircuit, ChevronLeft, Target, Lightbulb, Check, AlertTriangle, ListFilter, PenTool, ClipboardList, ShieldCheck, Trophy, Zap, PlusCircle, Clock, ArrowRight, Table, ZapOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-// Fix: Updated import names to match storageService.ts
+// Fix: Use actual exported members from storageService.ts
 import { getSchedules, getTeacherPeriodTimings, getTasks, getBehaviorIncidents } from '../services/storageService';
 
 interface DashboardProps {

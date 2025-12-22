@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment, AttendanceRecord, AttendanceStatus } from '../types';
+// Fix: Updated imports from storageService
 import { getAcademicTerms, getAssignments, getTeacherAssignments, saveAssignment, getPerformance } from '../services/storageService';
 import { 
     PlusCircle, Check, FileSpreadsheet, History, Search, Printer, 

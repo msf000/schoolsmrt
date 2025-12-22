@@ -4,6 +4,7 @@ import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ArrowLeft, 
 import { getWorkbookStructure, getSheetHeadersAndData, fetchWorkbookStructureUrl, guessMapping, processMappedData, extractGoogleSheetId, fetchGoogleSheetData } from '../services/excelService';
 import { predictColumnMapping } from '../services/geminiService';
 import { Student, CustomTable, SystemUser } from '../types';
+// Fix: Use actual exported members from storageService.ts
 import { addCustomTable, getCustomTables, deleteCustomTable, getSchedules } from '../services/storageService';
 import * as XLSX from 'xlsx';
 

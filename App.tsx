@@ -4,9 +4,10 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import { 
     fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
     addPerformance, deletePerformance, getUserTheme,
-    addStudent, updateStudent, deleteStudent
+    addStudent, updateStudent, deleteStudent,
+    fetchSchedules, fetchTeacherAssignments, fetchSubjects, fetchAcademicTerms
 } from './services/storageService';
-import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
+import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme, ScheduleItem, Subject, TeacherAssignment, AcademicTerm } from './types';
 import Login from './components/Login';
 import TeacherPortal from './components/TeacherPortal';
 import StudentPortal from './components/StudentPortal';
@@ -36,7 +37,7 @@ import BehaviorTracking from './components/BehaviorTracking';
 import TasksManager from './components/TasksManager';
 import TeacherInbox from './components/TeacherInbox';
 import CertificatesCenter from './components/CertificatesCenter';
-import { Cloud, Loader2, DatabaseZap } from 'lucide-react';
+import { Cloud, DatabaseZap } from 'lucide-react';
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(() => {
@@ -47,25 +48,38 @@ const App: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+    const [terms, setTerms] = useState<AcademicTerm[]>([]);
+    
     const [theme] = useState<UserTheme>(getUserTheme());
     const [isLoading, setIsLoading] = useState(false);
     
     const navigate = useNavigate();
     const location = useLocation();
 
-    // جلب البيانات من السحابة حصراً
     const refreshCloudData = useCallback(async () => {
         if (!currentUser) return;
         setIsLoading(true);
         try {
-            const [st, att, perf] = await Promise.all([
+            const userId = currentUser.id;
+            const [st, att, perf, sch, sub, asg, trm] = await Promise.all([
                 fetchStudents(),
-                fetchAttendance(currentUser.id),
-                fetchPerformance(currentUser.id)
+                fetchAttendance(userId),
+                fetchPerformance(userId),
+                fetchSchedules(userId),
+                fetchSubjects(userId),
+                fetchTeacherAssignments(userId),
+                fetchAcademicTerms(userId)
             ]);
             setStudents(st);
             setAttendance(att);
             setPerformance(perf);
+            setSchedules(sch);
+            setSubjects(sub);
+            setAssignments(asg);
+            setTerms(trm);
         } catch (e) {
             console.error("Cloud Data Fetch Error:", e);
         } finally {
@@ -109,7 +123,7 @@ const App: React.FC = () => {
             )}
             <Routes>
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v: string) => navigate(v)} />} />
-                <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={async (s) => { await addStudent(s); refreshCloudData(); }} onUpdateStudent={async (s) => { await updateStudent(s); refreshCloudData(); }} onDeleteStudent={async (id) => { await deleteStudent(id); refreshCloudData(); }} onImportStudents={async (data) => { /* bulk import to supabase */ refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={async (s) => { await addStudent(s); refreshCloudData(); }} onUpdateStudent={async (s) => { await updateStudent(s); refreshCloudData(); }} onDeleteStudent={async (id) => { await deleteStudent(id); refreshCloudData(); }} onImportStudents={() => refreshCloudData()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={async (recs) => { await addPerformance(recs); refreshCloudData(); }} onImportPerformance={async (recs) => { await addPerformance(recs); refreshCloudData(); }} onDeletePerformance={async (id) => { await deletePerformance(id); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />

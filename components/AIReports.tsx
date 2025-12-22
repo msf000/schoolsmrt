@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, SystemUser } from '../types';
 import { generateStudentAnalysis } from '../services/geminiService';
+// Fix: Use actual exported member from storageService.ts
 import { getAcademicTerms } from '../services/storageService';
 import { Sparkles, Bot, Loader2, Calendar } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CustomTable, SystemUser } from '../types';
+// Fix: Corrected storageService imports
 import { getCustomTables, deleteCustomTable, updateCustomTable, addCustomTable } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData, getWorkbookStructure } from '../services/excelService';
 import { Database, Trash2, RefreshCw, Calendar, Link as LinkIcon, Table, X, ArrowLeft, Loader2, CheckCircle, AlertTriangle, DownloadCloud, Plus, Clipboard } from 'lucide-react';
@@ -240,11 +241,3 @@ const CustomTablesView: React.FC<CustomTablesViewProps> = ({ currentUser }) => {
                             )}
                         </div>
                     </div>
-                </div>
-            )}
-            {status && <div className="fixed bottom-6 right-6 bg-white p-4 rounded-xl shadow-xl border z-50 flex items-center gap-2">{status.type === 'success' ? <CheckCircle className="text-green-500"/> : <AlertTriangle className="text-red-500"/>}<span className="text-sm font-bold">{status.message}</span></div>}
-        </div>
-    );
-};
-
-export default CustomTablesView;

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+// Fix: Use correct storageService members
 import { 
     getSchools, addSchool, deleteSchool, updateSchool,
     getSystemUsers, addSystemUser, deleteSystemUser, updateSystemUser,
@@ -42,6 +43,7 @@ const AdminOverview = () => {
     const [attendanceTrend, setAttendanceTrend] = useState<{date: string, rate: number}[]>([]);
 
     useEffect(() => {
+        // Fix: Use synchronous cache-backed getters
         const schools = getSchools();
         const teachers = getTeachers();
         const students = getStudents();
@@ -78,7 +80,7 @@ const AdminOverview = () => {
         const subs = { FREE: 0, PRO: 0, ENTERPRISE: 0 };
         teachers.forEach(t => {
             const s = t.subscriptionStatus || 'FREE';
-            if (subs[s] !== undefined) subs[s]++;
+            if (subs[s as keyof typeof subs] !== undefined) subs[s as keyof typeof subs]++;
         });
         setSubscriptionStats([
             { name: 'مجاني', value: subs.FREE, fill: '#94a3b8' },
@@ -667,7 +669,7 @@ const SubscriptionsManager = () => {
 
 // ... (AISettingsView - no changes)
 const AISettingsView = () => {
-    const [aiConfig, setAiConfig] = useState<AISettings>({ modelId: 'gemini-2.5-flash', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' });
+    const [aiConfig, setAiConfig] = useState<AISettings>({ modelId: 'gemini-3-flash-preview', temperature: 0.7, enableReports: true, enableQuiz: true, enablePlanning: true, systemInstruction: '' });
     const [connectionStatus, setConnectionStatus] = useState<{status: 'IDLE' | 'TESTING' | 'SUCCESS' | 'ERROR', msg: string}>({status: 'IDLE', msg: ''});
 
     useEffect(() => {
@@ -729,7 +731,7 @@ const AISettingsView = () => {
                         value={aiConfig.modelId} 
                         onChange={e => setAiConfig({...aiConfig, modelId: e.target.value})}
                     >
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (سريع واقتصادي)</option>
+                        <option value="gemini-3-flash-preview">Gemini 3 Flash (سريع واقتصادي)</option>
                         <option value="gemini-3-pro-preview">Gemini 3 Pro (ذكاء أعلى)</option>
                     </select>
                 </div>

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+// Fix: Updated imports to use proper storageService members
 import { 
     getSchools, getTeachers, updateTeacher,
     getSubjects, addSubject, deleteSubject,
@@ -84,10 +85,12 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           setMyClasses(getTeacherAssignments(currentUser.id));
       }
       setUserTheme(getUserTheme());
+      // Fix: getTeachers is now synchronous using local cache
       const allTeachers = getTeachers();
       setTeachers(allTeachers);
       
       if (isManager) {
+          // Fix: getSchools is now synchronous using local cache
           const allSchools = getSchools();
           let school = allSchools.find(s => s.managerNationalId === currentUser?.nationalId || s.managerName === currentUser?.name);
           if (!school && currentUser?.role === 'SUPER_ADMIN' && allSchools.length > 0) school = allSchools[0];

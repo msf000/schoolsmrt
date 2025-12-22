@@ -4,10 +4,10 @@ import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser
 import { 
     CheckCircle, XCircle, Clock, Users, Search, Sparkles, 
     Calendar as CalendarIcon, Loader2, UserCheck, Timer, 
-    History, Trash2, RefreshCw, Database, AlertCircle, Check, CloudUpload
+    History, Trash2, RefreshCw, Database, AlertCircle, Check, Cloud
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchSchedules, fetchTeacherAssignments, fetchTeacherPeriodTimings, fetchSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
+import { fetchSchedules, fetchTeacherAssignments, fetchSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
 
 interface AttendanceProps {
   students: Student[];
@@ -72,7 +72,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     setIsSyncing(true);
     try {
         await saveAttendance([record]);
-        onSaveAttendance([record]); // سيقوم App.tsx بتحديث الحالة وإعادة الجلب إذا لزم الأمر
+        onSaveAttendance([record]); 
     } catch (e) {
         alert('حدث خطأ في الاتصال بالسحابة. يرجى المحاولة لاحقاً.');
     } finally {
@@ -106,7 +106,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                   <History size={16}/> سجل البيانات السحابي
               </button>
           </div>
-          {isSyncing && <div className="text-indigo-600 text-xs font-black flex items-center gap-2 animate-pulse"><CloudUpload size={16}/> جاري تحديث السحابة...</div>}
+          {isSyncing && <div className="text-indigo-600 text-xs font-black flex items-center gap-2 animate-pulse"><Cloud size={16}/> جاري تحديث السحابة...</div>}
       </div>
 
       {activeTab === 'RECORD' ? (
