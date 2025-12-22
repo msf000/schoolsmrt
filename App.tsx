@@ -56,35 +56,39 @@ const App: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // جلب كافة البيانات التعليمية من السحابة دفعة واحدة لتغذية Cache
     const refreshCloudData = useCallback(async () => {
         if (!currentUser) return;
         setIsLoading(true);
         try {
             const userId = currentUser.id;
-            const [st, att, perf] = await Promise.all([
-                fetchStudents(),
-                fetchAttendance(userId),
-                fetchPerformance(userId),
-                fetchSchedules(userId),
-                fetchSubjects(userId),
-                fetchTeacherAssignments(userId),
-                fetchAcademicTerms(userId),
-                fetchTasks(userId),
-                fetchBehaviorIncidents(userId),
-                fetchMessages(userId),
-                fetchSchools(),
-                fetchTeachers(),
-                fetchSystemUsers(),
-                fetchAssignments(userId),
-                fetchCustomTables(userId),
-                fetchCurriculumUnits(userId),
-                fetchCurriculumLessons()
-            ]);
+            const role = (currentUser as any).role;
             
-            setStudents(st);
-            setAttendance(att);
-            setPerformance(perf);
+            // طلبات جلب البيانات الأساسية
+            const promises: any[] = [
+                fetchStudents(),
+                fetchAttendance(role === 'SUPER_ADMIN' ? undefined : userId),
+                fetchPerformance(role === 'SUPER_ADMIN' ? undefined : userId)
+            ];
+
+            // إذا كان المعلم/المشرف، أجلب بياناته الخاصة
+            if (role === 'TEACHER' || role === 'SCHOOL_MANAGER') {
+                promises.push(
+                    fetchSchedules(userId), fetchSubjects(userId), fetchTeacherAssignments(userId),
+                    fetchAcademicTerms(userId), fetchTasks(userId), fetchBehaviorIncidents(userId),
+                    fetchMessages(userId), fetchAssignments(userId), fetchCustomTables(userId),
+                    fetchCurriculumUnits(userId), fetchCurriculumLessons()
+                );
+            }
+
+            // إذا كان المسؤول العام، أجلب جداول النظام الإدارية
+            if (role === 'SUPER_ADMIN') {
+                promises.push(fetchSchools(), fetchTeachers(), fetchSystemUsers());
+            }
+
+            const results = await Promise.all(promises);
+            setStudents(results[0]);
+            setAttendance(results[1]);
+            setPerformance(results[2]);
         } catch (e) {
             console.error("Cloud Refresh Error:", e);
         } finally {
@@ -110,9 +114,9 @@ const App: React.FC = () => {
 
     if (isLoading && !students.length) {
         return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 font-tajawal">
                 <DatabaseZap className="animate-bounce text-indigo-600 mb-4" size={48} />
-                <p className="text-gray-500 font-black text-lg animate-pulse">جاري جلب البيانات من السحابة...</p>
+                <p className="text-gray-500 font-black text-lg animate-pulse">جاري جلب بيانات النظام سحابياً...</p>
             </div>
         );
     }
@@ -123,7 +127,7 @@ const App: React.FC = () => {
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             {isLoading && (
                 <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-black flex items-center gap-3 shadow-2xl animate-pulse border-2 border-white/20">
-                    <Cloud className="animate-spin" size={16}/> جاري تحديث السحابة...
+                    <Cloud className="animate-spin" size={16}/> جاري المزامنة...
                 </div>
             )}
             <Routes>
