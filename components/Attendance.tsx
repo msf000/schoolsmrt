@@ -6,7 +6,7 @@ import {
     Search, Sparkles, Star, ThumbsDown, BookOpen, 
     LayoutGrid, List, Eye, Calendar as CalendarIcon, 
     Zap, Loader2, ShieldCheck, UserCheck, Timer, CalendarDays, CalendarSearch,
-    History, Trash2, Edit3, Filter, X
+    History, Trash2, Edit3, Filter, X, RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSchedules, getTeacherAssignments, getTeacherPeriodTimings, getSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
@@ -35,6 +35,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [searchTerm, setSearchTerm] = useState('');
   const [isAutoDetected, setIsAutoDetected] = useState(false);
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // History Tab Filters
   const [historySearch, setHistorySearch] = useState('');
@@ -109,7 +110,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     );
   }, [attendanceHistory, selectedDate, selectedPeriod, selectedSubject]);
 
-  // Filtered History for the Log tab
   const filteredHistory = useMemo(() => {
     return attendanceHistory.filter(a => {
         const student = students.find(s => s.id === a.studentId);
@@ -120,18 +120,16 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     }).sort((a, b) => b.date.localeCompare(a.date));
   }, [attendanceHistory, historySearch, historyClass, students]);
 
-  const handleUpdate = (studentId: string, status: AttendanceStatus, bStatus?: BehaviorStatus, pScore?: number) => {
+  const handleUpdate = async (studentId: string, status: AttendanceStatus, bStatus?: BehaviorStatus, pScore?: number) => {
     const subjectToSave = selectedSubject || 'عام';
     
-    const existing = attendanceHistory.find(a => 
-      a.studentId === studentId && 
-      a.date === selectedDate && 
-      a.period === selectedPeriod &&
-      a.subject === subjectToSave
-    );
+    // مُعرف فريد ذكي يمنع التكرار للسلاسل الزمنية (Student + Date + Period + Subject)
+    const recordId = `${studentId}_${selectedDate}_${selectedPeriod}_${subjectToSave.replace(/\s/g, '_')}`;
+
+    const existing = attendanceHistory.find(a => a.id === recordId);
 
     const record: AttendanceRecord = {
-      id: existing?.id || `${studentId}-${selectedDate}-${selectedPeriod}-${subjectToSave}-${Date.now()}`,
+      id: recordId,
       studentId,
       date: selectedDate,
       period: selectedPeriod,
@@ -141,31 +139,44 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       participationScore: pScore !== undefined ? pScore : (existing?.participationScore || 0),
       createdById: currentUser?.id
     };
-    onSaveAttendance([record]);
+    
+    // نستخدم الوظيفة السحابية المباشرة
+    await saveAttendance([record]);
+    onSaveAttendance([record]); // تحديث حالة التطبيق العامة
   };
 
-  const markAllPresent = () => {
+  const markAllPresent = async () => {
       if (!selectedClass) return;
+      setIsSyncing(true);
       const subjectToSave = selectedSubject || 'عام';
       const records: AttendanceRecord[] = filteredStudents.map(s => {
-          const existing = currentPeriodRecords.find(a => a.studentId === s.id);
+          const recordId = `${s.id}_${selectedDate}_${selectedPeriod}_${subjectToSave.replace(/\s/g, '_')}`;
+          const existing = currentPeriodRecords.find(a => a.id === recordId);
           return {
-            id: existing?.id || `${s.id}-${selectedDate}-${selectedPeriod}-${subjectToSave}-${Date.now()}`,
+            id: recordId,
             studentId: s.id,
             date: selectedDate,
             period: selectedPeriod,
             subject: subjectToSave,
             status: AttendanceStatus.PRESENT,
+            behaviorStatus: existing?.behaviorStatus || BehaviorStatus.NEUTRAL,
+            participationScore: existing?.participationScore || 0,
             createdById: currentUser?.id
           };
       });
+      await saveAttendance(records);
       onSaveAttendance(records);
+      setIsSyncing(false);
   };
 
-  const handleDeleteRecord = (id: string) => {
-      if(confirm('هل أنت متأكد من حذف هذا السجل نهائياً؟')) {
-          deleteAttendance(id);
-          // Actual refresh happens via App.tsx state
+  const handleDeleteRecord = async (id: string) => {
+      if(confirm('هل أنت متأكد من حذف هذا السجل من قاعدة البيانات السحابية والمحلية؟')) {
+          setIsSyncing(true);
+          await deleteAttendance(id);
+          // لإرغام الواجهة على التحديث، نقوم بتحديث الحالة محلياً أيضاً
+          const remaining = attendanceHistory.filter(a => a.id !== id);
+          onSaveAttendance(remaining); 
+          setIsSyncing(false);
       }
   };
 
@@ -183,13 +194,13 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 mb-6 w-fit self-center">
           <button 
             onClick={() => setActiveTab('RECORD')}
-            className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+            className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-slate-50'}`}
           >
               <UserCheck size={16}/> رصد الحضور
           </button>
           <button 
             onClick={() => setActiveTab('HISTORY')}
-            className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+            className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-slate-50'}`}
           >
               <History size={16}/> سجل البيانات
           </button>
@@ -213,7 +224,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                             className="bg-transparent text-[11px] font-black outline-none cursor-pointer text-slate-700"
                         />
                     </div>
-                    <button onClick={() => navigate('/schedule')} className="text-[10px] font-black text-indigo-600 hover:underline">تعديل الجدول</button>
                 </div>
               </div>
               <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
@@ -237,7 +247,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                   })}
                   {daySchedules.length === 0 && (
                       <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl border border-amber-100 text-[10px] font-bold w-full text-center">
-                          لا توجد حصص مجدولة لهذا اليوم. يمكنك اختيار المادة والفصل يدوياً أدناه.
+                          لا توجد حصص مجدولة لهذا التاريخ في جدولك.
                       </div>
                   )}
               </div>
@@ -251,15 +261,11 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 <div className="space-y-1">
                     <div className="flex items-center gap-2 mb-1">
                         <h2 className="text-2xl font-black text-slate-800">تحضير: {selectedSubject || 'المادة العامة'}</h2>
-                        {isAutoDetected && (
-                            <span className="flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-lg text-[10px] font-black border border-green-100 animate-pulse">
-                                <Zap size={10} fill="currentColor"/> الحصة الحالية
-                            </span>
-                        )}
+                        {isSyncing && <Loader2 size={16} className="animate-spin text-indigo-600"/>}
                     </div>
                     <div className="flex items-center gap-4">
                         <p className="text-slate-400 text-xs font-bold flex items-center gap-2">
-                            <CalendarIcon size={14}/> {formatDualDate(selectedDate)}
+                            <CalendarIcon size={14}/> {selectedDate}
                         </p>
                         <div className="h-4 w-px bg-slate-200"></div>
                         <p className="text-slate-400 text-xs font-bold flex items-center gap-2">
@@ -283,15 +289,10 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                                 <option key={name} value={name}>{name}</option>
                             ))}
                         </select>
-                        <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                        <Timer size={16} className="text-slate-400"/>
-                        <select value={selectedPeriod} onChange={e => {setSelectedPeriod(Number(e.target.value)); setIsAutoDetected(false);}} className="bg-transparent font-black text-xs outline-none cursor-pointer">
-                            {[1,2,3,4,5,6,7,8].map(p => <option key={p} value={p}>ح{p}</option>)}
-                        </select>
                     </div>
 
-                    <button onClick={markAllPresent} disabled={!selectedClass} className="flex-1 lg:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95 disabled:opacity-50">
-                        تحضير الفصل كاملاً
+                    <button onClick={markAllPresent} disabled={!selectedClass || isSyncing} className="flex-1 lg:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50">
+                        حفظ حضور الجميع سحابياً
                     </button>
                 </div>
             </div>
@@ -311,7 +312,9 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
                 {filteredStudents.map(student => {
-                  const record = currentPeriodRecords.find(a => a.studentId === student.id);
+                  // العثور على السجل باستخدام المعرف الذكي بدلا من البحث بخصائص متعددة
+                  const recordId = `${student.id}_${selectedDate}_${selectedPeriod}_${(selectedSubject || 'عام').replace(/\s/g, '_')}`;
+                  const record = attendanceHistory.find(a => a.id === recordId);
                   const status = record?.status || null;
                   const pScore = record?.participationScore || 0;
 
@@ -320,7 +323,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         
                         <div className="flex justify-between items-start">
                             <div className="flex items-center gap-3">
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg transition-colors ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white' : status === AttendanceStatus.LATE ? 'bg-amber-500 text-white' : status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg transition-colors ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white' : status === AttendanceStatus.LATE ? 'bg-amber-50 text-white' : status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                     {student.name.charAt(0)}
                                 </div>
                                 <div>
@@ -339,29 +342,16 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                            {QUICK_BEHAVIORS.map(b => (
-                                <button 
-                                    key={b.label} 
-                                    onClick={() => handleUpdate(student.id, status || AttendanceStatus.PRESENT, b.status)}
-                                    className={`p-1.5 rounded-xl border transition-all hover:scale-105 active:scale-95 flex items-center gap-1 text-[9px] font-black ${record?.behaviorStatus === b.status ? 'ring-2 ring-indigo-500 ring-offset-1' : ''} ${b.color}`}
-                                    title={b.label}
-                                >
-                                    {b.icon} <span className="hidden group-hover:inline">{b.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                        
                         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-50">
                             <button 
                                 onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)}
-                                className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 ${status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-100 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                                className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 ${status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-emerald-50'}`}
                             >
                                 <CheckCircle size={14}/> حاضر
                             </button>
                             <button 
                                 onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)}
-                                className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white shadow-lg shadow-red-100' : 'bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
+                                className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-red-50'}`}
                             >
                                 <XCircle size={14}/> غائب
                             </button>
@@ -370,13 +360,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                   );
                 })}
             </div>
-            
-            {filteredStudents.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 opacity-30">
-                    <Users size={64}/>
-                    <p className="font-black mt-4">لا يوجد طلاب في هذا الفصل حالياً</p>
-                </div>
-            )}
           </div>
         </div>
       ) : (
@@ -402,8 +385,11 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>
-                <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black border border-indigo-100">
-                    إجمالي السجلات: {filteredHistory.length}
+                <div className="flex items-center gap-3">
+                    {isSyncing && <Loader2 className="animate-spin text-indigo-600" size={16}/>}
+                    <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black border border-indigo-100">
+                        إجمالي السجلات السحابية: {attendanceHistory.length}
+                    </div>
                 </div>
             </div>
 
@@ -438,7 +424,11 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                                     <td className="p-4 text-center">
                                         <select 
                                             value={rec.status}
-                                            onChange={(e) => onSaveAttendance([{ ...rec, status: e.target.value as AttendanceStatus }])}
+                                            onChange={(e) => {
+                                                const newStatus = e.target.value as AttendanceStatus;
+                                                saveAttendance([{ ...rec, status: newStatus }]);
+                                                onSaveAttendance([{ ...rec, status: newStatus }]);
+                                            }}
                                             className={`p-1.5 rounded-lg font-black text-[9px] outline-none border transition-all ${
                                                 rec.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                                                 rec.status === AttendanceStatus.ABSENT ? 'bg-red-50 text-red-600 border-red-100' :
@@ -455,7 +445,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                                         <button 
                                             onClick={() => handleDeleteRecord(rec.id)}
                                             className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                            title="حذف السجل"
+                                            title="حذف من السحابة والذاكرة"
                                         >
                                             <Trash2 size={16}/>
                                         </button>
@@ -480,9 +470,9 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
           <div className="flex justify-end gap-2">
             <div className="bg-slate-900 text-white px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold animate-slide-up pointer-events-auto">
                 <Users size={16} className="text-indigo-400"/>
-                إجمالي سجلات الحضور: {attendanceHistory.length}
+                مزامنة سحابية نشطة <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''}/>
                 <div className="w-px h-4 bg-white/20"></div>
-                تحميل من السحابة: <CheckCircle size={14} className="text-emerald-400"/>
+                متصل سحابياً: <CheckCircle size={14} className="text-emerald-400"/>
             </div>
           </div>
       </div>
@@ -494,11 +484,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
 const dayNamesAr: Record<string, string> = { 
     'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 
     'Wednesday': 'الأربعاء', 'Thursday': 'الخميس', 'Friday': 'الجمعة', 'Saturday': 'السبت'
-};
-
-const formatDualDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 };
 
 export default Attendance;
