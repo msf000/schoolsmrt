@@ -131,7 +131,9 @@ export const playTextAsSpeech = async (text: string) => {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
                     voiceConfig: {
-                        voiceName: 'Kore',
+                        prebuiltVoiceConfig: {
+                            voiceName: 'Kore',
+                        },
                     },
                 },
             },

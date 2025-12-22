@@ -4,7 +4,7 @@ import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser
 import { 
     CheckCircle, XCircle, Clock, Users, Search, Sparkles, 
     Calendar as CalendarIcon, Loader2, UserCheck, Timer, 
-    History, Trash2, RefreshCw, Database, CloudAlert, Check
+    History, Trash2, RefreshCw, Database, AlertCircle, Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSchedules, getTeacherAssignments, getTeacherPeriodTimings, getSubjects, saveAttendance, deleteAttendance, downloadFromSupabase } from '../services/storageService';
@@ -249,7 +249,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       {/* Cloud Status */}
       <div className="fixed bottom-24 left-6 pointer-events-none">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold animate-slide-up pointer-events-auto border border-white/10">
-              {navigator.onLine ? <Check size={14} className="text-emerald-400"/> : <CloudAlert size={14} className="text-amber-400"/>}
+              {navigator.onLine ? <Check size={14} className="text-emerald-400"/> : <AlertCircle size={14} className="text-amber-400"/>}
               حالة السحابة: <span className={navigator.onLine ? "text-emerald-400" : "text-amber-400"}>{navigator.onLine ? "متصل (المزامنة فورية)" : "أوفلاين (كاش محلي)"}</span>
           </div>
       </div>
