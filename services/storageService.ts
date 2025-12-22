@@ -152,6 +152,12 @@ export const saveAttendance = (records: AttendanceRecord[]) => {
     uploadToSupabase(); 
 };
 
+export const deleteAttendance = (id: string) => {
+    const list = get<AttendanceRecord>(KEYS.ATTENDANCE).filter(a => a.id !== id);
+    save(KEYS.ATTENDANCE, list);
+    uploadToSupabase();
+};
+
 export const getPerformance = (): PerformanceRecord[] => get<PerformanceRecord>(KEYS.PERFORMANCE);
 export const addPerformance = (record: PerformanceRecord | PerformanceRecord[]) => { 
     const list = getPerformance(); 
@@ -167,14 +173,12 @@ export const addPerformance = (record: PerformanceRecord | PerformanceRecord[]) 
     uploadToSupabase(); 
 };
 
-// Add missing deletePerformance
 export const deletePerformance = (id: string) => {
     const list = getPerformance().filter(p => p.id !== id);
     save(KEYS.PERFORMANCE, list);
     uploadToSupabase();
 };
 
-// Add missing bulkAddPerformance alias
 export const bulkAddPerformance = addPerformance;
 
 export const getAssignments = (cat: string, tid?: string, isManager?: boolean): Assignment[] => {
@@ -185,21 +189,18 @@ export const getAssignments = (cat: string, tid?: string, isManager?: boolean): 
 export const saveAssignment = (a: Assignment) => {
     const list = get<Assignment>(KEYS.TRACKING_ASSIGNMENTS);
     const idx = list.findIndex(x => x.id === a.id);
-    // تأكد من الحفاظ على كافة الحقول عند التحديث
     if (idx !== -1) {
         list[idx] = { ...list[idx], ...a };
     } else {
         list.push(a);
     }
     save(KEYS.TRACKING_ASSIGNMENTS, list);
-    uploadToSupabase(); // رفع التغييرات فوراً للسحابة
+    uploadToSupabase(); 
 };
 
 export const deleteAssignment = (id: string) => {
     const filtered = get<Assignment>(KEYS.TRACKING_ASSIGNMENTS).filter(a => a.id !== id);
     save(KEYS.TRACKING_ASSIGNMENTS, filtered);
-    // في حالة الحذف من السحابة، يفضل مسح الجدول وإعادة رفعه أو استخدام API الحذف المباشر
-    // هنا نكتفي بالرفع لضمان بقاء البيانات المتوافقة
     uploadToSupabase();
 };
 
@@ -272,7 +273,6 @@ export const saveReportHeaderConfig = (c: ReportHeaderConfig) => { const all = g
 export const getTeacherPeriodTimings = (tid: string) => get<{tid: string, times: string[]}>('period_timings').find(x => x.tid === tid)?.times || ["07:00", "07:45", "08:30"];
 export const saveTeacherPeriodTimings = (tid: string, times: string[]) => { const all = get<{tid: string, times: string[]}>('period_timings'); const idx = all.findIndex(x => x.tid === tid); if (idx !== -1) all[idx].times = times; else all.push({ tid, times }); save('period_timings', all); uploadToSupabase(); };
 
-// Add missing addTeacher
 export const addTeacher = async (t: Teacher) => { 
     const list = getTeachers(); 
     list.push(t); 
