@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorStatus, SystemUser } from '../types';
-// Added List to imports to resolve the error on line 163
 import { Trophy, Medal, Star, TrendingUp, Search, Filter, ArrowLeft, Crown, Zap, User, List } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
