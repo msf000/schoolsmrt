@@ -5,7 +5,7 @@ import {
     CheckCircle, XCircle, Clock, Users, ChevronRight, ChevronLeft, 
     Search, Sparkles, Star, ThumbsDown, BookOpen, 
     LayoutGrid, List, Eye, Calendar as CalendarIcon, 
-    Zap, Loader2, ShieldCheck, UserCheck, Timer, CalendarDays
+    Zap, Loader2, ShieldCheck, UserCheck, Timer, CalendarDays, CalendarSearch
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSchedules, getTeacherAssignments, getTeacherPeriodTimings, getWeeklyPlans, saveAttendance } from '../services/storageService';
@@ -40,16 +40,22 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   }, [currentUser]);
 
   const timings = useMemo(() => currentUser ? getTeacherPeriodTimings(currentUser.id) : [], [currentUser]);
-  const dayName = useMemo(() => new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }), [selectedDate]);
+  
+  // Calculate day name based on selected date to update the timeline
+  const dayName = useMemo(() => {
+      const d = new Date(selectedDate);
+      return d.toLocaleDateString('en-US', { weekday: 'long' });
+  }, [selectedDate]);
 
-  // Today's specific schedule for the timeline
-  const todaySchedules = useMemo(() => {
+  // Today's (or selected day's) specific schedule for the timeline
+  const daySchedules = useMemo(() => {
       return mySchedules.filter(s => s.day === dayName).sort((a,b) => a.period - b.period);
   }, [mySchedules, dayName]);
 
-  // 1. Auto-detect current session
+  // 1. Auto-detect current session (Only if date is today)
   useEffect(() => {
-      if (!currentUser || isAutoDetected) return;
+      const today = new Date().toISOString().split('T')[0];
+      if (!currentUser || isAutoDetected || selectedDate !== today) return;
       
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -61,7 +67,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
 
       if (currentPeriodIdx !== -1) {
           const periodNum = currentPeriodIdx + 1;
-          const session = todaySchedules.find(s => s.period === periodNum);
+          const session = daySchedules.find(s => s.period === periodNum);
           
           if (session) {
               setSelectedPeriod(periodNum);
@@ -70,7 +76,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
               setIsAutoDetected(true);
           }
       }
-  }, [currentUser, todaySchedules, isAutoDetected, timings]);
+  }, [currentUser, daySchedules, isAutoDetected, timings, selectedDate]);
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -142,12 +148,24 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       <div className="mb-6">
           <div className="flex items-center justify-between mb-3 px-2">
             <h3 className="text-sm font-black text-slate-700 flex items-center gap-2">
-                <CalendarDays size={18} className="text-indigo-600"/> جدول اليوم ({dayNamesAr[dayName]})
+                <CalendarDays size={18} className="text-indigo-600"/> جدول يوم {dayNamesAr[dayName]}
             </h3>
-            <button onClick={() => navigate('/schedule')} className="text-[10px] font-black text-indigo-600 hover:underline">إدارة الجدول</button>
+            <div className="flex items-center gap-4">
+                {/* 🗓️ New Date Modifier UI */}
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border shadow-sm group hover:border-indigo-300 transition-all">
+                    <CalendarSearch size={14} className="text-indigo-500"/>
+                    <input 
+                        type="date" 
+                        value={selectedDate} 
+                        onChange={(e) => {setSelectedDate(e.target.value); setIsAutoDetected(false);}}
+                        className="bg-transparent text-[11px] font-black outline-none cursor-pointer text-slate-700"
+                    />
+                </div>
+                <button onClick={() => navigate('/schedule')} className="text-[10px] font-black text-indigo-600 hover:underline">إدارة الجدول</button>
+            </div>
           </div>
           <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {todaySchedules.map(session => {
+              {daySchedules.map(session => {
                   const isSelected = selectedPeriod === session.period && selectedClass === session.classId;
                   const isDone = attendanceHistory.some(a => a.date === selectedDate && a.period === session.period && a.subject === session.subjectName);
                   return (
@@ -165,9 +183,10 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                       </button>
                   );
               })}
-              {todaySchedules.length === 0 && (
-                  <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl border border-amber-100 text-xs font-bold w-full text-center">
-                      لا توجد حصص مجدولة لهذا اليوم في النظام
+              {daySchedules.length === 0 && (
+                  <div className="p-8 bg-amber-50 text-amber-700 rounded-3xl border border-amber-100 text-xs font-bold w-full text-center flex flex-col items-center gap-2">
+                      <CalendarIcon size={32} className="opacity-20"/>
+                      لا توجد حصص مجدولة في هذا اليوم المختار
                   </div>
               )}
           </div>
@@ -187,9 +206,15 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         </span>
                     )}
                 </div>
-                <p className="text-slate-400 text-xs font-bold flex items-center gap-2">
-                    <CalendarIcon size={14}/> {formatDualDate(selectedDate)}
-                </p>
+                <div className="flex items-center gap-4">
+                    <p className="text-slate-400 text-xs font-bold flex items-center gap-2">
+                        <CalendarIcon size={14}/> {formatDualDate(selectedDate)}
+                    </p>
+                    <div className="h-4 w-px bg-slate-200"></div>
+                    <p className="text-slate-400 text-xs font-bold flex items-center gap-2">
+                        <Timer size={14}/> الحصة {selectedPeriod}
+                    </p>
+                </div>
             </div>
 
             <div className="flex flex-wrap gap-3 w-full lg:w-auto">
@@ -200,9 +225,10 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                     <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                    <Timer size={16} className="text-slate-400"/>
-                    <select value={selectedPeriod} onChange={e => {setSelectedPeriod(Number(e.target.value)); setIsAutoDetected(false);}} className="bg-transparent font-black text-xs outline-none cursor-pointer">
-                        {[1,2,3,4,5,6,7,8].map(p => <option key={p} value={p}>ح{p}</option>)}
+                    <BookOpen size={16} className="text-slate-400"/>
+                    <select value={selectedSubject} onChange={e => {setSelectedSubject(e.target.value); setIsAutoDetected(false);}} className="bg-transparent font-black text-xs outline-none min-w-[100px] cursor-pointer text-indigo-600">
+                        <option value="">المادة...</option>
+                        {mySchedules.filter(s => !selectedClass || s.classId === selectedClass).map(s => <option key={s.id} value={s.subjectName}>{s.subjectName}</option>)}
                     </select>
                 </div>
 
