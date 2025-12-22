@@ -1,21 +1,12 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, LearningStyle, RemedialPlan } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, RemedialPlan } from '../types';
 import { getAcademicTerms, getTeacherAssignments, saveRemedialPlan, getRemedialPlans } from '../services/storageService';
-import { detectAtRiskStudents, calculateClassStats } from '../services/analysisService';
+import { detectAtRiskStudents } from '../services/analysisService';
 import { generateSmartRemedialPlan } from '../services/geminiService';
 import { 
-    FileText, AlertTriangle, Printer, Download, CheckCircle, TrendingUp, 
-    BarChart3, Activity, BrainCircuit, Users, PieChart as PieChartIcon, 
-    Table, CheckSquare, Search, Filter, RefreshCw, Sparkles, Loader2, 
-    Save, X, BookOpen, User, History 
+    FileText, AlertTriangle, Printer, Sparkles, Loader2, 
+    Save, X, BookOpen, History, BrainCircuit
 } from 'lucide-react';
-import MonthlyReport from './MonthlyReport';
-import AIReports from './AIReports';
-import CertificatesCenter from './CertificatesCenter';
-import * as XLSX from 'xlsx';
-import { useNavigate } from 'react-router-dom';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, PieChart, Pie, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import { formatDualDate } from '../services/dateService';
 
@@ -26,21 +17,11 @@ interface ReportsCenterProps {
   currentUser?: SystemUser | null;
 }
 
-const STYLE_COLORS = {
-    VISUAL: '#3b82f6',
-    AUDITORY: '#10b981',
-    READ_WRITE: '#f59e0b',
-    KINESTHETIC: '#ef4444',
-    UNKNOWN: '#94a3b8'
-};
-
 const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, performance, currentUser }) => {
-    const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'MONTHLY' | 'AI' | 'CERTIFICATES' | 'VARK' | 'PERFORMANCE_LOG' | 'REMEDIAL'>((localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE');
+    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'REMEDIAL' | 'PERFORMANCE_LOG' | 'MONTHLY'>((localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE');
     const [selectedClass, setSelectedClass] = useState(localStorage.getItem('rep_selected_class') || '');
     const [selectedTermId, setSelectedTermId] = useState(localStorage.getItem('rep_term_id') || '');
     
-    // Remedial State
     const [isGenerating, setIsGenerating] = useState(false);
     const [currentPlan, setCurrentPlan] = useState<string>('');
     const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
@@ -52,14 +33,6 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         localStorage.setItem('rep_term_id', selectedTermId);
         if (activeTab === 'REMEDIAL') setSavedRemedialPlans(getRemedialPlans());
     }, [activeTab, selectedClass, selectedTermId]);
-
-    const terms = useMemo(() => getAcademicTerms(currentUser?.id), [currentUser]);
-
-    const uniqueClasses = useMemo(() => {
-        const classes = new Set(students.map(s => s.className).filter(Boolean));
-        if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach(a => classes.add(a.classId));
-        return Array.from(classes).sort();
-    }, [students, currentUser]);
 
     const atRiskStudents = useMemo(() => detectAtRiskStudents(students, attendance, performance), [students, attendance, performance]);
 
@@ -96,7 +69,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         setViewingStudent(null);
     };
 
-    const TabBtn = ({ label, active, onClick }: any) => (
+    const TabBtn = ({ label, icon, active, onClick }: any) => (
         <button onClick={onClick} className={`px-5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>{label}</button>
     );
 
@@ -108,8 +81,6 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                     <TabBtn label="التقرير الشامل" active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
                     <TabBtn label="المتعثرين" active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
                     <TabBtn label="الخطط العلاجية" active={activeTab==='REMEDIAL'} onClick={()=>setActiveTab('REMEDIAL')} />
-                    <TabBtn label="سجل الدرجات" active={activeTab==='PERFORMANCE_LOG'} onClick={()=>setActiveTab('PERFORMANCE_LOG')} />
-                    <TabBtn label="سجل الحضور" active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
                 </div>
             </div>
 
@@ -124,12 +95,12 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {atRiskStudents.map(item => (
+                            {atRiskStudents.map((item: any) => (
                                 <div key={item.student.id} className="bg-white p-5 rounded-3xl border shadow-sm flex flex-col justify-between group hover:border-indigo-200 transition-all">
                                     <div>
                                         <h4 className="font-black text-gray-800 mb-2">{item.student.name}</h4>
                                         <div className="space-y-1 mb-4">
-                                            {item.risks.map((r, i) => (
+                                            {item.risks.map((r: string, i: number) => (
                                                 <div key={i} className="flex items-center gap-2 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg"><X size={10}/> {r}</div>
                                             ))}
                                         </div>
@@ -183,7 +154,6 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                 )}
             </div>
 
-            {/* Modal for Remedial Plan Display */}
             {viewingStudent && (currentPlan || isGenerating) && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl flex flex-col overflow-hidden animate-zoom-in">

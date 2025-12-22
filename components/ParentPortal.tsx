@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorIncident, Task, MessageLog } from '../types';
-import { saveAttendance, getBehaviorIncidents, getTasks, getMessages, submitTask } from '../services/storageService';
+import { saveAttendance, getBehaviorIncidents, getTasks, getMessages } from '../services/storageService';
 import { 
     User, LogOut, AlertTriangle, Clock, MessageCircle, X, ShieldCheck, 
     Trophy, BookOpen, Bell, ChevronLeft, Star, Calendar, CheckCircle2, Zap, Radar as RadarIcon, TrendingUp, BarChart3
 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip } from 'recharts';
 
 interface ParentPortalProps {
     parentPhone: string;
@@ -47,7 +47,6 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         const childPerf = performance.filter(p => p.studentId === activeChild.id);
         
         const absent = childAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-        const unexcused = childAtt.filter(a => a.status === AttendanceStatus.ABSENT && !a.excuseNote);
         const recentAtt = [...childAtt].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5);
         
         const avg = childPerf.length > 0 
@@ -62,7 +61,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             { subject: 'التميز', A: 90 },
         ];
 
-        return { absent, unexcused, recentAtt, avg, radarData };
+        return { absent, recentAtt, avg, radarData, childPerf };
     }, [activeChild, attendance, performance]);
 
     const handleSendExcuse = () => {
@@ -84,7 +83,6 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-tajawal text-right pb-24 lg:pb-0" dir="rtl">
-            {/* Top Bar */}
             <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-indigo-100">ب</div>
@@ -106,7 +104,6 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             </header>
 
             <main className="flex-1 overflow-y-auto p-4 md:p-8 max-w-6xl mx-auto w-full">
-                {/* Child Hero Card */}
                 <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white mb-8 relative overflow-hidden shadow-2xl">
                     <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-500/20 to-transparent opacity-50"></div>
                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
@@ -127,7 +124,6 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     </div>
                 </div>
 
-                {/* Tabs */}
                 <div className="flex bg-white rounded-2xl p-1 mb-8 shadow-sm border border-slate-200 overflow-x-auto no-scrollbar">
                     <TabBtn active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} label="نظرة عامة" icon={<RadarIcon size={18}/>}/>
                     <TabBtn active={activeTab === 'ACADEMIC'} onClick={() => setActiveTab('ACADEMIC')} label="التحصيل" icon={<TrendingUp size={18}/>}/>
@@ -136,7 +132,6 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     <TabBtn active={activeTab === 'MESSAGES'} onClick={() => setActiveTab('MESSAGES')} label="الرسائل" icon={<Bell size={18}/>}/>
                 </div>
 
-                {/* Tab Content */}
                 <div className="animate-fade-in space-y-8">
                     {activeTab === 'OVERVIEW' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -158,7 +153,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                 <div className="bg-white p-6 rounded-[2rem] border shadow-sm">
                                     <h3 className="font-black text-slate-800 mb-6 flex items-center gap-3"><Clock className="text-red-500"/> غياب يحتاج تبرير</h3>
                                     <div className="space-y-3">
-                                        {stats?.recentAtt.filter(a => a.status === AttendanceStatus.ABSENT).map(a => (
+                                        {stats?.recentAtt.filter((a: any) => a.status === AttendanceStatus.ABSENT).map((a: any) => (
                                             <div key={a.id} className="flex justify-between items-center p-4 bg-red-50 rounded-2xl border border-red-100">
                                                 <div>
                                                     <p className="font-black text-red-900 text-sm">{formatDualDate(a.date)}</p>
@@ -171,7 +166,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                                 )}
                                             </div>
                                         ))}
-                                        {stats?.recentAtt.filter(a => a.status === AttendanceStatus.ABSENT).length === 0 && <p className="text-center py-6 text-slate-400 font-bold text-xs italic">لا يوجد سجلات غياب حالياً ✨</p>}
+                                        {stats?.recentAtt.filter((a: any) => a.status === AttendanceStatus.ABSENT).length === 0 && <p className="text-center py-6 text-slate-400 font-bold text-xs italic">لا يوجد سجلات غياب حالياً ✨</p>}
                                     </div>
                                 </div>
                             </div>
@@ -182,7 +177,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                         <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
                             <h3 className="font-black text-slate-800 mb-8 flex items-center gap-3"><TrendingUp className="text-emerald-500"/> سجل الدرجات الأخير</h3>
                             <div className="space-y-4">
-                                {stats?.childPerf.slice().reverse().map(p => (
+                                {stats?.childPerf.slice().reverse().map((p: any) => (
                                     <div key={p.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors">
                                         <div className="flex items-center gap-4">
                                             <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-600"><BookOpen size={20}/></div>

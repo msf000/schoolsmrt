@@ -1,12 +1,8 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, SystemUser, AcademicTerm, Assignment, AttendanceRecord, AttendanceStatus } from '../types';
-// Fix: Updated imports from storageService
-import { getAcademicTerms, getAssignments, getTeacherAssignments, saveAssignment, getPerformance } from '../services/storageService';
+import { Student, PerformanceRecord, PerformanceCategory, SystemUser, Assignment, AttendanceRecord, AttendanceStatus } from '../types';
+import { getAssignments, getTeacherAssignments, saveAssignment } from '../services/storageService';
 import { 
-    PlusCircle, Check, FileSpreadsheet, History, Search, Printer, 
-    Edit, Database, BarChart2, Zap, ArrowRight, User, Link, Trash2, 
-    List, Download, RefreshCw, AlertCircle, PieChart, TrendingUp, Sparkles
+    PlusCircle, Search, Trash2, Zap, ArrowRight, List, PieChart, TrendingUp, Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -22,7 +18,7 @@ interface PerformanceProps {
   currentUser?: SystemUser | null;
 }
 
-const Performance: React.FC<PerformanceProps> = ({ students, performance, attendance, onAddPerformance, onImportPerformance, onDeletePerformance, currentUser }) => {
+const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onDeletePerformance, currentUser }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'BULK' | 'LOG' | 'ANALYTICS'>('BULK');
   const [selectedClass, setSelectedClass] = useState('');
@@ -39,7 +35,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
-    if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach(a => classes.add(a.classId));
+    if (currentUser?.id) getTeacherAssignments(currentUser.id).forEach((a: any) => classes.add(a.classId));
     return Array.from(classes).sort();
   }, [students, currentUser]);
 
@@ -48,7 +44,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, attend
     return students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
   }, [students, selectedClass]);
 
-  // إحصائيات توزيع المستويات
   const distributionData = useMemo(() => {
     if (!selectedClass) return [];
     const classPerf = performance.filter(p => students.find(s => s.id === p.studentId && s.className === selectedClass));

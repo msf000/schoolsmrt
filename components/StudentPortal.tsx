@@ -1,15 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, Exam, ExamResult, MessageLog, WeeklyPlanItem, AttendanceStatus, BehaviorStatus, LessonLink, Question, Assignment, TermPeriod } from '../types';
-import { downloadFromSupabase, getAcademicTerms, getAssignments, getExams, getExamResults, getPerformance, getLessonLinks, getMessages, getWeeklyPlans, saveExamResult } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, MessageLog, AttendanceStatus, BehaviorStatus, Assignment, TermPeriod } from '../types';
+import { downloadFromSupabase, getAcademicTerms, getAssignments, getMessages } from '../services/storageService';
 import { 
-    User, Users, Calendar, Award, LogOut, Menu, Clock, FileQuestion, Library, LayoutGrid, 
-    CalendarDays, RefreshCw, X, Activity, CheckCircle, ChevronLeft, ChevronRight, Check, 
-    XCircle, ArrowRight, Video, Link as LinkIcon, Bell, Download, Medal, ExternalLink, 
-    BookOpen, Zap, Star, TrendingUp, BrainCircuit, Rocket, Trophy, PlayCircle, Crown, 
-    Briefcase, Compass, ShieldCheck, Wind, Radar as RadarIcon, ClipboardList, Globe, ChevronDown, ListFilter, Sparkles, AlertCircle
+    LogOut, LayoutGrid, Bell, Zap, Star, Radar as RadarIcon, TrendingUp, BookOpen, ClipboardList, CheckCircle, BrainCircuit, Medal, Globe, Info, Sparkles
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { PieChart, Pie, Cell, ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip } from 'recharts';
 import { formatDualDate } from '../services/dateService';
 import BottomNavigation from './BottomNavigation';
 import StudentLearningTest from './StudentLearningTest';
@@ -24,7 +20,6 @@ interface StudentPortalProps {
 const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, performance, onLogout }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [messages, setMessages] = useState<MessageLog[]>([]);
     const [view, setView] = useState<'DASHBOARD' | 'TEST'>('DASHBOARD');
     const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -34,7 +29,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
         const loadData = async () => {
             if (navigator.onLine) await downloadFromSupabase();
             const allMsgs = getMessages();
-            setMessages(allMsgs.filter(m => m.studentId === currentUser.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            setMessages(allMsgs.filter((m: MessageLog) => m.studentId === currentUser.id).sort((a: MessageLog, b: MessageLog) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             setAssignments(getAssignments('ALL'));
             setTerms(getAcademicTerms());
         };
@@ -74,7 +69,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
     }, [currentUser, attendance, performance]);
 
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden text-right font-sans" dir="rtl">
+        <div className="flex h-screen bg-slate-50 overflow-hidden text-right font-tajawal" dir="rtl">
             <aside className="hidden lg:flex flex-col w-80 bg-white border-l border-slate-200 shadow-sm z-30">
                 <div className="p-10 border-b border-slate-100 flex flex-col items-center bg-gradient-to-b from-indigo-50/50 to-transparent">
                     <div className="w-24 h-24 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-white text-4xl font-black shadow-2xl shadow-indigo-100 mb-6">{currentUser.name.charAt(0)}</div>
@@ -85,9 +80,9 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                     </div>
                 </div>
                 <nav className="flex-1 p-6 space-y-2">
-                    <button onClick={() => { navigate('/'); setView('DASHBOARD'); }} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === '/' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:bg-indigo-50'}`}><LayoutGrid size={22}/> الرئيسية</button>
-                    <button onClick={() => navigate('/evaluation')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === '/evaluation' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:bg-indigo-50'}`}><Activity size={22}/> درجاتي</button>
-                    <button onClick={() => navigate('/messages')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === '/messages' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:bg-indigo-50'}`}><Bell size={22}/> التنبيهات</button>
+                    <button onClick={() => { navigate('/'); setView('DASHBOARD'); }} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === '/' ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-500 hover:bg-gray-50'}`}><LayoutGrid size={22}/> الرئيسية</button>
+                    <button onClick={() => navigate('/evaluation')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === '/evaluation' ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-500 hover:bg-gray-50'}`}><TrendingUp size={22}/> درجاتي</button>
+                    <button onClick={() => navigate('/messages')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black ${location.pathname === '/messages' ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-500 hover:bg-gray-50'}`}><Bell size={22}/> التنبيهات</button>
                     <button onClick={onLogout} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-red-500 hover:bg-red-50 mt-10 font-black transition-colors"><LogOut size={22}/> خروج</button>
                 </nav>
             </aside>
@@ -105,7 +100,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser, attendance, 
                         </Routes>
                     )}
                 </main>
-                <BottomNavigation role="STUDENT" onMenuClick={() => setIsMobileMenuOpen(true)} />
+                <BottomNavigation role="STUDENT" onMenuClick={() => {}} />
             </div>
         </div>
     );
@@ -122,11 +117,6 @@ const StudentDashboard = ({ stats, student, onStartTest }: any) => (
                         <div className="bg-white/10 backdrop-blur-md px-4 py-2 md:px-6 md:py-3 rounded-2xl border border-white/10 text-[10px] md:text-sm font-bold inline-flex items-center gap-2">
                             <Zap className="text-yellow-400" size={16} fill="currentColor"/> رصيد نقاطك: {stats.xp}
                         </div>
-                        {student.learningStyle && (
-                            <div className="bg-purple-500/30 backdrop-blur-md px-4 py-2 md:px-6 md:py-3 rounded-2xl border border-purple-400/30 text-[10px] md:text-sm font-black inline-flex items-center gap-2">
-                                <BrainCircuit className="text-purple-300" size={16}/> نمطك: {student.learningStyle}
-                            </div>
-                        )}
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 md:gap-4">
@@ -196,13 +186,13 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
     }, [periods]);
 
     const groupedWorks = useMemo(() => {
-        const activeAssignments = assignments.filter((a: Assignment) => 
+        const activeAssignments = assignments.filter((a: any) => 
             (!selectedPeriodId || a.periodId === selectedPeriodId) &&
             (!currentTerm || a.termId === currentTerm.id)
         );
         const studentPerf = performance.filter((p: PerformanceRecord) => p.studentId === student.id);
 
-        const worksWithScores = activeAssignments.map((assign: Assignment) => {
+        const worksWithScores = activeAssignments.map((assign: any) => {
             const scoreRecord = studentPerf.find((p: PerformanceRecord) => p.notes === assign.id || p.title === assign.title);
             return {
                 id: assign.id,
@@ -232,7 +222,6 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
                 </div>
                 <div className="text-left flex flex-col items-end">
                     <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase font-mono">{work.date}</span>
-                    {work.score !== null && <span className="text-[8px] md:text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full mt-1 flex items-center gap-1"><CheckCircle size={10}/> رُصد</span>}
                 </div>
             </div>
             
@@ -265,11 +254,6 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 {works.map((w: any) => <WorkCard key={w.id} work={w} />)}
-                {works.length === 0 && (
-                    <div className="col-span-full py-8 border-2 border-dashed border-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-300">
-                        <p className="text-[10px] font-bold">لا توجد أعمال في هذا القسم</p>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -281,7 +265,6 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
                     <h2 className="text-xl md:text-2xl font-black text-slate-800 flex items-center gap-2">
                         <TrendingUp className="text-indigo-600"/> سجل التقييمات
                     </h2>
-                    <p className="text-[10px] md:text-sm text-slate-500 font-bold">متابعة درجاتك لجميع الفترات</p>
                 </div>
 
                 {periods.length > 0 && (
@@ -290,7 +273,7 @@ const StudentEvaluationView = ({ student, performance, assignments, terms }: any
                             <button 
                                 key={p.id} 
                                 onClick={() => setSelectedPeriodId(p.id)}
-                                className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1 whitespace-nowrap ${selectedPeriodId === p.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-50'}`}
+                                className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1 whitespace-nowrap ${selectedPeriodId === p.id ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500'}`}
                             >
                                 {p.name}
                             </button>
@@ -322,7 +305,6 @@ const StudentMessages = ({ messages }: any) => (
                     <div className="mt-4 pt-4 border-t border-slate-50 text-[10px] text-gray-400">المرسل: {m.sentBy}</div>
                 </div>
             ))}
-            {messages.length === 0 && <div className="p-20 text-center text-slate-300 font-bold">لا توجد رسائل جديدة.</div>}
         </div>
     </div>
 );

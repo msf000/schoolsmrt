@@ -43,12 +43,14 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
 
     const capture = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = videoRef.current!.videoWidth;
-        canvas.height = videoRef.current!.videoHeight;
-        canvas.getContext('2d')?.drawImage(videoRef.current!, 0, 0);
-        setImagePreview(canvas.toDataURL('image/jpeg'));
-        setCameraActive(false);
-        if (videoRef.current?.srcObject) (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+        if (videoRef.current) {
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+            setImagePreview(canvas.toDataURL('image/jpeg'));
+            setCameraActive(false);
+            if (videoRef.current.srcObject) (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+        }
     };
 
     const handleGrade = async () => {
@@ -118,7 +120,7 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
                         </button>
                     </div>
                     <div className="bg-gray-100 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden">
-                        {imagePreview ? <img src={imagePreview} className="max-h-full object-contain"/> : <div className="text-gray-400 text-center"><ImageIcon size={48} className="mx-auto mb-2 opacity-20"/><p>معاينة الورقة</p></div>}
+                        {imagePreview ? <img src={imagePreview} className="max-h-full object-contain" alt="preview"/> : <div className="text-gray-400 text-center"><ImageIcon size={48} className="mx-auto mb-2 opacity-20"/><p>معاينة الورقة</p></div>}
                     </div>
                 </div>
             ) : (

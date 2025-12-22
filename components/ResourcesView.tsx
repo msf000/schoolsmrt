@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { LessonLink, SystemUser, Subject } from '../types';
 import { getLessonLinks, saveLessonLink, deleteLessonLink, getSubjects, getTeacherAssignments } from '../services/storageService';
-import { suggestQuickActivity } from '../services/geminiService'; // Re-using service or add new one
-import { Plus, Trash2, ExternalLink, Search, Link as LinkIcon, BookOpen, Video, FileText, Globe, Sparkles, Loader2 } from 'lucide-react';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { Plus, Trash2, Search, Video, FileText, Globe, Sparkles, Loader2 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 
 interface ResourcesViewProps {
     currentUser: SystemUser;
@@ -13,33 +12,28 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
     const [links, setLinks] = useState<LessonLink[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     
-    // Filters
     const [targetGrade, setTargetGrade] = useState('');
-    const [filterSubject, setFilterSubject] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Add State
     const [newTitle, setNewTitle] = useState('');
     const [newUrl, setNewUrl] = useState('');
     const [newGrade, setNewGrade] = useState('');
     const [newClass, setNewClass] = useState('');
 
-    // AI Suggestion State
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [suggestionTopic, setSuggestionTopic] = useState('');
 
     useEffect(() => {
         if(currentUser?.id) {
-            setLinks(getLessonLinks().filter(l => l.teacherId === currentUser.id));
+            setLinks(getLessonLinks().filter((l: LessonLink) => l.teacherId === currentUser.id));
             setSubjects(getSubjects(currentUser.id));
         }
     }, [currentUser]);
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
-        // Add manual classes
-        const manualClasses = getTeacherAssignments(currentUser?.id).map(a => a.classId);
-        manualClasses.forEach(c => classes.add(c));
+        const manualClasses = getTeacherAssignments(currentUser?.id).map((a: any) => a.classId);
+        manualClasses.forEach((c: string) => classes.add(c));
         return Array.from(classes).sort();
     }, [currentUser]);
 
@@ -55,38 +49,33 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
             createdAt: new Date().toISOString()
         };
         saveLessonLink(link);
-        setLinks(getLessonLinks().filter(l => l.teacherId === currentUser.id));
+        setLinks(getLessonLinks().filter((l: LessonLink) => l.teacherId === currentUser.id));
         setNewTitle(''); setNewUrl('');
     };
 
     const handleDelete = (id: string) => {
         if(confirm('حذف الرابط؟')) {
             deleteLessonLink(id);
-            setLinks(getLessonLinks().filter(l => l.teacherId === currentUser.id));
+            setLinks(getLessonLinks().filter((l: LessonLink) => l.teacherId === currentUser.id));
         }
     };
 
-    // --- AI Suggestion Logic ---
     const handleAiSuggest = async () => {
         if (!suggestionTopic) return;
         setIsSuggesting(true);
         try {
-            // Fix: Correctly initialize GoogleGenAI using process.env.API_KEY directly as per guidelines
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Suggest 3 educational YouTube video titles and search queries for: "${suggestionTopic}" for grade: "${newGrade || 'General'}". 
             Format as JSON array: [{"title": "Video Title", "searchQuery": "YouTube Search Query"}].`;
             
-            // Fix: Use ai.models.generateContent and the recommended gemini-3-flash-preview model
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: { responseMimeType: "application/json" }
             });
             
-            // Fix: Access text property directly (not as a function) per the latest SDK
             const suggestions = JSON.parse(response.text || "[]");
             if (suggestions.length > 0) {
-                // Pick first one to pre-fill
                 setNewTitle(suggestions[0].title);
                 setNewUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(suggestions[0].searchQuery)}`);
                 alert('تم اقتراح عنوان ورابط بحث. يمكنك التعديل ثم الحفظ.');
@@ -101,7 +90,7 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
     };
 
     const filteredLinks = useMemo(() => {
-        return links.filter(l => 
+        return links.filter((l: LessonLink) => 
             (!targetGrade || l.gradeLevel === targetGrade) &&
             (!searchTerm || l.title.includes(searchTerm))
         );
@@ -116,11 +105,9 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
     return (
         <div className="p-6 h-full bg-gray-50 animate-fade-in flex flex-col">
             <div className="flex flex-col md:flex-row gap-6 h-full">
-                {/* Add Form */}
                 <div className="w-full md:w-1/3 bg-white p-6 rounded-xl border border-gray-200 h-fit">
                     <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Plus className="text-teal-600"/> إضافة مصدر جديد</h3>
                     
-                    {/* AI Helper */}
                     <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 mb-4">
                         <label className="text-xs font-bold text-purple-800 mb-1 flex items-center gap-1"><Sparkles size={12}/> اقتراح ذكي</label>
                         <div className="flex gap-2">
@@ -163,23 +150,11 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                     </div>
                 </div>
 
-                {/* List */}
                 <div className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
                     <div className="p-4 border-b bg-gray-50 flex gap-4 items-center">
                         <div className="relative flex-1">
                             <Search className="absolute top-2.5 right-3 text-gray-400" size={16}/>
                             <input className="w-full pr-9 pl-3 py-2 border rounded-lg text-sm" placeholder="بحث..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
-                        </div>
-                        <div>
-                            <select className="w-full p-2 border rounded text-xs" value={targetGrade} onChange={e => setTargetGrade(e.target.value)}>
-                                <option value="">كل الصفوف</option>
-                                {[
-                                    "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
-                                    "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
-                                    "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
-                                    "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
-                                ].map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
                         </div>
                     </div>
 
@@ -190,15 +165,10 @@ const ResourcesView: React.FC<ResourcesViewProps> = ({ currentUser }) => {
                                 <div className="flex-1 overflow-hidden">
                                     <h4 className="font-bold text-gray-800 truncate"><a href={link.url} target="_blank" rel="noreferrer" className="hover:underline">{link.title}</a></h4>
                                     <p className="text-xs text-gray-500 truncate dir-ltr text-right">{link.url}</p>
-                                    <div className="flex gap-2 mt-1">
-                                        {link.gradeLevel && <span className="text-[10px] bg-blue-50 text-blue-700 px-2 rounded border">{link.gradeLevel}</span>}
-                                        {link.className && <span className="text-[10px] bg-purple-50 text-purple-700 px-2 rounded border">{link.className}</span>}
-                                    </div>
                                 </div>
                                 <button onClick={() => handleDelete(link.id)} className="text-gray-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
                             </div>
                         ))}
-                        {filteredLinks.length === 0 && <div className="text-center py-20 text-gray-400">لا توجد مصادر</div>}
                     </div>
                 </div>
             </div>
