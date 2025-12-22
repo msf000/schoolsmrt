@@ -5,9 +5,12 @@ import {
     fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
     addPerformance, deletePerformance, getUserTheme,
     addStudent, updateStudent, deleteStudent,
-    fetchSchedules, fetchTeacherAssignments, fetchSubjects, fetchAcademicTerms
+    fetchSchedules, fetchTeacherAssignments, fetchSubjects, fetchAcademicTerms,
+    fetchTasks, fetchBehaviorIncidents, fetchMessages,
+    fetchSchools, fetchTeachers, fetchSystemUsers, fetchAssignments, fetchCustomTables,
+    fetchCurriculumUnits, fetchCurriculumLessons
 } from './services/storageService';
-import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme, ScheduleItem, Subject, TeacherAssignment, AcademicTerm } from './types';
+import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 import Login from './components/Login';
 import TeacherPortal from './components/TeacherPortal';
 import StudentPortal from './components/StudentPortal';
@@ -16,7 +19,6 @@ import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
 import Performance from './components/Performance';
-import AIReports from './components/AIReports';
 import SchoolManagementComponent from './components/SchoolManagement';
 import StudentFollowUp from './components/StudentFollowUp';
 import Leaderboard from './components/Leaderboard';
@@ -48,40 +50,43 @@ const App: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
-    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
-    const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
-    const [terms, setTerms] = useState<AcademicTerm[]>([]);
-    
     const [theme] = useState<UserTheme>(getUserTheme());
     const [isLoading, setIsLoading] = useState(false);
     
     const navigate = useNavigate();
     const location = useLocation();
 
+    // جلب كافة البيانات التعليمية من السحابة دفعة واحدة لتغذية Cache
     const refreshCloudData = useCallback(async () => {
         if (!currentUser) return;
         setIsLoading(true);
         try {
             const userId = currentUser.id;
-            const [st, att, perf, sch, sub, asg, trm] = await Promise.all([
+            const [st, att, perf] = await Promise.all([
                 fetchStudents(),
                 fetchAttendance(userId),
                 fetchPerformance(userId),
                 fetchSchedules(userId),
                 fetchSubjects(userId),
                 fetchTeacherAssignments(userId),
-                fetchAcademicTerms(userId)
+                fetchAcademicTerms(userId),
+                fetchTasks(userId),
+                fetchBehaviorIncidents(userId),
+                fetchMessages(userId),
+                fetchSchools(),
+                fetchTeachers(),
+                fetchSystemUsers(),
+                fetchAssignments(userId),
+                fetchCustomTables(userId),
+                fetchCurriculumUnits(userId),
+                fetchCurriculumLessons()
             ]);
+            
             setStudents(st);
             setAttendance(att);
             setPerformance(perf);
-            setSchedules(sch);
-            setSubjects(sub);
-            setAssignments(asg);
-            setTerms(trm);
         } catch (e) {
-            console.error("Cloud Data Fetch Error:", e);
+            console.error("Cloud Refresh Error:", e);
         } finally {
             setIsLoading(false);
         }
