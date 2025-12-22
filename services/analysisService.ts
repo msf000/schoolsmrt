@@ -19,6 +19,54 @@ export const getLocalPedagogicalTip = () => {
     return PEDAGOGICAL_TIPS[dayOfYear % PEDAGOGICAL_TIPS.length];
 };
 
+export const getClassPulseData = (attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        
+        const dayAtt = attendance.filter(a => a.date === dateStr);
+        const dayPerf = performance.filter(p => p.date === dateStr);
+        
+        const avgParticipation = dayAtt.length > 0 
+            ? (dayAtt.reduce((acc, curr) => acc + (curr.participationScore || 0), 0) / dayAtt.length) * 20 
+            : 0; // Scale to 100
+            
+        const avgGrades = dayPerf.length > 0
+            ? (dayPerf.reduce((acc, curr) => acc + (curr.score / curr.maxScore), 0) / dayPerf.length) * 100
+            : null;
+
+        last7Days.push({
+            name: dateStr.slice(5), // MM-DD
+            participation: Math.round(avgParticipation),
+            grades: avgGrades !== null ? Math.round(avgGrades) : undefined
+        });
+    }
+    return last7Days;
+};
+
+export const getUrgentAlerts = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
+    const alerts = [];
+    
+    // 1. Absence Danger
+    const dangerAbsence = students.map(s => {
+        const sAtt = attendance.filter(a => a.studentId === s.id);
+        const absentCount = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
+        return { student: s, count: absentCount };
+    }).filter(x => x.count >= 5).slice(0, 2);
+    
+    dangerAbsence.forEach(x => alerts.push(`الطالب ${x.student.name.split(' ')[0]} تجاوز 5 أيام غياب.`));
+
+    // 2. Performance Drop
+    const lowPerformers = detectAtRiskStudents(students, attendance, performance).slice(0, 1);
+    if (lowPerformers.length > 0) {
+        alerts.push(`تنبيه: تراجع ملحوظ في أداء ${lowPerformers[0].student.name.split(' ')[0]}.`);
+    }
+
+    return alerts;
+};
+
 export const calculateClassStats = (performance: PerformanceRecord[]) => {
     if (performance.length === 0) return null;
     const scores = performance.map(p => (p.score / p.maxScore) * 100);
