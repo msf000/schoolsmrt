@@ -1,3 +1,4 @@
+
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -331,7 +332,6 @@ export const fetchSchedules = async (tid: string) => {
 export const getSchedules = () => sessionCache.schedules;
 
 export const saveScheduleItem = async (s: ScheduleItem) => {
-    // Fix: Use s.classId instead of s.class_id to match ScheduleItem interface property names
     await supabase.from('schedules').upsert({
         id: s.id, teacher_id: s.teacherId, class_id: s.classId, subject_name: s.subjectName, day: s.day, period: s.period
     });
@@ -453,9 +453,16 @@ export const getExams = (tid?: string) => tid ? sessionCache.exams.filter((e: Ex
 
 export const saveExam = async (e: Exam) => {
     const dbObj = { 
-        id: e.id, title: e.title, subject: e.subject, grade_level: e.gradeLevel, 
-        duration_minutes: e.durationMinutes, questions: e.questions, is_active: e.isActive, 
-        created_at: e.createdAt, teacher_id: e.teacherId, date: e.date 
+        id: e.id, 
+        title: e.title, 
+        subject: e.subject, 
+        grade_level: e.gradeLevel, 
+        duration_minutes: e.durationMinutes, 
+        questions: e.questions, 
+        is_active: e.isActive, 
+        created_at: e.createdAt, 
+        teacher_id: e.teacherId, 
+        date: e.date 
     };
     await supabase.from('exams').upsert(dbObj);
     const idx = sessionCache.exams.findIndex((x: Exam) => x.id === e.id);
@@ -486,7 +493,6 @@ export const saveExamResult = async (r: ExamResult) => {
     if (idx !== -1) sessionCache.examResults[idx] = r; else sessionCache.examResults.push(r);
 };
 
-// Fix: Add exported deleteExamResult member to fix import error in components/ExamsManager.tsx
 export const deleteExamResult = async (id: string) => {
     await supabase.from('exam_results').delete().eq('id', id);
     sessionCache.examResults = sessionCache.examResults.filter((x: ExamResult) => x.id !== id);
@@ -739,7 +745,6 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     if (idx !== -1) sessionCache.curriculumLessons[idx] = l; else sessionCache.curriculumLessons.push(l);
 };
 
-// Fix: Add exported deleteCurriculumLesson member to fix import error in components/CurriculumManager.tsx
 export const deleteCurriculumLesson = async (id: string) => {
     await supabase.from('curriculum_lessons').delete().eq('id', id);
     sessionCache.curriculumLessons = sessionCache.curriculumLessons.filter((x: CurriculumLesson) => x.id !== id);

@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ScanLine, Camera, Upload, Check, X, RefreshCw, BrainCircuit, Save, FileText, Image as ImageIcon } from 'lucide-react';
+import { ScanLine, Camera, Upload, Check, X, RefreshCw, BrainCircuit, Image as ImageIcon } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, SystemUser } from '../types';
 import { getExams, getStudents, addPerformance } from '../services/storageService';
 import { gradeExamPaper } from '../services/geminiService';
@@ -40,7 +40,9 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
                 videoRef.current.srcObject = stream;
                 setCameraActive(true);
             }
-        } catch (e) { alert('الكاميرا غير متاحة'); }
+        } catch (error: unknown) { 
+            alert('الكاميرا غير متاحة أو تم رفض الوصول'); 
+        }
     };
 
     const capture = () => {
@@ -48,16 +50,21 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
         if (videoRef.current) {
             canvas.width = videoRef.current.videoWidth;
             canvas.height = videoRef.current.videoHeight;
-            canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-            setImagePreview(canvas.toDataURL('image/jpeg'));
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(videoRef.current, 0, 0);
+                setImagePreview(canvas.toDataURL('image/jpeg'));
+            }
             setCameraActive(false);
-            if (videoRef.current.srcObject) (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+            if (videoRef.current.srcObject) {
+                (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+            }
         }
     };
 
     const handleGrade = async () => {
         const exam = exams.find(e => e.id === selectedExamId);
-        if (!exam || !imagePreview) return alert('أكمل البيانات');
+        if (!exam || !imagePreview) return alert('يرجى اختيار الاختبار وصورة الورقة');
         setIsGrading(true);
         try {
             const res = await gradeExamPaper(imagePreview, exam);
@@ -67,24 +74,31 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
                 if (match) setSelectedStudentId(match.id);
             }
             setStep('REVIEW');
-        } catch (e) { alert('فشل التحليل'); } finally { setIsGrading(false); }
+        } catch (error: unknown) { 
+            alert('فشل تحليل الورقة بالذكاء الاصطناعي'); 
+        } finally { 
+            setIsGrading(false); 
+        }
     };
 
     const handleSave = () => {
         if (!selectedStudentId || !result) return;
         const exam = exams.find(e => e.id === selectedExamId);
-        addPerformance({
-            id: Date.now().toString(),
+        const record: PerformanceRecord = {
+            id: `ag_${Date.now()}`,
             studentId: selectedStudentId,
             subject: exam?.subject || 'عام',
             title: `تصحيح آلي: ${exam?.title}`,
             score: result.totalScore,
-            maxScore: result.maxTotalScore,
+            maxScore: result.maxTotalScore || exam?.questions.reduce((acc, q) => acc + q.points, 0) || 10,
             date: new Date().toISOString().split('T')[0],
             createdById: currentUser.id
-        });
-        alert('تم رصد الدرجة بنجاح!');
-        setStep('INPUT'); setResult(null); setImagePreview(null);
+        };
+        addPerformance(record);
+        alert('تم رصد الدرجة بنجاح في سجل الطالب!');
+        setStep('INPUT'); 
+        setResult(null); 
+        setImagePreview(null);
     };
 
     return (
@@ -113,7 +127,7 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
                             {cameraActive && (
                                 <div className="relative rounded-xl overflow-hidden aspect-video bg-black">
                                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                                    <button onClick={capture} className="absolute bottom-4 left-1/2 -translate-x-1/2 p-4 bg-white rounded-full shadow-2xl"><Camera/></button>
+                                    <button onClick={capture} className="absolute bottom-4 left-1/2 -translate-x-1/2 p-4 bg-white rounded-full shadow-2xl text-indigo-600"><Camera/></button>
                                 </div>
                             )}
                         </div>
