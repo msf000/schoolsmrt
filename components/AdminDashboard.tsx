@@ -12,7 +12,7 @@ import { updateSupabaseConfig } from '../services/supabaseClient';
 import { AttendanceStatus } from '../types';
 import { 
     Shield, Building, Users, Settings, Database, 
-    RefreshCw, Save, Wifi, Globe, HardDrive, Code, Copy, CheckCircle, Info, AlertTriangle, CloudZap
+    RefreshCw, Save, Wifi, Globe, HardDrive, Code, Copy, CheckCircle, Info, AlertTriangle, CloudLightning
 } from 'lucide-react';
 
 const AdminOverview = () => {
@@ -48,7 +48,6 @@ const AdminOverview = () => {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Connection Status Header */}
             <div className={`p-4 rounded-2xl border flex items-center justify-between ${connectionSource === 'VERCEL_ENV' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
                 <div className="flex items-center gap-3">
                     {connectionSource === 'VERCEL_ENV' ? <Globe className="text-green-600"/> : <HardDrive className="text-amber-600"/>}
@@ -71,28 +70,27 @@ const AdminOverview = () => {
                 <StatCard label="حضور النظام" value={`${stats.attendanceToday}%`} icon={<RefreshCw size={24}/>} color="bg-purple-50 text-purple-600" />
             </div>
 
-            {/* Why it doesn't work on other devices section */}
             <div className="bg-indigo-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-500/20 to-transparent"></div>
                 <div className="relative z-10">
-                    <h3 className="text-xl font-black mb-4 flex items-center gap-3"><Info className="text-yellow-400"/> لماذا لا يعمل النظام على الأجهزة الأخرى؟</h3>
+                    <h3 className="text-xl font-black mb-4 flex items-center gap-3"><Info className="text-yellow-400"/> لماذا لا تظهر البيانات على الأجهزة الأخرى؟</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
                             <p className="text-sm opacity-90 leading-relaxed">
-                                عندما تقوم بضبط "إعدادات السحابة" يدوياً، يتم حفظ البيانات في متصفحك الحالي فقط (**Local Storage**). أي جهاز آخر يفتح الرابط لن يجد هذه الإعدادات ولن يتمكن من الدخول.
+                                السبب هو أن المتصفح يحفظ إعدادات الربط في ذاكرته المحلية (**Local Storage**). إذا دخلت من جهاز جديد، ستكون هذه الذاكرة فارغة ولن يتمكن النظام من الوصول للسحابة.
                             </p>
                             <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
-                                <h4 className="font-bold text-yellow-400 mb-1">الحل الصحيح:</h4>
-                                <p className="text-xs">يجب إضافة `VITE_SUPABASE_URL` و `VITE_SUPABASE_KEY` في إعدادات **Vercel Environment Variables**. هذا يجعل السحابة تعمل تلقائياً على كل الأجهزة.</p>
+                                <h4 className="font-bold text-yellow-400 mb-1">الحل الدائم:</h4>
+                                <p className="text-xs">يجب إضافة `VITE_SUPABASE_URL` و `VITE_SUPABASE_KEY` في إعدادات **Vercel Project Settings** تحت بند Environment Variables.</p>
                             </div>
                         </div>
                         <div className="space-y-4">
                              <p className="text-sm opacity-90 leading-relaxed">
-                                **مشكلة قاعدة البيانات:** إذا واجهت خطأ "Column not found"، فهذا يعني أن الجداول في Supabase لا تطابق الكود (تفاوت بين `snake_case` و `camelCase`).
+                                **تنبيه:** إذا كانت الجداول غير موجودة أو فارغة في السحابة، لن تظهر أي بيانات حتى لو كان الربط سليماً. تأكد من تشغيل كود الـ SQL المرفق في الأسفل.
                             </p>
                             <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
-                                <h4 className="font-bold text-indigo-300 mb-1">الإجراء المطلوب:</h4>
-                                <p className="text-xs">استخدم زر "تحديث قاعدة البيانات" أدناه لمزامنة البيانات، أو قم بتشغيل كود SQL المحدث في Supabase SQL Editor.</p>
+                                <h4 className="font-bold text-indigo-300 mb-1">المزامنة اليدوية:</h4>
+                                <p className="text-xs">استخدم زر "تحديث الآن" أدناه لإجبار النظام على إعادة جلب كل البيانات من السحابة في حال حدوث تعارض.</p>
                             </div>
                         </div>
                     </div>
@@ -133,7 +131,7 @@ const DatabaseSettings = () => {
         try {
             const res = await downloadFromSupabase();
             if (res.success) alert('تمت المزامنة وتحديث قاعدة البيانات المحلية بنجاح!');
-            else alert('فشل الاتصال بالسحابة. تأكد من الإعدادات.');
+            else alert('فشل الاتصال بالسحابة. تأكد من إعدادات الربط أو وجود الجداول.');
         } catch (e) {
             alert('حدث خطأ تقني أثناء المزامنة.');
         } finally {
@@ -150,16 +148,14 @@ const DatabaseSettings = () => {
 
     return (
         <div className="space-y-8 animate-fade-in max-w-4xl mx-auto pb-10">
-            
-            {/* Force Sync Action */}
             <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-lg shadow-indigo-50 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
                     <div className="p-4 bg-indigo-600 text-white rounded-3xl shadow-lg animate-pulse">
-                        <CloudZap size={32}/>
+                        <CloudLightning size={32}/>
                     </div>
                     <div>
                         <h3 className="text-xl font-black text-gray-800">تحديث قاعدة البيانات</h3>
-                        <p className="text-sm text-gray-500 font-medium">قم بإجراء مزامنة إجبارية لجلب أحدث البيانات من السحابة وحل مشاكل الاتصال.</p>
+                        <p className="text-sm text-gray-500 font-medium">قم بمزامنة البيانات يدوياً من السحابة لإصلاح مشاكل الأجهزة المتعددة.</p>
                     </div>
                 </div>
                 <button 
@@ -172,16 +168,15 @@ const DatabaseSettings = () => {
                 </button>
             </div>
 
-            {/* Manual Config */}
             <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-6">
                 <div className="flex items-center justify-between border-b pb-4">
                     <div className="flex items-center gap-3">
                         <Database size={28} className="text-gray-600"/>
-                        <h3 className="font-black text-xl">تهيئة السحابة يدوياً</h3>
+                        <h3 className="font-black text-xl">إعدادات الربط السحابي</h3>
                     </div>
                     {isEnvConfigured && (
                         <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black border border-green-200">
-                            مفعل عبر Vercel
+                            مفعل عبر Vercel Env
                         </div>
                     )}
                 </div>
@@ -189,7 +184,7 @@ const DatabaseSettings = () => {
                 <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 text-sm flex gap-3 items-start">
                     <AlertTriangle className="shrink-0 mt-1" size={20}/>
                     <p className="font-medium text-xs">
-                        استخدم هذا الخيار فقط للتجربة على جهازك الشخصي. للعمل الدائم، يفضل وضع هذه القيم في **متغيرات بيئة المشروع** لتجنب فقدانها عند مسح ذاكرة المتصفح.
+                        تحذير: القيم المدخلة هنا تحفظ في متصفحك الحالي فقط. إذا لم تعمل المزامنة، تأكد من أن حسابك في Supabase مفعل ولم يتجاوز حدود الاستخدام المجاني.
                     </p>
                 </div>
 
@@ -203,20 +198,19 @@ const DatabaseSettings = () => {
                         <input className="w-full p-3 bg-gray-50 border rounded-xl font-mono text-sm dir-ltr focus:ring-2 focus:ring-indigo-500" type="password" placeholder="eyJhbG..." value={dbKey} onChange={e=>setDbKey(e.target.value)}/>
                     </div>
                     <div className="flex gap-3 pt-2">
-                        <button onClick={handleSaveConfig} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black shadow-lg hover:bg-black transition-all">حفظ الإعدادات محلياً</button>
+                        <button onClick={handleSaveConfig} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black shadow-lg hover:bg-black transition-all">حفظ محلي (لهذا الجهاز)</button>
                         <button onClick={handleTestConnection} disabled={isTesting} className="px-6 bg-white border border-gray-200 text-gray-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-50">
-                            {isTesting ? <RefreshCw className="animate-spin" size={18}/> : <Wifi size={18}/>} اختبار
+                            {isTesting ? <RefreshCw className="animate-spin" size={18}/> : <Wifi size={18}/>} اختبار الاتصال
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* SQL Section */}
             <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] relative overflow-hidden border-b-[8px] border-slate-950">
                 <div className="absolute top-0 right-0 p-4 opacity-10"><Code size={80}/></div>
-                <h4 className="font-black text-xl mb-3 flex items-center gap-2 text-indigo-400"><Code size={24}/> مهيئ الجداول السحابي</h4>
+                <h4 className="font-black text-xl mb-3 flex items-center gap-2 text-indigo-400"><Code size={24}/> كود تهيئة الجداول</h4>
                 <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                    إذا كان الموقع يظهر "بيانات فارغة" أو لا يتم الحفظ، قد تحتاج لتشغيل كود SQL التالي في Supabase لضمان وجود الجداول بالمسميات الصحيحة (`snake_case`).
+                    إذا كان الاتصال ناجحاً ولكن لا تظهر بيانات، انسخ هذا الكود وقم بتشغيله في "SQL Editor" داخل موقع Supabase لإنشاء الجداول اللازمة.
                 </p>
                 <button onClick={()=>{navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ كود SQL بنجاح');}} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl">
                     <Copy size={18}/> نسخ كود SQL للإصلاح
@@ -232,9 +226,9 @@ const AdminDashboard = () => {
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal">
             <div className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4">
-                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3"><Shield className="text-indigo-600" size={32}/> لوحة تحكم مدير النظام</h2>
+                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3"><Shield className="text-indigo-600" size={32}/> لوحة تحكم الإدارة</h2>
                 <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
-                    <button onClick={() => setView('OVERVIEW')} className={`px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${view === 'OVERVIEW' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>إحصائيات النظام</button>
+                    <button onClick={() => setView('OVERVIEW')} className={`px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${view === 'OVERVIEW' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>الإحصائيات</button>
                     <button onClick={() => setView('DATABASE')} className={`px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${view === 'DATABASE' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>قاعدة البيانات</button>
                 </div>
             </div>
