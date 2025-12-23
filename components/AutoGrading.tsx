@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ScanLine, Camera, Upload, Check, X, RefreshCw, BrainCircuit, Save, FileText, Image as ImageIcon } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, SystemUser } from '../types';
@@ -18,7 +19,8 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
     const [cameraActive, setCameraActive] = useState(false);
 
     useEffect(() => {
-        setExams(getExams(currentUser.id).filter(e => e.isActive));
+        const loadedExams = getExams(currentUser.id);
+        setExams(loadedExams.filter((e: Exam) => e.isActive));
         setStudents(getStudents());
     }, [currentUser]);
 
@@ -60,7 +62,7 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
         try {
             const res = await gradeExamPaper(imagePreview, exam);
             setResult(res);
-            if (res.studentNameDetected) {
+            if (res && res.studentNameDetected) {
                 const match = students.find(s => s.name.includes(res.studentNameDetected));
                 if (match) setSelectedStudentId(match.id);
             }
@@ -134,16 +136,16 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
                                     <option value="">-- اختر من السجل --</option>
                                     {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
-                                {result.studentNameDetected && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 rounded">تم اكتشاف: {result.studentNameDetected}</span>}
+                                {result?.studentNameDetected && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 rounded">تم اكتشاف: {result.studentNameDetected}</span>}
                             </div>
                         </div>
                         <div className="text-center bg-white p-3 rounded-xl border-2 border-green-500 shadow-sm">
-                            <div className="text-4xl font-black text-green-600">{result.totalScore}</div>
-                            <div className="text-[10px] font-bold text-gray-400">من {result.maxTotalScore}</div>
+                            <div className="text-4xl font-black text-green-600">{result?.totalScore || 0}</div>
+                            <div className="text-[10px] font-bold text-gray-400">من {result?.maxTotalScore || 0}</div>
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                        {result.questions.map((q: any, i: number) => (
+                        {result?.questions?.map((q: any, i: number) => (
                             <div key={i} className={`p-4 rounded-xl border flex justify-between items-center ${q.isCorrect ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
                                 <div className="text-sm font-bold text-gray-700">س{q.index}: <span className="font-normal opacity-70">إجابة الطالب ({q.studentAnswer})</span></div>
                                 {q.isCorrect ? <Check className="text-green-600" size={20}/> : <X className="text-red-600" size={20}/>}

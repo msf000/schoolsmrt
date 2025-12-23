@@ -1,14 +1,16 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, RemedialPlan } from '../types';
-import { getAcademicTerms, getTeacherAssignments, saveRemedialPlan, getRemedialPlans } from '../services/storageService';
+import { getAcademicTerms, saveRemedialPlan, getRemedialPlans } from '../services/storageService';
 import { detectAtRiskStudents } from '../services/analysisService';
 import { generateSmartRemedialPlan } from '../services/geminiService';
 import { 
     FileText, AlertTriangle, Printer, Sparkles, Loader2, 
-    Save, X, BookOpen, History, BrainCircuit
+    Save, X, BookOpen, History, BrainCircuit, Calendar
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { formatDualDate } from '../services/dateService';
+import MonthlyReport from './MonthlyReport';
 
 interface ReportsCenterProps {
   students: Student[];
@@ -18,9 +20,7 @@ interface ReportsCenterProps {
 }
 
 const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, performance, currentUser }) => {
-    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'REMEDIAL' | 'PERFORMANCE_LOG' | 'MONTHLY'>((localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE');
-    const [selectedClass, setSelectedClass] = useState(localStorage.getItem('rep_selected_class') || '');
-    const [selectedTermId, setSelectedTermId] = useState(localStorage.getItem('rep_term_id') || '');
+    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'REMEDIAL' | 'MONTHLY'>((localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE');
     
     const [isGenerating, setIsGenerating] = useState(false);
     const [currentPlan, setCurrentPlan] = useState<string>('');
@@ -29,10 +29,8 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
 
     useEffect(() => {
         localStorage.setItem('rep_active_tab', activeTab);
-        localStorage.setItem('rep_selected_class', selectedClass);
-        localStorage.setItem('rep_term_id', selectedTermId);
         if (activeTab === 'REMEDIAL') setSavedRemedialPlans(getRemedialPlans());
-    }, [activeTab, selectedClass, selectedTermId]);
+    }, [activeTab]);
 
     const atRiskStudents = useMemo(() => detectAtRiskStudents(students, attendance, performance), [students, attendance, performance]);
 
@@ -69,24 +67,32 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         setViewingStudent(null);
     };
 
-    const TabBtn = ({ label, icon, active, onClick }: any) => (
-        <button onClick={onClick} className={`px-5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}>{label}</button>
+    const TabBtn = ({ label, active, onClick, icon: Icon }: any) => (
+        <button onClick={onClick} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white border border-transparent hover:border-gray-100'}`}>
+            <Icon size={16}/>
+            {label}
+        </button>
     );
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden font-tajawal">
-            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+            <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden">
                 <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><FileText className="text-purple-600"/> مركز التقارير والخطط</h2>
                 <div className="flex bg-white p-1 rounded-xl border shadow-sm overflow-x-auto no-scrollbar max-w-full">
-                    <TabBtn label="التقرير الشامل" active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
-                    <TabBtn label="المتعثرين" active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
-                    <TabBtn label="الخطط العلاجية" active={activeTab==='REMEDIAL'} onClick={()=>setActiveTab('REMEDIAL')} />
+                    <TabBtn label="التقرير الشامل" icon={FileText} active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
+                    <TabBtn label="سجل الحضور" icon={Calendar} active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
+                    <TabBtn label="المتعثرين" icon={AlertTriangle} active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
+                    <TabBtn label="الخطط العلاجية" icon={BrainCircuit} active={activeTab==='REMEDIAL'} onClick={()=>setActiveTab('REMEDIAL')} />
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
+                {activeTab === 'MONTHLY' && (
+                    <MonthlyReport students={students} attendance={attendance} performance={performance} currentUser={currentUser} />
+                )}
+
                 {activeTab === 'AT_RISK' && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 animate-slide-up">
                         <div className="bg-orange-50 border border-orange-100 p-6 rounded-3xl flex items-center gap-4">
                             <AlertTriangle size={32} className="text-orange-500 shrink-0"/>
                             <div>
@@ -115,7 +121,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                 )}
 
                 {activeTab === 'REMEDIAL' && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 animate-slide-up">
                         <div className="bg-white p-6 rounded-3xl border shadow-sm">
                             <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><History size={18} className="text-indigo-600"/> أرشيف الخطط المعتمدة</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -141,14 +147,27 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                 )}
 
                 {activeTab === 'COMPREHENSIVE' && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <button onClick={() => setActiveTab('AT_RISK')} className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col items-center gap-3 hover:border-orange-400 transition-all group">
-                            <div className="p-3 bg-orange-50 text-orange-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-colors"><AlertTriangle size={24}/></div>
-                            <span className="font-black text-gray-800 text-xs">تحليل المتعثرين</span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                        <button onClick={() => setActiveTab('MONTHLY')} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-indigo-400 transition-all group">
+                            <div className="p-4 bg-indigo-50 text-indigo-600 rounded-3xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-inner"><Calendar size={32}/></div>
+                            <div>
+                                <h4 className="font-black text-gray-800">كشوفات الحضور</h4>
+                                <p className="text-xs text-gray-400 mt-1">توليد سجل الحضور الشهري والفصلي لجميع الفصول.</p>
+                            </div>
                         </button>
-                        <button onClick={() => setActiveTab('REMEDIAL')} className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col items-center gap-3 hover:border-indigo-400 transition-all group">
-                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors"><BrainCircuit size={24}/></div>
-                            <span className="font-black text-gray-800 text-xs">الخطط العلاجية</span>
+                        <button onClick={() => setActiveTab('AT_RISK')} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-orange-400 transition-all group">
+                            <div className="p-4 bg-orange-50 text-orange-600 rounded-3xl group-hover:bg-orange-600 group-hover:text-white transition-colors shadow-inner"><AlertTriangle size={32}/></div>
+                            <div>
+                                <h4 className="font-black text-gray-800">تحليل المتعثرين</h4>
+                                <p className="text-xs text-gray-400 mt-1">اكتشاف الطلاب الذين يعانون من تراجع في الأداء أو غياب متكرر.</p>
+                            </div>
+                        </button>
+                        <button onClick={() => setActiveTab('REMEDIAL')} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-purple-400 transition-all group">
+                            <div className="p-4 bg-purple-50 text-purple-600 rounded-3xl group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-inner"><BrainCircuit size={32}/></div>
+                            <div>
+                                <h4 className="font-black text-gray-800">الخطط العلاجية</h4>
+                                <p className="text-xs text-gray-400 mt-1">توليد خطط دعم مخصصة باستخدام الذكاء الاصطناعي.</p>
+                            </div>
                         </button>
                     </div>
                 )}
@@ -176,7 +195,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                                 </div>
                             )}
                         </div>
-                        <div className="p-6 border-t bg-gray-50 flex justify-between items-center gap-4">
+                        <div className="p-6 border-t bg-gray-50 flex justify-between items-center gap-4 print:hidden">
                             <button onClick={() => window.print()} className="px-8 py-3 bg-gray-800 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><Printer size={18}/> طباعة</button>
                             {currentPlan && !savedRemedialPlans.some(p => p.content === currentPlan) && (
                                 <button onClick={handleSaveRemedial} className="flex-1 py-3 bg-green-600 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 hover:bg-green-700">

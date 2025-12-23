@@ -18,43 +18,69 @@ export const KEYS = {
     CUSTOM_TABLES: 'custom_tables'
 };
 
-/**
- * الذاكرة المؤقتة للجلسة (Session Cache)
- */
-const sessionCache: any = {
-    students: [] as Student[],
-    attendance: [] as AttendanceRecord[],
-    performance: [] as PerformanceRecord[],
-    subjects: [] as Subject[],
-    schedules: [] as ScheduleItem[],
-    assignments: [] as TeacherAssignment[],
-    academicTerms: [] as AcademicTerm[],
-    tasks: [] as Task[],
-    behavior: [] as BehaviorIncident[],
-    exams: [] as Exam[],
-    examResults: [] as ExamResult[],
-    messages: [] as MessageLog[],
-    schools: [] as School[],
-    teachers: [] as Teacher[],
-    systemUsers: [] as SystemUser[],
-    customTables: [] as CustomTable[],
-    lessonPlans: [] as StoredLessonPlan[],
-    lessonLinks: [] as LessonLink[],
-    weeklyPlans: [] as WeeklyPlanItem[],
-    remedialPlans: [] as RemedialPlan[],
-    formsResults: [] as FormsDetailedResult[],
-    environmentRecords: [] as EnvironmentRecord[],
-    trackingSheets: [] as TrackingSheet[],
-    questionBank: [] as Question[],
-    curriculumUnits: [] as CurriculumUnit[],
-    curriculumLessons: [] as CurriculumLesson[],
-    actualAssignments: [] as Assignment[]
+interface SessionCache {
+    students: Student[];
+    attendance: AttendanceRecord[];
+    performance: PerformanceRecord[];
+    subjects: Subject[];
+    schedules: ScheduleItem[];
+    assignments: TeacherAssignment[];
+    academicTerms: AcademicTerm[];
+    tasks: Task[];
+    behavior: BehaviorIncident[];
+    exams: Exam[];
+    examResults: ExamResult[];
+    messages: MessageLog[];
+    schools: School[];
+    teachers: Teacher[];
+    systemUsers: SystemUser[];
+    customTables: CustomTable[];
+    lessonPlans: StoredLessonPlan[];
+    lessonLinks: LessonLink[];
+    weeklyPlans: WeeklyPlanItem[];
+    remedialPlans: RemedialPlan[];
+    formsResults: FormsDetailedResult[];
+    environmentRecords: EnvironmentRecord[];
+    trackingSheets: TrackingSheet[];
+    questionBank: Question[];
+    curriculumUnits: CurriculumUnit[];
+    curriculumLessons: CurriculumLesson[];
+    actualAssignments: Assignment[];
+}
+
+const sessionCache: SessionCache = {
+    students: [],
+    attendance: [],
+    performance: [],
+    subjects: [],
+    schedules: [],
+    assignments: [],
+    academicTerms: [],
+    tasks: [],
+    behavior: [],
+    exams: [],
+    examResults: [],
+    messages: [],
+    schools: [],
+    teachers: [],
+    systemUsers: [],
+    customTables: [],
+    lessonPlans: [],
+    lessonLinks: [],
+    weeklyPlans: [],
+    remedialPlans: [],
+    formsResults: [],
+    environmentRecords: [],
+    trackingSheets: [],
+    questionBank: [],
+    curriculumUnits: [],
+    curriculumLessons: [],
+    actualAssignments: []
 };
 
 // --- المصادقة والدخول ---
 
 export const authenticateUser = async (id: string, p: string): Promise<SystemUser | null> => {
-    // 1. التحقق من حساب المسؤول العام الافتراضي (للطوارئ أو الإعداد الأول)
     if (id === 'admin' && p === 'admin') {
         return {
             id: 'super_admin_001',
@@ -65,7 +91,6 @@ export const authenticateUser = async (id: string, p: string): Promise<SystemUse
         };
     }
 
-    // 2. التحقق من السحابة
     const { data, error } = await supabase.from('system_users')
         .select('*')
         .or(`national_id.eq.${id},email.eq.${id}`)
@@ -94,7 +119,7 @@ export const authenticateStudent = async (id: string, p: string): Promise<Studen
     return data || null;
 };
 
-// --- دوال جلب بيانات النظام (للمسؤولين) ---
+// --- دوال جلب البيانات ---
 
 export const fetchSchools = async (): Promise<School[]> => {
     const { data } = await supabase.from('schools').select('*').order('name');
@@ -121,8 +146,6 @@ export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
 };
 
 export const getSystemUsers = (): SystemUser[] => sessionCache.systemUsers;
-
-// --- دوال تحديث بيانات النظام ---
 
 export const addSchool = async (s: School) => {
     await supabase.from('schools').insert(s);
@@ -164,7 +187,6 @@ export const deleteSystemUser = async (id: string) => {
 export const addTeacher = async (t: Teacher) => {
     await supabase.from('teachers').insert(t);
     sessionCache.teachers.push(t);
-    // تلقائياً أنشئ له مستخدم نظام إذا لم يكن موجوداً
     await addSystemUser({
         id: t.id, name: t.name, email: t.email || `t.${t.nationalId}@system.local`, nationalId: t.nationalId, password: t.password || '123456', role: 'TEACHER', schoolId: t.schoolId, status: 'ACTIVE'
     });
@@ -174,8 +196,6 @@ export const updateTeacher = async (t: Teacher) => {
     await supabase.from('teachers').update(t).eq('id', t.id);
     sessionCache.teachers = sessionCache.teachers.map((x: Teacher) => x.id === t.id ? t : x);
 };
-
-// --- دوال الرصد والطلاب السحابية ---
 
 export const fetchStudents = async (): Promise<Student[]> => {
     const { data, error } = await supabase.from('students').select('*').order('name');
@@ -255,10 +275,6 @@ export const deletePerformance = async (id: string) => {
     await supabase.from('performance').delete().eq('id', id);
     sessionCache.performance = sessionCache.performance.filter((x: PerformanceRecord) => x.id !== id);
 };
-
-export const bulkAddPerformance = addPerformance;
-
-// --- دوال إضافية للمكونات ---
 
 export const fetchAssignments = async (tid?: string) => {
     let q = supabase.from('assignments').select('*');
@@ -394,14 +410,6 @@ export const saveTask = async (t: Task) => {
     if (idx !== -1) sessionCache.tasks[idx] = t; else sessionCache.tasks.push(t);
 };
 
-export const submitTask = async (taskId: string, studentId: string) => {
-    const task = sessionCache.tasks.find((t: Task) => t.id === taskId);
-    if (task && !task.submissions.includes(studentId)) {
-        task.submissions.push(studentId);
-        await saveTask(task);
-    }
-};
-
 export const fetchBehaviorIncidents = async (tid?: string) => {
     let q = supabase.from('behavior_incidents').select('*');
     if(tid) q = q.eq('teacher_id', tid);
@@ -414,8 +422,6 @@ export const saveBehaviorIncident = async (i: BehaviorIncident) => {
     await supabase.from('behavior_incidents').upsert(i);
     const idx = sessionCache.behavior.findIndex((x: BehaviorIncident) => x.id === i.id);
     if (idx !== -1) sessionCache.behavior[idx] = i; else sessionCache.behavior.push(i);
-    
-    // Update student points in cache and DB
     const student = sessionCache.students.find((s: Student) => s.id === i.studentId);
     if (student) {
         student.behaviorPoints = (student.behaviorPoints || 0) + i.points;
@@ -423,16 +429,14 @@ export const saveBehaviorIncident = async (i: BehaviorIncident) => {
     }
 };
 
-// --- Exams ---
-
 export const fetchExams = async (tid?: string) => {
     let q = supabase.from('exams').select('*');
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
     sessionCache.exams = (data || []).map((d: any) => ({
-        id: d.id, title: d.title, subject: d.subject, gradeLevel: d.grade_level, 
-        durationMinutes: d.duration_minutes, questions: d.questions, 
-        isActive: d.is_active, createdAt: d.created_at, teacherId: d.teacher_id, date: d.date
+        id: d.id, title: d.title, subject: d.subject, grade_level: d.grade_level, 
+        duration_minutes: d.duration_minutes, questions: d.questions, 
+        isActive: d.is_active, createdAt: d.created_at, teacher_id: d.teacher_id, date: d.date
     }));
     return sessionCache.exams;
 };
@@ -474,12 +478,11 @@ export const saveExamResult = async (r: ExamResult) => {
     if (idx !== -1) sessionCache.examResults[idx] = r; else sessionCache.examResults.push(r);
 };
 
+// Fix: Add exported deleteExamResult member to fix import error in components/ExamsManager.tsx
 export const deleteExamResult = async (id: string) => {
     await supabase.from('exam_results').delete().eq('id', id);
     sessionCache.examResults = sessionCache.examResults.filter((x: ExamResult) => x.id !== id);
 };
-
-// --- Question Bank ---
 
 export const fetchQuestionBank = async (tid: string) => {
     const { data } = await supabase.from('question_bank').select('*').eq('teacher_id', tid);
@@ -503,8 +506,6 @@ export const deleteQuestionFromBank = async (id: string) => {
     sessionCache.questionBank = sessionCache.questionBank.filter((x: Question) => x.id !== id);
 };
 
-// --- Messages ---
-
 export const fetchMessages = async (tid?: string) => {
     let q = supabase.from('messages').select('*');
     if (tid) q = q.eq('teacher_id', tid);
@@ -522,8 +523,6 @@ export const saveMessage = async (m: MessageLog) => {
     await supabase.from('messages').insert(dbObj);
     sessionCache.messages.push(m);
 };
-
-// --- Custom Tables ---
 
 export const fetchCustomTables = async (tid: string) => {
     const { data } = await supabase.from('custom_tables').select('*').eq('teacher_id', tid);
@@ -545,8 +544,6 @@ export const deleteCustomTable = async (id: string) => {
     await supabase.from('custom_tables').delete().eq('id', id);
     sessionCache.customTables = sessionCache.customTables.filter((x: CustomTable) => x.id !== id);
 };
-
-// --- Lesson Plans ---
 
 export const fetchLessonPlans = async (tid: string) => {
     const { data } = await supabase.from('lesson_plans').select('*').eq('teacher_id', tid);
@@ -570,8 +567,6 @@ export const deleteLessonPlan = async (id: string) => {
     sessionCache.lessonPlans = sessionCache.lessonPlans.filter((x: StoredLessonPlan) => x.id !== id);
 };
 
-// --- Lesson Links ---
-
 export const fetchLessonLinks = async () => {
     const { data } = await supabase.from('lesson_links').select('*');
     sessionCache.lessonLinks = (data || []).map((d: any) => ({
@@ -594,8 +589,6 @@ export const deleteLessonLink = async (id: string) => {
     sessionCache.lessonLinks = sessionCache.lessonLinks.filter((x: LessonLink) => x.id !== id);
 };
 
-// --- Weekly Plans ---
-
 export const fetchWeeklyPlans = async (tid: string) => {
     const { data } = await supabase.from('weekly_plans').select('*').eq('teacher_id', tid);
     sessionCache.weeklyPlans = (data || []).map((d: any) => ({
@@ -612,8 +605,6 @@ export const saveWeeklyPlanItem = async (p: WeeklyPlanItem) => {
     const idx = sessionCache.weeklyPlans.findIndex((x: WeeklyPlanItem) => x.id === p.id);
     if (idx !== -1) sessionCache.weeklyPlans[idx] = p; else sessionCache.weeklyPlans.push(p);
 };
-
-// --- Remedial Plans ---
 
 export const fetchRemedialPlans = async (tid?: string) => {
     let q = supabase.from('remedial_plans').select('*');
@@ -633,8 +624,6 @@ export const saveRemedialPlan = async (p: RemedialPlan) => {
     const idx = sessionCache.remedialPlans.findIndex((x: RemedialPlan) => x.id === p.id);
     if (idx !== -1) sessionCache.remedialPlans[idx] = p; else sessionCache.remedialPlans.push(p);
 };
-
-// --- Forms Detailed Results ---
 
 export const fetchFormsDetailedResults = async (tid: string) => {
     const { data } = await supabase.from('forms_results').select('*').eq('teacher_id', tid);
@@ -658,8 +647,6 @@ export const deleteFormsDetailedResult = async (id: string) => {
     sessionCache.formsResults = sessionCache.formsResults.filter((x: FormsDetailedResult) => x.id !== id);
 };
 
-// --- Environment Records ---
-
 export const fetchEnvironmentRecords = async (cid: string) => {
     const { data } = await supabase.from('environment_records').select('*').eq('class_id', cid);
     sessionCache.environmentRecords = (data || []).map((d: any) => ({
@@ -676,8 +663,6 @@ export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
     const idx = sessionCache.environmentRecords.findIndex((x: EnvironmentRecord) => x.id === r.id);
     if (idx !== -1) sessionCache.environmentRecords[idx] = r; else sessionCache.environmentRecords.push(r);
 };
-
-// --- Tracking Sheets ---
 
 export const fetchTrackingSheets = async (tid: string) => {
     const { data } = await supabase.from('tracking_sheets').select('*').eq('teacher_id', tid);
@@ -700,8 +685,6 @@ export const deleteTrackingSheet = async (id: string) => {
     await supabase.from('tracking_sheets').delete().eq('id', id);
     sessionCache.trackingSheets = sessionCache.trackingSheets.filter((x: TrackingSheet) => x.id !== id);
 };
-
-// --- Curriculum ---
 
 export const fetchCurriculumUnits = async (tid: string) => {
     const { data } = await supabase.from('curriculum_units').select('*').eq('teacher_id', tid);
@@ -748,6 +731,7 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     if (idx !== -1) sessionCache.curriculumLessons[idx] = l; else sessionCache.curriculumLessons.push(l);
 };
 
+// Fix: Add exported deleteCurriculumLesson member to fix import error in components/CurriculumManager.tsx
 export const deleteCurriculumLesson = async (id: string) => {
     await supabase.from('curriculum_lessons').delete().eq('id', id);
     sessionCache.curriculumLessons = sessionCache.curriculumLessons.filter((x: CurriculumLesson) => x.id !== id);
