@@ -1,3 +1,4 @@
+
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -484,8 +485,8 @@ export const fetchTasks = async (tid?: string) => {
     const { data } = await q;
     sessionCache.tasks = (data || []).map((d: any) => ({
         id: d.id, teacherId: d.teacher_id, classId: d.class_id, subject: d.subject,
-        title: d.title, description: d.description, dueDate: d.due_date,
-        type: d.type, maxScore: d.max_score, submissions: d.submissions || []
+        title: d.title, description: d.description, due_date: d.due_date,
+        type: d.type, max_score: d.max_score, submissions: d.submissions || []
     }));
     return sessionCache.tasks;
 };
@@ -796,7 +797,7 @@ export const deleteTrackingSheet = async (id: string) => {
 export const fetchCurriculumUnits = async (tid: string) => {
     const { data } = await supabase.from('curriculum_units').select('*').eq('teacher_id', tid);
     sessionCache.curriculumUnits = (data || []).map((d: any) => ({
-        id: d.id, teacherId: d.teacher_id, subject: d.subject, gradeLevel: d.grade_level, title: d.title, orderIndex: d.order_index
+        id: d.id, teacherId: d.teacher_id, subject: d.subject, grade_level: d.grade_level, title: d.title, order_index: d.order_index
     }));
     return sessionCache.curriculumUnits;
 };
@@ -818,9 +819,9 @@ export const deleteCurriculumUnit = async (id: string) => {
 export const fetchCurriculumLessons = async () => {
     const { data } = await supabase.from('curriculum_lessons').select('*');
     sessionCache.curriculumLessons = (data || []).map((d: any) => ({
-        id: d.id, unitId: d.unit_id, title: d.title, orderIndex: d.order_index, 
-        learningStandards: d.learning_standards, microConceptIds: d.micro_concept_ids, 
-        isCompleted: d.is_completed, completedAt: d.completed_at
+        id: d.id, unit_id: d.unit_id, title: d.title, order_index: d.order_index, 
+        learning_standards: d.learning_standards, micro_concept_ids: d.micro_concept_ids, 
+        is_completed: d.is_completed, completed_at: d.completed_at
     }));
     return sessionCache.curriculumLessons;
 };
@@ -869,19 +870,169 @@ export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WOR
 
 export const DB_MAP = { SCHOOLS: 'schools', SYSTEM_USERS: 'system_users', TEACHERS: 'teachers' };
 export const getTableDisplayName = (t: string) => t;
-export const checkConnection = async () => ({ success: true });
+export const checkConnection = async () => {
+    const { data, error } = await supabase.from('system_users').select('count', { count: 'exact', head: true });
+    return { success: !error };
+};
 export const validateCloudSchema = async () => ({ missingTables: [] });
 export const downloadFromSupabase = async () => {};
 export const uploadToSupabase = async () => {};
 export const fetchCloudTableData = async (t: string) => [];
 export const clearCloudTable = async (t: string) => {};
-export const resetCloudDatabase = async () => {};
-export const backupCloudDatabase = async () => "";
+export const resetCloudDatabase = async () => {
+    // This is a safety measure. Full reset should be done via SQL.
+};
+export const backupCloudDatabase = async () => {
+    const tables = ['students', 'attendance', 'performance', 'teachers', 'schools', 'system_users', 'assignments'];
+    const backup: any = {};
+    for (const t of tables) {
+        const { data } = await supabase.from(t).select('*');
+        backup[t] = data;
+    }
+    return JSON.stringify(backup);
+};
 export const restoreCloudDatabase = async (j: string) => {};
-export const getDatabaseSchemaSQL = () => "";
-export const getDatabaseUpdateSQL = () => "";
+
+export const getDatabaseSchemaSQL = () => `
+-- 1. جدول المدارس
+CREATE TABLE IF NOT EXISTS schools (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    ministry_code TEXT UNIQUE,
+    manager_name TEXT,
+    manager_national_id TEXT,
+    type TEXT,
+    phone TEXT,
+    student_count INTEGER DEFAULT 0,
+    education_administration TEXT
+);
+
+-- 2. جدول مستخدمي النظام
+CREATE TABLE IF NOT EXISTS system_users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    national_id TEXT UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT CHECK (role IN ('SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER', 'STUDENT', 'PARENT')),
+    school_id TEXT REFERENCES schools(id),
+    status TEXT DEFAULT 'ACTIVE',
+    phone TEXT
+);
+
+-- 3. جدول المعلمين
+CREATE TABLE IF NOT EXISTS teachers (
+    id TEXT PRIMARY KEY REFERENCES system_users(id),
+    name TEXT NOT NULL,
+    national_id TEXT UNIQUE,
+    email TEXT,
+    phone TEXT,
+    subject_specialty TEXT,
+    password TEXT,
+    school_id TEXT REFERENCES schools(id),
+    manager_id TEXT,
+    subscription_status TEXT DEFAULT 'FREE',
+    subscription_end_date TIMESTAMP
+);
+
+-- 4. جدول الطلاب
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT UNIQUE,
+    class_id TEXT,
+    school_id TEXT REFERENCES schools(id),
+    created_by_id TEXT REFERENCES system_users(id),
+    grade_level TEXT,
+    class_name TEXT,
+    email TEXT,
+    phone TEXT,
+    parent_name TEXT,
+    parent_phone TEXT,
+    parent_email TEXT,
+    password TEXT DEFAULT '123456',
+    learning_style TEXT,
+    behavior_points INTEGER DEFAULT 0
+);
+
+-- 5. جدول الحضور
+CREATE TABLE IF NOT EXISTS attendance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    status TEXT NOT NULL,
+    subject TEXT,
+    period INTEGER,
+    behavior_status TEXT,
+    behavior_note TEXT,
+    participation_score INTEGER,
+    excuse_note TEXT,
+    created_by_id TEXT REFERENCES system_users(id)
+);
+
+-- 6. جدول الأداء والدرجات
+CREATE TABLE IF NOT EXISTS performance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    subject TEXT NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT,
+    score NUMERIC NOT NULL,
+    max_score NUMERIC NOT NULL,
+    date DATE NOT NULL,
+    notes TEXT,
+    created_by_id TEXT REFERENCES system_users(id)
+);
+
+-- 7. جداول إضافية (المهام، السلوك، إلخ)
+CREATE TABLE IF NOT EXISTS tasks (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    class_id TEXT,
+    subject TEXT,
+    title TEXT,
+    description TEXT,
+    due_date DATE,
+    type TEXT,
+    max_score NUMERIC,
+    submissions TEXT[]
+);
+
+CREATE TABLE IF NOT EXISTS behavior_incidents (
+    id TEXT PRIMARY KEY,
+    student_id TEXT,
+    teacher_id TEXT,
+    type TEXT,
+    category TEXT,
+    points INTEGER,
+    date TIMESTAMP,
+    note TEXT,
+    action_taken TEXT
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    category TEXT,
+    max_score NUMERIC,
+    is_visible BOOLEAN,
+    teacher_id TEXT,
+    term_id TEXT,
+    period_id TEXT,
+    source_metadata TEXT,
+    sort_order INTEGER,
+    url TEXT
+);
+`;
+
+export const getDatabaseUpdateSQL = () => `
+-- كود تحديث الجداول القائمة
+ALTER TABLE students ADD COLUMN IF NOT EXISTS learning_style TEXT;
+ALTER TABLE system_users ADD COLUMN IF NOT EXISTS phone TEXT;
+`;
+
 export const createBackup = () => "";
 export const restoreBackup = (j: string) => {};
 export const clearDatabase = () => localStorage.clear();
 export const setSystemMode = (val: boolean) => localStorage.setItem('system_mode', String(val));
-export const initAutoSync = async () => { /* Logic to initialize background sync */ };
+export const initAutoSync = async () => {};

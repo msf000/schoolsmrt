@@ -6,55 +6,43 @@ let supabaseInstance: SupabaseClient | null = null;
 
 export const isSupabaseConfigured = (): boolean => {
     const localUrl = localStorage.getItem('custom_supabase_url');
-    // Try import.meta.env first (standard), then process.env (Vite define polyfill)
-    const envUrl = import.meta.env?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '');
+    const envUrl = (import.meta.env?.VITE_SUPABASE_URL) || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '');
 
-    const hasValidLocal = !!localUrl && !localUrl.includes('placeholder');
-    const hasValidEnv = !!envUrl && !envUrl.includes('placeholder');
+    const hasValidLocal = !!localUrl && localUrl.startsWith('https://');
+    const hasValidEnv = !!envUrl && envUrl.startsWith('https://');
 
     return hasValidLocal || hasValidEnv;
 };
 
-// Function to get or create the client
 export const getSupabaseClient = (): SupabaseClient => {
     if (supabaseInstance) return supabaseInstance;
 
-    // 1. Try local storage
     const localUrl = localStorage.getItem('custom_supabase_url');
     const localKey = localStorage.getItem('custom_supabase_key');
 
-    // 2. Try env vars
-    const envUrl = import.meta.env?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '') || '';
-    const envKey = import.meta.env?.VITE_SUPABASE_KEY || (typeof process !== 'undefined' ? process.env?.SUPABASE_KEY : '') || '';
+    const envUrl = (import.meta.env?.VITE_SUPABASE_URL) || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '') || '';
+    const envKey = (import.meta.env?.VITE_SUPABASE_KEY) || (typeof process !== 'undefined' ? process.env?.SUPABASE_KEY : '') || '';
 
-    // Determine final values (Fallback to placeholder to allow app init, but requests will fail if used)
     let finalUrl = localUrl || envUrl || 'https://placeholder.supabase.co';
-    const finalKey = localKey || envKey || 'placeholder-key';
+    let finalKey = localKey || envKey || 'placeholder-key';
 
-    try {
-        new URL(finalUrl);
-    } catch (e) {
-        console.warn('Invalid URL, using fallback placeholder');
-        finalUrl = 'https://placeholder.supabase.co';
-    }
+    if (!finalUrl.startsWith('http')) finalUrl = 'https://placeholder.supabase.co';
 
     try {
         supabaseInstance = createClient(finalUrl, finalKey);
     } catch (e) {
-        console.error("Failed to initialize Supabase client", e);
+        console.error("Supabase Init Error:", e);
         supabaseInstance = createClient('https://placeholder.supabase.co', 'placeholder');
     }
     
     return supabaseInstance;
 };
 
-// Function to update config manually
 export const updateSupabaseConfig = (url: string, key: string) => {
     try {
-        new URL(url); // Validate URL
+        new URL(url);
         localStorage.setItem('custom_supabase_url', url);
         localStorage.setItem('custom_supabase_key', key);
-        // Re-create client
         supabaseInstance = createClient(url, key);
         return true;
     } catch (e) {
@@ -62,5 +50,4 @@ export const updateSupabaseConfig = (url: string, key: string) => {
     }
 };
 
-// Export for compatibility
 export const supabase = getSupabaseClient();
