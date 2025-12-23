@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync, downloadFromSupabase } from '../services/storageService';
-import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, Sparkles, Phone, RefreshCw, CloudLightning, Baby } from 'lucide-react';
+import { isSupabaseConfigured, updateSupabaseConfig } from '../services/supabaseClient';
+import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, Sparkles, Phone, RefreshCw, CloudLightning, Baby, Settings, Server, Save, X } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -17,8 +18,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+
+  // Cloud Config State
+  const [dbUrl, setDbUrl] = useState(localStorage.getItem('custom_supabase_url') || '');
+  const [dbKey, setDbKey] = useState(localStorage.getItem('custom_supabase_key') || '');
 
   useEffect(() => {
       const autoSync = async () => {
@@ -34,7 +39,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setStatusMessage('جاري التحقق...');
     setSystemMode(true); 
 
     try {
@@ -69,11 +73,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  const handleSaveConfig = () => {
+      if (!dbUrl || !dbKey) return alert('يرجى إكمال البيانات');
+      updateSupabaseConfig(dbUrl, dbKey);
+      setIsConfigModalOpen(false);
+      alert('تم تحديث إعدادات السحابة بنجاح!');
+      window.location.reload();
+  };
+
   if (view === 'REGISTER') return <TeacherRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={() => setView('LOGIN')} />;
 
   return (
     <div className="min-h-screen bg-white md:bg-gray-50 flex items-center justify-center p-0 md:p-4 overflow-hidden relative" dir="rtl">
-      {/* Mobile Design: Full width background */}
+      {/* Settings Gear for Cloud Config */}
+      <button 
+        onClick={() => setIsConfigModalOpen(true)}
+        className="fixed top-6 left-6 p-3 bg-white rounded-full shadow-lg border border-gray-100 text-gray-400 hover:text-indigo-600 transition-all z-50 group"
+        title="إعدادات السحابة"
+      >
+        <Server size={24}/>
+        {!isSupabaseConfigured() && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>}
+      </button>
+
       <div className="hidden md:block absolute top-0 left-0 w-full h-96 bg-gradient-to-br from-indigo-700 to-indigo-900 -skew-y-6 origin-top-left -z-10 shadow-2xl"></div>
       
       <div className="w-full max-w-md h-full md:h-auto flex flex-col justify-center animate-slide-up px-6 py-10">
@@ -134,6 +155,35 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </div>
             </div>
       </div>
+
+      {/* Cloud Configuration Modal */}
+      {isConfigModalOpen && (
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-zoom-in border border-white/20">
+                  <div className="flex justify-between items-center mb-6">
+                      <div className="flex items-center gap-3">
+                          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Server/></div>
+                          <h3 className="text-xl font-black text-gray-800">إعداد السحابة</h3>
+                      </div>
+                      <button onClick={() => setIsConfigModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24}/></button>
+                  </div>
+                  <div className="space-y-4">
+                      <p className="text-xs text-gray-500 leading-relaxed font-bold">أدخل بيانات الربط الخاصة بـ Supabase لمزامنة هذا الجهاز مع حسابك.</p>
+                      <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 mr-1">Supabase URL</label>
+                          <input className="w-full p-4 bg-gray-50 border-none rounded-2xl font-mono text-xs dir-ltr focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://xyz.supabase.co" value={dbUrl} onChange={e=>setDbUrl(e.target.value)}/>
+                      </div>
+                      <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 mr-1">Anon API Key</label>
+                          <input className="w-full p-4 bg-gray-50 border-none rounded-2xl font-mono text-xs dir-ltr focus:ring-2 focus:ring-indigo-500 outline-none" type="password" placeholder="eyJhbGci..." value={dbKey} onChange={e=>setDbKey(e.target.value)}/>
+                      </div>
+                      <button onClick={handleSaveConfig} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2">
+                          <Save size={18}/> حفظ البيانات والربط
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
