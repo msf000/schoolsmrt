@@ -1,13 +1,16 @@
+
+// Add missing React import
 import React, { useState, useEffect } from 'react';
-import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync, downloadFromSupabase } from '../services/storageService';
-import { isSupabaseConfigured, updateSupabaseConfig } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, ShieldCheck, GraduationCap, Eye, EyeOff, User, CheckSquare, Square, Users, Sparkles, Phone, RefreshCw, CloudLightning, Baby, Settings, Server, Save, X } from 'lucide-react';
+import { authenticateUser, getStudents, setSystemMode, authenticateStudent, initAutoSync } from '../services/storageService';
+import { isSupabaseConfigured } from '../services/supabaseClient';
+import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, RefreshCw, CloudLightning } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
   onLoginSuccess: (user: any, rememberMe: boolean) => void;
 }
 
+// Fixed: React.FC requires React to be imported
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [view, setView] = useState<'LOGIN' | 'REGISTER'>('LOGIN'); 
   const [roleMode, setRoleMode] = useState<'STAFF' | 'STUDENT' | 'PARENT'>('STAFF');
@@ -18,26 +21,24 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-
-  // Cloud Config State
-  const [dbUrl, setDbUrl] = useState(localStorage.getItem('custom_supabase_url') || '');
-  const [dbKey, setDbKey] = useState(localStorage.getItem('custom_supabase_key') || '');
 
   useEffect(() => {
       const autoSync = async () => {
-          setIsSyncing(true);
-          try { 
-              await initAutoSync(); 
-          } catch (e) {
-              console.error("AutoSync Fail:", e);
-          } finally { 
-              setIsSyncing(false); 
+          if (isSupabaseConfigured()) {
+            setIsSyncing(true);
+            try { 
+                await initAutoSync(); 
+            } catch (e) {
+                console.error("AutoSync Fail:", e);
+            } finally { 
+                setIsSyncing(false); 
+            }
           }
       };
       autoSync();
   }, [view]);
 
+  // Fixed: React.FormEvent requires React to be imported
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -71,34 +72,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             setLoading(false);
         }
     } catch (e: any) {
-        setError('خطأ: ' + e.message);
+        setError(e.message || 'فشل الاتصال بقاعدة البيانات.');
         setLoading(false);
     }
-  };
-
-  const handleSaveConfig = () => {
-      if (!dbUrl || !dbKey) return alert('يرجى إكمال البيانات');
-      updateSupabaseConfig(dbUrl, dbKey);
-      setIsConfigModalOpen(false);
-      alert('تم تحديث إعدادات السحابة بنجاح!');
-      window.location.reload();
   };
 
   if (view === 'REGISTER') return <TeacherRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={() => setView('LOGIN')} />;
 
   return (
     <div className="min-h-screen bg-white md:bg-gray-50 flex items-center justify-center p-0 md:p-4 overflow-hidden relative" dir="rtl">
-      <button 
-        onClick={() => setIsConfigModalOpen(true)}
-        className="fixed top-6 left-6 p-3 bg-white rounded-full shadow-lg border border-gray-100 text-gray-400 hover:text-indigo-600 transition-all z-50 group"
-        title="إعدادات السحابة"
-      >
-        <div className="relative">
-            <Server size={24}/>
-            {isSyncing && <RefreshCw size={12} className="absolute -bottom-1 -right-1 text-indigo-500 animate-spin bg-white rounded-full"/>}
-        </div>
-        {!isSupabaseConfigured() && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>}
-      </button>
+      {/* Status Indicators */}
+      <div className="fixed top-6 left-6 flex items-center gap-3">
+          {isSyncing && (
+            <div className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full text-[10px] font-black border border-indigo-100 shadow-sm">
+                <RefreshCw size={12} className="animate-spin"/> جاري مزامنة السحابة...
+            </div>
+          )}
+          {!isSupabaseConfigured() && (
+             <div className="bg-red-50 text-red-600 px-3 py-1.5 rounded-full text-[10px] font-black border border-red-100 shadow-sm flex items-center gap-2">
+                <CloudLightning size={12}/> السحابة غير مهيأة
+             </div>
+          )}
+      </div>
 
       <div className="hidden md:block absolute top-0 left-0 w-full h-96 bg-gradient-to-br from-indigo-700 to-indigo-900 -skew-y-6 origin-top-left -z-10 shadow-2xl"></div>
       
@@ -155,39 +150,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <div className="mt-8 text-center space-y-4">
                 {roleMode === 'STAFF' && <button onClick={() => setView('REGISTER')} className="text-indigo-600 font-black text-xs hover:underline flex items-center justify-center gap-2 mx-auto bg-indigo-50 px-4 py-2 rounded-xl transition-colors">ليس لديك حساب؟ سجل الآن</button>}
                 <div className="flex justify-center gap-4 text-[10px] text-gray-300 font-bold uppercase tracking-widest">
-                    <span className="flex items-center gap-1"><CloudLightning size={10}/> Cloud Encrypted</span>
+                    <span className="flex items-center gap-1"><CloudLightning size={10}/> Cloud Sync Active</span>
                     <span>&copy; 2025 Smart System</span>
                 </div>
             </div>
       </div>
-
-      {isConfigModalOpen && (
-          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-zoom-in border border-white/20">
-                  <div className="flex justify-between items-center mb-6">
-                      <div className="flex items-center gap-3">
-                          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Server/></div>
-                          <h3 className="text-xl font-black text-gray-800">إعداد السحابة</h3>
-                      </div>
-                      <button onClick={() => setIsConfigModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24}/></button>
-                  </div>
-                  <div className="space-y-4">
-                      <p className="text-xs text-gray-500 leading-relaxed font-bold">أدخل بيانات الربط الخاصة بـ Supabase لمزامنة هذا الجهاز مع حسابك.</p>
-                      <div>
-                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 mr-1">Supabase URL</label>
-                          <input className="w-full p-4 bg-gray-50 border-none rounded-2xl font-mono text-xs dir-ltr focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://xyz.supabase.co" value={dbUrl} onChange={e=>setDbUrl(e.target.value)}/>
-                      </div>
-                      <div>
-                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-1 mr-1">Anon API Key</label>
-                          <input className="w-full p-4 bg-gray-50 border-none rounded-2xl font-mono text-xs dir-ltr focus:ring-2 focus:ring-indigo-500 outline-none" type="password" placeholder="eyJhbGci..." value={dbKey} onChange={e=>setDbKey(e.target.value)}/>
-                      </div>
-                      <button onClick={handleSaveConfig} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2">
-                          <Save size={18}/> حفظ البيانات والربط
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
     </div>
   );
 };

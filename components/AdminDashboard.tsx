@@ -1,27 +1,19 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-    getSchools, addSchool, deleteSchool, updateSchool, fetchSchools,
-    getSystemUsers, addSystemUser, deleteSystemUser, updateSystemUser, fetchSystemUsers,
-    getTeachers, updateTeacher, fetchTeachers,
+    getSchools, fetchSchools,
+    getSystemUsers, fetchSystemUsers,
+    getTeachers, fetchTeachers,
     getStudents, fetchStudents,
-    getAttendance, fetchAttendance,
-    getPerformance, fetchPerformance,
-    getAISettings, saveAISettings,
-    checkConnection, validateCloudSchema,
-    DB_MAP, getTableDisplayName, fetchCloudTableData, clearCloudTable, resetCloudDatabase, 
-    getDatabaseSchemaSQL, getDatabaseUpdateSQL, createBackup, restoreBackup, backupCloudDatabase, restoreCloudDatabase
+    fetchAttendance, fetchPerformance,
+    checkConnection,
+    getDatabaseSchemaSQL, downloadFromSupabase
 } from '../services/storageService';
-import { updateSupabaseConfig, isSupabaseConfigured } from '../services/supabaseClient';
-import { checkAIConnection } from '../services/geminiService';
-import { School, SystemUser, AISettings, Teacher, AttendanceStatus } from '../types';
+import { updateSupabaseConfig } from '../services/supabaseClient';
+import { AttendanceStatus } from '../types';
 import { 
-    Shield, Building, Users, CreditCard, Settings, Database, 
-    Trash2, Download, Upload, AlertTriangle, RefreshCw, Check, Copy, 
-    CloudLightning, Save, Wifi, WifiOff, Eye, Search, Plus, X, Edit, 
-    Key, GitMerge, CheckCircle, XCircle, BrainCircuit, Code, Activity, BarChart3, PieChart, TrendingUp, Star, Crown, Loader2, Server, Link2, Info, Globe, HardDrive
+    Shield, Building, Users, Settings, Database, 
+    RefreshCw, Save, Wifi, Globe, HardDrive, Code, Copy, CheckCircle, Info, AlertTriangle, CloudZap
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart as RePieChart, Pie, Legend } from 'recharts';
 
 const AdminOverview = () => {
     const [isLoading, setIsLoading] = useState(true);
@@ -33,25 +25,26 @@ const AdminOverview = () => {
         return 'NOT_CONFIGURED';
     }, []);
 
-    useEffect(() => {
-        const load = async () => {
-            setIsLoading(true);
-            try {
-                const [sch, tea, std, usr, att] = await Promise.all([
-                    fetchSchools(), fetchTeachers(), fetchStudents(), fetchSystemUsers(), fetchAttendance()
-                ]);
-                
-                const today = new Date().toISOString().split('T')[0];
-                const todaysAtt = att.filter(a => a.date === today);
-                const attRate = todaysAtt.length > 0 ? Math.round((todaysAtt.filter(a => a.status === AttendanceStatus.PRESENT).length / todaysAtt.length) * 100) : 0;
+    const load = async () => {
+        setIsLoading(true);
+        try {
+            const [sch, tea, std, usr, att] = await Promise.all([
+                fetchSchools(), fetchTeachers(), fetchStudents(), fetchSystemUsers(), fetchAttendance()
+            ]);
+            
+            const today = new Date().toISOString().split('T')[0];
+            const todaysAtt = att.filter(a => a.date === today);
+            const attRate = todaysAtt.length > 0 ? Math.round((todaysAtt.filter(a => a.status === AttendanceStatus.PRESENT).length / todaysAtt.length) * 100) : 0;
 
-                setStats({ schools: sch.length, teachers: tea.length, students: std.length, users: usr.length, attendanceToday: attRate });
-            } catch (e) { console.error(e); } finally { setIsLoading(false); }
-        };
+            setStats({ schools: sch.length, teachers: tea.length, students: std.length, users: usr.length, attendanceToday: attRate });
+        } catch (e) { console.error(e); } finally { setIsLoading(false); }
+    };
+
+    useEffect(() => {
         load();
     }, []);
 
-    if (isLoading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto mb-4" size={40}/><p className="font-bold text-gray-400">جاري جلب بيانات النظام...</p></div>;
+    if (isLoading) return <div className="p-20 text-center"><RefreshCw className="animate-spin mx-auto mb-4 text-indigo-600" size={40}/><p className="font-bold text-gray-400">جاري جلب بيانات النظام...</p></div>;
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -66,18 +59,44 @@ const AdminOverview = () => {
                         </h4>
                     </div>
                 </div>
-                {connectionSource !== 'VERCEL_ENV' && (
-                    <div className="text-[10px] bg-amber-200 text-amber-900 px-3 py-1 rounded-full font-black">
-                        ينصح بضبط المتغيرات في Vercel للعمل على كافة الأجهزة
-                    </div>
-                )}
+                <button onClick={load} className="p-2 bg-white rounded-xl shadow-sm border hover:bg-gray-50 transition-colors">
+                    <RefreshCw size={18} className="text-indigo-600"/>
+                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard label="المدارس" value={stats.schools} icon={<Building size={24}/>} color="bg-blue-50 text-blue-600" />
                 <StatCard label="المعلمون" value={stats.teachers} icon={<Users size={24}/>} color="bg-indigo-50 text-indigo-600" />
                 <StatCard label="الطلاب" value={stats.students} icon={<CheckCircle size={24}/>} color="bg-green-50 text-green-600" />
-                <StatCard label="حضور النظام" value={`${stats.attendanceToday}%`} icon={<Activity size={24}/>} color="bg-purple-50 text-purple-600" />
+                <StatCard label="حضور النظام" value={`${stats.attendanceToday}%`} icon={<RefreshCw size={24}/>} color="bg-purple-50 text-purple-600" />
+            </div>
+
+            {/* Why it doesn't work on other devices section */}
+            <div className="bg-indigo-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-500/20 to-transparent"></div>
+                <div className="relative z-10">
+                    <h3 className="text-xl font-black mb-4 flex items-center gap-3"><Info className="text-yellow-400"/> لماذا لا يعمل النظام على الأجهزة الأخرى؟</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <p className="text-sm opacity-90 leading-relaxed">
+                                عندما تقوم بضبط "إعدادات السحابة" يدوياً، يتم حفظ البيانات في متصفحك الحالي فقط (**Local Storage**). أي جهاز آخر يفتح الرابط لن يجد هذه الإعدادات ولن يتمكن من الدخول.
+                            </p>
+                            <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
+                                <h4 className="font-bold text-yellow-400 mb-1">الحل الصحيح:</h4>
+                                <p className="text-xs">يجب إضافة `VITE_SUPABASE_URL` و `VITE_SUPABASE_KEY` في إعدادات **Vercel Environment Variables**. هذا يجعل السحابة تعمل تلقائياً على كل الأجهزة.</p>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                             <p className="text-sm opacity-90 leading-relaxed">
+                                **مشكلة قاعدة البيانات:** إذا واجهت خطأ "Column not found"، فهذا يعني أن الجداول في Supabase لا تطابق الكود (تفاوت بين `snake_case` و `camelCase`).
+                            </p>
+                            <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
+                                <h4 className="font-bold text-indigo-300 mb-1">الإجراء المطلوب:</h4>
+                                <p className="text-xs">استخدم زر "تحديث قاعدة البيانات" أدناه لمزامنة البيانات، أو قم بتشغيل كود SQL المحدث في Supabase SQL Editor.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -94,6 +113,7 @@ const DatabaseSettings = () => {
     const [dbUrl, setDbUrl] = useState(localStorage.getItem('custom_supabase_url') || '');
     const [dbKey, setDbKey] = useState(localStorage.getItem('custom_supabase_key') || '');
     const [isTesting, setIsTesting] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const isEnvConfigured = !!import.meta.env.VITE_SUPABASE_URL;
 
@@ -108,59 +128,98 @@ const DatabaseSettings = () => {
         }
     };
 
+    const handleForceSync = async () => {
+        setIsSyncing(true);
+        try {
+            const res = await downloadFromSupabase();
+            if (res.success) alert('تمت المزامنة وتحديث قاعدة البيانات المحلية بنجاح!');
+            else alert('فشل الاتصال بالسحابة. تأكد من الإعدادات.');
+        } catch (e) {
+            alert('حدث خطأ تقني أثناء المزامنة.');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     const handleTestConnection = async () => {
         setIsTesting(true);
         const res = await checkConnection();
         setIsTesting(false);
-        alert(res.success ? 'الاتصال بالسحابة سليم ✅' : 'فشل الاتصال بالسحابة ❌');
+        alert(res.success ? 'الاتصال بالسحابة سليم ✅' : 'فشل الاتصال بالسحابة ❌ (تأكد من الرابط والمفتاح)');
     };
 
     return (
         <div className="space-y-8 animate-fade-in max-w-4xl mx-auto pb-10">
-            {/* Cloud Connection Setup */}
+            
+            {/* Force Sync Action */}
+            <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-lg shadow-indigo-50 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="p-4 bg-indigo-600 text-white rounded-3xl shadow-lg animate-pulse">
+                        <CloudZap size={32}/>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-gray-800">تحديث قاعدة البيانات</h3>
+                        <p className="text-sm text-gray-500 font-medium">قم بإجراء مزامنة إجبارية لجلب أحدث البيانات من السحابة وحل مشاكل الاتصال.</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleForceSync} 
+                    disabled={isSyncing}
+                    className="w-full md:w-auto bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                    {isSyncing ? <RefreshCw className="animate-spin"/> : <RefreshCw/>}
+                    {isSyncing ? 'جاري التحديث...' : 'تحديث الآن'}
+                </button>
+            </div>
+
+            {/* Manual Config */}
             <div className="bg-white p-8 rounded-2xl border shadow-sm space-y-6">
-                <div className="flex items-center gap-3 border-b pb-4">
-                    <Server size={28} className="text-indigo-600"/>
-                    <h3 className="font-black text-xl">إعدادات الاتصال السحابي</h3>
+                <div className="flex items-center justify-between border-b pb-4">
+                    <div className="flex items-center gap-3">
+                        <Database size={28} className="text-gray-600"/>
+                        <h3 className="font-black text-xl">تهيئة السحابة يدوياً</h3>
+                    </div>
+                    {isEnvConfigured && (
+                        <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black border border-green-200">
+                            مفعل عبر Vercel
+                        </div>
+                    )}
                 </div>
                 
-                {isEnvConfigured && (
-                    <div className="p-4 bg-green-50 border border-green-100 rounded-xl text-green-800 text-sm flex gap-3 items-center">
-                        <CheckCircle className="shrink-0" size={20}/>
-                        <p className="font-bold">النظام مهيأ حالياً عبر Vercel. القيم اليدوية أدناه ستستخدم فقط إذا فشل اتصال Vercel.</p>
-                    </div>
-                )}
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 text-sm flex gap-3 items-start">
+                    <AlertTriangle className="shrink-0 mt-1" size={20}/>
+                    <p className="font-medium text-xs">
+                        استخدم هذا الخيار فقط للتجربة على جهازك الشخصي. للعمل الدائم، يفضل وضع هذه القيم في **متغيرات بيئة المشروع** لتجنب فقدانها عند مسح ذاكرة المتصفح.
+                    </p>
+                </div>
 
                 <div className="grid grid-cols-1 gap-4">
-                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-blue-800 text-sm flex gap-3 items-start">
-                        <Info className="shrink-0 mt-1"/>
-                        <p>إذا كنت ترى هذه الرسالة من جهاز جديد ولم يعمل النظام تلقائياً، قم بإدخال البيانات يدوياً هنا لمرة واحدة.</p>
+                    <div>
+                        <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase">Supabase URL</label>
+                        <input className="w-full p-3 bg-gray-50 border rounded-xl font-mono text-sm dir-ltr focus:ring-2 focus:ring-indigo-500" placeholder="https://xyz.supabase.co" value={dbUrl} onChange={e=>setDbUrl(e.target.value)}/>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Supabase URL</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm dir-ltr" placeholder="https://xyz.supabase.co" value={dbUrl} onChange={e=>setDbUrl(e.target.value)}/>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Supabase API Key</label>
-                        <input className="w-full p-3 border rounded-xl font-mono text-sm dir-ltr" type="password" placeholder="eyJhbG..." value={dbKey} onChange={e=>setDbKey(e.target.value)}/>
+                        <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase">Anon API Key</label>
+                        <input className="w-full p-3 bg-gray-50 border rounded-xl font-mono text-sm dir-ltr focus:ring-2 focus:ring-indigo-500" type="password" placeholder="eyJhbG..." value={dbKey} onChange={e=>setDbKey(e.target.value)}/>
                     </div>
                     <div className="flex gap-3 pt-2">
-                        <button onClick={handleSaveConfig} className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"><Save size={18}/> حفظ للعمل على هذا الجهاز</button>
+                        <button onClick={handleSaveConfig} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black shadow-lg hover:bg-black transition-all">حفظ الإعدادات محلياً</button>
                         <button onClick={handleTestConnection} disabled={isTesting} className="px-6 bg-white border border-gray-200 text-gray-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-50">
-                            {isTesting ? <RefreshCw className="animate-spin" size={18}/> : <Wifi size={18}/>} اختبار الاتصال
+                            {isTesting ? <RefreshCw className="animate-spin" size={18}/> : <Wifi size={18}/>} اختبار
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-gray-900 text-white p-8 rounded-2xl relative overflow-hidden">
+            {/* SQL Section */}
+            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] relative overflow-hidden border-b-[8px] border-slate-950">
                 <div className="absolute top-0 right-0 p-4 opacity-10"><Code size={80}/></div>
-                <h4 className="font-bold mb-3 flex items-center gap-2 text-indigo-400"><Code size={20}/> كود إنشاء الجداول (SQL)</h4>
+                <h4 className="font-black text-xl mb-3 flex items-center gap-2 text-indigo-400"><Code size={24}/> مهيئ الجداول السحابي</h4>
                 <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                    إذا قمت بإنشاء مشروع جديد في Supabase، يجب عليك نسخ الكود أدناه ولصقه في "SQL Editor" داخل لوحة تحكم Supabase والضغط على "Run" ليعمل النظام.
+                    إذا كان الموقع يظهر "بيانات فارغة" أو لا يتم الحفظ، قد تحتاج لتشغيل كود SQL التالي في Supabase لضمان وجود الجداول بالمسميات الصحيحة (`snake_case`).
                 </p>
-                <button onClick={()=>{navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ كود SQL بنجاح');}} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-black flex items-center gap-3 transition-all shadow-lg">
-                    <Copy size={18}/> نسخ كود SQL لتهيئة الجداول
+                <button onClick={()=>{navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ كود SQL بنجاح');}} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl">
+                    <Copy size={18}/> نسخ كود SQL للإصلاح
                 </button>
             </div>
         </div>
@@ -171,15 +230,15 @@ const AdminDashboard = () => {
     const [view, setView] = useState<'OVERVIEW' | 'DATABASE'>('OVERVIEW');
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in">
+        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal">
             <div className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Shield className="text-purple-600"/> لوحة المدير العام</h2>
-                <div className="flex bg-white p-1 rounded-xl border shadow-sm">
-                    <button onClick={() => setView('OVERVIEW')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${view === 'OVERVIEW' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}><Activity size={16}/> إحصائيات النظام</button>
-                    <button onClick={() => setView('DATABASE')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${view === 'DATABASE' ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}><Database size={16}/> قاعدة البيانات</button>
+                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3"><Shield className="text-indigo-600" size={32}/> لوحة تحكم مدير النظام</h2>
+                <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
+                    <button onClick={() => setView('OVERVIEW')} className={`px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${view === 'OVERVIEW' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>إحصائيات النظام</button>
+                    <button onClick={() => setView('DATABASE')} className={`px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${view === 'DATABASE' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>قاعدة البيانات</button>
                 </div>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                 {view === 'OVERVIEW' && <AdminOverview />}
                 {view === 'DATABASE' && <DatabaseSettings />}
             </div>
