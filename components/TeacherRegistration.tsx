@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Teacher, School, SystemUser } from '../types';
-import { addTeacher, getTeachers, getSchools, addSchool, addSystemUser } from '../services/storageService';
-import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info, MapPin, Building } from 'lucide-react';
+import { addTeacher, getTeachers, getSchools, addSchool, addSystemUser, fetchSchools, fetchSystemUsers } from '../services/storageService';
+import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info, MapPin, Building, RefreshCw } from 'lucide-react';
 
 interface TeacherRegistrationProps {
     onBack: () => void;
@@ -28,8 +27,24 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
     
     const [foundSchool, setFoundSchool] = useState<School | null>(null);
     const [loading, setLoading] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+
+    // جلب البيانات السحابية فور تحميل المكون لضمان معرفة المدارس المسجلة
+    useEffect(() => {
+        const syncData = async () => {
+            setIsSyncing(true);
+            try {
+                await Promise.all([fetchSchools(), fetchSystemUsers()]);
+            } catch (e) {
+                console.error("Registration Sync Error:", e);
+            } finally {
+                setIsSyncing(false);
+            }
+        };
+        syncData();
+    }, []);
 
     useEffect(() => {
         if (formData.schoolCode.length >= 3) {
@@ -148,7 +163,6 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
 
                     // Add manager to system users
                     await addSystemUser(managerUser);
-                    console.log(`Manager Created: ID=${managerUser.nationalId}, Pass=${managerUser.password}`);
                 }
             }
 
@@ -162,10 +176,9 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 password: formData.password,
                 schoolId: schoolId,
                 managerId: managerId,
-                subscriptionStatus: 'FREE' // Start teacher as free user
+                subscriptionStatus: 'FREE' 
             };
 
-            // Await cloud save (which also adds to system_users automatically via addTeacher logic in storageService)
             await addTeacher(newTeacher);
             
             setSuccess(true);
@@ -174,7 +187,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
             }, 1500);
         } catch (e: any) {
             console.error(e);
-            setError(e.message || 'حدث خطأ أثناء الحفظ في قاعدة البيانات.');
+            setError(e.message || 'حدث خطأ أثناء الحفظ في السحابة.');
         } finally {
             setLoading(false);
         }
@@ -188,14 +201,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         <CheckCircle size={40} />
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">تم التسجيل بنجاح!</h2>
-                    <p className="text-gray-500 mb-4">تم إنشاء حساب المعلم.</p>
-                    {!foundSchool && formData.managerNationalId && (
-                        <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-sm text-blue-800 text-right">
-                            <p className="font-bold mb-1">تم إنشاء حساب لمدير المدرسة:</p>
-                            <p>اسم المستخدم: <span className="font-mono font-bold">{formData.managerNationalId}</span></p>
-                            <p>كلمة المرور: <span className="font-mono font-bold">{formData.managerNationalId.slice(-4)}</span> (آخر 4 أرقام)</p>
-                        </div>
-                    )}
+                    <p className="text-gray-500 mb-4">تم إنشاء حساب المعلم ومزامنته سحابياً.</p>
                     <p className="text-gray-400 text-xs mt-4">جاري التوجيه...</p>
                 </div>
             </div>
@@ -203,7 +209,6 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
     }
 
     return (
-        // Fixed overlay to handle scrolling on large forms
         <div className="fixed inset-0 z-50 bg-gray-50 overflow-y-auto custom-scrollbar" dir="rtl">
             <div className="min-h-full w-full flex justify-center items-center p-4 py-10">
                 <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in flex flex-col md:flex-row">
@@ -211,15 +216,13 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                     {/* Side Banner */}
                     <div className="bg-gradient-to-br from-teal-600 to-teal-800 text-white p-8 md:w-1/3 flex flex-col justify-between relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10"></div>
-                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-10 -mb-10"></div>
-                        
                         <div>
                             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-sm">
                                 <BookOpen size={24}/>
                             </div>
-                            <h2 className="text-2xl font-bold mb-2">انضم إلينا</h2>
+                            <h2 className="text-2xl font-bold mb-2">انضم إلينا سحابياً</h2>
                             <p className="text-teal-100 text-sm leading-relaxed">
-                                سجل حسابك كمعلم وابدأ في إدارة فصولك، رصد الدرجات، واستخدام أدوات الذكاء الاصطناعي لتسهيل عملك اليومي.
+                                سجل حسابك الآن وسيتم مزامنة بياناتك تلقائياً للعمل من أي جهاز وفي أي وقت.
                             </p>
                         </div>
                         
@@ -230,9 +233,12 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
 
                     {/* Form */}
                     <div className="p-8 md:w-2/3">
-                        <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                            <User className="text-teal-600"/> تسجيل معلم جديد
-                        </h2>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                <User className="text-teal-600"/> تسجيل معلم جديد
+                            </h2>
+                            {isSyncing && <RefreshCw size={14} className="animate-spin text-teal-600"/>}
+                        </div>
 
                         {error && (
                             <div className="mb-6 bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2 border border-red-100">
@@ -241,7 +247,6 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                         )}
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Personal Info */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 mb-1">الاسم الكامل *</label>
@@ -276,134 +281,57 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">التخصص</label>
-                                <input 
-                                    type="text" 
-                                    name="specialty" 
-                                    value={formData.specialty} 
-                                    onChange={handleChange} 
-                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" 
-                                    placeholder="مثال: لغة عربية، رياضيات، علوم..."
-                                />
-                            </div>
-
-                            {/* School Section */}
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                 <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">
-                                    <SchoolIcon size={14}/> المدرسة (اختياري)
+                                    <SchoolIcon size={14}/> المدرسة (سحابي)
                                 </label>
-                                <p className="text-[10px] text-gray-500 mb-2">
-                                    أدخل الرمز الوزاري لربط حسابك بالمدرسة. إذا لم تكن المدرسة مسجلة، سيطلب منك إدخال بياناتها لإنشائها وإنشاء حساب للمدير.
-                                </p>
-                                
                                 <div className="mb-3">
                                     <input 
                                         name="schoolCode" 
                                         value={formData.schoolCode} 
                                         onChange={handleChange} 
                                         className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm font-mono tracking-widest text-center uppercase ${foundSchool ? 'border-green-400 bg-green-50' : ''}`}
-                                        placeholder="أدخل الرمز الوزاري هنا"
+                                        placeholder="أدخل الرمز الوزاري"
                                     />
                                 </div>
 
                                 {foundSchool ? (
                                     <div className="bg-white p-3 rounded-lg border border-green-200 shadow-sm animate-fade-in">
                                         <div className="flex items-center gap-2 mb-1 text-green-700 font-bold text-sm">
-                                            <CheckCircle size={16}/> تم العثور على المدرسة
-                                        </div>
-                                        <div className="text-xs text-gray-600 grid grid-cols-2 gap-2 mt-2">
-                                            <div className="bg-gray-50 p-2 rounded border">
-                                                <span className="block text-gray-400 text-[10px]">المدرسة</span>
-                                                <span className="font-bold">{foundSchool.name}</span>
-                                            </div>
-                                            <div className="bg-gray-50 p-2 rounded border">
-                                                <span className="block text-gray-400 text-[10px]">المدير</span>
-                                                <span className="font-bold">{foundSchool.managerName}</span>
-                                            </div>
+                                            <CheckCircle size={16}/> متصل بالمدرسة: {foundSchool.name}
                                         </div>
                                     </div>
                                 ) : formData.schoolCode.length >= 3 ? (
-                                    <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2 bg-white p-3 rounded-lg border border-teal-100 shadow-sm">
+                                    <div className="animate-fade-in space-y-3 pt-2 border-t border-gray-200 mt-2 bg-white p-3 rounded-lg border border-teal-100">
                                         <div className="flex items-center gap-2 text-teal-700 text-xs font-bold mb-2">
-                                            <Info size={14}/> إعداد مدرسة جديدة وحساب المدير:
+                                            <Info size={14}/> مدرسة جديدة؟ أدخل بيانات التأسيس:
                                         </div>
-                                        
-                                        <input 
-                                            name="schoolName" 
-                                            value={formData.schoolName} 
-                                            onChange={handleChange} 
-                                            className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
-                                            placeholder="اسم المدرسة *"
-                                        />
-
+                                        <input name="schoolName" value={formData.schoolName} onChange={handleChange} className="w-full p-2 border rounded-lg text-sm bg-gray-50" placeholder="اسم المدرسة *"/>
                                         <div className="grid grid-cols-2 gap-2">
-                                            <input 
-                                                name="educationAdmin" 
-                                                value={formData.educationAdmin} 
-                                                onChange={handleChange} 
-                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
-                                                placeholder="الإدارة التعليمية (مثال: جدة)"
-                                            />
-                                            <select 
-                                                name="schoolType"
-                                                value={formData.schoolType}
-                                                onChange={handleChange}
-                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white"
-                                            >
-                                                <option value="PUBLIC">حكومي</option>
-                                                <option value="PRIVATE">أهلي</option>
-                                                <option value="INTERNATIONAL">دولي</option>
-                                            </select>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                                            <div className="col-span-2 text-[10px] text-gray-500 mb-1">
-                                                سيتم إنشاء حساب للمدير. الدخول برقم الهوية وكلمة المرور (آخر 4 أرقام).
-                                            </div>
-                                            <input 
-                                                name="managerName" 
-                                                value={formData.managerName} 
-                                                onChange={handleChange} 
-                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white" 
-                                                placeholder="اسم المدير *"
-                                            />
-                                            <input 
-                                                name="managerNationalId" 
-                                                value={formData.managerNationalId} 
-                                                onChange={handleChange} 
-                                                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white font-mono" 
-                                                placeholder="هوية المدير (مطلوب للدخول) *"
-                                            />
+                                            <input name="managerName" value={formData.managerName} onChange={handleChange} className="w-full p-2 border rounded-lg text-sm bg-gray-50" placeholder="اسم المدير *"/>
+                                            <input name="managerNationalId" value={formData.managerNationalId} onChange={handleChange} className="w-full p-2 border rounded-lg text-sm bg-gray-50 font-mono" placeholder="هوية المدير *"/>
                                         </div>
                                     </div>
                                 ) : null}
                             </div>
 
-                            {/* Password Section */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 mb-1">كلمة المرور *</label>
-                                    <div className="relative">
-                                        <Lock size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                        <input type="password" required name="password" value={formData.password} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
-                                    </div>
+                                    <input type="password" required name="password" value={formData.password} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 mb-1">تأكيد كلمة المرور *</label>
-                                    <div className="relative">
-                                        <Lock size={16} className="absolute top-2.5 right-3 text-gray-400"/>
-                                        <input type="password" required name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="w-full pr-9 pl-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
-                                    </div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">تأكيد المرور *</label>
+                                    <input type="password" required name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm" placeholder="••••••••"/>
                                 </div>
                             </div>
 
                             <button 
                                 type="submit" 
                                 disabled={loading}
-                                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-4 disabled:opacity-70"
                             >
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : 'إنشاء الحساب'}
+                                {loading ? <Loader2 size={20} className="animate-spin" /> : 'إتمام التسجيل السحابي'}
                             </button>
                         </form>
                     </div>

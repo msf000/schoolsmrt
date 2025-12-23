@@ -241,7 +241,8 @@ export const fetchStudents = async (): Promise<Student[]> => {
         classId: d.class_id, schoolId: d.school_id, createdById: d.created_by_id,
         gradeLevel: d.grade_level, className: d.class_name, email: d.email, phone: d.phone,
         parentName: d.parent_name, parentPhone: d.parent_phone, parentEmail: d.parent_email,
-        learningStyle: d.learning_style, behavior_points: d.behavior_points
+        // Fix: Changed behavior_points to behaviorPoints to match Student interface
+        learningStyle: d.learning_style, behaviorPoints: d.behavior_points
     }));
     return sessionCache.students;
 };
@@ -288,8 +289,9 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
     sessionCache.attendance = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, date: d.date, status: d.status,
         subject: d.subject, period: d.period, behaviorStatus: d.behavior_status,
-        behavior_note: d.behavior_note, participationScore: d.participation_score,
-        excuse_note: d.excuse_note, createdById: d.created_by_id
+        // Fix: Changed camelCase names to match AttendanceRecord interface
+        behaviorNote: d.behavior_note, participationScore: d.participation_score,
+        excuseNote: d.excuse_note, createdById: d.created_by_id
     }));
     return sessionCache.attendance;
 };
@@ -321,6 +323,7 @@ export const fetchPerformance = async (teacherId?: string): Promise<PerformanceR
     const { data } = await query.order('date', { ascending: false });
     sessionCache.performance = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, subject: d.subject, title: d.title,
+        // Fix: Changed created_by_id to createdById to match PerformanceRecord interface
         category: d.category, score: d.score, maxScore: d.max_score, date: d.date,
         notes: d.notes, createdById: d.created_by_id
     }));
@@ -355,7 +358,8 @@ export const fetchAssignments = async (tid?: string) => {
     sessionCache.actualAssignments = (data || []).map((d: any) => ({
         id: d.id, title: d.title, category: d.category, maxScore: d.max_score, 
         isVisible: d.is_visible, teacherId: d.teacher_id, termId: d.term_id, 
-        periodId: d.period_id, source_metadata: d.source_metadata, 
+        // Fix: Changed source_metadata to sourceMetadata to match Assignment interface
+        periodId: d.period_id, sourceMetadata: d.source_metadata, 
         sortOrder: d.sort_order, url: d.url
     }));
     return sessionCache.actualAssignments;
@@ -671,6 +675,7 @@ export const fetchLessonPlans = async (tid: string) => {
 export const getLessonPlans = (tid?: string) => tid ? sessionCache.lessonPlans.filter((p: StoredLessonPlan) => p.teacherId === tid) : sessionCache.lessonPlans;
 
 export const saveLessonPlan = async (p: StoredLessonPlan) => {
+    // Fix: Changed p.content_json to p.contentJson to match StoredLessonPlan interface
     const dbObj = { id: p.id, teacher_id: p.teacherId, lesson_id: p.lessonId, subject: p.subject, topic: p.topic, content_json: p.contentJson, resources: p.resources, created_at: p.createdAt };
     await supabase.from('lesson_plans').upsert(dbObj);
     const idx = sessionCache.lessonPlans.findIndex((x: StoredLessonPlan) => x.id === p.id);
@@ -783,7 +788,7 @@ export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
 export const fetchTrackingSheets = async (tid: string) => {
     const { data } = await supabase.from('tracking_sheets').select('*').eq('teacher_id', tid);
     sessionCache.trackingSheets = (data || []).map((d: any) => ({
-        id: d.id, title: d.title, subject: d.subject, className: d.class_name, teacherId: d.teacher_id, createdAt: d.created_at, columns: d.columns, scores: d.scores
+        id: d.id, title: d.title, subject: d.subject, class_name: d.class_name, teacherId: d.teacher_id, createdAt: d.created_at, columns: d.columns, scores: d.scores
     }));
     return sessionCache.trackingSheets;
 };
