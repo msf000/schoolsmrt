@@ -455,7 +455,7 @@ export const saveExam = async (e: Exam) => {
     const dbObj = { 
         id: e.id, title: e.title, subject: e.subject, grade_level: e.gradeLevel, 
         duration_minutes: e.durationMinutes, questions: e.questions, is_active: e.isActive, 
-        created_at: e.createdAt, teacher_id: e.teacher_id, date: e.date 
+        created_at: e.createdAt, teacher_id: e.teacherId, date: e.date 
     };
     await supabase.from('exams').upsert(dbObj);
     const idx = sessionCache.exams.findIndex((x: Exam) => x.id === e.id);
