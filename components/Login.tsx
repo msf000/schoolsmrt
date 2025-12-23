@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { authenticateUser, getStudents, setSystemMode, clearDatabase, authenticateStudent, initAutoSync, downloadFromSupabase } from '../services/storageService';
 import { isSupabaseConfigured, updateSupabaseConfig } from '../services/supabaseClient';
@@ -27,7 +26,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   useEffect(() => {
       const autoSync = async () => {
-          // دائماً نحاول المزامنة فور الدخول لصفحة الدخول لضمان تحديث قائمة المدارس
           setIsSyncing(true);
           try { 
               await initAutoSync(); 
@@ -38,7 +36,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           }
       };
       autoSync();
-  }, [view]); // إعادة المزامنة عند التبديل لصفحة التسجيل أيضاً
+  }, [view]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +88,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   return (
     <div className="min-h-screen bg-white md:bg-gray-50 flex items-center justify-center p-0 md:p-4 overflow-hidden relative" dir="rtl">
-      {/* Settings Gear for Cloud Config */}
       <button 
         onClick={() => setIsConfigModalOpen(true)}
         className="fixed top-6 left-6 p-3 bg-white rounded-full shadow-lg border border-gray-100 text-gray-400 hover:text-indigo-600 transition-all z-50 group"
@@ -164,7 +161,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
       </div>
 
-      {/* Cloud Configuration Modal */}
       {isConfigModalOpen && (
           <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-zoom-in border border-white/20">

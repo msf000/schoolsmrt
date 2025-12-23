@@ -288,7 +288,7 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
     sessionCache.attendance = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, date: d.date, status: d.status,
         subject: d.subject, period: d.period, behaviorStatus: d.behavior_status,
-        behaviorNote: d.behavior_note, participationScore: d.participation_score,
+        behavior_note: d.behavior_note, participationScore: d.participation_score,
         excuseNote: d.excuse_note, createdById: d.created_by_id
     }));
     return sessionCache.attendance;
@@ -371,6 +371,7 @@ export const getAssignments = (category?: string, tid?: string, isManager?: bool
 export const saveAssignment = async (a: Assignment) => {
     const dbObj = {
         id: a.id, title: a.title, category: a.category, max_score: a.maxScore,
+        // Fix: Use a.termId and a.periodId instead of snake_case versions which don't exist on Assignment
         is_visible: a.isVisible, teacher_id: a.teacherId, term_id: a.termId,
         period_id: a.periodId, source_metadata: a.sourceMetadata,
         sort_order: a.sortOrder, url: a.url
@@ -431,7 +432,7 @@ export const getTeacherAssignments = (tid?: string) => tid ? sessionCache.assign
 
 export const addTeacherAssignment = async (a: TeacherAssignment) => {
     await supabase.from('teacher_class_map').insert({
-        id: a.id, teacher_id: a.teacherId, class_id: a.classId, subject_name: a.subjectName
+        id: a.id, teacher_id: a.teacherId, class_id: a.class_id, subject_name: a.subject_name
     });
     sessionCache.assignments.push(a);
 };
@@ -501,6 +502,7 @@ export const getTasks = (tid?: string) => tid ? sessionCache.tasks.filter((t:Tas
 export const saveTask = async (t: Task) => {
     const dbObj = {
         id: t.id, teacher_id: t.teacherId, class_id: t.classId, subject: t.subject,
+        // Fix: Use t.dueDate instead of t.due_date which doesn't exist on Task
         title: t.title, description: t.description, due_date: t.dueDate,
         type: t.type, max_score: t.maxScore, submissions: t.submissions
     };
