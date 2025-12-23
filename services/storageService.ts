@@ -331,6 +331,7 @@ export const fetchSchedules = async (tid: string) => {
 export const getSchedules = () => sessionCache.schedules;
 
 export const saveScheduleItem = async (s: ScheduleItem) => {
+    // Fix: Use s.classId instead of s.class_id to match ScheduleItem interface property names
     await supabase.from('schedules').upsert({
         id: s.id, teacher_id: s.teacherId, class_id: s.classId, subject_name: s.subjectName, day: s.day, period: s.period
     });
@@ -434,9 +435,16 @@ export const fetchExams = async (tid?: string) => {
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
     sessionCache.exams = (data || []).map((d: any) => ({
-        id: d.id, title: d.title, subject: d.subject, grade_level: d.grade_level, 
-        duration_minutes: d.duration_minutes, questions: d.questions, 
-        isActive: d.is_active, createdAt: d.created_at, teacher_id: d.teacher_id, date: d.date
+        id: d.id, 
+        title: d.title, 
+        subject: d.subject, 
+        gradeLevel: d.grade_level, 
+        durationMinutes: d.duration_minutes, 
+        questions: d.questions, 
+        isActive: d.is_active, 
+        createdAt: d.created_at, 
+        teacherId: d.teacher_id, 
+        date: d.date
     }));
     return sessionCache.exams;
 };
@@ -447,7 +455,7 @@ export const saveExam = async (e: Exam) => {
     const dbObj = { 
         id: e.id, title: e.title, subject: e.subject, grade_level: e.gradeLevel, 
         duration_minutes: e.durationMinutes, questions: e.questions, is_active: e.isActive, 
-        created_at: e.createdAt, teacher_id: e.teacherId, date: e.date 
+        created_at: e.createdAt, teacher_id: e.teacher_id, date: e.date 
     };
     await supabase.from('exams').upsert(dbObj);
     const idx = sessionCache.exams.findIndex((x: Exam) => x.id === e.id);
