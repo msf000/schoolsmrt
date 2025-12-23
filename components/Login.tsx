@@ -27,13 +27,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   useEffect(() => {
       const autoSync = async () => {
-          if (isSupabaseConfigured()) {
-              setIsSyncing(true);
-              try { await initAutoSync(); } catch (e) {} finally { setIsSyncing(false); }
+          // دائماً نحاول المزامنة فور الدخول لصفحة الدخول لضمان تحديث قائمة المدارس
+          setIsSyncing(true);
+          try { 
+              await initAutoSync(); 
+          } catch (e) {
+              console.error("AutoSync Fail:", e);
+          } finally { 
+              setIsSyncing(false); 
           }
       };
       autoSync();
-  }, []);
+  }, [view]); // إعادة المزامنة عند التبديل لصفحة التسجيل أيضاً
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +96,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         className="fixed top-6 left-6 p-3 bg-white rounded-full shadow-lg border border-gray-100 text-gray-400 hover:text-indigo-600 transition-all z-50 group"
         title="إعدادات السحابة"
       >
-        <Server size={24}/>
+        <div className="relative">
+            <Server size={24}/>
+            {isSyncing && <RefreshCw size={12} className="absolute -bottom-1 -right-1 text-indigo-500 animate-spin bg-white rounded-full"/>}
+        </div>
         {!isSupabaseConfigured() && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>}
       </button>
 

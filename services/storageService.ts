@@ -241,7 +241,7 @@ export const fetchStudents = async (): Promise<Student[]> => {
         classId: d.class_id, schoolId: d.school_id, createdById: d.created_by_id,
         gradeLevel: d.grade_level, className: d.class_name, email: d.email, phone: d.phone,
         parentName: d.parent_name, parentPhone: d.parent_phone, parentEmail: d.parent_email,
-        learningStyle: d.learning_style, behaviorPoints: d.behavior_points
+        learningStyle: d.learning_style, behavior_points: d.behavior_points
     }));
     return sessionCache.students;
 };
@@ -250,7 +250,7 @@ export const getStudents = (): Student[] => sessionCache.students;
 
 export const addStudent = async (s: Student) => {
     const dbObj = {
-        id: s.id, name: s.name, national_id: s.nationalId, class_id: s.classId,
+        id: s.id, name: s.name, national_id: s.national_id, class_id: s.classId,
         school_id: s.schoolId, created_by_id: s.createdById, grade_level: s.gradeLevel,
         class_name: s.className, email: s.email, phone: s.phone,
         parent_name: s.parentName, parent_phone: s.parentPhone, parent_email: s.parentEmail,
@@ -262,7 +262,7 @@ export const addStudent = async (s: Student) => {
 
 export const updateStudent = async (s: Student) => {
     const dbObj = {
-        name: s.name, national_id: s.nationalId, grade_level: s.gradeLevel,
+        name: s.name, national_id: s.national_id, grade_level: s.gradeLevel,
         class_name: s.className, phone: s.phone,
         parent_name: s.parentName, parent_phone: s.parentPhone,
         learning_style: s.learningStyle, behavior_points: s.behaviorPoints
@@ -288,7 +288,7 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
     sessionCache.attendance = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, date: d.date, status: d.status,
         subject: d.subject, period: d.period, behaviorStatus: d.behavior_status,
-        behaviorNote: d.behavior_note, participationScore: d.participation_score,
+        behavior_note: d.behavior_note, participationScore: d.participation_score,
         excuseNote: d.excuse_note, createdById: d.created_by_id
     }));
     return sessionCache.attendance;
@@ -355,7 +355,7 @@ export const fetchAssignments = async (tid?: string) => {
     sessionCache.actualAssignments = (data || []).map((d: any) => ({
         id: d.id, title: d.title, category: d.category, maxScore: d.max_score, 
         isVisible: d.is_visible, teacherId: d.teacher_id, termId: d.term_id, 
-        periodId: d.period_id, sourceMetadata: d.source_metadata, 
+        periodId: d.period_id, source_metadata: d.source_metadata, 
         sortOrder: d.sort_order, url: d.url
     }));
     return sessionCache.actualAssignments;
@@ -430,6 +430,7 @@ export const fetchTeacherAssignments = async (tid: string) => {
 export const getTeacherAssignments = (tid?: string) => tid ? sessionCache.assignments.filter((a:TeacherAssignment)=>a.teacherId===tid) : sessionCache.assignments;
 
 export const addTeacherAssignment = async (a: TeacherAssignment) => {
+    // Fix: Changed a.class_id to a.classId to match TeacherAssignment interface
     await supabase.from('teacher_class_map').insert({
         id: a.id, teacher_id: a.teacherId, class_id: a.classId, subject_name: a.subjectName
     });
@@ -489,9 +490,9 @@ export const fetchTasks = async (tid?: string) => {
         subject: d.subject,
         title: d.title, 
         description: d.description, 
-        dueDate: d.due_date, // Fixed: database due_date to application dueDate
+        dueDate: d.due_date,
         type: d.type, 
-        maxScore: d.max_score, // Fixed: database max_score to application maxScore
+        maxScore: d.max_score,
         submissions: d.submissions || []
     }));
     return sessionCache.tasks;
@@ -772,6 +773,7 @@ export const fetchEnvironmentRecords = async (cid: string) => {
 export const getEnvironmentRecords = (cid?: string) => cid ? sessionCache.environmentRecords.filter((r: EnvironmentRecord) => r.classId === cid) : sessionCache.environmentRecords;
 
 export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
+    // Fix: Changed r.class_id to r.classId to match EnvironmentRecord interface
     const dbObj = { id: r.id, teacher_id: r.teacherId, class_id: r.classId, date: r.date, lighting: r.lighting, noise_level: r.noiseLevel, mood: r.mood, notes: r.notes };
     await supabase.from('environment_records').upsert(dbObj);
     const idx = sessionCache.environmentRecords.findIndex((x: EnvironmentRecord) => x.id === r.id);
@@ -806,9 +808,9 @@ export const fetchCurriculumUnits = async (tid: string) => {
         id: d.id, 
         teacherId: d.teacher_id, 
         subject: d.subject, 
-        gradeLevel: d.grade_level, // Fixed: database grade_level to application gradeLevel
+        gradeLevel: d.grade_level,
         title: d.title, 
-        orderIndex: d.order_index // Fixed: database order_index to application orderIndex
+        orderIndex: d.order_index
     }));
     return sessionCache.curriculumUnits;
 };
@@ -831,11 +833,11 @@ export const fetchCurriculumLessons = async () => {
     const { data } = await supabase.from('curriculum_lessons').select('*');
     sessionCache.curriculumLessons = (data || []).map((d: any) => ({
         id: d.id, 
-        unitId: d.unit_id, // Fixed: database unit_id to application unitId
+        unitId: d.unit_id,
         title: d.title, 
-        orderIndex: d.order_index, // Fixed: database order_index to application orderIndex
-        learningStandards: d.learning_standards || [], // Fixed: database mapping
-        microConceptIds: d.micro_concept_ids || [], // Fixed: database mapping
+        orderIndex: d.order_index,
+        learningStandards: d.learning_standards || [],
+        microConceptIds: d.micro_concept_ids || [],
         isCompleted: d.is_completed, 
         completedAt: d.completed_at
     }));
@@ -891,13 +893,27 @@ export const checkConnection = async () => {
     return { success: !error };
 };
 export const validateCloudSchema = async () => ({ missingTables: [] });
-export const downloadFromSupabase = async () => {};
+
+// جلب البيانات السحابية الأساسية
+export const downloadFromSupabase = async () => {
+    try {
+        const [sch, tea, usr] = await Promise.all([
+            fetchSchools(),
+            fetchTeachers(),
+            fetchSystemUsers()
+        ]);
+        return { success: true, count: sch.length + tea.length + usr.length };
+    } catch (e) {
+        console.error("Critical Fetch Error:", e);
+        return { success: false };
+    }
+};
+
 export const uploadToSupabase = async () => {};
 export const fetchCloudTableData = async (t: string) => [];
 export const clearCloudTable = async (t: string) => {};
-export const resetCloudDatabase = async () => {
-    // This is a safety measure. Full reset should be done via SQL.
-};
+export const resetCloudDatabase = async () => {};
+
 export const backupCloudDatabase = async () => {
     const tables = ['students', 'attendance', 'performance', 'teachers', 'schools', 'system_users', 'assignments'];
     const backup: any = {};
@@ -1051,4 +1067,7 @@ export const createBackup = () => "";
 export const restoreBackup = (j: string) => {};
 export const clearDatabase = () => localStorage.clear();
 export const setSystemMode = (val: boolean) => localStorage.setItem('system_mode', String(val));
-export const initAutoSync = async () => {};
+export const initAutoSync = async () => {
+    // جلب البيانات الأساسية (المدارس والمستخدمين) فور الدخول للتطبيق
+    await downloadFromSupabase();
+};
