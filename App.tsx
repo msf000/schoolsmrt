@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -8,7 +7,7 @@ import {
     fetchSchedules, fetchTeacherAssignments, fetchSubjects, fetchAcademicTerms,
     fetchTasks, fetchBehaviorIncidents, fetchMessages,
     fetchSchools, fetchTeachers, fetchSystemUsers, fetchAssignments, fetchCustomTables,
-    fetchCurriculumUnits, fetchCurriculumLessons
+    fetchCurriculumUnits, fetchCurriculumLessons, fetchExams, fetchQuestionBank, fetchFormsDetailedResults
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 import Login from './components/Login';
@@ -70,13 +69,14 @@ const App: React.FC = () => {
                 fetchPerformance(role === 'SUPER_ADMIN' ? undefined : userId)
             ];
 
-            // إذا كان المعلم/المشرف، أجلب بياناته الخاصة
+            // إذا كان المعلم/المشرف، أجلب بياناته الخاصة بكافة تفاصيلها
             if (role === 'TEACHER' || role === 'SCHOOL_MANAGER') {
                 promises.push(
                     fetchSchedules(userId), fetchSubjects(userId), fetchTeacherAssignments(userId),
                     fetchAcademicTerms(userId), fetchTasks(userId), fetchBehaviorIncidents(userId),
                     fetchMessages(userId), fetchAssignments(userId), fetchCustomTables(userId),
-                    fetchCurriculumUnits(userId), fetchCurriculumLessons()
+                    fetchCurriculumUnits(userId), fetchCurriculumLessons(), 
+                    fetchExams(userId), fetchQuestionBank(userId), fetchFormsDetailedResults(userId)
                 );
             }
 
@@ -115,8 +115,24 @@ const App: React.FC = () => {
     if (isLoading && !students.length) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 font-tajawal">
-                <DatabaseZap className="animate-bounce text-indigo-600 mb-4" size={48} />
-                <p className="text-gray-500 font-black text-lg animate-pulse">جاري جلب بيانات النظام سحابياً...</p>
+                <div className="p-8 bg-white rounded-[2.5rem] shadow-2xl flex flex-col items-center gap-6 border border-indigo-50">
+                    <DatabaseZap className="animate-bounce text-indigo-600" size={64} />
+                    <div className="text-center">
+                        <h2 className="text-2xl font-black text-gray-800 mb-2">جاري مزامنة بياناتك</h2>
+                        <p className="text-gray-400 font-bold animate-pulse">يتم الآن الاتصال بالسحابة لجلب سجلات الطلاب والحضور والدرجات...</p>
+                    </div>
+                    <div className="w-64 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-600 animate-progress"></div>
+                    </div>
+                </div>
+                <style>{`
+                    @keyframes progress {
+                        0% { width: 0% }
+                        50% { width: 70% }
+                        100% { width: 100% }
+                    }
+                    .animate-progress { animation: progress 3s infinite linear; }
+                `}</style>
             </div>
         );
     }
@@ -127,7 +143,7 @@ const App: React.FC = () => {
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             {isLoading && (
                 <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-6 py-2 rounded-full text-xs font-black flex items-center gap-3 shadow-2xl animate-pulse border-2 border-white/20">
-                    <Cloud className="animate-spin" size={16}/> جاري المزامنة...
+                    <Cloud className="animate-spin" size={16}/> جاري المزامنة مع السحابة...
                 </div>
             )}
             <Routes>
