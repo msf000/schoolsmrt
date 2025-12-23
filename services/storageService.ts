@@ -1,4 +1,3 @@
-
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -484,9 +483,16 @@ export const fetchTasks = async (tid?: string) => {
     if(tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
     sessionCache.tasks = (data || []).map((d: any) => ({
-        id: d.id, teacherId: d.teacher_id, classId: d.class_id, subject: d.subject,
-        title: d.title, description: d.description, due_date: d.due_date,
-        type: d.type, max_score: d.max_score, submissions: d.submissions || []
+        id: d.id, 
+        teacherId: d.teacher_id, 
+        classId: d.class_id, 
+        subject: d.subject,
+        title: d.title, 
+        description: d.description, 
+        dueDate: d.due_date, // Fixed: database due_date to application dueDate
+        type: d.type, 
+        maxScore: d.max_score, // Fixed: database max_score to application maxScore
+        submissions: d.submissions || []
     }));
     return sessionCache.tasks;
 };
@@ -797,7 +803,12 @@ export const deleteTrackingSheet = async (id: string) => {
 export const fetchCurriculumUnits = async (tid: string) => {
     const { data } = await supabase.from('curriculum_units').select('*').eq('teacher_id', tid);
     sessionCache.curriculumUnits = (data || []).map((d: any) => ({
-        id: d.id, teacherId: d.teacher_id, subject: d.subject, grade_level: d.grade_level, title: d.title, order_index: d.order_index
+        id: d.id, 
+        teacherId: d.teacher_id, 
+        subject: d.subject, 
+        gradeLevel: d.grade_level, // Fixed: database grade_level to application gradeLevel
+        title: d.title, 
+        orderIndex: d.order_index // Fixed: database order_index to application orderIndex
     }));
     return sessionCache.curriculumUnits;
 };
@@ -819,9 +830,14 @@ export const deleteCurriculumUnit = async (id: string) => {
 export const fetchCurriculumLessons = async () => {
     const { data } = await supabase.from('curriculum_lessons').select('*');
     sessionCache.curriculumLessons = (data || []).map((d: any) => ({
-        id: d.id, unit_id: d.unit_id, title: d.title, order_index: d.order_index, 
-        learning_standards: d.learning_standards, micro_concept_ids: d.micro_concept_ids, 
-        is_completed: d.is_completed, completed_at: d.completed_at
+        id: d.id, 
+        unitId: d.unit_id, // Fixed: database unit_id to application unitId
+        title: d.title, 
+        orderIndex: d.order_index, // Fixed: database order_index to application orderIndex
+        learningStandards: d.learning_standards || [], // Fixed: database mapping
+        microConceptIds: d.micro_concept_ids || [], // Fixed: database mapping
+        isCompleted: d.is_completed, 
+        completedAt: d.completed_at
     }));
     return sessionCache.curriculumLessons;
 };

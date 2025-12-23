@@ -1,4 +1,3 @@
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Singleton instance
@@ -20,11 +19,12 @@ export const getSupabaseClient = (): SupabaseClient => {
     const localUrl = localStorage.getItem('custom_supabase_url');
     const localKey = localStorage.getItem('custom_supabase_key');
 
+    // Priority: Vite Env Vars -> Process Env Vars -> LocalStorage -> Placeholder
     const envUrl = (import.meta.env?.VITE_SUPABASE_URL) || (typeof process !== 'undefined' ? process.env?.SUPABASE_URL : '') || '';
     const envKey = (import.meta.env?.VITE_SUPABASE_KEY) || (typeof process !== 'undefined' ? process.env?.SUPABASE_KEY : '') || '';
 
-    let finalUrl = localUrl || envUrl || 'https://placeholder.supabase.co';
-    let finalKey = localKey || envKey || 'placeholder-key';
+    let finalUrl = envUrl || localUrl || 'https://placeholder.supabase.co';
+    let finalKey = envKey || localKey || 'placeholder-key';
 
     if (!finalUrl.startsWith('http')) finalUrl = 'https://placeholder.supabase.co';
 
