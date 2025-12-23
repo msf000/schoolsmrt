@@ -250,7 +250,7 @@ export const getStudents = (): Student[] => sessionCache.students;
 
 export const addStudent = async (s: Student) => {
     const dbObj = {
-        id: s.id, name: s.name, national_id: s.national_id, class_id: s.classId,
+        id: s.id, name: s.name, national_id: s.nationalId, class_id: s.classId,
         school_id: s.schoolId, created_by_id: s.createdById, grade_level: s.gradeLevel,
         class_name: s.className, email: s.email, phone: s.phone,
         parent_name: s.parentName, parent_phone: s.parentPhone, parent_email: s.parentEmail,
@@ -262,7 +262,7 @@ export const addStudent = async (s: Student) => {
 
 export const updateStudent = async (s: Student) => {
     const dbObj = {
-        name: s.name, national_id: s.national_id, grade_level: s.gradeLevel,
+        name: s.name, national_id: s.nationalId, grade_level: s.gradeLevel,
         class_name: s.className, phone: s.phone,
         parent_name: s.parentName, parent_phone: s.parentPhone,
         learning_style: s.learningStyle, behavior_points: s.behaviorPoints
@@ -289,7 +289,7 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
         id: d.id, studentId: d.student_id, date: d.date, status: d.status,
         subject: d.subject, period: d.period, behaviorStatus: d.behavior_status,
         behavior_note: d.behavior_note, participationScore: d.participation_score,
-        excuseNote: d.excuse_note, createdById: d.created_by_id
+        excuse_note: d.excuse_note, createdById: d.created_by_id
     }));
     return sessionCache.attendance;
 };
