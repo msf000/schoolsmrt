@@ -1,14 +1,14 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, ScheduleItem, Subject } from '../types';
+import React, { useState, useMemo, useRef } from 'react';
+import { Student, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { 
     CheckCircle, XCircle, Clock, Users, Search, Sparkles, 
     Calendar as CalendarIcon, Loader2, UserCheck, Timer, 
-    History, Trash2, RefreshCw, Database, AlertCircle, Check, Cloud
+    History, Trash2, Cloud, Camera, RefreshCw, Database, Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-// Fix: Renamed incorrect fetch function imports to their correct counterparts getSchedules, getTeacherAssignments, and getSubjects
 import { getSchedules, getTeacherAssignments, getSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
+import { analyzeAttendancePhoto } from '../services/geminiService';
 
 interface AttendanceProps {
   students: Student[];
@@ -27,12 +27,11 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [selectedSubject, setSelectedSubject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // AI Attendance States
+  const [isAiScanning, setIsAiScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // History Filters
-  const [historySearch, setHistorySearch] = useState('');
-  const [historyClass, setHistoryClass] = useState('');
-
-  // استخراج الفصول المسجلة للمعلم
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
     return Array.from(classes).sort();
@@ -45,16 +44,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       return matchesClass && matchesSearch;
     }).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   }, [students, selectedClass, searchTerm]);
-
-  const filteredHistory = useMemo(() => {
-    return attendanceHistory.filter(a => {
-        const student = students.find(s => s.id === a.studentId);
-        if (!student) return false;
-        if (historyClass && student.className !== historyClass) return false;
-        if (historySearch && !student.name.includes(historySearch)) return false;
-        return true;
-    }).sort((a, b) => b.date.localeCompare(a.date));
-  }, [attendanceHistory, historySearch, historyClass, students]);
 
   const handleUpdate = async (studentId: string, status: AttendanceStatus) => {
     const sub = selectedSubject || 'عام';
@@ -75,47 +64,90 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
         await saveAttendance([record]);
         onSaveAttendance([record]); 
     } catch (e) {
-        alert('حدث خطأ في الاتصال بالسحابة. يرجى المحاولة لاحقاً.');
+        alert('حدث خطأ في الاتصال بالسحابة.');
     } finally {
         setIsSyncing(false);
     }
   };
 
-  const handleDeleteRecord = async (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا السجل نهائياً من السحابة؟')) {
-        setIsSyncing(true);
-        try {
-            await deleteAttendance(id);
-            onSaveAttendance(attendanceHistory.filter(a => a.id !== id));
-        } catch (e) {
-            alert('فشل الحذف من السحابة');
-        } finally {
-            setIsSyncing(false);
-        }
-    }
+  const handleAiPhotoAttendance = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !selectedClass) return;
+      
+      setIsAiScanning(true);
+      const reader = new FileReader();
+      reader.onload = async () => {
+          try {
+              const base64 = reader.result as string;
+              const result = await analyzeAttendancePhoto(base64, filteredStudents);
+              
+              if (result && result.attendance) {
+                  const records: AttendanceRecord[] = [];
+                  result.attendance.forEach((item: any) => {
+                      const student = filteredStudents.find(s => s.name.includes(item.name) || item.name.includes(s.name));
+                      if (student) {
+                          const sub = selectedSubject || 'عام';
+                          records.push({
+                              id: `${student.id}_${selectedDate}_${selectedPeriod}_${sub.replace(/\s+/g, '_')}`,
+                              studentId: student.id,
+                              date: selectedDate,
+                              period: selectedPeriod,
+                              subject: sub,
+                              status: item.status as AttendanceStatus,
+                              createdById: currentUser?.id
+                          });
+                      }
+                  });
+                  if (records.length > 0) {
+                      await saveAttendance(records);
+                      onSaveAttendance(records);
+                      alert(`تم رصد حضور ${records.length} طلاب تلقائياً عبر الصورة!`);
+                  } else {
+                      alert('لم يتم التعرف على أي طلاب في الصورة.');
+                  }
+              }
+          } catch (error) {
+              alert('فشل تحليل الصورة بالذكاء الاصطناعي.');
+          } finally {
+              setIsAiScanning(false);
+          }
+      };
+      reader.readAsDataURL(file);
   };
 
   return (
     <div className="p-4 md:p-6 h-full flex flex-col bg-[#F8FAFC] animate-fade-in pb-24 font-tajawal overflow-hidden">
-      
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
               <button onClick={() => setActiveTab('RECORD')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>
                   <UserCheck size={16}/> رصد الحضور
               </button>
               <button onClick={() => setActiveTab('HISTORY')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>
-                  <History size={16}/> سجل البيانات السحابي
+                  <History size={16}/> السجل السحابي
               </button>
           </div>
-          {isSyncing && <div className="text-indigo-600 text-xs font-black flex items-center gap-2 animate-pulse"><Cloud size={16}/> جاري تحديث السحابة...</div>}
+          <div className="flex items-center gap-3">
+            {activeTab === 'RECORD' && selectedClass && (
+                <>
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleAiPhotoAttendance} />
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isAiScanning}
+                        className="bg-purple-600 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-purple-700 transition-all disabled:opacity-50"
+                    >
+                        {isAiScanning ? <Loader2 className="animate-spin" size={16}/> : <Camera size={16}/>}
+                        تحضير ذكي بالصورة (AI)
+                    </button>
+                </>
+            )}
+            {isSyncing && <div className="text-indigo-600 text-xs font-black flex items-center gap-2 animate-pulse"><Cloud size={16}/> جاري المزامنة...</div>}
+          </div>
       </div>
 
       {activeTab === 'RECORD' ? (
         <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
-          
-          {/* Controls */}
           <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100 mb-6 relative overflow-hidden shrink-0">
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-teal-500"></div>
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
                 <div className="space-y-1">
                     <h2 className="text-2xl font-black text-slate-800">تحضير الفصل المباشر</h2>
@@ -149,7 +181,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
             </div>
           </div>
 
-          {/* Student Grid */}
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
                 {filteredStudents.map(student => {
@@ -185,40 +216,35 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       ) : (
         <div className="flex-1 bg-white rounded-[2.5rem] border shadow-sm flex flex-col overflow-hidden animate-fade-in">
             <div className="p-6 border-b bg-slate-50/50 flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="flex flex-wrap gap-3 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-64">
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                        <input className="w-full pr-10 pl-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold shadow-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="بحث باسم الطالب..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} />
-                    </div>
+                <div className="relative flex-1 md:w-64">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                    <input className="w-full pr-10 pl-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold shadow-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="بحث باسم الطالب..." />
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black border border-indigo-100 flex items-center gap-2">
-                        <Database size={14}/> إجمالي السجلات في السحابة: {attendanceHistory.length}
-                    </div>
+                <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black border border-indigo-100 flex items-center gap-2">
+                    <Database size={14}/> إجمالي السجلات في السحابة: {attendanceHistory.length}
                 </div>
             </div>
-
             <div className="flex-1 overflow-auto custom-scrollbar">
                 <table className="w-full text-right text-xs">
                     <thead className="bg-slate-50/80 sticky top-0 z-10 border-b text-slate-500 font-black uppercase">
                         <tr><th className="p-5 w-12 text-center">#</th><th className="p-5">التاريخ</th><th className="p-5">الطالب</th><th className="p-5">المادة</th><th className="p-5 text-center">الحالة</th><th className="p-5 text-center">إجراءات</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 font-bold">
-                        {filteredHistory.map((rec, idx) => {
+                        {attendanceHistory.slice(0, 100).map((rec, idx) => {
                             const student = students.find(s => s.id === rec.studentId);
                             return (
                                 <tr key={rec.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-5 text-center font-mono text-slate-300">{idx + 1}</td>
                                     <td className="p-5 text-slate-500 whitespace-nowrap">{rec.date}</td>
-                                    <td className="p-5"><p className="text-slate-800 font-black">{student?.name || 'طالب محذوف'}</p><p className="text-[9px] text-slate-400">{student?.className}</p></td>
-                                    <td className="p-5 text-indigo-600">{rec.subject || 'عام'} <span className="mr-1 text-slate-300 text-[10px]">ح{rec.period}</span></td>
+                                    <td className="p-5"><p className="text-slate-800 font-black">{student?.name || 'طالب محذوف'}</p></td>
+                                    <td className="p-5 text-indigo-600">{rec.subject || 'عام'}</td>
                                     <td className="p-5 text-center">
                                         <span className={`px-3 py-1 rounded-full text-[9px] font-black ${rec.status === AttendanceStatus.PRESENT ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                                             {rec.status === AttendanceStatus.PRESENT ? 'حاضر' : 'غائب'}
                                         </span>
                                     </td>
                                     <td className="p-5 text-center">
-                                        <button onClick={() => handleDeleteRecord(rec.id)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                                        <button onClick={() => deleteAttendance(rec.id)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
                                     </td>
                                 </tr>
                             );
@@ -229,7 +255,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
         </div>
       )}
 
-      {/* Cloud Direct Status */}
       <div className="fixed bottom-24 left-6 pointer-events-none">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold animate-slide-up pointer-events-auto border border-white/10">
               <Check size={14} className="text-emerald-400"/>

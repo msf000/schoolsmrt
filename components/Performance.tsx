@@ -1,19 +1,18 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, PerformanceCategory, SystemUser, Assignment, AttendanceRecord, AttendanceStatus } from '../types';
-import { getAssignments, getTeacherAssignments, saveAssignment } from '../services/storageService';
+import { Student, PerformanceRecord, SystemUser, Assignment, AttendanceRecord } from '../types';
+import { getAssignments, getTeacherAssignments, addPerformance, deletePerformance } from '../services/storageService';
 import { 
-    PlusCircle, Search, Trash2, Zap, ArrowRight, List, PieChart, TrendingUp, Sparkles
+    PlusCircle, Search, Trash2, Zap, ArrowRight, List, PieChart, TrendingUp, Sparkles, Loader2, Save
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface PerformanceProps {
   students: Student[];
   performance: PerformanceRecord[];
   attendance: AttendanceRecord[];
-  onAddPerformance: (record: PerformanceRecord | PerformanceRecord[]) => void;
-  onImportPerformance: (records: PerformanceRecord[]) => void;
+  onAddPerformance: (records: PerformanceRecord[]) => void;
   onDeletePerformance: (id: string) => void;
   currentUser?: SystemUser | null;
 }
@@ -26,6 +25,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [bulkScores, setBulkScores] = useState<Record<string, string>>({});
   const [activeAssignmentId, setActiveAssignmentId] = useState('');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -66,10 +66,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
     ];
   }, [performance, selectedClass, students]);
 
-  const handleBulkSubmit = () => {
+  const handleBulkSubmit = async () => {
     const assign = assignments.find(a => a.id === activeAssignmentId);
     if (!assign || !selectedClass) return alert('اختر الفصل والعمود المربوط');
     
+    setIsSaving(true);
     const records: PerformanceRecord[] = [];
     const today = new Date().toISOString().split('T')[0];
 
@@ -90,9 +91,17 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
     });
 
     if (records.length > 0) {
-        onAddPerformance(records);
-        setBulkScores({});
-        alert('تم رصد الدرجات بنجاح!');
+        try {
+            await onAddPerformance(records);
+            setBulkScores({});
+            alert('تم رصد الدرجات بنجاح!');
+        } catch (e) {
+            alert('فشل الحفظ السحابي.');
+        } finally {
+            setIsSaving(false);
+        }
+    } else {
+        setIsSaving(false);
     }
   };
 
@@ -164,7 +173,10 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                     </div>
                     <div className="p-6 bg-slate-50 border-t flex justify-between items-center">
                         <span className="text-xs font-black text-slate-400">سيتم حفظ الدرجات في السجل التاريخي فور الضغط على حفظ.</span>
-                        <button onClick={handleBulkSubmit} className="bg-indigo-600 text-white px-10 py-3.5 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all active:scale-95">حفظ وتأمين السجل</button>
+                        <button onClick={handleBulkSubmit} disabled={isSaving} className="bg-indigo-600 text-white px-10 py-3.5 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2">
+                            {isSaving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}
+                            حفظ وتأمين السجل
+                        </button>
                     </div>
                 </div>
             </div>

@@ -1,9 +1,9 @@
+
 import React, { useState } from 'react';
 import { Student, LearningStyle } from '../types';
 import { updateStudentLearningStyle } from '../services/storageService';
 import { 
     BrainCircuit, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Sparkles, BookOpen, Music, Image as ImageIcon, Activity,
-    // Add missing icons
     Star, Info
 } from 'lucide-react';
 
@@ -75,7 +75,6 @@ const StudentLearningTest: React.FC<Props> = ({ student, onComplete }) => {
 
     const calculateResult = () => {
         const counts: Record<string, number> = { VISUAL: 0, AUDITORY: 0, READ_WRITE: 0, KINESTHETIC: 0 };
-        // Fix: Explicitly cast style to string to avoid index type error
         Object.values(answers).forEach((style: any) => {
             counts[style as string]++;
         });

@@ -16,7 +16,7 @@ const CurriculumManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser 
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedTermId, setSelectedTermId] = useState('');
     const [units, setUnits] = useState<CurriculumUnit[]>([]);
-    const [lessons, setLessons] = useState<CurriculumLesson[]>([]);
+    const [lessonsMap, setLessonsMap] = useState<Record<string, CurriculumLesson[]>>({});
     const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
     const [isGenerating, setIsGenerating] = useState(false);
     const [terms, setTerms] = useState<AcademicTerm[]>([]);
@@ -29,8 +29,13 @@ const CurriculumManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser 
     }, [currentUser]);
 
     const refresh = () => {
-        setUnits(getCurriculumUnits(currentUser.id));
-        setLessons(getCurriculumLessons());
+        const loadedUnits = getCurriculumUnits(currentUser.id);
+        setUnits(loadedUnits);
+        const newMap: Record<string, CurriculumLesson[]> = {};
+        loadedUnits.forEach(u => {
+            newMap[u.id] = getCurriculumLessons(u.id);
+        });
+        setLessonsMap(newMap);
     };
 
     const handleAutoGenerate = async () => {
@@ -40,13 +45,17 @@ const CurriculumManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser 
             const termName = terms.find(t => t.id === selectedTermId)?.name || 'الفصل الأول';
             const structure = await generateCurriculumMap(selectedSubject, selectedGrade, termName);
             if (Array.isArray(structure)) {
-                structure.forEach((u, uIdx) => {
+                for (let uIdx = 0; uIdx < structure.length; uIdx++) {
+                    const u = structure[uIdx];
                     const unitId = `u_${Date.now()}_${uIdx}`;
-                    saveCurriculumUnit({ id: unitId, teacherId: currentUser.id, subject: selectedSubject, gradeLevel: selectedGrade, title: u.unitTitle, orderIndex: uIdx });
-                    u.lessons?.forEach((l: any, lIdx: number) => {
-                        saveCurriculumLesson({ id: `l_${Date.now()}_${lIdx}`, unitId, title: l.title, orderIndex: lIdx, learningStandards: [], microConceptIds: [] });
-                    });
-                });
+                    await saveCurriculumUnit({ id: unitId, teacherId: currentUser.id, subject: selectedSubject, gradeLevel: selectedGrade, title: u.unitTitle, orderIndex: uIdx });
+                    if (u.lessons) {
+                        for (let lIdx = 0; lIdx < u.lessons.length; lIdx++) {
+                            const l = u.lessons[lIdx];
+                            await saveCurriculumLesson({ id: `l_${Date.now()}_${lIdx}`, unitId, title: l.title, orderIndex: lIdx, learningStandards: [], microConceptIds: [] });
+                        }
+                    }
+                }
                 refresh();
             }
         } catch (e) { alert('فشل التوليد'); } finally { setIsGenerating(false); }
@@ -77,7 +86,7 @@ const CurriculumManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser 
 
             <div className="flex-1 overflow-y-auto space-y-4">
                 {units.filter(u => (!selectedSubject || u.subject === selectedSubject)).map(unit => {
-                    const unitLessons = lessons.filter(l => l.unitId === unit.id);
+                    const unitLessons = lessonsMap[unit.id] || [];
                     const isExpanded = expandedUnits.has(unit.id);
                     const pct = unitLessons.length ? Math.round((unitLessons.filter(l => l.isCompleted).length / unitLessons.length) * 100) : 0;
 
@@ -92,13 +101,13 @@ const CurriculumManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser 
                                         <span className="text-[10px] font-bold text-teal-600">{pct}%</span>
                                     </div>
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); deleteCurriculumUnit(unit.id); refresh(); }} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); deleteCurriculumUnit(unit.id, currentUser.id); refresh(); }} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>
                             </div>
                             {isExpanded && (
                                 <div className="divide-y animate-slide-up">
                                     {unitLessons.map(l => (
                                         <div key={l.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                                            <button onClick={() => { toggleCurriculumLesson(l.id, !l.isCompleted); refresh(); }}>
+                                            <button onClick={() => { toggleCurriculumLesson(l.id, !l.isCompleted, unit.id); refresh(); }}>
                                                 {l.isCompleted ? <CheckCircle2 className="text-green-500"/> : <Circle className="text-gray-300"/>}
                                             </button>
                                             <div className="flex-1 font-medium text-gray-700">{l.title}</div>

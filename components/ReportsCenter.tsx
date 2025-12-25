@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, RemedialPlan } from '../types';
-import { getAcademicTerms, saveRemedialPlan, getRemedialPlans } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, RemedialPlan, Assignment } from '../types';
+import { getAcademicTerms, saveRemedialPlan, getRemedialPlans, getAssignments } from '../services/storageService';
 import { detectAtRiskStudents } from '../services/analysisService';
 import { generateSmartRemedialPlan } from '../services/geminiService';
 import { 
     FileText, AlertTriangle, Printer, Sparkles, Loader2, 
-    Save, X, BookOpen, History, BrainCircuit, Calendar
+    Save, X, BookOpen, History, BrainCircuit, Calendar, Grid3X3, ArrowRight
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { formatDualDate } from '../services/dateService';
@@ -20,19 +20,40 @@ interface ReportsCenterProps {
 }
 
 const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, performance, currentUser }) => {
-    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'REMEDIAL' | 'MONTHLY'>((localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE');
+    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'REMEDIAL' | 'MONTHLY' | 'HEATMAP'>((localStorage.getItem('rep_active_tab') as any) || 'COMPREHENSIVE');
     
     const [isGenerating, setIsGenerating] = useState(false);
     const [currentPlan, setCurrentPlan] = useState<string>('');
     const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
+    const [selectedClass, setSelectedClass] = useState('');
     const [savedRemedialPlans, setSavedRemedialPlans] = useState<RemedialPlan[]>([]);
+    const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
 
     useEffect(() => {
         localStorage.setItem('rep_active_tab', activeTab);
         if (activeTab === 'REMEDIAL') setSavedRemedialPlans(getRemedialPlans());
+        if (activeTab === 'HEATMAP') setAllAssignments(getAssignments('ALL'));
     }, [activeTab]);
 
+    const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
+
     const atRiskStudents = useMemo(() => detectAtRiskStudents(students, attendance, performance), [students, attendance, performance]);
+
+    const heatmapData = useMemo(() => {
+        if (!selectedClass) return null;
+        const classStudents = students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+        const classAssignments = allAssignments.filter(a => a.isVisible).slice(0, 8); // Top 8 tasks for viewability
+
+        return {
+            students: classStudents,
+            tasks: classAssignments,
+            getScore: (sid: string, tid: string) => {
+                const rec = performance.find(p => p.studentId === sid && (p.notes === tid || p.title === allAssignments.find(a=>a.id===tid)?.title));
+                if (!rec) return null;
+                return Math.round((rec.score / rec.maxScore) * 100);
+            }
+        };
+    }, [selectedClass, students, allAssignments, performance]);
 
     const handleGenerateRemedial = async (student: Student) => {
         setViewingStudent(student);
@@ -49,24 +70,6 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         }
     };
 
-    const handleSaveRemedial = () => {
-        if (!viewingStudent || !currentPlan || !currentUser) return;
-        const plan: RemedialPlan = {
-            id: `plan_${Date.now()}`,
-            studentId: viewingStudent.id,
-            teacherId: currentUser.id,
-            subject: 'دعم تعليمي مكثف',
-            topic: 'خطة علاجية ذكية',
-            content: currentPlan,
-            date: new Date().toISOString()
-        };
-        saveRemedialPlan(plan);
-        setSavedRemedialPlans(getRemedialPlans());
-        alert('تم حفظ الخطة في ملف الطالب بنجاح');
-        setCurrentPlan('');
-        setViewingStudent(null);
-    };
-
     const TabBtn = ({ label, active, onClick, icon: Icon }: any) => (
         <button onClick={onClick} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white border border-transparent hover:border-gray-100'}`}>
             <Icon size={16}/>
@@ -81,12 +84,64 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                 <div className="flex bg-white p-1 rounded-xl border shadow-sm overflow-x-auto no-scrollbar max-w-full">
                     <TabBtn label="التقرير الشامل" icon={FileText} active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
                     <TabBtn label="سجل الحضور" icon={Calendar} active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
+                    <TabBtn label="المتتبع الحراري" icon={Grid3X3} active={activeTab==='HEATMAP'} onClick={()=>setActiveTab('HEATMAP')} />
                     <TabBtn label="المتعثرين" icon={AlertTriangle} active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
                     <TabBtn label="الخطط العلاجية" icon={BrainCircuit} active={activeTab==='REMEDIAL'} onClick={()=>setActiveTab('REMEDIAL')} />
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
+                {activeTab === 'HEATMAP' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
+                            <h3 className="font-black text-gray-800 flex items-center gap-2"><Grid3X3 className="text-indigo-600" size={20}/> مصفوفة الأداء الحرارية</h3>
+                            <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-gray-50 font-black text-xs outline-none">
+                                <option value="">-- اختر الفصل --</option>
+                                {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+
+                        {heatmapData ? (
+                            <div className="bg-white rounded-[2.5rem] border shadow-xl overflow-hidden p-6">
+                                <div className="overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-center border-collapse">
+                                        <thead>
+                                            <tr>
+                                                <th className="p-4 text-right sticky right-0 bg-white z-10 w-48 border-b font-black text-gray-400 text-[10px] uppercase">اسم الطالب</th>
+                                                {heatmapData.tasks.map(t => (
+                                                    <th key={t.id} className="p-4 border-b font-black text-gray-700 text-xs min-w-[120px]">{t.title}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {heatmapData.students.map(s => (
+                                                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="p-3 text-right sticky right-0 bg-white z-10 font-bold text-gray-700 border-l">{s.name}</td>
+                                                    {heatmapData.tasks.map(t => {
+                                                        const score = heatmapData.getScore(s.id, t.id);
+                                                        const colorClass = score === null ? 'bg-gray-50' : score >= 90 ? 'bg-emerald-500 text-white' : score >= 75 ? 'bg-emerald-300' : score >= 60 ? 'bg-yellow-200' : 'bg-red-500 text-white';
+                                                        return (
+                                                            <td key={t.id} className={`p-3 border-l border-white/10 font-black text-xs transition-all ${colorClass}`}>
+                                                                {score !== null ? `${score}%` : '-'}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-8 flex gap-6 justify-center">
+                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-emerald-500 rounded"></div> 90%+</div>
+                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-emerald-300 rounded"></div> 75-90%</div>
+                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-yellow-200 rounded"></div> 60-75%</div>
+                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-red-500 rounded"></div> أقل من 60%</div>
+                                </div>
+                            </div>
+                        ) : <div className="p-20 text-center text-gray-300 font-bold italic">يرجى اختيار الفصل لعرض المصفوفة</div>}
+                    </div>
+                )}
+
                 {activeTab === 'MONTHLY' && (
                     <MonthlyReport students={students} attendance={attendance} performance={performance} currentUser={currentUser} />
                 )}
@@ -120,55 +175,12 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                     </div>
                 )}
 
-                {activeTab === 'REMEDIAL' && (
-                    <div className="space-y-6 animate-slide-up">
-                        <div className="bg-white p-6 rounded-3xl border shadow-sm">
-                            <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2"><History size={18} className="text-indigo-600"/> أرشيف الخطط المعتمدة</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {savedRemedialPlans.map(plan => {
-                                    const student = students.find(s => s.id === plan.studentId);
-                                    return (
-                                        <div key={plan.id} className="p-4 border rounded-2xl bg-gray-50 flex justify-between items-center group">
-                                            <div>
-                                                <h4 className="font-bold text-gray-800">{student?.name || 'طالب مجهول'}</h4>
-                                                <p className="text-[10px] text-gray-400">{formatDualDate(plan.date)}</p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => { setViewingStudent(student!); setCurrentPlan(plan.content); }} className="p-2 bg-white text-indigo-600 rounded-lg shadow-sm border opacity-0 group-hover:opacity-100 transition-all"><BookOpen size={16}/></button>
-                                                <button className="p-2 bg-white text-gray-600 rounded-lg shadow-sm border opacity-0 group-hover:opacity-100 transition-all"><Printer size={16}/></button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {savedRemedialPlans.length === 0 && <div className="col-span-full py-20 text-center text-gray-300 font-black italic">لا توجد خطط علاجية محفوظة حالياً</div>}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {activeTab === 'COMPREHENSIVE' && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-                        <button onClick={() => setActiveTab('MONTHLY')} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-indigo-400 transition-all group">
-                            <div className="p-4 bg-indigo-50 text-indigo-600 rounded-3xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-inner"><Calendar size={32}/></div>
-                            <div>
-                                <h4 className="font-black text-gray-800">كشوفات الحضور</h4>
-                                <p className="text-xs text-gray-400 mt-1">توليد سجل الحضور الشهري والفصلي لجميع الفصول.</p>
-                            </div>
-                        </button>
-                        <button onClick={() => setActiveTab('AT_RISK')} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-orange-400 transition-all group">
-                            <div className="p-4 bg-orange-50 text-orange-600 rounded-3xl group-hover:bg-orange-600 group-hover:text-white transition-colors shadow-inner"><AlertTriangle size={32}/></div>
-                            <div>
-                                <h4 className="font-black text-gray-800">تحليل المتعثرين</h4>
-                                <p className="text-xs text-gray-400 mt-1">اكتشاف الطلاب الذين يعانون من تراجع في الأداء أو غياب متكرر.</p>
-                            </div>
-                        </button>
-                        <button onClick={() => setActiveTab('REMEDIAL')} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-purple-400 transition-all group">
-                            <div className="p-4 bg-purple-50 text-purple-600 rounded-3xl group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-inner"><BrainCircuit size={32}/></div>
-                            <div>
-                                <h4 className="font-black text-gray-800">الخطط العلاجية</h4>
-                                <p className="text-xs text-gray-400 mt-1">توليد خطط دعم مخصصة باستخدام الذكاء الاصطناعي.</p>
-                            </div>
-                        </button>
+                        <ReportCategoryBtn label="المتتبع الحراري" icon={Grid3X3} onClick={()=>setActiveTab('HEATMAP')} color="bg-teal-50 text-teal-600" />
+                        <ReportCategoryBtn label="كشوفات الحضور" icon={Calendar} onClick={()=>setActiveTab('MONTHLY')} color="bg-indigo-50 text-indigo-600" />
+                        <ReportCategoryBtn label="تحليل المتعثرين" icon={AlertTriangle} onClick={()=>setActiveTab('AT_RISK')} color="bg-orange-50 text-orange-600" />
+                        <ReportCategoryBtn label="الخطط العلاجية" icon={BrainCircuit} onClick={()=>setActiveTab('REMEDIAL')} color="bg-purple-50 text-purple-600" />
                     </div>
                 )}
             </div>
@@ -197,8 +209,8 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                         </div>
                         <div className="p-6 border-t bg-gray-50 flex justify-between items-center gap-4 print:hidden">
                             <button onClick={() => window.print()} className="px-8 py-3 bg-gray-800 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><Printer size={18}/> طباعة</button>
-                            {currentPlan && !savedRemedialPlans.some(p => p.content === currentPlan) && (
-                                <button onClick={handleSaveRemedial} className="flex-1 py-3 bg-green-600 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 hover:bg-green-700">
+                            {currentPlan && (
+                                <button className="flex-1 py-3 bg-green-600 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 hover:bg-green-700">
                                     <Save size={18}/> اعتماد وحفظ الخطة
                                 </button>
                             )}
@@ -209,5 +221,15 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         </div>
     );
 };
+
+const ReportCategoryBtn = ({ label, icon: Icon, onClick, color }: any) => (
+    <button onClick={onClick} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-indigo-400 transition-all group">
+        <div className={`p-4 ${color} rounded-3xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-inner`}><Icon size={32}/></div>
+        <div>
+            <h4 className="font-black text-gray-800">{label}</h4>
+            <p className="text-[10px] text-gray-400 mt-1 font-bold uppercase tracking-widest">عرض التقرير التفصيلي</p>
+        </div>
+    </button>
+);
 
 export default ReportsCenter;

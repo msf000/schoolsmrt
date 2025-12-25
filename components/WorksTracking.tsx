@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getTeacherAssignments } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Table, Plus, Trash2, Settings, Calendar, X, RefreshCw, Loader2, Zap, ListFilter, Printer, PieChart, Sheet, Globe, Save, Layers, FileSpreadsheet, AlertCircle, Database } from 'lucide-react';
+import { Table, Plus, Trash2, Settings, Calendar, X, RefreshCw, Loader2, Zap, ListFilter, Printer, PieChart, Sheet, Globe, Save, Layers, FileSpreadsheet, AlertCircle, Database, Settings2, Link2, Sliders, LayoutList, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -62,7 +63,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
     const [workbookRef, setWorkbookRef] = useState<any>(null);
     const [isFetchingStructure, setIsFetchingStructure] = useState(false);
 
-    const [newCol, setNewCol] = useState({ title: '', max: '10', category: '', order: '0', url: '' });
+    const [newCol, setNewCol] = useState({ title: '', max: '10', category: 'HOMEWORK', order: '0', url: '' });
     const [newCatLabel, setNewCatLabel] = useState('');
 
     useEffect(() => {
@@ -93,7 +94,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
     }, [students, performance, selectedSubject, assignments]);
 
     const activeTerm = useMemo(() => terms.find(t => t.id === selectedTermId), [terms, selectedTermId]);
-    const activePeriods = useMemo(() => activeTerm?.periods || [], [activeTerm]);
 
     const filteredAssignments = useMemo(() => {
         return assignments.filter(a => {
@@ -176,44 +176,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         return results;
     }, [performance, selectedSubject, weights, attendance, assignments, categories, selectedTermId, selectedPeriodId, activeTerm]);
 
-    const syncFromSheet = async () => {
-        if (!googleSheetUrl || !selectedSubject) return alert('يرجى التأكد من اختيار المادة وربط ملف قوقل شيت من الإعدادات');
-        setIsSyncing(true);
-        try {
-            const { workbook } = await fetchWorkbookStructureUrl(googleSheetUrl);
-            const syncedScores = { ...scores };
-            const linkedAssignments = filteredAssignments.filter(a => a.sourceMetadata);
-            
-            if (linkedAssignments.length === 0) {
-                alert('لا توجد أعمدة مربوطة بقوقل شيت في هذا التبويب.');
-                setIsSyncing(false);
-                return;
-            }
-
-            linkedAssignments.forEach(assign => {
-                const meta = JSON.parse(assign.sourceMetadata!);
-                const { headers, data } = getSheetHeadersAndData(workbook, meta.sheet);
-                const nameHeader = headers.find(h => h.includes('الاسم') || h.includes('الطالب') || h.includes('Name'));
-                
-                if (nameHeader) {
-                    data.forEach(row => {
-                        const rowName = String(row[nameHeader]).trim();
-                        const student = students.find(s => s.name.includes(rowName) || rowName.includes(s.name));
-                        if (student && row[meta.header] !== undefined) {
-                            if (!syncedScores[student.id]) syncedScores[student.id] = {};
-                            syncedScores[student.id][assign.id] = String(row[meta.header]);
-                        }
-                    });
-                }
-            });
-
-            setScores(syncedScores);
-            alert('تمت مزامنة الدرجات من الملف بنجاح! اضغط "حفظ" للتثبيت.');
-        } catch (e) {
-            alert('خطأ في المزامنة: تأكد من وصول الإنترنت وأن الملف متاح للعامة.');
-        } finally {
-            setIsSyncing(false);
-        }
+    const handleAddManualCol = () => {
+        if (!newCol.title || !selectedTermId || !currentUser) return alert('أدخل العنوان والفصل الدراسي');
+        const assign: Assignment = {
+            id: `manual_${Date.now()}`,
+            title: newCol.title,
+            category: newCol.category as any,
+            maxScore: Number(newCol.max),
+            isVisible: true,
+            teacherId: currentUser.id,
+            termId: selectedTermId,
+            periodId: selectedPeriodId || undefined,
+            sortOrder: Number(newCol.order),
+            url: newCol.url
+        };
+        saveAssignment(assign);
+        setAssignments(getAssignments('ALL', currentUser.id, isManager));
+        setNewCol({ ...newCol, title: '' });
+        alert('تمت إضافة العمود بنجاح!');
     };
 
     const saveAllScores = async () => {
@@ -250,40 +230,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
         }
     };
 
-    const handleUpdateAssignment = (id: string, updates: Partial<Assignment>) => {
-        const assign = assignments.find(a => a.id === id);
-        if (assign) {
-            const updated = { ...assign, ...updates };
-            saveAssignment(updated);
-            setAssignments(getAssignments('ALL', currentUser?.id, isManager));
-        }
-    };
-
-    const handleExportExcel = () => {
-        const exportData = students.filter(s => !selectedClass || s.className === selectedClass).map((s, idx) => {
-            const row: any = { 'م': idx + 1, 'اسم الطالب': s.name, 'الفصل': s.className || '-' };
-            if (activeTab === 'YEAR_WORK') {
-                const res = calculateYearWork(s.id);
-                categories.forEach(cat => row[cat.label] = (res as any)[cat.id] || 0);
-                row['الحضور'] = (res as any).att || 0;
-                row['المجموع النهائي'] = (res as any).total || 0;
-            } else {
-                filteredAssignments.forEach(a => row[a.title] = scores[s.id]?.[a.id] || '-');
-                row['نسبة الإنجاز'] = `${calculateAchievement(s.id)}%`;
-            }
-            return row;
-        });
-
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "سجل الرصد");
-        XLSX.writeFile(wb, `سجل_الرصد_${activeTab}_${new Date().getTime()}.xlsx`);
-    };
-
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-[#F8FAFC] animate-fade-in relative overflow-hidden font-tajawal">
+            {/* Header Controls */}
             <div className="bg-white p-5 rounded-[2rem] shadow-xl border border-gray-100 mb-6 flex flex-col md:flex-row justify-between gap-4 print:hidden relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                 <div className="flex flex-wrap items-center gap-4 relative z-10">
                     <div className="flex items-center gap-2 bg-indigo-50/50 p-2.5 rounded-2xl border border-indigo-100">
                         <Calendar size={18} className="text-indigo-600"/>
@@ -292,10 +242,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                     </div>
+                    <select className="p-2.5 border rounded-2xl bg-white font-black text-xs outline-none shadow-sm min-w-[150px]" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
+                        <option value="">-- المادة الدراسية --</option>
+                        {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
                 </div>
                 <div className="flex gap-2 relative z-10">
-                    <button onClick={handleExportExcel} className="p-3 bg-white text-emerald-600 border-2 border-gray-50 rounded-2xl hover:bg-emerald-50 shadow-sm transition-all"><FileSpreadsheet size={22}/></button>
-                    <button onClick={() => window.print()} className="p-3 bg-white text-slate-600 border-2 border-gray-50 rounded-2xl hover:bg-slate-50 shadow-sm transition-all"><Printer size={22}/></button>
                     <button onClick={saveAllScores} disabled={isSaving} className="flex-1 md:flex-none bg-indigo-900 text-white px-8 py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-xl hover:bg-indigo-950 active:scale-95 transition-all">
                         {isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>} حفظ التعديلات
                     </button>
@@ -375,9 +327,156 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                     </table>
                 </div>
             </div>
-            {/* ... Modal Settings ... */}
+
+            {/* Settings Modal */}
+            {isSettingsOpen && (
+                <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-zoom-in">
+                        <div className="p-6 bg-indigo-600 text-white flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white/20 rounded-xl"><Settings2 size={24}/></div>
+                                <h3 className="text-xl font-black">إعدادات سجل الرصد</h3>
+                            </div>
+                            <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-white/10 rounded-full"><X/></button>
+                        </div>
+
+                        <div className="flex-1 flex overflow-hidden">
+                            <aside className="w-56 bg-slate-50 border-l p-4 space-y-2">
+                                <SidebarBtn icon={Plus} label="أعمدة الرصد" active={settingsTab==='MANUAL'} onClick={()=>setSettingsTab('MANUAL')}/>
+                                <SidebarBtn icon={Link2} label="ربط قوقل شيت" active={settingsTab==='SHEET'} onClick={()=>setSettingsTab('SHEET')}/>
+                                <SidebarBtn icon={Sliders} label="توزيع الأوزان" active={settingsTab==='WEIGHTS'} onClick={()=>setSettingsTab('WEIGHTS')}/>
+                                <SidebarBtn icon={LayoutList} label="الأقسام" active={settingsTab==='CATEGORIES'} onClick={()=>setSettingsTab('CATEGORIES')}/>
+                            </aside>
+
+                            <main className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                                {settingsTab === 'MANUAL' && (
+                                    <div className="space-y-6">
+                                        <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 grid grid-cols-2 gap-4">
+                                            <div className="col-span-2">
+                                                <label className="text-[10px] font-black text-indigo-400 mb-1 block">عنوان العمود (مثلاً: اختبار 1)</label>
+                                                <input className="w-full p-3 rounded-xl border border-indigo-200 outline-none font-bold" value={newCol.title} onChange={e=>setNewCol({...newCol, title: e.target.value})}/>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-indigo-400 mb-1 block">القسم</label>
+                                                <select className="w-full p-3 rounded-xl border border-indigo-200 font-bold" value={newCol.category} onChange={e=>setNewCol({...newCol, category: e.target.value})}>
+                                                    {categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-indigo-400 mb-1 block">الدرجة العظمى</label>
+                                                <input type="number" className="w-full p-3 rounded-xl border border-indigo-200 font-bold" value={newCol.max} onChange={e=>setNewCol({...newCol, max: e.target.value})}/>
+                                            </div>
+                                            <button onClick={handleAddManualCol} className="col-span-2 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700">إضافة العمود للسجل</button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <h4 className="font-black text-slate-700 text-sm">الأعمدة الحالية في هذا السجل:</h4>
+                                            {assignments.filter(a => !selectedTermId || a.termId === selectedTermId).map(a => (
+                                                <div key={a.id} className="flex justify-between items-center p-4 bg-white border rounded-2xl group">
+                                                    <div>
+                                                        <span className="font-bold text-gray-800">{a.title}</span>
+                                                        <span className="mr-2 text-[10px] bg-slate-100 px-2 py-0.5 rounded text-gray-400 font-black">{categories.find(c=>c.id===a.category)?.label}</span>
+                                                    </div>
+                                                    <button onClick={()=>{if(confirm('حذف؟')) {deleteAssignment(a.id, currentUser?.id); setAssignments(getAssignments('ALL', currentUser?.id, isManager));}}} className="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {settingsTab === 'WEIGHTS' && (
+                                    <div className="space-y-8">
+                                        <div className="bg-amber-50 p-5 rounded-3xl border border-amber-100 flex items-center gap-3">
+                                            <AlertCircle className="text-amber-500" size={24}/>
+                                            <p className="text-xs text-amber-700 font-bold leading-relaxed">حدد الدرجة القصوى التي يساهم بها كل قسم في المجموع النهائي لأعمال السنة (مثلاً: 10 للواجبات، 20 للاختبارات).</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {categories.map(cat => (
+                                                <div key={cat.id} className="flex items-center justify-between p-4 border rounded-2xl">
+                                                    <span className="font-bold text-gray-700">{cat.label}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <input type="number" className="w-20 p-2 border rounded-xl text-center font-black text-indigo-600" value={weights[cat.id] || 0} onChange={e=>{
+                                                            const newWeights = {...weights, [cat.id]: Number(e.target.value)};
+                                                            setWeights(newWeights);
+                                                            localStorage.setItem('works_weights', JSON.stringify(newWeights));
+                                                        }}/>
+                                                        <span className="text-[10px] font-black text-gray-400">درجة</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div className="flex items-center justify-between p-4 border rounded-2xl bg-emerald-50 border-emerald-100">
+                                                <span className="font-bold text-emerald-800">المواظبة (حضور وغياب)</span>
+                                                <input type="number" className="w-20 p-2 border border-emerald-200 rounded-xl text-center font-black text-emerald-600 bg-white" value={weights.ATTENDANCE || 5} onChange={e=>{
+                                                            const newWeights = {...weights, ATTENDANCE: Number(e.target.value)};
+                                                            setWeights(newWeights);
+                                                            localStorage.setItem('works_weights', JSON.stringify(newWeights));
+                                                        }}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {settingsTab === 'CATEGORIES' && (
+                                    <div className="space-y-6">
+                                        <div className="flex gap-2">
+                                            <input className="flex-1 p-3 border rounded-xl font-bold" placeholder="اسم القسم الجديد (مثل: ملف الإنجاز)" value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)}/>
+                                            <button onClick={()=>{
+                                                if(!newCatLabel) return;
+                                                const newCats = [...categories, {id: `CAT_${Date.now()}`, label: newCatLabel}];
+                                                setCategories(newCats);
+                                                localStorage.setItem('works_custom_categories', JSON.stringify(newCats));
+                                                setNewCatLabel('');
+                                            }} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black">إضافة</button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {categories.map(cat => (
+                                                <div key={cat.id} className="p-4 border rounded-2xl flex justify-between items-center group bg-slate-50/50">
+                                                    <span className="font-bold text-gray-600">{cat.label}</span>
+                                                    <button onClick={()=>{
+                                                        const newCats = categories.filter(c=>c.id!==cat.id);
+                                                        setCategories(newCats);
+                                                        localStorage.setItem('works_custom_categories', JSON.stringify(newCats));
+                                                    }} className="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {settingsTab === 'SHEET' && (
+                                    <div className="space-y-6">
+                                        <div>
+                                            <label className="block text-xs font-black text-gray-400 mb-2 uppercase">رابط ملف قوقل شيت (Master)</label>
+                                            <input 
+                                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-mono text-xs"
+                                                placeholder="https://docs.google.com/spreadsheets/d/..."
+                                                value={googleSheetUrl}
+                                                onChange={e => {
+                                                    setGoogleSheetUrl(e.target.value);
+                                                    saveWorksMasterUrl(e.target.value);
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100">
+                                            <h5 className="font-black text-blue-900 mb-2 flex items-center gap-2"><Info size={16}/> كيف يعمل الربط؟</h5>
+                                            <p className="text-xs text-blue-700 leading-relaxed font-medium">بمجرد وضع الرابط، يمكنك ربط أي عمود في السجل بعمود مقابل في ملف إكسل سحابي. سيقوم النظام بمطابقة أسماء الطلاب تلقائياً وسحب الدرجات بضغطة زر واحدة.</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </main>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
+const SidebarBtn = ({ icon: Icon, label, active, onClick }: any) => (
+    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-black transition-all ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white'}`}>
+        <Icon size={18}/>
+        <span>{label}</span>
+    </button>
+);
 
 export default WorksTracking;

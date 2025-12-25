@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { parseRawDataWithAI } from '../services/geminiService';
 import { Sparkles, ArrowRight, Save, Trash2, Copy, CheckCircle, AlertTriangle, FileText, Loader2, Database, Download, Image as ImageIcon, Upload, X, CalendarClock } from 'lucide-react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, ScheduleItem } from '../types';
-import { getSchedules, getTeacherAssignments } from '../services/storageService';
+import { getSchedules, getTeacherAssignments, addStudent, addPerformance, saveAttendance } from '../services/storageService';
 import * as XLSX from 'xlsx';
 
 interface AIDataImportProps {
@@ -179,7 +180,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
         setTimeout(() => setStatus(null), 3000);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (parsedData.length === 0) return;
         
         try {
@@ -195,6 +196,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     className: d.gradeLevel, // Fallback
                     createdById: currentUser?.id
                 }));
+                for (const s of students) await addStudent(s);
                 onImportStudents(students);
             } else if (importType === 'GRADES') {
                 const records: PerformanceRecord[] = parsedData.map(d => ({
@@ -210,6 +212,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     category: 'OTHER',
                     createdById: currentUser?.id
                 } as any));
+                await addPerformance(records);
                 onImportPerformance(records);
             } else if (importType === 'ATTENDANCE') {
                 const records: AttendanceRecord[] = parsedData.map(d => ({
@@ -223,6 +226,7 @@ const AIDataImport: React.FC<AIDataImportProps> = ({ onImportStudents, onImportP
                     period: d.period,
                     createdById: currentUser?.id
                 } as any));
+                await saveAttendance(records);
                 onImportAttendance(records);
             }
             

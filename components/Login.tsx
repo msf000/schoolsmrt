@@ -3,13 +3,14 @@ import React, { useState } from 'react';
 import { authenticateUser, authenticateStudent } from '../services/storageService';
 import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, Cloud } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
+import ParentRegistration from './ParentRegistration';
 
 interface LoginProps {
   onLoginSuccess: (user: any, rememberMe: boolean) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [view, setView] = useState<'LOGIN' | 'REGISTER'>('LOGIN'); 
+  const [view, setView] = useState<'LOGIN' | 'REGISTER' | 'PARENT_REGISTER'>('LOGIN'); 
   const [roleMode, setRoleMode] = useState<'STAFF' | 'STUDENT' | 'PARENT'>('STAFF');
   const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
@@ -27,9 +28,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         const cleanIdentifier = identifier.trim();
         
         if (roleMode === 'PARENT') {
-            setError('خدمة دخول أولياء الأمور تتطلب رقم جوال مسجل مسبقاً في السحابة.');
-            setLoading(false);
-            return;
+            const user = await authenticateUser(cleanIdentifier, password);
+            if (user && user.role === 'PARENT') {
+                onLoginSuccess(user, rememberMe);
+                return;
+            } else { setError('بيانات دخول ولي الأمر غير صحيحة.'); setLoading(false); return; }
         }
 
         if (roleMode === 'STUDENT') {
@@ -54,6 +57,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   if (view === 'REGISTER') return <TeacherRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={() => setView('LOGIN')} />;
+  if (view === 'PARENT_REGISTER') return <ParentRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={() => setView('LOGIN')} />;
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-tajawal" dir="rtl">
@@ -100,8 +104,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     </button>
                 </form>
 
-                <div className="mt-6 text-center">
-                    {roleMode === 'STAFF' && <button onClick={() => setView('REGISTER')} className="text-indigo-600 font-black text-xs hover:underline">ليس لديك حساب؟ سجل كمعلم جديد</button>}
+                <div className="mt-6 text-center space-y-2">
+                    {roleMode === 'STAFF' && <button onClick={() => setView('REGISTER')} className="block w-full text-indigo-600 font-black text-xs hover:underline">ليس لديك حساب؟ سجل كمعلم جديد</button>}
+                    {roleMode === 'PARENT' && <button onClick={() => setView('PARENT_REGISTER')} className="block w-full text-indigo-600 font-black text-xs hover:underline">أول مرة؟ اربط حسابك بأبنائك</button>}
                 </div>
             </div>
 

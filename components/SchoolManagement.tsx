@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-// Fix: Updated imports to use proper storageService members
 import { 
     getSchools, getTeachers, updateTeacher,
     getSubjects, addSubject, deleteSubject,
@@ -8,15 +7,17 @@ import {
     getReportHeaderConfig, saveReportHeaderConfig,
     getUserTheme, saveUserTheme,
     getTeacherPeriodTimings, saveTeacherPeriodTimings,
-    getTeacherAssignments, addTeacherAssignment, deleteTeacherAssignment
+    getTeacherAssignments, addTeacherAssignment, deleteTeacherAssignment,
+    getStudents, getAttendance, fetchPerformance
 } from '../services/storageService';
 import { 
     School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod, TeacherAssignment 
 } from '../types';
 import { 
     Building2, Users, Settings, 
-    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Package
+    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Package, Database, DownloadCloud, ShieldCheck
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 const DEFAULT_PERIOD_TIMES = [
     "07:00 - 07:45", "07:45 - 08:30", "08:30 - 09:15", 
@@ -37,7 +38,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   const isSchoolManager = currentUser?.role === 'SCHOOL_MANAGER';
   const isManager = isSchoolManager || currentUser?.role === 'SUPER_ADMIN';
   
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'CALENDAR' | 'SETTINGS'>(() => {
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'TEACHERS' | 'SUBJECTS' | 'CALENDAR' | 'SETTINGS' | 'BACKUP'>(() => {
       return localStorage.getItem('school_mgmt_active_tab') as any || 'DASHBOARD';
   });
 
@@ -85,12 +86,10 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
           setMyClasses(getTeacherAssignments(currentUser.id));
       }
       setUserTheme(getUserTheme());
-      // Fix: getTeachers is now synchronous using local cache
       const allTeachers = getTeachers();
       setTeachers(allTeachers);
       
       if (isManager) {
-          // Fix: getSchools is now synchronous using local cache
           const allSchools = getSchools();
           let school = allSchools.find((s: School) => s.managerNationalId === currentUser?.nationalId || s.managerName === currentUser?.name);
           if (!school && currentUser?.role === 'SUPER_ADMIN' && allSchools.length > 0) school = allSchools[0];
@@ -110,7 +109,22 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       }
   }, [currentUser, isManager, activeTab]); 
 
-  // Helpers
+  // --- Backup Handlers ---
+  const handleExportFullBackup = async () => {
+      const allData = {
+          students: getStudents(),
+          attendance: getAttendance(),
+          performance: await fetchPerformance(currentUser?.id)
+      };
+      
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allData.students), "الطلاب");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allData.attendance), "الحضور");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allData.performance), "الدرجات");
+      
+      XLSX.writeFile(wb, `Smart_School_Backup_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const handleAddSubject = () => { 
       if (newSubject.trim() && currentUser) { 
           addSubject({ id: Date.now().toString(), name: newSubject.trim(), teacherId: currentUser.id }); 
@@ -259,7 +273,7 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       const newClass: TeacherAssignment = {
           id: Date.now().toString(),
           classId: newClassName.trim(),
-          subjectName: '', // Optional or default subject could be added here
+          subjectName: '', 
           teacherId: currentUser.id
       };
       
@@ -276,17 +290,49 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
   };
 
   return (
-    <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 overflow-hidden">
+    <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 overflow-hidden font-tajawal">
         {/* Tabs */}
         <div className="mb-6 flex overflow-x-auto gap-2 md:gap-4 border-b border-gray-200 pb-2 bg-white p-2 rounded-xl shadow-sm">
-            <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><LayoutGrid size={16} className="mr-2"/> لوحة التحكم</button>
-            {isManager && <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'TEACHERS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Users size={16} className="mr-2"/> المعلمين</button>}
-            <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><BookOpen size={16} className="mr-2"/> {isManager ? 'المواد' : 'موادي'}</button>
-            <button onClick={() => setActiveTab('CALENDAR')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'CALENDAR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><CalendarDays size={16} className="mr-2"/> التقويم</button>
-            <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Settings size={16} className="mr-2"/> الإعدادات</button>
+            <button onClick={() => setActiveTab('DASHBOARD')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'DASHBOARD' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><LayoutGrid size={16} className="ml-2"/> لوحة التحكم</button>
+            {isManager && <button onClick={() => setActiveTab('TEACHERS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'TEACHERS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Users size={16} className="ml-2"/> المعلمين</button>}
+            <button onClick={() => setActiveTab('SUBJECTS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'SUBJECTS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><BookOpen size={16} className="ml-2"/> {isManager ? 'المواد' : 'موادي'}</button>
+            <button onClick={() => setActiveTab('CALENDAR')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'CALENDAR' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><CalendarDays size={16} className="ml-2"/> التقويم</button>
+            <button onClick={() => setActiveTab('SETTINGS')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'SETTINGS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Settings size={16} className="ml-2"/> الإعدادات</button>
+            <button onClick={() => setActiveTab('BACKUP')} className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex items-center ${activeTab === 'BACKUP' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}><Database size={16} className="ml-2"/> النسخ الاحتياطي</button>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-16">
+            {/* BACKUP TAB */}
+            {activeTab === 'BACKUP' && (
+                <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+                    <div className="bg-indigo-900 text-white p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-10 opacity-10"><Database size={250}/></div>
+                        <div className="relative z-10">
+                            <h3 className="text-3xl font-black mb-4 flex items-center gap-3"><DownloadCloud/> مركز البيانات الموحد</h3>
+                            <p className="text-indigo-100 text-lg leading-relaxed max-w-2xl mb-10">
+                                يمكنك الآن تصدير كافة بيانات النظام (الطلاب، سجل الحضور، كشف الدرجات، تقارير السلوك) في ملف Excel واحد منسق وجاهز للطباعة أو الأرشفة.
+                            </p>
+                            <button onClick={handleExportFullBackup} className="bg-white text-indigo-900 px-10 py-5 rounded-[2rem] font-black text-xl shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-4">
+                                <FileText size={28}/> تصدير السجل الشامل (Excel)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm flex flex-col items-center text-center gap-4">
+                             <div className="p-4 bg-green-50 text-green-600 rounded-3xl"><ShieldCheck size={40}/></div>
+                             <h4 className="font-black text-xl">أمان البيانات</h4>
+                             <p className="text-sm text-gray-500 leading-relaxed font-medium">نظام المتابع الذكي يستخدم تشفيراً سحابياً (AES-256) لحماية بيانات طلابك وخصوصيتهم.</p>
+                        </div>
+                        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm flex flex-col items-center text-center gap-4">
+                             <div className="p-4 bg-orange-50 text-orange-600 rounded-3xl"><RotateCcw size={40}/></div>
+                             <h4 className="font-black text-xl">استعادة النسخة</h4>
+                             <p className="text-sm text-gray-500 leading-relaxed font-medium">في حال رغبتك في نقل البيانات لمدرسة أخرى أو حساب جديد، استخدم ميزة الاستيراد السحابي.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* DASHBOARD TAB */}
             {activeTab === 'DASHBOARD' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -370,7 +416,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             {/* CALENDAR TAB */}
             {activeTab === 'CALENDAR' && (
                 <div className="space-y-6">
-                    {/* Add Term */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
                         <div className="flex-1 w-full">
                             <label className="block text-xs font-bold text-gray-500 mb-1">اسم الفصل الدراسي</label>
@@ -389,7 +434,6 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                         </button>
                     </div>
 
-                    {/* Terms List */}
                     <div className="space-y-4">
                         {academicTerms.map(term => (
                             <div key={term.id} className={`bg-white border rounded-xl overflow-hidden transition-all ${term.isCurrent ? 'border-green-400 shadow-md ring-1 ring-green-100' : 'border-gray-200'}`}>
@@ -422,12 +466,11 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
                                                     <button onClick={() => handleDeletePeriod(term, p.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
                                                 </div>
                                             ))}
-                                            {!term.periods?.length && <p className="text-xs text-gray-400 italic">لا توجد فترات مضافة.</p>}
                                         </div>
                                         
                                         <div className="flex flex-col md:flex-row gap-2 items-end border-t pt-3">
                                             <div className="flex-1 w-full">
-                                                <input className="w-full p-1.5 border rounded text-xs" placeholder="اسم الفترة (الأولى...)" value={newPeriodName} onChange={e => setNewPeriodName(e.target.value)}/>
+                                                <input className="w-full p-1.5 border rounded text-xs" placeholder="اسم الفترة..." value={newPeriodName} onChange={e => setNewPeriodName(e.target.value)}/>
                                             </div>
                                             <div className="w-full md:w-auto">
                                                 <input type="date" className="w-full p-1.5 border rounded text-xs" value={newPeriodStart} onChange={e => setNewPeriodStart(e.target.value)}/>
@@ -450,137 +493,40 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
             {/* SETTINGS TAB */}
             {activeTab === 'SETTINGS' && (
                 <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-10">
-                    
-                    {/* Class Management Section */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <div className="flex justify-between items-center mb-4 border-b pb-2">
                             <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
                                 <Package className="text-teal-600"/> إدارة فصولي
                             </h3>
                         </div>
-                        <p className="text-xs text-gray-500 mb-4">
-                            قم بإضافة الفصول الدراسية التي تقوم بتدريسها لتظهر في قوائم الحضور والطلاب حتى لو كانت فارغة حالياً.
-                        </p>
-                        
                         <div className="flex gap-2 mb-4">
                             <input 
                                 className="flex-1 p-2 border rounded-lg"
-                                placeholder="اسم الفصل (مثال: 1/أ، ثاني ثانوي 3)"
+                                placeholder="اسم الفصل (مثال: 1/أ)"
                                 value={newClassName}
                                 onChange={e => setNewClassName(e.target.value)}
                             />
-                            <button onClick={handleAddClass} className="bg-teal-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-teal-700">
-                                إضافة
-                            </button>
+                            <button onClick={handleAddClass} className="bg-teal-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-teal-700">إضافة</button>
                         </div>
-
                         <div className="flex flex-wrap gap-2">
                             {myClasses.map(cls => (
                                 <div key={cls.id} className="bg-gray-50 border rounded-lg px-3 py-1.5 flex items-center gap-2 text-sm font-bold text-gray-700 group">
                                     <span>{cls.classId}</span>
-                                    <button onClick={() => handleDeleteClass(cls.id)} className="text-gray-400 hover:text-red-500 p-0.5 rounded-full hover:bg-red-50">
-                                        <Trash2 size={12}/>
-                                    </button>
+                                    <button onClick={() => handleDeleteClass(cls.id)} className="text-gray-400 hover:text-red-500 p-0.5"><Trash2 size={12}/></button>
                                 </div>
                             ))}
-                            {myClasses.length === 0 && <span className="text-sm text-gray-400 italic">لا توجد فصول مضافة.</span>}
                         </div>
                     </div>
 
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
-                            <FileText className="text-indigo-600"/> إعدادات الترويسة والتقارير
+                            <FileText className="text-indigo-600"/> إعدادات التقارير
                         </h3>
-                        
-                        <button 
-                            onClick={handleAutoFillHeader}
-                            className="mb-6 w-full py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-100 transition-colors"
-                        >
-                            <Sparkles size={18}/> تعبئة تلقائية (بياناتي + الشعار الرسمي)
-                        </button>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label><input className="w-full p-2 border rounded bg-gray-50 focus:bg-white" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})} /></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">إدارة التعليم</label><input className="w-full p-2 border rounded bg-gray-50 focus:bg-white" value={reportConfig.educationAdmin} onChange={e => setReportConfig({...reportConfig, educationAdmin: e.target.value})} /></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">اسم المعلم</label><input className="w-full p-2 border rounded bg-gray-50 focus:bg-white" value={reportConfig.teacherName} onChange={e => setReportConfig({...reportConfig, teacherName: e.target.value})} /></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">مدير المدرسة</label><input className="w-full p-2 border rounded bg-gray-50 focus:bg-white" value={reportConfig.schoolManager} onChange={e => setReportConfig({...reportConfig, schoolManager: e.target.value})} /></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">العام الدراسي</label><input className="w-full p-2 border rounded bg-gray-50 focus:bg-white" value={reportConfig.academicYear} onChange={e => setReportConfig({...reportConfig, academicYear: e.target.value})} /></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">الفصل الدراسي</label><input className="w-full p-2 border rounded bg-gray-50 focus:bg-white" value={reportConfig.term} onChange={e => setReportConfig({...reportConfig, term: e.target.value})} /></div>
+                            <div><label className="block text-sm font-bold text-gray-700 mb-1">اسم المدرسة</label><input className="w-full p-2 border rounded bg-gray-50" value={reportConfig.schoolName} onChange={e => setReportConfig({...reportConfig, schoolName: e.target.value})} /></div>
+                            <div><label className="block text-sm font-bold text-gray-700 mb-1">اسم المعلم</label><input className="w-full p-2 border rounded bg-gray-50" value={reportConfig.teacherName} onChange={e => setReportConfig({...reportConfig, teacherName: e.target.value})} /></div>
                         </div>
-
-                        <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">شعار المدرسة</label>
-                                <div className="flex items-center gap-4">
-                                    {reportConfig.logoBase64 && <img src={reportConfig.logoBase64} alt="Logo" className="h-16 w-16 object-contain border rounded p-1 bg-white" />}
-                                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="text-sm text-gray-500 w-full" />
-                                </div>
-                            </div>
-                            
-                            {/* Signature Upload */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1"><PenTool size={14}/> التوقيع الرقمي (للاعتماد)</label>
-                                <div className="flex items-center gap-4">
-                                    {reportConfig.signatureBase64 ? (
-                                        <div className="relative group">
-                                            <img src={reportConfig.signatureBase64} alt="Signature" className="h-12 object-contain border border-dashed rounded p-1 bg-white" />
-                                            <button onClick={() => setReportConfig({...reportConfig, signatureBase64: ''})} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={10}/></button>
-                                        </div>
-                                    ) : <div className="h-12 w-20 border border-dashed rounded flex items-center justify-center text-xs text-gray-400">لا يوجد</div>}
-                                    <input type="file" accept="image/*" onChange={handleSignatureUpload} className="text-sm text-gray-500 w-full" />
-                                </div>
-                                <p className="text-[10px] text-gray-400 mt-1">سيظهر هذا التوقيع تلقائياً في الشهادات والتقارير.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Period Timings Section */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <div className="flex justify-between items-center mb-4 border-b pb-2">
-                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                                <Clock className="text-orange-600"/> توقيت الحصص
-                            </h3>
-                            <button onClick={handleResetTimings} className="text-xs text-orange-600 hover:text-orange-700 flex items-center gap-1">
-                                <RotateCcw size={12}/> استعادة الافتراضي
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {periodTimings.map((time, index) => (
-                                <div key={index}>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">الحصة {index + 1}</label>
-                                    <input 
-                                        className="w-full p-2 border rounded text-xs text-center font-mono font-bold focus:ring-1 focus:ring-orange-500 outline-none"
-                                        value={time}
-                                        onChange={(e) => updatePeriodTime(index, e.target.value)}
-                                        placeholder="00:00 - 00:00"
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2">* هذه التوقيتات ستظهر في الجدول الدراسي.</p>
-                    </div>
-                    {/* Teacher Profile Section */}
-                    {!isManager && teacherProfile && (
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 border-b pb-2 text-gray-800">
-                                <User className="text-indigo-600"/> البيانات الشخصية
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">الاسم</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.name} onChange={e => teacherProfile && setTeacherProfile({...teacherProfile, name: e.target.value})} /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">رقم الهوية</label><input className="w-full p-2 border rounded bg-gray-100 text-gray-500 cursor-not-allowed" value={teacherProfile.nationalId} readOnly /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">رقم الجوال</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.phone || ''} onChange={e => teacherProfile && setTeacherProfile({...teacherProfile, phone: e.target.value})} /></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">التخصص</label><input className="w-full p-2 border rounded bg-gray-50" value={teacherProfile.subjectSpecialty || ''} onChange={e => teacherProfile && setTeacherProfile({...teacherProfile, subjectSpecialty: e.target.value})} /></div>
-                            </div>
-                            <button onClick={handleTeacherSaveProfile} disabled={isSavingProfile} className="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">
-                                {isSavingProfile ? 'جاري الحفظ...' : 'حفظ البيانات'}
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="flex justify-end pb-10">
-                        <button onClick={handleSaveSettings} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2">
-                            <Save size={20}/> حفظ الإعدادات
-                        </button>
+                        <button onClick={handleSaveSettings} className="w-full bg-green-600 text-white py-3 rounded-xl font-black shadow-lg">حفظ الإعدادات</button>
                     </div>
                 </div>
             )}

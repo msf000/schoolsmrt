@@ -3,6 +3,48 @@ export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC'
 
 export type PerformanceCategory = 'HOMEWORK' | 'ACTIVITY' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER';
 
+export interface Badge {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  description: string;
+  unlockedAt: string;
+}
+
+export interface Reward {
+  id: string;
+  title: string;
+  cost: number;
+  icon: string;
+  description: string;
+  category: 'PRIVILEGE' | 'TITLE' | 'ITEM';
+}
+
+export interface PurchaseRequest {
+  id: string;
+  studentId: string;
+  studentName: string;
+  rewardId: string;
+  rewardTitle: string;
+  cost: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  date: string;
+  teacherId: string;
+}
+
+export interface WeeklyChallenge {
+  id: string;
+  title: string;
+  description: string;
+  rewardXp: number;
+  startDate: string;
+  endDate: string;
+  targetClass: string;
+  isActive: boolean;
+  type: 'ATTENDANCE' | 'ACADEMIC' | 'BEHAVIOR';
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -23,6 +65,11 @@ export interface Student {
   seatIndex?: number;
   learningStyle?: LearningStyle;
   behaviorPoints?: number;
+  level?: number;
+  xp?: number;
+  badges?: Badge[];
+  purchasedRewards?: string[];
+  streak?: number;
 }
 
 export interface Teacher {
@@ -73,7 +120,6 @@ export interface WeeklyPlanItem {
   homework: string;
 }
 
-/* Fix: Added LessonBlock interface */
 export interface LessonBlock {
   id: string;
   type: 'CONTENT' | 'ACTIVITY' | 'ASSESSMENT' | 'MEDIA';

@@ -5,7 +5,7 @@ import {
   LayoutGrid, Users, CheckSquare, Table, Monitor, 
   BarChart2, Settings, LogOut, Bell, Menu, X, 
   CalendarDays, Trophy, BookOpen, MessageSquare, 
-  Database, Sparkles, BrainCircuit, List, ShieldCheck, ClipboardList, Inbox, FileSpreadsheet, Award
+  Database, Sparkles, BrainCircuit, List, ShieldCheck, ClipboardList, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Ghost
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -68,25 +68,31 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <NavItem path="/schedule" label="الجدول الدراسي" icon={CalendarDays} isActive={location.pathname === '/schedule'} />
                         <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
                         <NavItem path="/behavior" label="سجل السلوك" icon={ShieldCheck} color="text-yellow-600" isActive={location.pathname === '/behavior'} />
+                        <NavItem path="/behavior-analysis" label="محلل الأنماط" icon={Ghost} color="text-red-500" isActive={location.pathname === '/behavior-analysis'} />
                         <NavItem path="/performance" label="الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} />
-                        <NavItem path="/works" label="سجل الرصد (كشف)" icon={Table} isActive={location.pathname === '/works'} />
-                        <NavItem path="/tasks" label="الواجبات" icon={ClipboardList} color="text-indigo-600" isActive={location.pathname === '/tasks'} />
-                        <NavItem path="/leaderboard" label="لوحة الشرف" icon={Trophy} color="text-yellow-500" isActive={location.pathname === '/leaderboard'} />
+                        <NavItem path="/works" label="سجل الرصد" icon={Table} isActive={location.pathname === '/works'} />
+                        <NavItem path="/noor" label="نظام نور" icon={Globe} color="text-blue-600" isActive={location.pathname === '/noor'} />
                     </div>
 
                     <div className="pt-3 mt-2 border-t border-gray-50">
                         <label className={`px-4 text-[9px] font-black text-gray-400 block mb-1 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الأدوات والتقارير</label>
                         <NavItem path="/classroom" label="شاشة الفصل" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} />
-                        <NavItem path="/exams" label="الاختبارات" icon={List} isActive={location.pathname === '/exams'} />
+                        <NavItem path="/strategy" label="استراتيجية AI" icon={Lightbulb} color="text-amber-500" isActive={location.pathname === '/strategy'} />
+                        <NavItem path="/analytics" label="تحليل AI" icon={LineChart} color="text-purple-600" isActive={location.pathname === '/analytics'} />
                         <NavItem path="/lab" label="مختبر VARK" icon={BrainCircuit} color="text-orange-600" isActive={location.pathname === '/lab'} />
                         <NavItem path="/reports" label="مركز التقارير" icon={BarChart2} isActive={location.pathname === '/reports'} />
-                        <NavItem path="/messages" label="الرسائل" icon={MessageSquare} color="text-teal-600" isActive={location.pathname === '/messages'} />
                         <NavItem path="/certificates" label="الشهادات" icon={Award} color="text-purple-600" isActive={location.pathname === '/certificates'} />
+                    </div>
+
+                    <div className="pt-3 mt-2 border-t border-gray-50">
+                        <label className={`px-4 text-[9px] font-black text-gray-400 block mb-1 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>حسابي</label>
+                        <NavItem path="/profile" label="الملف الشخصي" icon={User} isActive={location.pathname === '/profile'} />
+                        <NavItem path="/subscription" label="الاشتراك" icon={Crown} color="text-yellow-500" isActive={location.pathname === '/subscription'} />
                     </div>
                 </nav>
 
                 <div className="p-4 border-t border-gray-50 space-y-2">
-                    {isSuperAdmin && <NavItem path="/admin" label="إدارة النظام" icon={Settings} isActive={location.pathname === '/admin'} />}
+                    {isSuperAdmin && <NavItem path="/admin" label="إدارة النظام" icon={ShieldCheck} isActive={location.pathname === '/admin'} />}
                     <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} />
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 font-bold transition-all">
                         <LogOut size={20}/>
@@ -97,7 +103,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
 
             {/* Mobile Drawer */}
             {isMobileMenuOpen && (
-                <div className="fixed inset-0 z-[100] lg:hidden">
+                <div className="fixed inset-0 z-100 lg:hidden">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
                     <div className="absolute top-0 right-0 h-full w-4/5 bg-white shadow-2xl flex flex-col animate-slide-right">
                         <div className="p-6 border-b flex items-center justify-between">
@@ -108,11 +114,12 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                              <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} isActive={location.pathname === '/'} />
                              <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
                              <NavItem path="/performance" label="سجل الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} />
-                             <NavItem path="/works" label="سجل الرصد (كشف)" icon={Table} isActive={location.pathname === '/works'} />
-                             <NavItem path="/behavior" label="سجل السلوك" icon={ShieldCheck} color="text-yellow-600" isActive={location.pathname === '/behavior'} />
-                             <NavItem path="/tasks" label="المهام والواجبات" icon={ClipboardList} color="text-indigo-600" isActive={location.pathname === '/tasks'} />
-                             <NavItem path="/leaderboard" label="لوحة الشرف" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/leaderboard'} />
+                             <NavItem path="/works" label="سجل الرصد" icon={Table} isActive={location.pathname === '/works'} />
+                             <NavItem path="/noor" label="نظام نور" icon={Globe} color="text-blue-600" isActive={location.pathname === '/noor'} />
+                             <NavItem path="/strategy" label="استراتيجية AI" icon={Lightbulb} color="text-amber-500" isActive={location.pathname === '/strategy'} />
+                             <NavItem path="/analytics" label="تحليل AI" icon={LineChart} color="text-purple-600" isActive={location.pathname === '/analytics'} />
                              <NavItem path="/reports" label="التقارير" icon={BarChart2} isActive={location.pathname === '/reports'} />
+                             <NavItem path="/profile" label="ملفي الشخصي" icon={User} isActive={location.pathname === '/profile'} />
                              <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} />
                              <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 font-bold mt-10"><LogOut size={20}/> تسجيل خروج</button>
                         </div>
@@ -131,7 +138,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                     </div>
                     <div className="flex items-center gap-3">
                          <button onClick={() => navigate('/inbox')} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><Inbox size={22}/></button>
-                         <div className="w-8 h-8 bg-indigo-50 rounded-full border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">{currentUser.name.charAt(0)}</div>
+                         <div onClick={() => navigate('/profile')} className="w-8 h-8 bg-indigo-50 rounded-full border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs cursor-pointer">{currentUser.name.charAt(0)}</div>
                     </div>
                 </header>
 

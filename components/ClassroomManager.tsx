@@ -1,13 +1,14 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, SystemUser, PerformanceRecord, EnvironmentRecord, TeacherAssignment } from '../types';
 import { 
-    MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid, Users, Shuffle
+    MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid, Users, Shuffle, User, Info, MoreHorizontal, MousePointer2
 } from 'lucide-react';
 import { getTeacherAssignments, updateStudent, getEnvironmentRecords } from '../services/storageService';
 import { suggestSeatingPlan } from '../services/geminiService';
 import { generateLocalSeatingPlan, generateVarkBalancedGroups } from '../services/analysisService';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import InteractiveSeatMap from './InteractiveSeatMap';
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -27,11 +28,11 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     currentUser,
     performance = []
 }) => {
-    const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'ENVIRONMENT' | 'GROUPS'>('TOOLS');
+    const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'ENVIRONMENT' | 'GROUPS'>('SEATING');
     const [selectedClass, setSelectedClass] = useState('');
     const [isArranging, setIsArranging] = useState(false);
     const [arrangeMethod, setArrangeMethod] = useState<'AI' | 'LOCAL'>('LOCAL');
-    const [aiCriterion, setAiCriterion] = useState('مزج المستويات (مزج المستويات (متفوق بجانب ضعيف)');
+    const [aiCriterion, setAiCriterion] = useState('مزج المستويات (متفوق بجانب ضعيف)');
     const [envHistory, setEnvHistory] = useState<EnvironmentRecord[]>([]);
     
     const [groupSize, setGroupSize] = useState(4);
@@ -85,96 +86,94 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden">
+        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden font-tajawal">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><MonitorPlay className="text-indigo-600"/> إدارة الفصل</h2>
+                    <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><MonitorPlay className="text-indigo-600"/> إدارة وتوجيه الفصل</h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-white font-bold text-sm outline-none shadow-sm">{uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                    <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-white font-black text-sm outline-none shadow-sm min-w-[150px]">{uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}</select>
                     <div className="bg-white p-1 rounded-xl border flex gap-1 shadow-sm">
-                        <button onClick={() => setActiveTab('TOOLS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'TOOLS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>الأدوات</button>
-                        <button onClick={() => setActiveTab('SEATING')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'SEATING' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>المقاعد</button>
-                        <button onClick={() => setActiveTab('GROUPS')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'GROUPS' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>المجموعات</button>
-                        <button onClick={() => setActiveTab('ENVIRONMENT')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'ENVIRONMENT' ? 'bg-indigo-600 text-white shadow' : 'text-gray-500'}`}>البيئة</button>
+                        <TabItem label="المقاعد" active={activeTab === 'SEATING'} onClick={() => setActiveTab('SEATING')} />
+                        <TabItem label="المجموعات" active={activeTab === 'GROUPS'} onClick={() => setActiveTab('GROUPS')} />
+                        <TabItem label="الأدوات" active={activeTab === 'TOOLS'} onClick={() => setActiveTab('TOOLS')} />
+                        <TabItem label="البيئة" active={activeTab === 'ENVIRONMENT'} onClick={() => setActiveTab('ENVIRONMENT')} />
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
+            <div className="flex-1 bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col relative">
                 {activeTab === 'TOOLS' && (
                     <div className="h-full flex flex-col items-center justify-center p-10 text-center gap-8">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
-                             <div className="bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100 flex flex-col items-center gap-4">
-                                 <div className="p-4 bg-white rounded-3xl shadow-sm text-indigo-600"><Users size={32}/></div>
-                                 <h3 className="font-black text-indigo-900">تقسيم المجموعات الذكي</h3>
-                                 <p className="text-xs text-indigo-600 font-bold">تقسيم المجموعات بناءً على تنوع الأنماط (VARK)</p>
-                                 <div className="flex items-center gap-3">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
+                             <ToolCard icon={Users} title="مجموعات متوازنة" desc="تقسيم المجموعات بناءً على تنوع الأنماط (VARK) لزيادة فاعلية التعلم النشط." color="bg-indigo-50" textColor="text-indigo-600">
+                                 <div className="flex items-center gap-3 mb-4">
                                      <span className="text-xs font-bold">حجم المجموعة:</span>
-                                     <input type="number" value={groupSize} onChange={e=>setGroupSize(Number(e.target.value))} className="w-16 p-2 border rounded-xl text-center font-bold"/>
+                                     <input type="number" value={groupSize} onChange={e=>setGroupSize(Number(e.target.value))} className="w-16 p-2 border rounded-xl text-center font-black"/>
                                  </div>
-                                 <button onClick={handleGenerateGroups} className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg">توليد المجموعات</button>
-                             </div>
-                             <div className="bg-purple-50 p-8 rounded-[2.5rem] border border-purple-100 flex flex-col items-center gap-4">
-                                 <div className="p-4 bg-white rounded-3xl shadow-sm text-purple-600"><MonitorPlay size={32}/></div>
-                                 <h3 className="font-black text-purple-900">شاشة العرض المباشرة</h3>
-                                 <p className="text-xs text-purple-600 font-bold">تفعيل أدوات السبورة والمؤقت والسحب العشوائي</p>
-                                 <button onClick={onLaunchScreen} className="w-full mt-auto py-3 bg-purple-600 text-white rounded-2xl font-black shadow-lg">فتح الشاشة الآن</button>
-                             </div>
+                                 <button onClick={handleGenerateGroups} className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all">توليد المجموعات</button>
+                             </ToolCard>
+                             <ToolCard icon={MonitorPlay} title="شاشة العرض" desc="تفعيل السبورة الرقمية، مؤقت الأنشطة، وسحب الأسماء التفاعلي للطلاب." color="bg-purple-50" textColor="text-purple-600">
+                                 <button onClick={onLaunchScreen} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black shadow-lg hover:bg-purple-700 transition-all mt-6">فتح الشاشة الآن</button>
+                             </ToolCard>
                          </div>
                     </div>
                 )}
 
-                {activeTab === 'GROUPS' && (
-                    <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar">
-                        <div className="flex justify-between items-center mb-8 border-b pb-4">
-                            <h3 className="text-xl font-black text-gray-800 flex items-center gap-2"><Users className="text-indigo-600"/> مجموعات التعلم المتوازنة (VARK)</h3>
-                            <button onClick={handleGenerateGroups} className="flex items-center gap-2 text-indigo-600 font-bold text-sm hover:underline"><Shuffle size={16}/> إعادة التوزيع عشوائياً</button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {generatedGroups.map((group, idx) => (
-                                <div key={idx} className="bg-gray-50 border rounded-3xl p-6 shadow-sm">
-                                    <h4 className="font-black text-indigo-700 mb-4 pb-2 border-b">المجموعة {idx+1}</h4>
-                                    <div className="space-y-3">
-                                        {group.map(s => (
-                                            <div key={s.id} className="flex justify-between items-center">
-                                                <span className="text-sm font-bold text-gray-700">{s.name}</span>
-                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${s.learningStyle==='VISUAL'?'bg-blue-100 text-blue-700':s.learningStyle==='AUDITORY'?'bg-green-100 text-green-700':s.learningStyle==='KINESTHETIC'?'bg-red-100 text-red-700':'bg-orange-100 text-orange-700'}`}>{s.learningStyle || '؟'}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                {activeTab === 'SEATING' && currentUser && (
+                    <InteractiveSeatMap students={students} selectedClass={selectedClass} currentUser={currentUser} />
                 )}
 
-                {activeTab === 'SEATING' && (
-                    <div className="h-full flex flex-col overflow-hidden">
-                        <div className="p-4 bg-indigo-50 border-b flex flex-wrap justify-between items-center gap-4">
-                            <h4 className="font-bold text-indigo-900 text-sm">توزيع المقاعد الذكي</h4>
-                            <div className="flex gap-2">
-                                <select value={aiCriterion} onChange={e=>setAiCriterion(e.target.value)} className="text-xs p-2 border rounded-lg bg-white outline-none"><option>مزج المستويات (مزج المستويات (متفوق بجانب متعثر)</option><option>ترتيب حسب المستوى (تصاعدي)</option></select>
-                                <button onClick={() => handleArrange('LOCAL')} disabled={isArranging} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-md disabled:opacity-50">{isArranging && arrangeMethod === 'LOCAL' ? <Loader2 size={14} className="animate-spin"/> : <RotateCcw size={14}/>} توزيع إحصائي</button>
-                            </div>
+                {activeTab === 'GROUPS' && (
+                    <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar bg-slate-50/50">
+                        <div className="flex justify-between items-center mb-8 border-b pb-4">
+                            <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><Users className="text-indigo-600"/> مجموعات التعلم المتوازنة (AI Optimized)</h3>
+                            <button onClick={handleGenerateGroups} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black text-xs shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"><Shuffle size={14}/> إعادة خلط المجموعات</button>
                         </div>
-                        <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-                            <div className="w-full max-w-5xl mx-auto">
-                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
-                                    {filteredStudents.map((s) => (
-                                        <div key={s.id} className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-[2rem] flex flex-col items-center justify-center p-4 group relative shadow-sm">
-                                            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-indigo-600 text-xl font-black mb-3 shadow-inner border border-gray-100">{s.name.charAt(0)}</div>
-                                            <span className="text-[10px] font-black text-center leading-tight line-clamp-2 text-gray-700">{s.name}</span>
+                        {generatedGroups.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {generatedGroups.map((group, idx) => (
+                                    <div key={idx} className="bg-white border rounded-[2.5rem] p-8 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 w-2 h-full bg-indigo-600"></div>
+                                        <h4 className="font-black text-indigo-900 mb-6 text-lg flex items-center justify-between">
+                                            المجموعة {idx+1}
+                                            <span className="text-[10px] bg-indigo-50 px-3 py-1 rounded-full">{group.length} طلاب</span>
+                                        </h4>
+                                        <div className="space-y-4">
+                                            {group.map(s => (
+                                                <div key={s.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl">
+                                                    <span className="text-xs font-black text-slate-700">{s.name}</span>
+                                                    <span className="text-xs">{s.learningStyle === 'VISUAL' ? '👁️' : s.learningStyle === 'AUDITORY' ? '👂' : s.learningStyle === 'READ_WRITE' ? '📖' : s.learningStyle === 'KINESTHETIC' ? '🏃' : '؟'}</span>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
+                                    </div>
+                                ))}
                             </div>
-                        </div>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 opacity-50">
+                                <Users size={100} className="mx-auto"/>
+                                <p className="text-xl font-black">اضغط لتوليد مجموعات متوازنة تعليمياً</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
         </div>
     );
 };
+
+const TabItem = ({ label, active, onClick }: any) => (
+    <button onClick={onClick} className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${active ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}>{label}</button>
+);
+
+const ToolCard = ({ icon: Icon, title, desc, color, textColor, children }: any) => (
+    <div className={`${color} p-10 rounded-[3rem] border border-transparent hover:border-white shadow-sm flex flex-col items-center text-center gap-4 transition-all hover:shadow-xl`}>
+        <div className={`p-5 bg-white rounded-[2rem] shadow-xl ${textColor}`}><Icon size={40}/></div>
+        <h3 className={`text-xl font-black ${textColor}`}>{title}</h3>
+        <p className="text-sm text-slate-500 font-bold leading-relaxed mb-4">{desc}</p>
+        <div className="w-full">{children}</div>
+    </div>
+);
 
 export default ClassroomManager;

@@ -1,10 +1,11 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, ReportHeaderConfig, PerformanceRecord, AcademicTerm, Subject, SystemUser, TeacherAssignment } from '../types';
-import { Calendar, Printer, Filter, Loader2, FileSpreadsheet, Search } from 'lucide-react';
-import { getReportHeaderConfig, getSubjects, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
+/* Fix: Added PerformanceRecord to the imported types */
+import { Student, AttendanceRecord, AttendanceStatus, ReportHeaderConfig, AcademicTerm, Subject, SystemUser, PerformanceRecord } from '../types';
+import { Calendar, Printer, Filter, Loader2, FileSpreadsheet } from 'lucide-react';
+import { getReportHeaderConfig, getAcademicTerms } from '../services/storageService';
 import { formatDualDate } from '../services/dateService';
 import * as XLSX from 'xlsx';
-import { useNavigate } from 'react-router-dom';
 
 interface MonthlyReportProps {
   students: Student[];
@@ -13,313 +14,111 @@ interface MonthlyReportProps {
   currentUser?: SystemUser | null;
 }
 
-const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance = [], performance = [], currentUser }) => {
-  const navigate = useNavigate();
-  if (!students) {
-      return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
-  }
-
+const MonthlyReport: React.FC<MonthlyReportProps> = ({ students = [], attendance = [], currentUser }) => {
   const [startDate, setStartDate] = useState(() => {
-      const d = new Date();
-      d.setDate(1); 
+      const d = new Date(); d.setDate(1); 
       return d.toISOString().split('T')[0];
   });
-  const [endDate, setEndDate] = useState(() => {
-      const d = new Date(); 
-      return d.toISOString().split('T')[0];
-  });
-  
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('');
   const [headerConfig, setHeaderConfig] = useState<ReportHeaderConfig | null>(null);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [terms, setTerms] = useState<AcademicTerm[]>([]);
-  const [selectedTermId, setSelectedTermId] = useState('');
 
   useEffect(() => {
       setHeaderConfig(getReportHeaderConfig(currentUser?.id));
-      setSubjects(getSubjects(currentUser?.id));
-      const loadedTerms = getAcademicTerms(currentUser?.id);
-      setTerms(loadedTerms);
-      const current = loadedTerms.find((t: AcademicTerm) => t.isCurrent);
-      if (current) {
-          setSelectedTermId(current.id);
-          setStartDate(current.startDate);
-          setEndDate(current.endDate);
-      }
   }, [currentUser]);
 
-  // --- UPDATED: Merge Student Classes with Manually Defined Classes ---
-  const uniqueClasses = useMemo(() => {
-      const classes = new Set<string>();
-      students.forEach(s => { if (s.className) classes.add(s.className); });
-      // Add manual classes
-      const manualClasses = getTeacherAssignments(currentUser?.id).map((a: TeacherAssignment) => a.classId);
-      manualClasses.forEach((c: string) => classes.add(c));
-      return Array.from(classes).sort();
-  }, [students, currentUser]);
+  const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
+  const filteredStudents = useMemo(() => students.filter(s => s.className === selectedClass).sort((a, b) => a.name.localeCompare(b.name, 'ar')), [students, selectedClass]);
 
-  const filteredStudents = useMemo(() => {
-      if (!selectedClass) return [];
-      return students.filter(s => s.className === selectedClass).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-  }, [students, selectedClass]);
-
-  // --- CORE LOGIC: Find actual sessions recorded ---
   const sessions = useMemo(() => {
-      if (!selectedClass || !startDate || !endDate) return [];
-
+      if (!selectedClass) return [];
       const classStudentIds = new Set(filteredStudents.map(s => s.id));
-      const safeAttendance = attendance || [];
-
-      // Get all attendance records for this class in range
-      const relevantRecords = safeAttendance.filter(r => 
-          classStudentIds.has(r.studentId) &&
-          r.date >= startDate && 
-          r.date <= endDate &&
-          (!selectedSubject || r.subject === selectedSubject)
-      );
-
-      // Group by Date + Period + Subject to form "Sessions" columns
-      const sessionMap = new Map<string, { date: string, period?: number, subject?: string }>();
-
+      const relevantRecords = (attendance || []).filter(r => classStudentIds.has(r.studentId) && r.date >= startDate && r.date <= endDate);
+      const sessionMap = new Map<string, { date: string, period?: number }>();
       relevantRecords.forEach(r => {
-          const period = r.period || 0;
-          const subject = r.subject || 'عام';
-          // Key to identify a unique session column
-          const key = `${r.date}_${period}_${subject}`; 
-          
-          if (!sessionMap.has(key)) {
-              sessionMap.set(key, {
-                  date: r.date,
-                  period: r.period,
-                  subject: r.subject
-              });
-          }
+          const key = `${r.date}_${r.period || 0}`;
+          if (!sessionMap.has(key)) sessionMap.set(key, { date: r.date, period: r.period });
       });
-
-      // Sort sessions chronologically
-      return Array.from(sessionMap.values()).sort((a, b) => {
-          const dateComp = new Date(a.date).getTime() - new Date(b.date).getTime();
-          if (dateComp !== 0) return dateComp;
-          return (a.period || 0) - (b.period || 0);
-      });
-
-  }, [attendance, filteredStudents, selectedClass, startDate, endDate, selectedSubject]);
-
-  const getStatusSymbol = (status: AttendanceStatus) => {
-      switch (status) {
-          case AttendanceStatus.PRESENT: return '✓';
-          case AttendanceStatus.ABSENT: return 'غ';
-          case AttendanceStatus.LATE: return 'ت';
-          case AttendanceStatus.EXCUSED: return 'ع';
-          default: return '-';
-      }
-  };
-
-  const getStatusColor = (status: AttendanceStatus) => {
-      switch (status) {
-          case AttendanceStatus.PRESENT: return 'text-green-600 bg-green-50';
-          case AttendanceStatus.ABSENT: return 'text-red-600 bg-red-50 font-bold';
-          case AttendanceStatus.LATE: return 'text-yellow-600 bg-yellow-50';
-          case AttendanceStatus.EXCUSED: return 'text-blue-600 bg-blue-50';
-          default: return 'text-gray-400';
-      }
-  };
+      return Array.from(sessionMap.values()).sort((a, b) => a.date.localeCompare(b.date) || (a.period || 0) - (b.period || 0));
+  }, [attendance, filteredStudents, selectedClass, startDate, endDate]);
 
   const calculateStats = (studentId: string) => {
-      let present = 0, absent = 0, late = 0;
-      
-      sessions.forEach(session => {
-          const record = attendance.find(r => 
-              r.studentId === studentId && 
-              r.date === session.date && 
-              (session.period ? r.period === session.period : true) &&
-              (session.subject ? r.subject === session.subject : true)
-          );
-          if (record) {
-              if (record.status === AttendanceStatus.PRESENT) present++;
-              else if (record.status === AttendanceStatus.ABSENT) absent++;
-              else if (record.status === AttendanceStatus.LATE) late++;
-          } else {
-              // Assuming if session exists but no record for student, maybe implied present or missing? 
-              // Usually we only count explicit records.
-          }
-      });
-      return { present, absent, late };
+      const childAtt = attendance.filter(a => a.studentId === studentId && a.date >= startDate && a.date <= endDate);
+      return {
+          absent: childAtt.filter(a => a.status === AttendanceStatus.ABSENT).length,
+          late: childAtt.filter(a => a.status === AttendanceStatus.LATE).length
+      };
   };
 
-  const handleExportExcel = () => {
-      if (filteredStudents.length === 0) return;
-
+  const handleExport = () => {
       const data = filteredStudents.map((s, i) => {
           const row: any = { '#': i + 1, 'اسم الطالب': s.name };
-          
-          sessions.forEach(session => {
-              const record = attendance.find(r => 
-                  r.studentId === s.id && 
-                  r.date === session.date && 
-                  (session.period ? r.period === session.period : true)
-              );
-              const colName = `${session.date} ${session.period ? `(ح${session.period})` : ''}`;
-              row[colName] = record ? (record.status === AttendanceStatus.ABSENT ? 'غائب' : record.status === AttendanceStatus.LATE ? 'تأخر' : 'حاضر') : '-';
+          sessions.forEach(sess => {
+              const rec = attendance.find(r => r.studentId === s.id && r.date === sess.date && r.period === sess.period);
+              row[`${sess.date} (ح${sess.period || 0})`] = rec ? (rec.status === AttendanceStatus.PRESENT ? 'ح' : 'غ') : '-';
           });
-
           const stats = calculateStats(s.id);
-          row['غياب'] = stats.absent;
-          row['تأخر'] = stats.late;
-          
+          row['إجمالي الغياب'] = stats.absent;
           return row;
       });
-
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "تقرير الحضور");
-      XLSX.writeFile(wb, `Monthly_Report_${selectedClass}_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const navigateToStudent = (studentId: string) => {
-      navigate('/followup', { state: { studentId } });
+      XLSX.writeFile(wb, `Attendance_Report_${selectedClass}.xlsx`);
   };
 
   return (
-      <div className="p-6 animate-fade-in h-full flex flex-col bg-gray-50">
-          {/* Header Controls */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden">
-              <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-                  <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border min-w-[200px]">
-                        <Filter size={16} className="text-gray-500"/>
-                        <select 
-                            value={selectedClass} 
-                            onChange={(e) => setSelectedClass(e.target.value)}
-                            className="bg-transparent w-full text-sm font-bold outline-none"
-                        >
-                            <option value="">-- اختر الفصل --</option>
-                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                  </div>
-
-                  <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border">
-                        <span className="text-xs text-gray-500 whitespace-nowrap">من:</span>
-                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-sm font-bold outline-none"/>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border">
-                        <span className="text-xs text-gray-500 whitespace-nowrap">إلى:</span>
-                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent text-sm font-bold outline-none"/>
-                  </div>
-
-                  <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border">
-                        <select 
-                            value={selectedSubject} 
-                            onChange={(e) => setSelectedSubject(e.target.value)}
-                            className="bg-transparent text-sm font-bold outline-none"
-                        >
-                            <option value="">كل المواد</option>
-                            {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                        </select>
-                  </div>
-              </div>
-
+      <div className="flex flex-col h-full bg-white rounded-3xl border shadow-sm overflow-hidden animate-fade-in font-tajawal">
+          <div className="p-4 bg-slate-50 border-b flex flex-wrap gap-4 items-center justify-between print:hidden">
               <div className="flex gap-2">
-                  <button onClick={handleExportExcel} disabled={!selectedClass} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-700 disabled:opacity-50">
-                      <FileSpreadsheet size={16}/> تصدير Excel
-                  </button>
-                  <button onClick={() => window.print()} disabled={!selectedClass} className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black disabled:opacity-50">
-                      <Printer size={16}/> طباعة
-                  </button>
+                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-white font-bold text-xs">
+                    <option value="">-- اختر الفصل --</option>
+                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="p-2 border rounded-xl text-xs"/>
+                <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="p-2 border rounded-xl text-xs"/>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleExport} className="p-2 bg-green-600 text-white rounded-xl text-xs font-bold flex items-center gap-2"><FileSpreadsheet size={16}/> Excel</button>
+                <button onClick={()=>window.print()} className="p-2 bg-gray-800 text-white rounded-xl text-xs font-bold flex items-center gap-2"><Printer size={16}/> طباعة</button>
               </div>
           </div>
-          
-          {selectedClass ? (
-              <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden flex-1 flex flex-col print:shadow-none print:border-none print:m-0">
-                  {/* Print Header */}
-                  <div className="hidden print:block p-8 pb-4 text-center border-b-2 border-black mb-4">
-                      <div className="flex justify-between items-start mb-4">
-                          <div className="text-right">
-                              <p className="font-bold">المملكة العربية السعودية</p>
-                              <p className="font-bold">وزارة التعليم</p>
-                              <p>{headerConfig?.schoolName}</p>
-                          </div>
-                          {headerConfig?.logoBase64 && <img src={headerConfig.logoBase64} alt="Logo" className="h-24 w-24 object-contain"/>}
-                          <div className="text-left">
-                              <p className="font-bold">تقرير الحضور والغياب</p>
-                              <p>الفصل: {selectedClass}</p>
-                              <p className="text-xs mt-1">{formatDualDate(new Date().toISOString())}</p>
-                          </div>
-                      </div>
-                      <h2 className="text-xl font-black underline">كشف متابعة الحضور ({startDate} إلى {endDate})</h2>
-                  </div>
 
-                  <div className="overflow-auto flex-1 custom-scrollbar p-1">
-                      <table className="w-full text-center border-collapse text-xs md:text-sm">
-                          <thead className="bg-gray-100 text-gray-700 font-bold sticky top-0 z-10 print:static">
-                              <tr>
-                                  <th className="p-3 border w-10 sticky right-0 bg-gray-100 z-20">#</th>
-                                  <th className="p-3 border w-48 sticky right-10 bg-gray-100 z-20 text-right">اسم الطالب</th>
-                                  {sessions.map((session, idx) => (
-                                      <th key={idx} className="p-2 border min-w-[60px] whitespace-nowrap">
-                                          <div className="flex flex-col items-center">
-                                              <span>{session.date.slice(5)}</span>
-                                              {session.period && <span className="text-[10px] text-gray-500 font-normal">ح{session.period}</span>}
-                                          </div>
-                                      </th>
-                                  ))}
-                                  <th className="p-2 border w-16 bg-red-50 text-red-700">غياب</th>
-                                  <th className="p-2 border w-16 bg-yellow-50 text-yellow-700">تأخر</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {filteredStudents.map((student, i) => {
-                                  const stats = calculateStats(student.id);
-                                  return (
-                                      <tr key={student.id} className="hover:bg-gray-50 border-b print:break-inside-avoid">
-                                          <td className="p-2 border bg-gray-50 sticky right-0 z-10">{i + 1}</td>
-                                          <td 
-                                              className="p-2 border font-bold text-right sticky right-10 bg-white z-10 whitespace-nowrap cursor-pointer hover:text-purple-600 hover:underline"
-                                              onClick={() => navigateToStudent(student.id)}
-                                          >
-                                              {student.name}
-                                          </td>
-                                          {sessions.map((session, idx) => {
-                                              const record = attendance.find(r => 
-                                                  r.studentId === student.id && 
-                                                  r.date === session.date && 
-                                                  (session.period ? r.period === session.period : true) &&
-                                                  (session.subject ? r.subject === session.subject : true)
-                                              );
-                                              const status = record ? record.status : null;
-                                              return (
-                                                  <td key={idx} className={`p-1 border ${status ? getStatusColor(status) : ''}`}>
-                                                      {status ? getStatusSymbol(status) : ''}
-                                                  </td>
-                                              );
-                                          })}
-                                          <td className="p-2 border font-bold bg-red-50">{stats.absent}</td>
-                                          <td className="p-2 border font-bold bg-yellow-50">{stats.late}</td>
-                                      </tr>
-                                  );
-                              })}
-                          </tbody>
-                      </table>
+          <div className="flex-1 overflow-auto p-6">
+              {selectedClass ? (
+                  <table className="w-full text-center border-collapse text-[10px] md:text-xs">
+                      <thead className="bg-gray-100">
+                          <tr>
+                              <th className="p-2 border w-10">#</th>
+                              <th className="p-2 border w-48 text-right">اسم الطالب</th>
+                              {sessions.map((sess, idx) => <th key={idx} className="p-2 border">{sess.date.slice(5)}<br/>ح{sess.period || 0}</th>)}
+                              <th className="p-2 border bg-red-50 text-red-600">غ</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {filteredStudents.map((s, i) => {
+                              const stats = calculateStats(s.id);
+                              return (
+                                  <tr key={s.id} className="hover:bg-gray-50 border-b">
+                                      <td className="p-2 border">{i + 1}</td>
+                                      <td className="p-2 border text-right font-bold">{s.name}</td>
+                                      {sessions.map((sess, idx) => {
+                                          const rec = attendance.find(r => r.studentId === s.id && r.date === sess.date && r.period === sess.period);
+                                          return <td key={idx} className={`p-1 border ${rec?.status === AttendanceStatus.ABSENT ? 'bg-red-50 text-red-600 font-bold' : ''}`}>{rec ? (rec.status === AttendanceStatus.ABSENT ? 'غ' : 'ح') : '-'}</td>;
+                                      })}
+                                      <td className="p-2 border font-bold text-red-600 bg-red-50">{stats.absent}</td>
+                                  </tr>
+                              );
+                          })}
+                      </tbody>
+                  </table>
+              ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50">
+                      <Calendar size={64} className="mb-4"/>
+                      <p className="font-bold">اختر الفصل والتاريخ لعرض التقرير</p>
                   </div>
-
-                  <div className="hidden print:flex justify-between mt-8 px-12 text-sm font-bold">
-                      <div className="text-center">
-                          <p>المعلم/ة</p>
-                          <p className="mt-4">{headerConfig?.teacherName || '....................'}</p>
-                      </div>
-                      <div className="text-center">
-                          <p>مدير/ة المدرسة</p>
-                          <p className="mt-4">{headerConfig?.schoolManager || '....................'}</p>
-                      </div>
-                  </div>
-              </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-96 text-gray-400 border-2 border-dashed border-gray-300 rounded-xl bg-white">
-                <Calendar size={64} className="mb-4 opacity-20"/>
-                <p className="text-xl font-bold">الرجاء اختيار الفصل لعرض السجل</p>
-            </div>
-          )}
+              )}
+          </div>
       </div>
   );
 };
