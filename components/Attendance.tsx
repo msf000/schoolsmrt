@@ -7,7 +7,8 @@ import {
     History, Trash2, RefreshCw, Database, AlertCircle, Check, Cloud
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchSchedules, fetchTeacherAssignments, fetchSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
+// Fix: Renamed incorrect fetch function imports to their correct counterparts getSchedules, getTeacherAssignments, and getSubjects
+import { getSchedules, getTeacherAssignments, getSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
 
 interface AttendanceProps {
   students: Student[];
