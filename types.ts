@@ -25,7 +25,6 @@ export interface Student {
   behaviorPoints?: number;
 }
 
-// Added Teacher interface to fix import errors in services/storageService.ts, components/SchoolManagement.tsx, etc.
 export interface Teacher {
   id: string;
   name: string;
@@ -40,14 +39,12 @@ export interface Teacher {
   subscriptionEndDate?: string;
 }
 
-// Added Subject interface to fix import errors in services/storageService.ts, components/SchoolManagement.tsx, etc.
 export interface Subject {
   id: string;
   name: string;
   teacherId?: string;
 }
 
-// Added ScheduleItem interface to fix import errors in services/storageService.ts, components/Attendance.tsx, etc.
 export interface ScheduleItem {
   id: string;
   classId: string;
@@ -57,7 +54,6 @@ export interface ScheduleItem {
   teacherId?: string;
 }
 
-// Added TeacherAssignment interface to fix import errors in services/storageService.ts, components/SchoolManagement.tsx, etc.
 export interface TeacherAssignment {
   id: string;
   classId: string;
@@ -65,7 +61,6 @@ export interface TeacherAssignment {
   teacherId: string;
 }
 
-// Added WeeklyPlanItem interface to fix import errors in services/storageService.ts, components/StudentPortal.tsx, etc.
 export interface WeeklyPlanItem {
   id: string;
   teacherId: string;
@@ -76,6 +71,14 @@ export interface WeeklyPlanItem {
   weekStartDate: string;
   lessonTopic: string;
   homework: string;
+}
+
+/* Fix: Added LessonBlock interface */
+export interface LessonBlock {
+  id: string;
+  type: 'CONTENT' | 'ACTIVITY' | 'ASSESSMENT' | 'MEDIA';
+  title: string;
+  content: string;
 }
 
 export interface BehaviorIncident {
@@ -115,7 +118,7 @@ export interface AttendanceRecord {
   period?: number; 
   behaviorStatus?: BehaviorStatus; 
   behaviorNote?: string; 
-  participationScore?: number; // تقييم التفاعل من 1 إلى 5
+  participationScore?: number; 
   excuseNote?: string; 
   excuseFile?: string; 
   createdById?: string; 
@@ -156,9 +159,8 @@ export interface SystemUser {
 
 export interface CustomTable { id: string; name: string; createdAt: string; columns: string[]; rows: any[]; sourceUrl?: string; lastUpdated?: string; teacherId?: string; }
 export interface ReportHeaderConfig { schoolName: string; educationAdmin: string; teacherName: string; schoolManager: string; academicYear: string; term: string; logoBase64?: string; signatureBase64?: string; teacherId?: string; }
-export interface MessageLog { id: string; studentId: string; studentName: string; parentPhone?: string; type: 'WHATSAPP' | 'SMS' | 'EMAIL'; content: string; status: 'SENT' | 'FAILED'; date: string; sentBy: string; teacherId?: string; }
+export interface MessageLog { id: string; studentId: string; studentName: string; parentPhone?: string; type: 'WHATSAPP' | 'SMS' | 'EMAIL' | 'ANNOUNCEMENT'; content: string; status: 'SENT' | 'FAILED'; date: string; sentBy: string; teacherId?: string; targetRole?: string; }
 export interface LessonLink { id: string; title: string; url: string; teacherId?: string; createdAt: string; gradeLevel?: string; className?: string; }
-export interface LessonBlock { id: string; type: 'OBJECTIVES' | 'INTRO' | 'STRATEGIES' | 'CONTENT' | 'ACTIVITY' | 'MEDIA' | 'ASSESSMENT' | 'HOMEWORK'; title: string; content: string; mediaUrl?: string; }
 export interface StoredLessonPlan { id: string; teacherId: string; lessonId?: string; subject: string; topic: string; contentJson: string; resources: string[]; createdAt: string; }
 export interface CurriculumUnit { id: string; teacherId?: string; subject: string; gradeLevel: string; title: string; orderIndex: number; }
 export interface CurriculumLesson { id: string; unitId: string; title: string; orderIndex: number; learningStandards: string[]; microConceptIds: string[]; isCompleted?: boolean; completedAt?: string; }
@@ -174,7 +176,6 @@ export interface UserTheme { mode: 'LIGHT' | 'DARK'; backgroundStyle: 'FLAT' | '
 export interface EnvironmentRecord { id: string; teacherId: string; classId: string; date: string; lighting: number; noiseLevel: number; mood: 'HAPPY' | 'TIRED' | 'FOCUSED' | 'BORED'; notes?: string; }
 export interface School { id: string; name: string; ministryCode: string; managerName: string; managerNationalId: string; type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL'; phone: string; studentCount: number; educationAdministration: string; }
 
-// Added FormsDetailedResult interface to fix import errors in services/storageService.ts and components/FormsAnalyzer.tsx
 export interface FormsDetailedResult {
   id: string;
   examTitle: string;

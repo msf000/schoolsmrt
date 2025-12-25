@@ -296,7 +296,6 @@ export const fetchCurriculumLessons = async (unitId?: string) => {
     return sessionCache.curriculumLessons;
 };
 
-// --- الحضور والغياب ---
 export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRecord[]> => {
     let query = supabase.from('attendance').select('*');
     if (teacherId) query = query.eq('created_by_id', teacherId);
@@ -324,7 +323,6 @@ export const deleteAttendance = async (id: string) => {
     await supabase.from('attendance').delete().eq('id', id);
 };
 
-// --- الأداء والدرجات ---
 export const fetchPerformance = async (teacherId?: string): Promise<PerformanceRecord[]> => {
     let query = supabase.from('performance').select('*');
     if (teacherId) query = query.eq('created_by_id', teacherId);
@@ -351,7 +349,6 @@ export const deletePerformance = async (id: string) => {
     await supabase.from('performance').delete().eq('id', id);
 };
 
-// --- إدارة حسابات النظام ---
 export const updateSystemUser = async (u: SystemUser) => {
     await supabase.from('system_users').update({
         name: u.name, email: u.email, national_id: u.nationalId,
@@ -400,7 +397,6 @@ export const updateTeacher = async (t: Teacher) => {
 };
 
 export const addTeacher = async (t: Teacher) => {
-    // Corrected: manager_id: t.managerId (Fixed the build error TS2551)
     await supabase.from('teachers').insert({
         id: t.id, name: t.name, national_id: t.nationalId, email: t.email,
         phone: t.phone, subject_specialty: t.subjectSpecialty, password: t.password,
@@ -413,7 +409,6 @@ export const addTeacher = async (t: Teacher) => {
     });
 };
 
-// --- المهام والواجبات ---
 export const fetchTasks = async (tid?: string) => {
     let q = supabase.from('tasks').select('*');
     if(tid) q = q.eq('teacher_id', tid);
@@ -434,7 +429,6 @@ export const saveTask = async (t: Task) => {
     });
 };
 
-// --- التقييمات والأعمدة ---
 export const fetchAssignments = async (tid?: string) => {
     let q = supabase.from('assignments').select('*');
     if (tid) q = q.eq('teacher_id', tid);
@@ -464,7 +458,6 @@ export const saveAssignment = async (a: Assignment) => {
     });
 };
 
-// --- إعدادات النظام ---
 export const getAISettings = () => JSON.parse(localStorage.getItem(KEYS.AI_SETTINGS) || '{"modelId": "gemini-3-flash-preview", "temperature": 0.7, "enableReports": true}');
 export const getUserTheme = () => JSON.parse(localStorage.getItem(KEYS.USER_THEME) || '{"mode": "LIGHT", "backgroundStyle": "FLAT"}');
 export const getReportHeaderConfig = (tid?: string) => JSON.parse(localStorage.getItem(KEYS.REPORT_HEADER) || '{"schoolName": "", "teacherName": ""}');
@@ -503,7 +496,7 @@ export const updateStudent = async (s: Student) => {
 export const fetchSchedules = async (tid: string) => {
     const { data } = await supabase.from('schedules').select('*').eq('teacher_id', tid);
     sessionCache.schedules = (data || []).map((d: any) => ({
-        id: d.id, classId: d.class_id, subjectName: d.subject_name, day: d.day as any,
+        id: d.id, classId: d.class_id, subject_name: d.subject_name, day: d.day as any,
         period: d.period, teacherId: d.teacher_id
     }));
     return sessionCache.schedules;
@@ -532,7 +525,7 @@ export const getTeacherAssignments = (tid?: string) => tid ? sessionCache.assign
 
 export const addTeacherAssignment = async (a: TeacherAssignment) => {
     await supabase.from('teacher_class_map').insert({
-        id: a.id, teacher_id: a.teacherId, class_id: a.classId, subject_name: a.subjectName
+        id: a.id, teacher_id: a.teacherId, class_id: a.classId, subject_name: a.subject_name
     });
 };
 
@@ -545,7 +538,7 @@ export const fetchAcademicTerms = async (tid?: string) => {
     if (tid) query = query.eq('teacher_id', tid);
     const { data } = await query;
     sessionCache.academicTerms = (data || []).map((d: any) => ({
-        id: d.id, name: d.name, startDate: d.start_date, endDate: d.end_date,
+        id: d.id, name: d.name, start_date: d.start_date, end_date: d.end_date,
         isCurrent: d.is_current, teacherId: d.teacher_id,
         periods: d.periods ? (typeof d.periods === 'string' ? JSON.parse(d.periods) : d.periods) : []
     }));
@@ -592,7 +585,7 @@ export const fetchBehaviorIncidents = async (tid?: string) => {
     const { data } = await q;
     sessionCache.behavior = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, teacherId: d.teacher_id, type: d.type,
-        category: d.category, points: d.points, date: d.date, note: d.note, actionTaken: d.action_taken
+        category: d.category, points: d.points, date: d.date, note: d.note, action_taken: d.action_taken
     }));
     return sessionCache.behavior;
 };
@@ -660,7 +653,8 @@ export const saveMessage = async (m: MessageLog) => {
     await supabase.from('messages').insert({
         id: m.id, student_id: m.studentId, student_name: m.studentName,
         parent_phone: m.parentPhone, type: m.type, content: m.content,
-        status: m.status, date: m.date, sent_by: m.sentBy, teacher_id: m.teacherId
+        status: m.status, date: m.date, sent_by: m.sentBy, teacher_id: m.teacherId,
+        target_role: m.targetRole
     });
 };
 
@@ -783,7 +777,7 @@ CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, teacher_id TEXT, class_id
 CREATE TABLE IF NOT EXISTS behavior_incidents (id TEXT PRIMARY KEY, student_id TEXT, teacher_id TEXT, type TEXT, category TEXT, points INTEGER, date TEXT, note TEXT, action_taken TEXT);
 CREATE TABLE IF NOT EXISTS exams (id TEXT PRIMARY KEY, title TEXT, subject TEXT, grade_level TEXT, duration_minutes INTEGER, questions JSONB, is_active BOOLEAN, created_at TEXT, teacher_id TEXT, date TEXT);
 CREATE TABLE IF NOT EXISTS exam_results (id TEXT PRIMARY KEY, exam_id TEXT, student_id TEXT, score REAL, total_score REAL, answers JSONB, date TEXT);
-CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, student_id TEXT, student_name TEXT, parent_phone TEXT, type TEXT, content TEXT, status TEXT, date TEXT, sent_by TEXT, teacher_id TEXT);
+CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, student_id TEXT, student_name TEXT, parent_phone TEXT, type TEXT, content TEXT, status TEXT, date TEXT, sent_by TEXT, teacher_id TEXT, target_role TEXT);
 CREATE TABLE IF NOT EXISTS custom_tables (id TEXT PRIMARY KEY, name TEXT, created_at TEXT, columns JSONB, rows JSONB, source_url TEXT, last_updated TEXT, teacher_id TEXT);
 CREATE TABLE IF NOT EXISTS lesson_plans (id TEXT PRIMARY KEY, teacher_id TEXT, lesson_id TEXT, subject TEXT, topic TEXT, content_json TEXT, resources JSONB, created_at TEXT);
 CREATE TABLE IF NOT EXISTS lesson_links (id TEXT PRIMARY KEY, title TEXT, url TEXT, teacher_id TEXT, created_at TEXT, grade_level TEXT, class_name TEXT);
