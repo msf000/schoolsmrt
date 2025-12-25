@@ -55,7 +55,7 @@ export const authenticateStudent = async (id: string, p: string): Promise<Studen
             name: data.name, 
             role: 'STUDENT', 
             nationalId: data.national_id, 
-            classId: data.class_id, 
+            class_id: data.class_id, 
             className: data.class_name, 
             gradeLevel: data.grade_level, 
             schoolId: data.school_id
@@ -63,7 +63,7 @@ export const authenticateStudent = async (id: string, p: string): Promise<Studen
     } catch { return null; }
 };
 
-// --- جلب البيانات السحابية مباشرة ---
+// --- جلب البيانات السحابية مباشرة مع تحويل الأسماء ---
 
 export const fetchSchools = async (): Promise<School[]> => {
     const { data } = await supabase.from('schools').select('*').order('name');
@@ -145,7 +145,7 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
         subject: d.subject, 
         period: d.period, 
         behaviorStatus: d.behavior_status,
-        behaviorNote: d.behavior_note, 
+        behavior_note: d.behavior_note, 
         participationScore: d.participation_score,
         excuseNote: d.excuse_note, 
         createdById: d.created_by_id
@@ -510,7 +510,7 @@ export const saveMessage = async (m: MessageLog) => {
         id: m.id, 
         student_id: m.studentId, 
         student_name: m.studentName,
-        parent_phone: m.parentPhone, 
+        parent_phone: m.parent_phone, 
         type: m.type, 
         content: m.content,
         status: m.status, 
@@ -546,6 +546,7 @@ export const saveAcademicTerm = async (t: AcademicTerm) => {
     const updated = current.filter((x: any) => x.id !== t.id);
     updated.push(t);
     localStorage.setItem(key, JSON.stringify(updated));
+    // Fix: line 551 - changed d.name to t.name
     return await supabase.from('academic_terms').upsert({
         id: t.id, 
         name: t.name, 
