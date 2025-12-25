@@ -26,7 +26,7 @@ export const authenticateUser = async (id: string, p: string): Promise<SystemUse
             .select('*')
             .or(`national_id.eq.${id},email.eq.${id}`)
             .eq('password', p)
-            .single();
+            .maybeSingle();
         
         if (error || !data) return null;
 
@@ -45,7 +45,7 @@ export const authenticateUser = async (id: string, p: string): Promise<SystemUse
 
 export const authenticateStudent = async (id: string, p: string): Promise<Student | null> => {
     try {
-        const { data } = await supabase.from('students').select('*').eq('national_id', id).eq('password', p).single();
+        const { data } = await supabase.from('students').select('*').eq('national_id', id).eq('password', p).maybeSingle();
         if (!data) return null;
         return {
             id: data.id, name: data.name, role: 'STUDENT', nationalId: data.national_id, 
@@ -57,64 +57,76 @@ export const authenticateStudent = async (id: string, p: string): Promise<Studen
 // --- جلب البيانات السحابية ---
 
 export const fetchSchools = async (): Promise<School[]> => {
-    const { data } = await supabase.from('schools').select('*').order('name');
-    return (data || []).map((d: any) => ({
-        id: d.id, name: d.name, ministryCode: d.ministry_code, managerName: d.manager_name,
-        managerNationalId: d.manager_national_id, type: d.type, phone: d.phone,
-        studentCount: d.student_count || 0, educationAdministration: d.education_administration
-    }));
+    try {
+        const { data } = await supabase.from('schools').select('*').order('name');
+        return (data || []).map((d: any) => ({
+            id: d.id, name: d.name, ministryCode: d.ministry_code, managerName: d.manager_name,
+            managerNationalId: d.manager_national_id, type: d.type, phone: d.phone,
+            studentCount: d.student_count || 0, educationAdministration: d.education_administration
+        }));
+    } catch { return []; }
 };
 
 export const fetchTeachers = async (): Promise<Teacher[]> => {
-    const { data } = await supabase.from('teachers').select('*').order('name');
-    return (data || []).map((d: any) => ({
-        id: d.id, name: d.name, nationalId: d.national_id, email: d.email, phone: d.phone,
-        subjectSpecialty: d.subject_specialty, schoolId: d.school_id, managerId: d.manager_id,
-        subscriptionStatus: d.subscription_status, subscriptionEndDate: d.subscription_end_date
-    }));
+    try {
+        const { data } = await supabase.from('teachers').select('*').order('name');
+        return (data || []).map((d: any) => ({
+            id: d.id, name: d.name, nationalId: d.national_id, email: d.email, phone: d.phone,
+            subjectSpecialty: d.subject_specialty, schoolId: d.school_id, managerId: d.manager_id,
+            subscriptionStatus: d.subscription_status, subscriptionEndDate: d.subscription_end_date
+        }));
+    } catch { return []; }
 };
 
 export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
-    const { data } = await supabase.from('system_users').select('*').order('role');
-    return (data || []).map((d: any) => ({
-        id: d.id, name: d.name, email: d.email, nationalId: d.national_id, 
-        role: d.role, schoolId: d.school_id, status: d.status, phone: d.phone
-    }));
+    try {
+        const { data } = await supabase.from('system_users').select('*').order('role');
+        return (data || []).map((d: any) => ({
+            id: d.id, name: d.name, email: d.email, nationalId: d.national_id, 
+            role: d.role, schoolId: d.school_id, status: d.status, phone: d.phone
+        }));
+    } catch { return []; }
 };
 
 export const fetchStudents = async (): Promise<Student[]> => {
-    const { data } = await supabase.from('students').select('*').order('name');
-    return (data || []).map((d: any) => ({
-        id: d.id, name: d.name, role: 'STUDENT', nationalId: d.national_id, 
-        classId: d.class_id, schoolId: d.school_id, createdById: d.created_by_id, 
-        gradeLevel: d.grade_level, className: d.class_name, email: d.email, 
-        phone: d.phone, parentName: d.parent_name, parentPhone: d.parent_phone, 
-        parentEmail: d.parent_email, learningStyle: d.learning_style,
-        behaviorPoints: d.behavior_points || 0, seatIndex: d.seat_index
-    })) as Student[];
+    try {
+        const { data } = await supabase.from('students').select('*').order('name');
+        return (data || []).map((d: any) => ({
+            id: d.id, name: d.name, role: 'STUDENT', nationalId: d.national_id, 
+            classId: d.class_id, schoolId: d.school_id, createdById: d.created_by_id, 
+            gradeLevel: d.grade_level, className: d.class_name, email: d.email, 
+            phone: d.phone, parentName: d.parent_name, parentPhone: d.parent_phone, 
+            parentEmail: d.parent_email, learningStyle: d.learning_style,
+            behaviorPoints: d.behavior_points || 0, seatIndex: d.seat_index
+        })) as Student[];
+    } catch { return []; }
 };
 
 export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRecord[]> => {
-    let query = supabase.from('attendance').select('*');
-    if (teacherId) query = query.eq('created_by_id', teacherId);
-    const { data } = await query.order('date', { ascending: false });
-    return (data || []).map((d: any) => ({
-        id: d.id, studentId: d.student_id, date: d.date, status: d.status as AttendanceStatus,
-        subject: d.subject, period: d.period, behaviorStatus: d.behavior_status as BehaviorStatus,
-        behaviorNote: d.behavior_note, participationScore: d.participation_score,
-        excuseNote: d.excuse_note, createdById: d.created_by_id
-    }));
+    try {
+        let query = supabase.from('attendance').select('*');
+        if (teacherId) query = query.eq('created_by_id', teacherId);
+        const { data } = await query.order('date', { ascending: false });
+        return (data || []).map((d: any) => ({
+            id: d.id, studentId: d.student_id, date: d.date, status: d.status as AttendanceStatus,
+            subject: d.subject, period: d.period, behaviorStatus: d.behavior_status as BehaviorStatus,
+            behaviorNote: d.behavior_note, participationScore: d.participation_score,
+            excuseNote: d.excuse_note, createdById: d.created_by_id
+        }));
+    } catch { return []; }
 };
 
 export const fetchPerformance = async (teacherId?: string): Promise<PerformanceRecord[]> => {
-    let query = supabase.from('performance').select('*');
-    if (teacherId) query = query.eq('created_by_id', teacherId);
-    const { data } = await query.order('date', { ascending: false });
-    return (data || []).map((d: any) => ({
-        id: d.id, studentId: d.student_id, subject: d.subject, title: d.title,
-        category: d.category, score: d.score, maxScore: d.max_score, date: d.date,
-        notes: d.notes, createdById: d.created_by_id, url: d.url
-    }));
+    try {
+        let query = supabase.from('performance').select('*');
+        if (teacherId) query = query.eq('created_by_id', teacherId);
+        const { data } = await query.order('date', { ascending: false });
+        return (data || []).map((d: any) => ({
+            id: d.id, studentId: d.student_id, subject: d.subject, title: d.title,
+            category: d.category, score: d.score, maxScore: d.max_score, date: d.date,
+            notes: d.notes, createdById: d.created_by_id, url: d.url
+        }));
+    } catch { return []; }
 };
 
 // --- حفظ البيانات السحابية ---
@@ -165,45 +177,42 @@ export const updateStudent = async (s: Student) => {
 };
 
 export const fetchSchedules = async (tid: string): Promise<ScheduleItem[]> => {
-    const { data } = await supabase.from('schedules').select('*').eq('teacher_id', tid);
-    return (data || []).map((d: any) => ({
-        id: d.id, classId: d.class_id, subjectName: d.subject_name, day: d.day as any,
-        period: d.period, teacherId: d.teacher_id
-    }));
+    try {
+        const { data } = await supabase.from('schedules').select('*').eq('teacher_id', tid);
+        return (data || []).map((d: any) => ({
+            id: d.id, classId: d.class_id, subjectName: d.subject_name, day: d.day as any,
+            period: d.period, teacherId: d.teacher_id
+        }));
+    } catch { return []; }
 };
 
 export const fetchTeacherAssignments = async (tid: string): Promise<TeacherAssignment[]> => {
-    const { data } = await supabase.from('teacher_class_map').select('*').eq('teacher_id', tid);
-    return (data || []).map((d: any) => ({
-        id: d.id, classId: d.class_id, subjectName: d.subject_name, teacherId: d.teacher_id
-    }));
+    try {
+        const { data } = await supabase.from('teacher_class_map').select('*').eq('teacher_id', tid);
+        return (data || []).map((d: any) => ({
+            id: d.id, classId: d.class_id, subjectName: d.subject_name, teacherId: d.teacher_id
+        }));
+    } catch { return []; }
 };
 
 export const fetchAcademicTerms = async (tid?: string): Promise<AcademicTerm[]> => {
-    let query = supabase.from('academic_terms').select('*');
-    if (tid) query = query.eq('teacher_id', tid);
-    const { data } = await query;
-    return (data || []).map((d: any) => ({
-        id: d.id, name: d.name, startDate: d.start_date, endDate: d.end_date,
-        isCurrent: d.is_current, teacherId: d.teacher_id,
-        periods: d.periods ? (typeof d.periods === 'string' ? JSON.parse(d.periods) : d.periods) : []
-    }));
+    try {
+        let query = supabase.from('academic_terms').select('*');
+        if (tid) query = query.eq('teacher_id', tid);
+        const { data } = await query;
+        return (data || []).map((d: any) => ({
+            id: d.id, name: d.name, startDate: d.start_date, endDate: d.end_date,
+            isCurrent: d.is_current, teacherId: d.teacher_id,
+            periods: d.periods ? (typeof d.periods === 'string' ? JSON.parse(d.periods) : d.periods) : []
+        }));
+    } catch { return []; }
 };
 
 export const fetchSubjects = async (tid: string): Promise<Subject[]> => {
-    const { data } = await supabase.from('subjects').select('*').eq('teacher_id', tid);
-    return (data || []).map((d: any) => ({ id: d.id, name: d.name, teacherId: d.teacher_id }));
-};
-
-export const fetchTasks = async (tid?: string): Promise<Task[]> => {
-    let q = supabase.from('tasks').select('*');
-    if(tid) q = q.eq('teacher_id', tid);
-    const { data } = await q;
-    return (data || []).map((d: any) => ({
-        id: d.id, teacherId: d.teacher_id, classId: d.class_id, subject: d.subject,
-        title: d.title, description: d.description, dueDate: d.due_date,
-        type: d.type, maxScore: d.max_score, submissions: d.submissions || []
-    }));
+    try {
+        const { data } = await supabase.from('subjects').select('*').eq('teacher_id', tid);
+        return (data || []).map((d: any) => ({ id: d.id, name: d.name, teacherId: d.teacher_id }));
+    } catch { return []; }
 };
 
 // --- وظائف مساعدة للإعدادات المحلية ---
@@ -314,35 +323,45 @@ export const getFormsDetailedResults = (tid?: string): FormsDetailedResult[] => 
 export const saveFormsDetailedResult = async (r: FormsDetailedResult) => await supabase.from('forms_results').insert({ id: r.id, exam_title: r.examTitle, class_name: r.className, date: r.date, teacher_id: r.teacherId, questions: JSON.stringify(r.questions), student_responses: JSON.stringify(r.studentResponses) });
 export const deleteFormsDetailedResult = async (id: string) => await supabase.from('forms_results').delete().eq('id', id);
 export const getAISettings = () => ({ modelId: 'gemini-3-flash-preview', temperature: 0.7, enableReports: true, systemInstruction: "أنت مساعد تعليمي ذكي خبير في علم النفس التربوي ونموذج VARK. مهمتك تحليل استجابات الطلاب بدقة وتطوير خطط دعم تعليمي." });
+
 export const getSchools = (): School[] => {
     try { return JSON.parse(localStorage.getItem('local_schools') || '[]'); } catch { return []; }
 };
+
 export const addSchool = async (s: School) => await supabase.from('schools').insert({ id: s.id, name: s.name, ministry_code: s.ministryCode, manager_name: s.managerName, manager_national_id: s.managerNationalId, type: s.type, phone: s.phone, student_count: s.studentCount, education_administration: s.educationAdministration });
 export const updateSchool = async (s: School) => await supabase.from('schools').update({ name: s.name, ministry_code: s.ministryCode, manager_name: s.managerName, manager_national_id: s.managerNationalId, type: s.type, phone: s.phone, student_count: s.studentCount, education_administration: s.educationAdministration }).eq('id', s.id);
 export const deleteSchool = async (id: string) => await supabase.from('schools').delete().eq('id', id);
+
 export const getTeachers = (): Teacher[] => {
     try { return JSON.parse(localStorage.getItem('local_teachers') || '[]'); } catch { return []; }
 };
+
 export const addTeacher = async (t: Teacher) => await supabase.from('teachers').insert({ id: t.id, name: t.name, national_id: t.nationalId, email: t.email, phone: t.phone, subject_specialty: t.subjectSpecialty, password: t.password, school_id: t.schoolId, manager_id: t.managerId, subscription_status: t.subscriptionStatus, subscription_end_date: t.subscriptionEndDate });
 export const updateTeacher = async (t: Teacher) => await supabase.from('teachers').update({ name: t.name, national_id: t.nationalId, email: t.email, phone: t.phone, subject_specialty: t.subjectSpecialty, password: t.password, school_id: t.schoolId, manager_id: t.managerId, subscription_status: t.subscriptionStatus, subscription_end_date: t.subscriptionEndDate }).eq('id', t.id);
+
 export const addSystemUser = async (u: SystemUser) => await supabase.from('system_users').insert({ id: u.id, name: u.name, email: u.email, national_id: u.nationalId, password: u.password, role: u.role, school_id: u.schoolId, status: u.status, phone: u.phone });
 export const updateSystemUser = async (u: SystemUser) => await supabase.from('system_users').update({ name: u.name, email: u.email, national_id: u.nationalId, password: u.password, role: u.role, school_id: u.schoolId, status: u.status, phone: u.phone }).eq('id', u.id);
 export const deleteSystemUser = async (id: string) => await supabase.from('system_users').delete().eq('id', id);
+
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => {
     try { return JSON.parse(localStorage.getItem(`local_assignments_map_${tid || 'global'}`) || '[]'); } catch { return []; }
 };
 export const addTeacherAssignment = async (a: TeacherAssignment) => await supabase.from('teacher_class_map').insert({ id: a.id, class_id: a.classId, subject_name: a.subjectName, teacher_id: a.teacherId });
 export const deleteTeacherAssignment = async (id: string) => await supabase.from('teacher_class_map').delete().eq('id', id);
+
 export const getWorksMasterUrl = () => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
+
 export const getAttendance = (tid?: string): AttendanceRecord[] => {
     try { return JSON.parse(localStorage.getItem(`local_attendance_${tid || 'global'}`) || '[]'); } catch { return []; }
 };
+
 export const getCurriculumUnits = (tid?: string): CurriculumUnit[] => {
     try { return JSON.parse(localStorage.getItem(`local_curriculum_units_${tid || 'global'}`) || '[]'); } catch { return []; }
 };
 export const saveCurriculumUnit = async (u: CurriculumUnit) => await supabase.from('curriculum_units').upsert({ id: u.id, teacher_id: u.teacherId, subject: u.subject, grade_level: u.gradeLevel, title: u.title, order_index: u.orderIndex });
 export const deleteCurriculumUnit = async (id: string) => await supabase.from('curriculum_units').delete().eq('id', id);
+
 export const getCurriculumLessons = (uid?: string): CurriculumLesson[] => {
     try {
         const saved = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
@@ -352,6 +371,7 @@ export const getCurriculumLessons = (uid?: string): CurriculumLesson[] => {
 export const saveCurriculumLesson = async (l: CurriculumLesson) => await supabase.from('curriculum_lessons').upsert({ id: l.id, unit_id: l.unitId, title: l.title, order_index: l.orderIndex, learning_standards: JSON.stringify(l.learningStandards), micro_concept_ids: JSON.stringify(l.microConceptIds), is_completed: l.isCompleted, completed_at: l.completedAt });
 export const deleteCurriculumLesson = async (id: string) => await supabase.from('curriculum_lessons').delete().eq('id', id);
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => await supabase.from('curriculum_lessons').update({ is_completed: completed, completed_at: completed ? new Date().toISOString() : null }).eq('id', id);
+
 export const updateStudentLearningStyle = async (id: string, style: LearningStyle) => await supabase.from('students').update({ learning_style: style }).eq('id', id);
 export const saveReportHeaderConfig = (c: ReportHeaderConfig) => localStorage.setItem(c.teacherId ? `${KEYS.REPORT_HEADER}_${c.teacherId}` : KEYS.REPORT_HEADER, JSON.stringify(c));
 export const saveTeacherPeriodTimings = (tid: string, timings: string[]) => localStorage.setItem(`${KEYS.PERIOD_TIMINGS}_${tid}`, JSON.stringify(timings));
