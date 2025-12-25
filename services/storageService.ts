@@ -496,7 +496,7 @@ export const updateStudent = async (s: Student) => {
 export const fetchSchedules = async (tid: string) => {
     const { data } = await supabase.from('schedules').select('*').eq('teacher_id', tid);
     sessionCache.schedules = (data || []).map((d: any) => ({
-        id: d.id, classId: d.class_id, subject_name: d.subject_name, day: d.day as any,
+        id: d.id, classId: d.class_id, subjectName: d.subject_name, day: d.day as any,
         period: d.period, teacherId: d.teacher_id
     }));
     return sessionCache.schedules;
@@ -525,7 +525,7 @@ export const getTeacherAssignments = (tid?: string) => tid ? sessionCache.assign
 
 export const addTeacherAssignment = async (a: TeacherAssignment) => {
     await supabase.from('teacher_class_map').insert({
-        id: a.id, teacher_id: a.teacherId, class_id: a.classId, subject_name: a.subject_name
+        id: a.id, teacher_id: a.teacherId, class_id: a.classId, subject_name: a.subjectName
     });
 };
 
@@ -538,7 +538,7 @@ export const fetchAcademicTerms = async (tid?: string) => {
     if (tid) query = query.eq('teacher_id', tid);
     const { data } = await query;
     sessionCache.academicTerms = (data || []).map((d: any) => ({
-        id: d.id, name: d.name, start_date: d.start_date, end_date: d.end_date,
+        id: d.id, name: d.name, startDate: d.start_date, endDate: d.end_date,
         isCurrent: d.is_current, teacherId: d.teacher_id,
         periods: d.periods ? (typeof d.periods === 'string' ? JSON.parse(d.periods) : d.periods) : []
     }));
@@ -585,7 +585,7 @@ export const fetchBehaviorIncidents = async (tid?: string) => {
     const { data } = await q;
     sessionCache.behavior = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, teacherId: d.teacher_id, type: d.type,
-        category: d.category, points: d.points, date: d.date, note: d.note, action_taken: d.action_taken
+        category: d.category, points: d.points, date: d.date, note: d.note, actionTaken: d.action_taken
     }));
     return sessionCache.behavior;
 };
