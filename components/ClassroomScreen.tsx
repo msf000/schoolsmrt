@@ -32,7 +32,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
     }, [students, currentUser]);
 
     useEffect(() => {
-        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
     }, [uniqueClasses, selectedClass]);
 
     const toggleFullscreen = () => {

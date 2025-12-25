@@ -31,10 +31,13 @@ const SmartBadges: React.FC<SmartBadgesProps> = ({ students }) => {
         config: { imageConfig: { aspectRatio: "1:1" } }
       });
 
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          setGeneratedImageUrl(`data:image/png;base64,${part.inlineData.data}`);
-          break;
+      const parts = response.candidates?.[0]?.content?.parts;
+      if (parts) {
+        for (const part of parts) {
+          if (part.inlineData) {
+            setGeneratedImageUrl(`data:image/png;base64,${part.inlineData.data}`);
+            break;
+          }
         }
       }
     } catch (e) {
@@ -173,9 +176,5 @@ const SmartBadges: React.FC<SmartBadgesProps> = ({ students }) => {
     </div>
   );
 };
-
-const QuickTag = ({ label, onClick }: any) => (
-  <button onClick={onClick} className="px-4 py-2 bg-gray-50 hover:bg-indigo-50 border border-gray-100 rounded-xl text-xs font-bold text-gray-500 hover:text-indigo-600 transition-all">#{label}</button>
-);
 
 export default SmartBadges;

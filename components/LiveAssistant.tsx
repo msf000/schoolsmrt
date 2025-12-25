@@ -60,8 +60,9 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({ students, onAction, isOpe
   };
 
   const handleMessage = useCallback(async (message: LiveServerMessage) => {
-    if (message.serverContent?.modelTurn?.parts[0]?.inlineData?.data) {
-      const base64Audio = message.serverContent.modelTurn.parts[0].inlineData.data;
+    const modelParts = message.serverContent?.modelTurn?.parts;
+    if (modelParts && modelParts[0]?.inlineData?.data) {
+      const base64Audio = modelParts[0].inlineData.data;
       const binary = atob(base64Audio);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -84,12 +85,14 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({ students, onAction, isOpe
       }
     }
 
-    if (message.toolCall) {
+    if (message.toolCall?.functionCalls) {
       for (const fc of message.toolCall.functionCalls) {
-        onAction(fc.name, fc.args);
-        sessionRef.current?.sendToolResponse({
-          functionResponses: [{ id: fc.id, name: fc.name, response: { result: 'تم التنفيذ بنجاح' } }]
-        });
+        if (fc.name) {
+            onAction(fc.name, fc.args);
+            sessionRef.current?.sendToolResponse({
+              functionResponses: [{ id: fc.id, name: fc.name, response: { result: 'تم التنفيذ بنجاح' } }]
+            });
+        }
       }
     }
 
@@ -196,7 +199,7 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({ students, onAction, isOpe
              </div>
              <div className="flex flex-wrap justify-center gap-2">
                 <span className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-100">"سجل غياب أحمد محمد"</span>
-                <span className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-100">"أعطي سارة 10 نقاط للمشاركة"</span>
+                <span className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-100">"أعطي سارة 10 نقاط للمشاركة"</span>
              </div>
           </div>
 

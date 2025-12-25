@@ -13,6 +13,7 @@ interface PerformanceProps {
   performance: PerformanceRecord[];
   attendance: AttendanceRecord[];
   onAddPerformance: (records: PerformanceRecord[]) => void;
+  onImportPerformance?: (records: PerformanceRecord[]) => void; // Added for TS fix
   onDeletePerformance: (id: string) => void;
   currentUser?: SystemUser | null;
 }

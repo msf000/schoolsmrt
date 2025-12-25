@@ -45,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   }, [students, currentUser]);
 
   useEffect(() => {
-    if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+    if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
     if (currentUser) {
         setPendingOrders(getPurchaseRequests('global').filter(r => r.status === 'PENDING'));
         const msgs = getMessages(currentUser.id).slice(0, 5).map(m => ({ ...m, type: 'MESSAGE' }));

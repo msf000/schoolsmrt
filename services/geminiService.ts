@@ -21,7 +21,7 @@ const getModelConfig = (extraConfig?: any) => {
 
 export const generateStudyPlan = async (topics: string, learningStyle: string, days: number) => {
     const { model, config } = getModelConfig();
-    const prompt = `أنا طالب نمط تعلمي هو "${learningStyle}". أريد خطة مذاكرة لهذه الموضوعات: "${topics}" لمدة ${days} أيام. المطلوب: جدول يومي، نصائح مخصصة لنمطي، ومصادر مقترحة. بالعربية Markdown.`;
+    const prompt = `أنا طالب نمط تعلمي هو "${learningStyle}". أريد خطة مذاكرة لهذه موضوعات: "${topics}" لمدة ${days} أيام. المطلوب: جدول يومي، نصائح مخصصة لنمطي، ومصادر مقترحة. بالعربية Markdown.`;
     try {
         const ai = getAIClient();
         const response = await ai.models.generateContent({ model, contents: prompt, config });
@@ -60,8 +60,11 @@ export const generateStudentAvatar = async (studentName: string, learningStyle: 
             contents: { parts: [{ text: prompt }] },
             config: { imageConfig: { aspectRatio: "1:1" } }
         });
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+        const parts = response.candidates?.[0]?.content?.parts;
+        if (parts) {
+            for (const part of parts) {
+                if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+            }
         }
     } catch { return null; }
 };
@@ -75,8 +78,11 @@ export const generateBadgeImage = async (prompt: string) => {
             contents: { parts: [{ text: fullPrompt }] },
             config: { imageConfig: { aspectRatio: "1:1" } }
         });
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+        const parts = response.candidates?.[0]?.content?.parts;
+        if (parts) {
+            for (const part of parts) {
+                if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+            }
         }
     } catch { return null; }
 };

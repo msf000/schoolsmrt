@@ -24,7 +24,7 @@ const ClassStrategy: React.FC<ClassStrategyProps> = ({ students, currentUserId }
     }, [students, currentUserId]);
 
     useEffect(() => {
-        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
     }, [uniqueClasses, selectedClass]);
 
     const varkStats = useMemo(() => {
