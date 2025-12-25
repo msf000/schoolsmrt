@@ -62,45 +62,61 @@ const sessionCache: SessionCache = {
 // --- المصادقة والدخول ---
 
 export const authenticateUser = async (id: string, p: string): Promise<SystemUser | null> => {
-    if (!isSupabaseConfigured()) {
-        if (id === 'admin' && p === 'admin') {
-            return { id: 'super_admin_001', name: 'مدير النظام (طوارئ)', email: 'admin@system.local', role: 'SUPER_ADMIN', status: 'ACTIVE' };
-        }
-        throw new Error("يرجى ضبط إعدادات السحابة أولاً.");
+    // تجاوز فوري لبيانات المسؤول التجريبي لضمان الدخول دائماً
+    if (id.trim().toLowerCase() === 'admin' && p === 'admin') {
+        return { 
+            id: 'super_admin_001', 
+            name: 'مدير النظام (تجريبي)', 
+            email: 'admin@system.local', 
+            role: 'SUPER_ADMIN', 
+            status: 'ACTIVE',
+            isDemo: true 
+        };
     }
 
-    const { data, error } = await supabase.from('system_users')
-        .select('*')
-        .or(`national_id.eq.${id},email.eq.${id}`)
-        .eq('password', p)
-        .single();
-    
-    if (error || !data) return null;
+    if (!isSupabaseConfigured()) {
+        throw new Error("يرجى ربط قاعدة البيانات أو استخدام admin/admin.");
+    }
 
-    return {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        nationalId: data.national_id,
-        role: data.role as any,
-        schoolId: data.school_id,
-        status: data.status as any
-    };
+    try {
+        const { data, error } = await supabase.from('system_users')
+            .select('*')
+            .or(`national_id.eq.${id},email.eq.${id}`)
+            .eq('password', p)
+            .single();
+        
+        if (error || !data) return null;
+
+        return {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            nationalId: data.national_id,
+            role: data.role as any,
+            schoolId: data.school_id,
+            status: data.status as any
+        };
+    } catch (e) {
+        return null;
+    }
 };
 
 export const authenticateStudent = async (id: string, p: string): Promise<Student | null> => {
     if (!isSupabaseConfigured()) return null;
-    const { data } = await supabase.from('students').select('*').eq('national_id', id).eq('password', p).single();
-    if (!data) return null;
-    return {
-        id: data.id, name: data.name, role: 'STUDENT', nationalId: data.national_id, 
-        classId: data.class_id, className: data.class_name, gradeLevel: data.grade_level, schoolId: data.school_id
-    };
+    try {
+        const { data } = await supabase.from('students').select('*').eq('national_id', id).eq('password', p).single();
+        if (!data) return null;
+        return {
+            id: data.id, name: data.name, role: 'STUDENT', nationalId: data.national_id, 
+            classId: data.class_id, className: data.class_name, gradeLevel: data.grade_level, schoolId: data.school_id
+        };
+    } catch { return null; }
 };
 
-// --- عمليات جلب البيانات الشاملة ---
+// --- المزامنة والبيانات ---
 
 export const fetchSchools = async () => {
+    if (!isSupabaseConfigured()) return sessionCache.schools;
     const { data } = await supabase.from('schools').select('*').order('name');
     sessionCache.schools = (data || []).map((d: any) => ({
         id: d.id, name: d.name, ministryCode: d.ministry_code, managerName: d.manager_name,
@@ -111,6 +127,7 @@ export const fetchSchools = async () => {
 };
 
 export const fetchTeachers = async () => {
+    if (!isSupabaseConfigured()) return sessionCache.teachers;
     const { data } = await supabase.from('teachers').select('*').order('name');
     sessionCache.teachers = (data || []).map((d: any) => ({
         id: d.id, name: d.name, nationalId: d.national_id, email: d.email, phone: d.phone,
@@ -121,6 +138,7 @@ export const fetchTeachers = async () => {
 };
 
 export const fetchSystemUsers = async () => {
+    if (!isSupabaseConfigured()) return sessionCache.systemUsers;
     const { data } = await supabase.from('system_users').select('*').order('role');
     sessionCache.systemUsers = (data || []).map((d: any) => ({
         id: d.id, name: d.name, email: d.email, nationalId: d.national_id, role: d.role, schoolId: d.school_id, status: d.status
@@ -129,6 +147,7 @@ export const fetchSystemUsers = async () => {
 };
 
 export const fetchStudents = async () => {
+    if (!isSupabaseConfigured()) return sessionCache.students;
     const { data } = await supabase.from('students').select('*').order('name');
     sessionCache.students = (data || []).map((d: any) => ({
         id: d.id, name: d.name, role: 'STUDENT', nationalId: d.national_id, classId: d.class_id,
@@ -150,7 +169,6 @@ export const downloadFromSupabase = async () => {
     }
 };
 
-// Getters from cache
 export const getStudents = () => sessionCache.students;
 export const getSchools = () => sessionCache.schools;
 export const getTeachers = () => sessionCache.teachers;
@@ -275,6 +293,7 @@ export const toggleCurriculumLesson = async (id: string, completed: boolean) => 
 };
 
 export const fetchCurriculumUnits = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.curriculumUnits;
     let q = supabase.from('curriculum_units').select('*');
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q.order('order_index');
@@ -285,6 +304,7 @@ export const fetchCurriculumUnits = async (tid?: string) => {
 };
 
 export const fetchCurriculumLessons = async (unitId?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.curriculumLessons;
     let q = supabase.from('curriculum_lessons').select('*');
     if (unitId) q = q.eq('unit_id', unitId);
     const { data } = await q.order('order_index');
@@ -298,6 +318,7 @@ export const fetchCurriculumLessons = async (unitId?: string) => {
 };
 
 export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRecord[]> => {
+    if (!isSupabaseConfigured()) return sessionCache.attendance;
     let query = supabase.from('attendance').select('*');
     if (teacherId) query = query.eq('created_by_id', teacherId);
     const { data } = await query.order('date', { ascending: false });
@@ -325,6 +346,7 @@ export const deleteAttendance = async (id: string) => {
 };
 
 export const fetchPerformance = async (teacherId?: string): Promise<PerformanceRecord[]> => {
+    if (!isSupabaseConfigured()) return sessionCache.performance;
     let query = supabase.from('performance').select('*');
     if (teacherId) query = query.eq('created_by_id', teacherId);
     const { data } = await query.order('date', { ascending: false });
@@ -411,13 +433,14 @@ export const addTeacher = async (t: Teacher) => {
 };
 
 export const fetchTasks = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.tasks;
     let q = supabase.from('tasks').select('*');
     if(tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
     sessionCache.tasks = (data || []).map((d: any) => ({
         id: d.id, teacherId: d.teacher_id, classId: d.class_id, subject: d.subject,
-        title: d.title, description: d.description, dueDate: d.due_date,
-        type: d.type, maxScore: d.max_score, submissions: d.submissions || []
+        title: d.title, description: d.description, due_date: d.due_date,
+        type: d.type, max_score: d.max_score, submissions: d.submissions || []
     }));
     return sessionCache.tasks;
 };
@@ -431,6 +454,7 @@ export const saveTask = async (t: Task) => {
 };
 
 export const fetchAssignments = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.actualAssignments;
     let q = supabase.from('assignments').select('*');
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
@@ -495,6 +519,7 @@ export const updateStudent = async (s: Student) => {
 };
 
 export const fetchSchedules = async (tid: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.schedules;
     const { data } = await supabase.from('schedules').select('*').eq('teacher_id', tid);
     sessionCache.schedules = (data || []).map((d: any) => ({
         id: d.id, classId: d.class_id, subjectName: d.subject_name, day: d.day as any,
@@ -515,6 +540,7 @@ export const deleteScheduleItem = async (id: string) => {
 };
 
 export const fetchTeacherAssignments = async (tid: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.assignments;
     const { data } = await supabase.from('teacher_class_map').select('*').eq('teacher_id', tid);
     sessionCache.assignments = (data || []).map((d: any) => ({
         id: d.id, classId: d.class_id, subjectName: d.subject_name, teacherId: d.teacher_id
@@ -535,6 +561,7 @@ export const deleteTeacherAssignment = async (id: string) => {
 };
 
 export const fetchAcademicTerms = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.academicTerms;
     let query = supabase.from('academic_terms').select('*');
     if (tid) query = query.eq('teacher_id', tid);
     const { data } = await query;
@@ -565,6 +592,7 @@ export const setCurrentTerm = async (id: string, teacherId: string) => {
 };
 
 export const fetchSubjects = async (tid: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.subjects;
     const { data } = await supabase.from('subjects').select('*').eq('teacher_id', tid);
     sessionCache.subjects = (data || []).map((d: any) => ({ id: d.id, name: d.name, teacherId: d.teacher_id }));
     return sessionCache.subjects;
@@ -581,6 +609,7 @@ export const deleteSubject = async (id: string) => {
 };
 
 export const fetchBehaviorIncidents = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.behavior;
     let q = supabase.from('behavior_incidents').select('*');
     if(tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
@@ -601,6 +630,7 @@ export const saveBehaviorIncident = async (i: BehaviorIncident) => {
 };
 
 export const fetchExams = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.exams;
     let q = supabase.from('exams').select('*');
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
@@ -625,6 +655,7 @@ export const deleteExam = async (id: string) => {
 };
 
 export const fetchExamResults = async (eid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.examResults;
     let q = supabase.from('exam_results').select('*');
     if (eid) q = q.eq('exam_id', eid);
     const { data } = await q;
@@ -637,14 +668,14 @@ export const fetchExamResults = async (eid?: string) => {
 };
 
 export const fetchMessages = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.messages;
     let q = supabase.from('messages').select('*');
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
     sessionCache.messages = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, studentName: d.student_name,
         parentPhone: d.parent_phone, type: d.type, content: d.content,
-        status: d.status, date: d.date, sentBy: d.sent_by, teacherId: d.teacher_id,
-        targetRole: d.target_role
+        status: d.status, date: d.date, sentBy: d.sent_by, teacherId: d.teacher_id
     }));
     return sessionCache.messages;
 };
@@ -661,6 +692,7 @@ export const saveMessage = async (m: MessageLog) => {
 };
 
 export const fetchCustomTables = async (tid: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.customTables;
     const { data } = await supabase.from('custom_tables').select('*').eq('teacher_id', tid);
     sessionCache.customTables = (data || []).map((d: any) => ({
         id: d.id, name: d.name, createdAt: d.created_at, columns: typeof d.columns === 'string' ? JSON.parse(d.columns) : d.columns, 
@@ -678,6 +710,7 @@ export const addCustomTable = async (t: CustomTable) => {
 };
 
 export const fetchQuestionBank = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.questionBank;
     let q = supabase.from('question_bank').select('*');
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
@@ -698,6 +731,7 @@ export const saveQuestionToBank = async (q: Question) => {
 };
 
 export const fetchFormsDetailedResults = async (tid?: string) => {
+    if (!isSupabaseConfigured()) return sessionCache.formsResults;
     let q = supabase.from('forms_results').select('*');
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;

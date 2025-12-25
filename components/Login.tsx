@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { authenticateUser, getStudents, setSystemMode, authenticateStudent, initAutoSync } from '../services/storageService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, RefreshCw, CloudLightning, Info } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, RefreshCw, CloudLightning, Info, Zap } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -36,6 +36,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       autoSync();
   }, [view]);
 
+  const handleDemoLogin = async () => {
+      setIdentifier('admin');
+      setPassword('admin');
+      setLoading(true);
+      setError('');
+      setTimeout(async () => {
+          try {
+              const user = await authenticateUser('admin', 'admin');
+              if (user) onLoginSuccess(user, true);
+          } catch (e) {
+              setLoading(false);
+          }
+      }, 500);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -45,12 +60,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     try {
         const cleanIdentifier = identifier.trim();
         
-        // دعم دخول الطوارئ admin / admin إذا لم تكن السحابة مهيأة
-        if (cleanIdentifier === 'admin' && password === 'admin' && !isSupabaseConfigured()) {
-            onLoginSuccess({ id: 'super_admin_001', name: 'مدير النظام (تجريبي)', email: 'admin@system.local', role: 'SUPER_ADMIN', status: 'ACTIVE' }, rememberMe);
-            return;
-        }
-
         if (roleMode === 'PARENT') {
             const allStudents = getStudents();
             const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
@@ -72,7 +81,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (user) {
             onLoginSuccess(user, rememberMe);
         } else {
-            setError('بيانات الدخول غير صحيحة. يرجى التأكد من ربط Supabase أو استخدم admin/admin للتجربة.');
+            setError('بيانات الدخول غير صحيحة. استخدم admin/admin للتجربة الفورية.');
             setLoading(false);
         }
     } catch (e: any) {
@@ -94,7 +103,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           )}
           {!isSupabaseConfigured() && (
              <div className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-[10px] font-black border border-amber-100 shadow-sm flex items-center gap-2">
-                <CloudLightning size={12}/> وضع الطوارئ متاح
+                <CloudLightning size={12}/> وضع العمل المحلي
              </div>
           )}
       </div>
@@ -102,23 +111,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="hidden md:block absolute top-0 left-0 w-full h-96 bg-gradient-to-br from-indigo-700 to-indigo-900 -skew-y-6 origin-top-left -z-10 shadow-2xl"></div>
       
       <div className="w-full max-w-md h-full md:h-auto flex flex-col justify-center animate-slide-up px-6 py-10">
-            <div className="text-center mb-10">
+            <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-200">
                     <GraduationCap size={44} className="text-white" />
                 </div>
                 <h1 className="text-3xl font-black text-gray-900 mb-2">المتابع الذكي</h1>
                 <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">منصة الإدارة المدرسية الموحدة</p>
             </div>
-
-            {!isSupabaseConfigured() && (
-                <div className="mb-6 bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3">
-                    <Info className="text-blue-600 shrink-0" size={18}/>
-                    <p className="text-[11px] text-blue-800 font-bold leading-relaxed">
-                        السحابة غير متصلة. يمكنك الدخول الآن باستخدام:<br/>
-                        اسم المستخدم: <span className="font-black">admin</span> | كلمة المرور: <span className="font-black">admin</span>
-                    </p>
-                </div>
-            )}
 
             <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8">
                 <button onClick={() => setRoleMode('STAFF')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${roleMode === 'STAFF' ? 'bg-white text-indigo-700 shadow-xl' : 'text-gray-400'}`}>المعلمين</button>
@@ -156,9 +155,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
                 {error && <div className="bg-red-50 text-red-600 text-[11px] font-bold p-4 rounded-2xl border border-red-100 text-center">{error}</div>}
 
-                <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3">
-                    {loading ? <Loader2 size={24} className="animate-spin" /> : <>دخول النظام <ArrowRight size={20}/></>}
-                </button>
+                <div className="flex flex-col gap-3">
+                    <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3">
+                        {loading ? <Loader2 size={24} className="animate-spin" /> : <>دخول النظام <ArrowRight size={20}/></>}
+                    </button>
+
+                    {roleMode === 'STAFF' && (
+                        <button type="button" onClick={handleDemoLogin} className="w-full bg-amber-500 text-white font-black py-3 rounded-2xl transition-all shadow-lg hover:bg-amber-600 active:scale-95 flex items-center justify-center gap-2">
+                            <Zap size={18} fill="currentColor"/> دخول تجريبي سريع
+                        </button>
+                    )}
+                </div>
             </form>
 
             <div className="mt-8 text-center space-y-4">
