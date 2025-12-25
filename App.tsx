@@ -4,11 +4,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import { 
     fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
     addPerformance, deletePerformance, getUserTheme,
-    addStudent, updateStudent, deleteStudent,
-    fetchSchedules, fetchTeacherAssignments, fetchSubjects, fetchAcademicTerms,
-    fetchTasks, fetchBehaviorIncidents, fetchMessages,
-    fetchSchools, fetchTeachers, fetchSystemUsers, fetchAssignments, fetchCustomTables,
-    fetchCurriculumUnits, fetchCurriculumLessons, fetchExams, fetchQuestionBank, fetchFormsDetailedResults
+    addStudent, updateStudent, deleteStudent
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 import Login from './components/Login';
@@ -39,7 +35,7 @@ import BehaviorTracking from './components/BehaviorTracking';
 import TasksManager from './components/TasksManager';
 import TeacherInbox from './components/TeacherInbox';
 import CertificatesCenter from './components/CertificatesCenter';
-import { Cloud, DatabaseZap, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(() => {
@@ -63,16 +59,17 @@ const App: React.FC = () => {
             const userId = currentUser.id;
             const role = (currentUser as any).role;
             
-            // جلب البيانات الأساسية من السحابة مباشرة
-            const results = await Promise.all([
+            // استخدام Promise.allSettled لضمان عدم توقف الكل في حال فشل جزء
+            const results = await Promise.allSettled([
                 fetchStudents(),
                 fetchAttendance(role === 'SUPER_ADMIN' ? undefined : userId),
                 fetchPerformance(role === 'SUPER_ADMIN' ? undefined : userId)
             ]);
 
-            setStudents(results[0] || []);
-            setAttendance(results[1] || []);
-            setPerformance(results[2] || []);
+            if (results[0].status === 'fulfilled') setStudents(results[0].value || []);
+            if (results[1].status === 'fulfilled') setAttendance(results[1].value || []);
+            if (results[2].status === 'fulfilled') setPerformance(results[2].value || []);
+            
         } catch (e) {
             console.error("Fetch Error:", e);
         } finally {
