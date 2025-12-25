@@ -77,20 +77,20 @@ const AdminOverview = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
                             <p className="text-sm opacity-90 leading-relaxed">
-                                السبب هو أن المتصفح يحفظ إعدادات الربط في ذاكرته المحلية (**Local Storage**). إذا دخلت من جهاز جديد، ستكون هذه الذاكرة فارغة ولن يتمكن النظام من الوصول للسحابة.
+                                السبب التقني هو أن المتصفح يحفظ إعدادات الربط في ذاكرته المحلية (**Local Storage**). إذا دخلت من جهاز جديد، ستكون هذه الذاكرة فارغة ولن يتمكن النظام من الوصول للسحابة.
                             </p>
                             <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
                                 <h4 className="font-bold text-yellow-400 mb-1">الحل الدائم:</h4>
-                                <p className="text-xs">يجب إضافة `VITE_SUPABASE_URL` و `VITE_SUPABASE_KEY` في إعدادات **Vercel Project Settings** تحت بند Environment Variables.</p>
+                                <p className="text-xs">يجب إضافة `VITE_SUPABASE_URL` و `VITE_SUPABASE_KEY` في إعدادات **Vercel Project Settings** تحت بند Environment Variables. هذا يجعل الربط متاحاً لكل من يفتح الرابط.</p>
                             </div>
                         </div>
                         <div className="space-y-4">
                              <p className="text-sm opacity-90 leading-relaxed">
-                                **تنبيه:** إذا كانت الجداول غير موجودة أو فارغة في السحابة، لن تظهر أي بيانات حتى لو كان الربط سليماً. تأكد من تشغيل كود الـ SQL المرفق في الأسفل.
+                                **تنبيه الجداول:** إذا كان الربط ناجحاً ولكن الجداول غير موجودة في Supabase، لن تظهر أي بيانات. تأكد من تشغيل كود الـ SQL المرفق في قسم قاعدة البيانات.
                             </p>
                             <div className="bg-white/10 p-4 rounded-2xl border border-white/10">
                                 <h4 className="font-bold text-indigo-300 mb-1">المزامنة اليدوية:</h4>
-                                <p className="text-xs">استخدم زر "تحديث الآن" أدناه لإجبار النظام على إعادة جلب كل البيانات من السحابة في حال حدوث تعارض.</p>
+                                <p className="text-xs">استخدم زر "تحديث الآن" في التبويب المجاور لإجبار النظام على إعادة جلب كل البيانات من السحابة في حال حدوث تعارض في البيانات المحلية.</p>
                             </div>
                         </div>
                     </div>
@@ -119,7 +119,7 @@ const DatabaseSettings = () => {
         if (!dbUrl || !dbKey) return alert('يرجى إدخال جميع الحقول');
         const success = updateSupabaseConfig(dbUrl, dbKey);
         if (success) {
-            alert('تم حفظ إعدادات السحابة بنجاح! سيتم إعادة تحميل النظام.');
+            alert('تم حفظ إعدادات السحابة بنجاح! سيتم إعادة تحميل النظام لتطبيق التغييرات.');
             window.location.reload();
         } else {
             alert('رابط السحابة غير صالح.');
@@ -131,7 +131,7 @@ const DatabaseSettings = () => {
         try {
             const res = await downloadFromSupabase();
             if (res.success) alert('تمت المزامنة وتحديث قاعدة البيانات المحلية بنجاح!');
-            else alert('فشل الاتصال بالسحابة. تأكد من إعدادات الربط أو وجود الجداول.');
+            else alert('فشل الاتصال بالسحابة. تأكد من إعدادات الربط أو وجود الجداول في حساب Supabase.');
         } catch (e) {
             alert('حدث خطأ تقني أثناء المزامنة.');
         } finally {
@@ -148,14 +148,15 @@ const DatabaseSettings = () => {
 
     return (
         <div className="space-y-8 animate-fade-in max-w-4xl mx-auto pb-10">
+            {/* Refresh / Sync Action Card */}
             <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-lg shadow-indigo-50 flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
                     <div className="p-4 bg-indigo-600 text-white rounded-3xl shadow-lg animate-pulse">
                         <CloudLightning size={32}/>
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-gray-800">تحديث قاعدة البيانات</h3>
-                        <p className="text-sm text-gray-500 font-medium">قم بمزامنة البيانات يدوياً من السحابة لإصلاح مشاكل الأجهزة المتعددة.</p>
+                        <h3 className="text-xl font-black text-gray-800">تحديث ومزامنة قاعدة البيانات</h3>
+                        <p className="text-sm text-gray-500 font-medium">إذا لم تظهر البيانات بعد الربط، اضغط هنا لإجبار النظام على جلب آخر نسخة من السحابة.</p>
                     </div>
                 </div>
                 <button 
@@ -184,18 +185,18 @@ const DatabaseSettings = () => {
                 <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 text-sm flex gap-3 items-start">
                     <AlertTriangle className="shrink-0 mt-1" size={20}/>
                     <p className="font-medium text-xs">
-                        تحذير: القيم المدخلة هنا تحفظ في متصفحك الحالي فقط. إذا لم تعمل المزامنة، تأكد من أن حسابك في Supabase مفعل ولم يتجاوز حدود الاستخدام المجاني.
+                        تحذير: القيم المدخلة هنا تحفظ في متصفحك الحالي فقط. لجعل النظام يعمل على كل الأجهزة، يجب وضع هذه القيم في إعدادات المشروع (Vercel Variables).
                     </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase">Supabase URL</label>
-                        <input className="w-full p-3 bg-gray-50 border rounded-xl font-mono text-sm dir-ltr focus:ring-2 focus:ring-indigo-500" placeholder="https://xyz.supabase.co" value={dbUrl} onChange={e=>setDbUrl(e.target.value)}/>
+                        <input className="w-full p-3 bg-gray-50 border rounded-xl font-mono text-sm dir-ltr focus:ring-2 focus:ring-indigo-500 shadow-inner" placeholder="https://xyz.supabase.co" value={dbUrl} onChange={e=>setDbUrl(e.target.value)}/>
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 mb-1 uppercase">Anon API Key</label>
-                        <input className="w-full p-3 bg-gray-50 border rounded-xl font-mono text-sm dir-ltr focus:ring-2 focus:ring-indigo-500" type="password" placeholder="eyJhbG..." value={dbKey} onChange={e=>setDbKey(e.target.value)}/>
+                        <input className="w-full p-3 bg-gray-50 border rounded-xl font-mono text-sm dir-ltr focus:ring-2 focus:ring-indigo-500 shadow-inner" type="password" placeholder="eyJhbG..." value={dbKey} onChange={e=>setDbKey(e.target.value)}/>
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button onClick={handleSaveConfig} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black shadow-lg hover:bg-black transition-all">حفظ محلي (لهذا الجهاز)</button>
@@ -208,11 +209,11 @@ const DatabaseSettings = () => {
 
             <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] relative overflow-hidden border-b-[8px] border-slate-950">
                 <div className="absolute top-0 right-0 p-4 opacity-10"><Code size={80}/></div>
-                <h4 className="font-black text-xl mb-3 flex items-center gap-2 text-indigo-400"><Code size={24}/> كود تهيئة الجداول</h4>
+                <h4 className="font-black text-xl mb-3 flex items-center gap-2 text-indigo-400"><Code size={24}/> كود تهيئة الجداول (SQL)</h4>
                 <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                    إذا كان الاتصال ناجحاً ولكن لا تظهر بيانات، انسخ هذا الكود وقم بتشغيله في "SQL Editor" داخل موقع Supabase لإنشاء الجداول اللازمة.
+                    إذا كان الاتصال ناجحاً ولكن لا تظهر بيانات، انسخ هذا الكود وقم بتشغيله في "SQL Editor" داخل موقع Supabase لإنشاء الجداول اللازمة بالمسميات الصحيحة.
                 </p>
-                <button onClick={()=>{navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ كود SQL بنجاح');}} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl">
+                <button onClick={()=>{navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ كود SQL بنجاح! قم بلصقه في Supabase SQL Editor.');}} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl">
                     <Copy size={18}/> نسخ كود SQL للإصلاح
                 </button>
             </div>
@@ -226,7 +227,7 @@ const AdminDashboard = () => {
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal">
             <div className="flex flex-col xl:flex-row justify-between items-center mb-6 gap-4">
-                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3"><Shield className="text-indigo-600" size={32}/> لوحة تحكم الإدارة</h2>
+                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3"><Shield className="text-indigo-600" size={32}/> لوحة تحكم مدير النظام</h2>
                 <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
                     <button onClick={() => setView('OVERVIEW')} className={`px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${view === 'OVERVIEW' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>الإحصائيات</button>
                     <button onClick={() => setView('DATABASE')} className={`px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${view === 'DATABASE' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>قاعدة البيانات</button>
