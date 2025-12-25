@@ -39,8 +39,10 @@ import { RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(() => {
-        const savedUser = localStorage.getItem('current_user');
-        return savedUser ? JSON.parse(savedUser) : null;
+        try {
+            const savedUser = localStorage.getItem('current_user');
+            return savedUser ? JSON.parse(savedUser) : null;
+        } catch { return null; }
     });
 
     const [students, setStudents] = useState<Student[]>([]);
@@ -59,19 +61,23 @@ const App: React.FC = () => {
             const userId = currentUser.id;
             const role = (currentUser as any).role;
             
-            // استخدام Promise.allSettled لضمان عدم توقف الكل في حال فشل جزء
             const results = await Promise.allSettled([
                 fetchStudents(),
                 fetchAttendance(role === 'SUPER_ADMIN' ? undefined : userId),
                 fetchPerformance(role === 'SUPER_ADMIN' ? undefined : userId)
             ]);
 
-            if (results[0].status === 'fulfilled') setStudents(results[0].value || []);
+            if (results[0].status === 'fulfilled') {
+                const data = results[0].value || [];
+                setStudents(data);
+                // تحديث الذاكرة المحلية كـ cache للمكونات التي تطلبها بشكل متزامن
+                localStorage.setItem('local_students', JSON.stringify(data));
+            }
             if (results[1].status === 'fulfilled') setAttendance(results[1].value || []);
             if (results[2].status === 'fulfilled') setPerformance(results[2].value || []);
             
         } catch (e) {
-            console.error("Fetch Error:", e);
+            console.error("Data fetch error:", e);
         } finally {
             setIsLoading(false);
         }
@@ -101,7 +107,7 @@ const App: React.FC = () => {
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             {isLoading && (
                 <div className="fixed top-4 left-4 z-[200] bg-indigo-600 text-white px-4 py-2 rounded-2xl text-[10px] font-black flex items-center gap-2 shadow-2xl animate-pulse">
-                    <RefreshCw className="animate-spin" size={12}/> جاري مزامنة السحابة...
+                    <RefreshCw className="animate-spin" size={12}/> جاري المزامنة...
                 </div>
             )}
             <Routes>
