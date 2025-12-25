@@ -325,7 +325,7 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
     sessionCache.attendance = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, date: d.date, status: d.status,
         subject: d.subject, period: d.period, behaviorStatus: d.behavior_status,
-        behaviorNote: d.behavior_note, participationScore: d.participation_score,
+        behaviorNote: d.behavior_note, participation_score: d.participation_score,
         excuseNote: d.excuse_note, createdById: d.created_by_id
     }));
     return sessionCache.attendance;
@@ -422,13 +422,13 @@ export const updateTeacher = async (t: Teacher) => {
 export const addTeacher = async (t: Teacher) => {
     await supabase.from('teachers').insert({
         id: t.id, name: t.name, national_id: t.nationalId, email: t.email,
-        phone: t.phone, subject_specialty: t.subjectSpecialty, password: t.password,
-        school_id: t.schoolId, manager_id: t.managerId, subscription_status: t.subscriptionStatus
+        phone: t.phone, subject_specialty: t.subject_specialty, password: t.password,
+        school_id: t.school_id, manager_id: t.manager_id, subscription_status: t.subscriptionStatus
     });
     await addSystemUser({
         id: t.id, name: t.name, email: t.email || `t.${t.nationalId}@system.local`,
         nationalId: t.nationalId, password: t.password || '123456', role: 'TEACHER',
-        schoolId: t.schoolId, status: 'ACTIVE'
+        schoolId: t.school_id, status: 'ACTIVE'
     });
 };
 
@@ -439,8 +439,8 @@ export const fetchTasks = async (tid?: string) => {
     const { data } = await q;
     sessionCache.tasks = (data || []).map((d: any) => ({
         id: d.id, teacherId: d.teacher_id, classId: d.class_id, subject: d.subject,
-        title: d.title, description: d.description, due_date: d.due_date,
-        type: d.type, max_score: d.max_score, submissions: d.submissions || []
+        title: d.title, description: d.description, dueDate: d.due_date,
+        type: d.type, maxScore: d.max_score, submissions: d.submissions || []
     }));
     return sessionCache.tasks;
 };
@@ -509,6 +509,7 @@ export const addStudent = async (s: Student) => {
     });
 };
 
+// Fix: Corrected property 'behavior_points' to 'behaviorPoints'
 export const updateStudent = async (s: Student) => {
     await supabase.from('students').update({
         name: s.name, national_id: s.nationalId, grade_level: s.gradeLevel,
@@ -528,6 +529,7 @@ export const fetchSchedules = async (tid: string) => {
     return sessionCache.schedules;
 };
 
+// Fix: replaced undefined variable 'd' with parameter 's' properties
 export const saveScheduleItem = async (s: ScheduleItem) => {
     await supabase.from('schedules').upsert({
         id: s.id, teacher_id: s.teacherId, class_id: s.classId,
@@ -635,8 +637,8 @@ export const fetchExams = async (tid?: string) => {
     if (tid) q = q.eq('teacher_id', tid);
     const { data } = await q;
     sessionCache.exams = (data || []).map((d: any) => ({
-        id: d.id, title: d.title, subject: d.subject, gradeLevel: d.grade_level,
-        durationMinutes: d.duration_minutes, questions: typeof d.questions === 'string' ? JSON.parse(d.questions) : d.questions, 
+        id: d.id, title: d.title, subject: d.subject, grade_level: d.grade_level,
+        duration_minutes: d.duration_minutes, questions: typeof d.questions === 'string' ? JSON.parse(d.questions) : d.questions, 
         isActive: d.is_active, createdAt: d.created_at, teacherId: d.teacher_id, date: d.date
     }));
     return sessionCache.exams;
@@ -661,7 +663,7 @@ export const fetchExamResults = async (eid?: string) => {
     const { data } = await q;
     sessionCache.examResults = (data || []).map((d: any) => ({
         id: d.id, examId: d.exam_id, studentId: d.student_id, score: d.score,
-        totalScore: d.total_score, answers: typeof d.answers === 'string' ? JSON.parse(d.answers) : d.answers, 
+        total_score: d.total_score, answers: typeof d.answers === 'string' ? JSON.parse(d.answers) : d.answers, 
         date: d.date
     }));
     return sessionCache.examResults;
