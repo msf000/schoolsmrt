@@ -1,48 +1,27 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Singleton instance
+// الإعدادات الخاصة بقاعدة بيانات المستخدم مباشرة
+const SUPABASE_URL = 'https://rmrbczwgcuergzybvwwb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtcmJjendnY3Vlcmd6eWJ2d3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1OTU2NjYsImV4cCI6MjA4MDE3MTY2Nn0.nyk35NQFdBhMbsiV3b3Usa6aZ1ADra5tB3ter3dM710';
+
 let supabaseInstance: SupabaseClient | null = null;
 
-// دالة للتحقق من وجود الإعدادات
-export const isSupabaseConfigured = (): boolean => {
-    // التحقق من المتغيرات القادمة من Vercel أولاً
-    const envUrl = import.meta.env.VITE_SUPABASE_URL;
-    const envKey = import.meta.env.VITE_SUPABASE_KEY;
-
-    if (envUrl && envUrl.startsWith('https://') && envKey) {
-        return true;
-    }
-
-    // التحقق من الإدخال اليدوي ثانياً
-    const localUrl = localStorage.getItem('custom_supabase_url');
-    return !!localUrl && localUrl.startsWith('https://');
-};
+export const isSupabaseConfigured = (): boolean => true; // دائماً متصل الآن
 
 export const getSupabaseClient = (): SupabaseClient => {
     if (supabaseInstance) return supabaseInstance;
 
-    // 1. الأولوية القصوى لمتغيرات Vercel (Vite Env)
-    const envUrl = import.meta.env.VITE_SUPABASE_URL;
-    const envKey = import.meta.env.VITE_SUPABASE_KEY;
-
-    // 2. الأولوية الثانية للإدخال اليدوي
-    const localUrl = localStorage.getItem('custom_supabase_url');
-    const localKey = localStorage.getItem('custom_supabase_key');
-
-    const finalUrl = (envUrl && envUrl.startsWith('http')) ? envUrl : (localUrl || 'https://placeholder.supabase.co');
-    const finalKey = (envUrl && envUrl.startsWith('http')) ? envKey : (localKey || 'placeholder');
-
     try {
-        supabaseInstance = createClient(finalUrl, finalKey, {
+        supabaseInstance = createClient(SUPABASE_URL, SUPABASE_KEY, {
             auth: {
                 persistSession: true,
                 autoRefreshToken: true
             }
         });
     } catch (e) {
-        console.error("Supabase Initialization Error:", e);
-        // Fallback لمنع انهيار التطبيق
+        console.error("Supabase Init Error:", e);
+        // Fallback placeholder
         supabaseInstance = createClient('https://placeholder.supabase.co', 'placeholder');
     }
     
@@ -50,16 +29,8 @@ export const getSupabaseClient = (): SupabaseClient => {
 };
 
 export const updateSupabaseConfig = (url: string, key: string) => {
-    try {
-        new URL(url);
-        localStorage.setItem('custom_supabase_url', url);
-        localStorage.setItem('custom_supabase_key', key);
-        // إعادة تهيئة النسخة
-        supabaseInstance = createClient(url, key);
-        return true;
-    } catch (e) {
-        return false;
-    }
+    // هذه الدالة الآن للتوافق فقط، الاتصال ثابت
+    return true;
 };
 
 export const supabase = getSupabaseClient();

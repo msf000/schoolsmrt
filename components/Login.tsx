@@ -1,8 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { authenticateUser, getStudents, setSystemMode, authenticateStudent, initAutoSync } from '../services/storageService';
-import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, RefreshCw, CloudLightning, Info, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { authenticateUser, authenticateStudent } from '../services/storageService';
+import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, Cloud } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -18,55 +17,19 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  useEffect(() => {
-      const autoSync = async () => {
-          if (isSupabaseConfigured()) {
-            setIsSyncing(true);
-            try { 
-                await initAutoSync(); 
-            } catch (e) {
-                console.error("AutoSync Fail:", e);
-            } finally { 
-                setIsSyncing(false); 
-            }
-          }
-      };
-      autoSync();
-  }, [view]);
-
-  const handleDemoLogin = async () => {
-      setIdentifier('admin');
-      setPassword('admin');
-      setLoading(true);
-      setError('');
-      setTimeout(async () => {
-          try {
-              const user = await authenticateUser('admin', 'admin');
-              if (user) onLoginSuccess(user, true);
-          } catch (e) {
-              setLoading(false);
-          }
-      }, 500);
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setSystemMode(true); 
 
     try {
         const cleanIdentifier = identifier.trim();
         
         if (roleMode === 'PARENT') {
-            const allStudents = getStudents();
-            const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
-            if (children.length > 0) {
-                onLoginSuccess({ id: `p_${cleanIdentifier}`, name: children[0].parentName || 'ولي أمر', role: 'PARENT', phone: cleanIdentifier }, rememberMe);
-                return;
-            } else { setError('رقم الجوال غير مسجل في النظام.'); setLoading(false); return; }
+            setError('خدمة دخول أولياء الأمور تتطلب رقم جوال مسجل مسبقاً في السحابة.');
+            setLoading(false);
+            return;
         }
 
         if (roleMode === 'STUDENT') {
@@ -74,18 +37,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             if (studentUser) {
                 onLoginSuccess({ ...studentUser, role: 'STUDENT' }, rememberMe);
                 return;
-            } else { setError('بيانات الدخول للطالب غير صحيحة.'); setLoading(false); return; }
+            } else { setError('بيانات الدخول غير صحيحة.'); setLoading(false); return; }
         }
 
         const user = await authenticateUser(cleanIdentifier, password);
         if (user) {
             onLoginSuccess(user, rememberMe);
         } else {
-            setError('بيانات الدخول غير صحيحة. استخدم admin/admin للتجربة الفورية.');
+            setError('بيانات الدخول غير صحيحة. يرجى التأكد من حسابك في السحابة.');
             setLoading(false);
         }
     } catch (e: any) {
-        setError(e.message || 'فشل الاتصال بقاعدة البيانات.');
+        setError('تعذر الاتصال بالسحابة. يرجى التحقق من الإنترنت.');
         setLoading(false);
     }
   };
@@ -93,86 +56,58 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   if (view === 'REGISTER') return <TeacherRegistration onBack={() => setView('LOGIN')} onRegisterSuccess={() => setView('LOGIN')} />;
 
   return (
-    <div className="min-h-screen bg-white md:bg-gray-50 flex items-center justify-center p-0 md:p-4 overflow-hidden relative" dir="rtl">
-      {/* Cloud Status Indicator */}
-      <div className="fixed top-6 left-6 flex items-center gap-3">
-          {isSyncing && (
-            <div className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full text-[10px] font-black border border-indigo-100 shadow-sm animate-pulse">
-                <RefreshCw size={12} className="animate-spin"/> جاري مزامنة السحابة...
-            </div>
-          )}
-          {!isSupabaseConfigured() && (
-             <div className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-[10px] font-black border border-amber-100 shadow-sm flex items-center gap-2">
-                <CloudLightning size={12}/> وضع العمل المحلي
-             </div>
-          )}
-      </div>
-
-      <div className="hidden md:block absolute top-0 left-0 w-full h-96 bg-gradient-to-br from-indigo-700 to-indigo-900 -skew-y-6 origin-top-left -z-10 shadow-2xl"></div>
-      
-      <div className="w-full max-w-md h-full md:h-auto flex flex-col justify-center animate-slide-up px-6 py-10">
-            <div className="text-center mb-8">
-                <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-200">
-                    <GraduationCap size={44} className="text-white" />
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-tajawal" dir="rtl">
+      <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-slide-up">
+            <div className="p-8 pb-4 text-center">
+                <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-100">
+                    <GraduationCap size={36} className="text-white" />
                 </div>
-                <h1 className="text-3xl font-black text-gray-900 mb-2">المتابع الذكي</h1>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">منصة الإدارة المدرسية الموحدة</p>
+                <h1 className="text-2xl font-black text-gray-900">المتابع الذكي</h1>
+                <p className="text-gray-400 text-xs font-bold uppercase mt-1">منظومة الربط السحابي</p>
             </div>
 
-            <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8">
-                <button onClick={() => setRoleMode('STAFF')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${roleMode === 'STAFF' ? 'bg-white text-indigo-700 shadow-xl' : 'text-gray-400'}`}>المعلمين</button>
-                <button onClick={() => setRoleMode('STUDENT')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${roleMode === 'STUDENT' ? 'bg-white text-indigo-700 shadow-xl' : 'text-gray-400'}`}>الطلاب</button>
-                <button onClick={() => setRoleMode('PARENT')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${roleMode === 'PARENT' ? 'bg-white text-indigo-700 shadow-xl' : 'text-gray-400'}`}>أولياء الأمور</button>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase mr-1">
-                        {roleMode === 'PARENT' ? 'رقم الجوال المسجل' : roleMode === 'STUDENT' ? 'رقم الهوية' : 'البريد أو الهوية'}
-                    </label>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-300 group-focus-within:text-indigo-600 transition-colors">
-                            {roleMode === 'PARENT' ? <Phone size={20}/> : <User size={20}/>}
-                        </div>
-                        <input type="text" required className="w-full pr-12 pl-4 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-800 shadow-inner" placeholder={roleMode === 'PARENT' ? "05xxxxxxxx" : "أدخل البيانات هنا..."} value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
-                    </div>
+            <div className="px-8 pb-8">
+                <div className="flex bg-slate-100 p-1 rounded-2xl mb-6">
+                    <button onClick={() => setRoleMode('STAFF')} className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all ${roleMode === 'STAFF' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-400'}`}>المعلمين</button>
+                    <button onClick={() => setRoleMode('STUDENT')} className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all ${roleMode === 'STUDENT' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-400'}`}>الطلاب</button>
+                    <button onClick={() => setRoleMode('PARENT')} className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all ${roleMode === 'PARENT' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-400'}`}>الأهالي</button>
                 </div>
 
-                {roleMode !== 'PARENT' && (
+                <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-gray-400 uppercase mr-1">كلمة المرور</label>
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-300 group-focus-within:text-indigo-600">
-                                <Lock size={20}/>
-                            </div>
-                            <input type={showPassword ? 'text' : 'password'} required className="w-full pr-12 pl-12 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-800 shadow-inner" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 hover:text-indigo-600">
+                        <label className="text-[10px] font-black text-gray-400 mr-1">المعرف (الهوية أو البريد)</label>
+                        <div className="relative">
+                            <User size={18} className="absolute right-3 top-3 text-slate-300"/>
+                            <input type="text" required className="w-full pr-10 pl-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="أدخل بياناتك هنا..." value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-gray-400 mr-1">كلمة المرور</label>
+                        <div className="relative">
+                            <Lock size={18} className="absolute right-3 top-3 text-slate-300"/>
+                            <input type={showPassword ? 'text' : 'password'} required className="w-full pr-10 pl-10 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-3 text-slate-300 hover:text-indigo-600">
                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
                     </div>
-                )}
 
-                {error && <div className="bg-red-50 text-red-600 text-[11px] font-bold p-4 rounded-2xl border border-red-100 text-center">{error}</div>}
+                    {error && <div className="bg-red-50 text-red-600 text-[11px] font-bold p-3 rounded-xl border border-red-100 text-center">{error}</div>}
 
-                <div className="flex flex-col gap-3">
-                    <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3">
-                        {loading ? <Loader2 size={24} className="animate-spin" /> : <>دخول النظام <ArrowRight size={20}/></>}
+                    <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+                        {loading ? <Loader2 size={20} className="animate-spin" /> : <>دخول آمن <ArrowRight size={18}/></>}
                     </button>
+                </form>
 
-                    {roleMode === 'STAFF' && (
-                        <button type="button" onClick={handleDemoLogin} className="w-full bg-amber-500 text-white font-black py-3 rounded-2xl transition-all shadow-lg hover:bg-amber-600 active:scale-95 flex items-center justify-center gap-2">
-                            <Zap size={18} fill="currentColor"/> دخول تجريبي سريع
-                        </button>
-                    )}
+                <div className="mt-6 text-center">
+                    {roleMode === 'STAFF' && <button onClick={() => setView('REGISTER')} className="text-indigo-600 font-black text-xs hover:underline">ليس لديك حساب؟ سجل كمعلم جديد</button>}
                 </div>
-            </form>
+            </div>
 
-            <div className="mt-8 text-center space-y-4">
-                {roleMode === 'STAFF' && <button onClick={() => setView('REGISTER')} className="text-indigo-600 font-black text-xs hover:underline flex items-center justify-center gap-2 mx-auto bg-indigo-50 px-4 py-2 rounded-xl transition-colors">ليس لديك حساب؟ سجل كمعلم جديد</button>}
-                <div className="flex justify-center gap-4 text-[10px] text-gray-300 font-bold uppercase tracking-widest">
-                    <span>&copy; 2025 Smart School System</span>
-                </div>
+            <div className="bg-slate-50 p-4 border-t border-slate-100 flex items-center justify-center gap-2">
+                <Cloud size={14} className="text-green-500"/>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">متصل بالسحابة الموحدة</span>
             </div>
       </div>
     </div>

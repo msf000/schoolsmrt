@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -38,9 +39,7 @@ import BehaviorTracking from './components/BehaviorTracking';
 import TasksManager from './components/TasksManager';
 import TeacherInbox from './components/TeacherInbox';
 import CertificatesCenter from './components/CertificatesCenter';
-// Fix: Added RefreshCw to the import list below to fix "Cannot find name" error on line 137
-import { Cloud, DatabaseZap, WifiOff, RefreshCw } from 'lucide-react';
-import { isSupabaseConfigured } from './services/supabaseClient';
+import { Cloud, DatabaseZap, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<SystemUser | Student | null>(() => {
@@ -53,7 +52,6 @@ const App: React.FC = () => {
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [theme] = useState<UserTheme>(getUserTheme());
     const [isLoading, setIsLoading] = useState(false);
-    const [initialLoadDone, setInitialLoadDone] = useState(false);
     
     const navigate = useNavigate();
     const location = useLocation();
@@ -65,44 +63,26 @@ const App: React.FC = () => {
             const userId = currentUser.id;
             const role = (currentUser as any).role;
             
-            // طلبات جلب البيانات الأساسية
-            const promises: any[] = [
+            // جلب البيانات الأساسية من السحابة مباشرة
+            const results = await Promise.all([
                 fetchStudents(),
                 fetchAttendance(role === 'SUPER_ADMIN' ? undefined : userId),
                 fetchPerformance(role === 'SUPER_ADMIN' ? undefined : userId)
-            ];
+            ]);
 
-            if (role === 'TEACHER' || role === 'SCHOOL_MANAGER') {
-                promises.push(
-                    fetchSchedules(userId), fetchSubjects(userId), fetchTeacherAssignments(userId),
-                    fetchAcademicTerms(userId), fetchTasks(userId), fetchBehaviorIncidents(userId),
-                    fetchMessages(userId), fetchAssignments(userId), fetchCustomTables(userId),
-                    fetchCurriculumUnits(userId), fetchCurriculumLessons(), 
-                    fetchExams(userId), fetchQuestionBank(userId), fetchFormsDetailedResults(userId)
-                );
-            }
-
-            if (role === 'SUPER_ADMIN') {
-                promises.push(fetchSchools(), fetchTeachers(), fetchSystemUsers());
-            }
-
-            const results = await Promise.all(promises);
             setStudents(results[0] || []);
             setAttendance(results[1] || []);
             setPerformance(results[2] || []);
         } catch (e) {
-            console.error("Cloud Refresh Error:", e);
+            console.error("Fetch Error:", e);
         } finally {
             setIsLoading(false);
-            setInitialLoadDone(true);
         }
     }, [currentUser]);
 
     useEffect(() => {
         if (currentUser) {
             refreshCloudData();
-        } else {
-            setInitialLoadDone(true);
         }
     }, [currentUser, refreshCloudData]);
 
@@ -118,28 +98,13 @@ const App: React.FC = () => {
         navigate('/login');
     };
 
-    // منع شاشة التحميل من "تعليق" المستخدم إذا لم تكن هناك بيانات
-    if (!initialLoadDone && currentUser) {
-        return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-white font-tajawal">
-                <DatabaseZap className="animate-bounce text-indigo-600 mb-4" size={48} />
-                <p className="text-gray-500 font-bold">جاري المزامنة الأولى...</p>
-            </div>
-        );
-    }
-
     if (!currentUser && location.pathname !== '/login') return <Navigate to="/login" replace />;
 
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             {isLoading && (
                 <div className="fixed top-4 left-4 z-[200] bg-indigo-600 text-white px-4 py-2 rounded-2xl text-[10px] font-black flex items-center gap-2 shadow-2xl animate-pulse">
-                    <RefreshCw className="animate-spin" size={12}/> جاري التزامن...
-                </div>
-            )}
-            {!isSupabaseConfigured() && currentUser?.id === 'super_admin_001' && (
-                <div className="fixed top-4 left-4 z-[200] bg-amber-500 text-white px-4 py-2 rounded-2xl text-[10px] font-black flex items-center gap-2 shadow-2xl">
-                    <WifiOff size={12}/> وضع العمل المحلي (الطوارئ)
+                    <RefreshCw className="animate-spin" size={12}/> جاري مزامنة السحابة...
                 </div>
             )}
             <Routes>
