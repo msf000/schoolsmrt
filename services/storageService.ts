@@ -150,6 +150,7 @@ export const downloadFromSupabase = async () => {
     }
 };
 
+// Getters from cache
 export const getStudents = () => sessionCache.students;
 export const getSchools = () => sessionCache.schools;
 export const getTeachers = () => sessionCache.teachers;
@@ -642,7 +643,8 @@ export const fetchMessages = async (tid?: string) => {
     sessionCache.messages = (data || []).map((d: any) => ({
         id: d.id, studentId: d.student_id, studentName: d.student_name,
         parentPhone: d.parent_phone, type: d.type, content: d.content,
-        status: d.status, date: d.date, sentBy: d.sent_by, teacherId: d.teacher_id
+        status: d.status, date: d.date, sentBy: d.sent_by, teacherId: d.teacher_id,
+        targetRole: d.target_role
     }));
     return sessionCache.messages;
 };

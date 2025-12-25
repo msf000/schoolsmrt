@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-    fetchSchools, updateSchool, deleteSchool,
-    fetchSystemUsers, updateSystemUser, deleteSystemUser,
+    fetchSchools, updateSchool, deleteSchool, addSchool,
+    fetchSystemUsers, updateSystemUser, deleteSystemUser, addSystemUser,
     fetchTeachers, updateTeacher,
     fetchAttendance, fetchPerformance, fetchStudents,
     checkConnection, downloadFromSupabase, getDatabaseSchemaSQL,
@@ -14,20 +14,9 @@ import {
     RefreshCw, Trash2, Edit, CheckCircle, Info, 
     AlertTriangle, CloudLightning, Crown, Search, UserCog, 
     Wifi, BarChart3, Bell, Send, Activity, Settings, Activity as Pulse,
-    Loader2
+    Loader2, X, Save, Plus, ChevronRight
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-
-const StatCard = ({ label, value, icon, color, subValue }: any) => (
-    <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
-        <div>
-            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
-            <h3 className="text-3xl font-black text-gray-800">{value}</h3>
-            {subValue && <p className="text-[10px] text-indigo-500 font-bold mt-1">{subValue}</p>}
-        </div>
-        <div className={`p-4 ${color} rounded-2xl shadow-inner`}>{icon}</div>
-    </div>
-);
 
 const AdminOverview = ({ stats, connectionSource, onLoad }: any) => {
     const pieData = [
@@ -94,6 +83,180 @@ const AdminOverview = ({ stats, connectionSource, onLoad }: any) => {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+};
+
+const StatCard = ({ label, value, icon, color, subValue }: any) => (
+    <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+        <div>
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
+            <h3 className="text-3xl font-black text-gray-800">{value}</h3>
+            {subValue && <p className="text-[10px] text-indigo-500 font-bold mt-1">{subValue}</p>}
+        </div>
+        <div className={`p-4 ${color} rounded-2xl shadow-inner`}>{icon}</div>
+    </div>
+);
+
+const SchoolsManager = () => {
+    const [schools, setSchools] = useState<School[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [editingSchool, setEditingSchool] = useState<School | null>(null);
+
+    useEffect(() => { load(); }, []);
+
+    const load = async () => {
+        setLoading(true);
+        const data = await fetchSchools();
+        setSchools(data);
+        setLoading(false);
+    };
+
+    const handleDelete = async (id: string) => {
+        if(confirm('سيتم حذف المدرسة وفك ارتباط جميع معلميها. هل أنت متأكد؟')) {
+            await deleteSchool(id);
+            load();
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingSchool) return;
+        await updateSchool(editingSchool);
+        setEditingSchool(null);
+        load();
+    };
+
+    if (loading) return <div className="p-10 text-center animate-pulse">جاري جلب قائمة المدارس...</div>;
+
+    return (
+        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden animate-fade-in">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 className="font-black text-gray-800 flex items-center gap-2"><Building size={18}/> إدارة المدارس والمنشآت ({schools.length})</h3>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-right text-sm">
+                    <thead className="bg-gray-100 text-gray-600 font-bold border-b">
+                        <tr><th className="p-4">اسم المدرسة</th><th className="p-4">الرمز الوزاري</th><th className="p-4">المدير المسجل</th><th className="p-4 text-center">الطلاب</th><th className="p-4 text-center">الإجراءات</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {schools.map(s => (
+                            <tr key={s.id} className="hover:bg-gray-50">
+                                <td className="p-4 font-bold text-indigo-700">{s.name}</td>
+                                <td className="p-4 font-mono font-bold text-slate-500">{s.ministryCode}</td>
+                                <td className="p-4 text-gray-600">{s.managerName}</td>
+                                <td className="p-4 text-center"><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">{s.studentCount}</span></td>
+                                <td className="p-4 flex justify-center gap-2">
+                                    <button onClick={() => setEditingSchool(s)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg"><Edit size={16}/></button>
+                                    <button onClick={() => handleDelete(s.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {editingSchool && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-zoom-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-gray-800">تعديل بيانات المدرسة</h3>
+                            <button onClick={() => setEditingSchool(null)}><X/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <input className="w-full p-3 border rounded-xl" value={editingSchool.name} onChange={e=>setEditingSchool({...editingSchool, name: e.target.value})} placeholder="اسم المدرسة"/>
+                            <input className="w-full p-3 border rounded-xl font-mono" value={editingSchool.ministryCode} onChange={e=>setEditingSchool({...editingSchool, ministryCode: e.target.value})} placeholder="الرمز الوزاري"/>
+                            <input className="w-full p-3 border rounded-xl" value={editingSchool.managerName} onChange={e=>setEditingSchool({...editingSchool, managerName: e.target.value})} placeholder="اسم المدير"/>
+                            <button onClick={handleSaveEdit} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg">حفظ التغييرات</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const UsersManager = () => {
+    const [users, setUsers] = useState<SystemUser[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
+
+    useEffect(() => { load(); }, []);
+
+    const load = async () => {
+        setLoading(true);
+        const data = await fetchSystemUsers();
+        setUsers(data);
+        setLoading(false);
+    };
+
+    const handleDelete = async (id: string) => {
+        if(confirm('حذف المستخدم نهائياً؟ لن يتمكن من تسجيل الدخول.')) {
+            await deleteSystemUser(id);
+            load();
+        }
+    };
+
+    const handleSaveUser = async () => {
+        if (!editingUser) return;
+        await updateSystemUser(editingUser);
+        setEditingUser(null);
+        load();
+    };
+
+    const filtered = users.filter(u => u.name.includes(search) || u.email.includes(search) || u.nationalId?.includes(search));
+
+    if (loading) return <div className="p-10 text-center animate-pulse">جاري جلب المستخدمين...</div>;
+
+    return (
+        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden animate-fade-in flex flex-col h-full">
+            <div className="p-4 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                <h3 className="font-black text-gray-800 flex items-center gap-2"><UserCog size={18}/> إدارة كافة المستخدمين</h3>
+                <div className="relative w-full md:w-64">
+                    <Search className="absolute right-3 top-2.5 text-gray-400" size={16}/>
+                    <input className="w-full pr-10 pl-4 py-2 border rounded-xl text-xs outline-none" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)}/>
+                </div>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <table className="w-full text-right text-xs">
+                    <thead className="bg-gray-100 text-gray-600 font-bold sticky top-0">
+                        <tr><th className="p-4">المستخدم</th><th className="p-4">الهوية</th><th className="p-4">الدور</th><th className="p-4 text-center">تحكم</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {filtered.map(u => (
+                            <tr key={u.id} className="hover:bg-gray-50">
+                                <td className="p-4 font-bold text-gray-800">{u.name}</td>
+                                <td className="p-4 text-gray-500 font-mono">{u.nationalId}</td>
+                                <td className="p-4"><span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold">{u.role}</span></td>
+                                <td className="p-4 text-center flex justify-center gap-2">
+                                    <button onClick={() => setEditingUser(u)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg"><Edit size={16}/></button>
+                                    <button onClick={() => handleDelete(u.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {editingUser && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-zoom-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-gray-800">تعديل حساب مستخدم</h3>
+                            <button onClick={() => setEditingUser(null)}><X/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <input className="w-full p-3 border rounded-xl" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name: e.target.value})} placeholder="الاسم"/>
+                            <select className="w-full p-3 border rounded-xl bg-gray-50" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role: e.target.value as any})}>
+                                <option value="TEACHER">معلم</option>
+                                <option value="SCHOOL_MANAGER">مدير مدرسة</option>
+                                <option value="SUPER_ADMIN">مسؤول نظام</option>
+                            </select>
+                            <button onClick={handleSaveUser} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg">حفظ التغييرات</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -184,8 +347,8 @@ const HealthMonitor = () => {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
             <HealthCard label="حالة قاعدة البيانات" value={health.db} icon={<Database className="text-indigo-600"/>}/>
-            <HealthCard label="زمن الاستجابة (Latency)" value={`${health.latency}ms`} icon={<Activity className="text-green-600"/>}/>
-            <HealthCard label="آخر مزامنة ناجحة" value={health.lastSync} icon={<RefreshCw className="text-blue-600"/>}/>
+            <HealthCard label="زمن الاستجابة" value={`${health.latency}ms`} icon={<Activity className="text-green-600"/>}/>
+            <HealthCard label="آخر مزامنة" value={health.lastSync} icon={<RefreshCw className="text-blue-600"/>}/>
         </div>
     );
 };
@@ -200,15 +363,65 @@ const HealthCard = ({ label, value, icon }: any) => (
     </div>
 );
 
+const DatabaseSettings = () => {
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
+
+    const handleForceSync = async () => {
+        setIsSyncing(true);
+        const res = await downloadFromSupabase();
+        setIsSyncing(false);
+        alert(res.success ? 'تم تحديث البيانات من السحابة بنجاح!' : 'فشل الاتصال بالسحابة.');
+    };
+
+    const handleTest = async () => {
+        setIsTesting(true);
+        const res = await checkConnection();
+        setIsTesting(false);
+        alert(res.success ? 'السحابة متصلة وسليمة ✅' : 'فشل في الوصول للسحابة ❌');
+    };
+
+    return (
+        <div className="space-y-8 animate-fade-in max-w-4xl mx-auto pb-10">
+            <div className="bg-white p-8 rounded-3xl border border-indigo-100 shadow-lg flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="p-4 bg-indigo-600 text-white rounded-3xl shadow-lg"><CloudLightning size={32}/></div>
+                    <div>
+                        <h3 className="text-xl font-black text-gray-800">تحكم قاعدة البيانات</h3>
+                        <p className="text-sm text-gray-500 font-medium">إدارة التزامن وتهيئة البنية التحتية السحابية.</p>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={handleTest} className="px-6 py-4 bg-white border border-gray-200 text-gray-700 rounded-2xl font-bold flex items-center gap-2 hover:bg-gray-50 shadow-sm transition-all">
+                        {isTesting ? <RefreshCw className="animate-spin" size={18}/> : <Wifi size={18}/>} اختبار
+                    </button>
+                    <button onClick={handleForceSync} disabled={isSyncing} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-2">
+                        {isSyncing ? <RefreshCw className="animate-spin" size={20}/> : <RefreshCw size={20}/>} تحديث سحابي
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-10 rounded-[3rem] relative overflow-hidden border-b-[8px] border-slate-950">
+                <h4 className="font-black text-2xl mb-4 flex items-center gap-3 text-indigo-400"><Database size={32}/> هيكلة الجداول (SQL)</h4>
+                <p className="text-sm text-gray-400 mb-8 leading-relaxed max-w-2xl">
+                    عند تهيئة مشروع Supabase جديد، استخدم هذا الكود لإنشاء الجداول المطلوبة.
+                </p>
+                <button onClick={()=>{navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ الكود!');}} className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-5 rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl">
+                    نسخ كود SQL للتهيئة
+                </button>
+            </div>
+        </div>
+    );
+};
+
 const AdminDashboard = () => {
-    const [view, setView] = useState<'OVERVIEW' | 'SCHOOLS' | 'USERS' | 'SUBS' | 'BROADCAST' | 'HEALTH' | 'DATABASE'>('OVERVIEW');
+    const [view, setView] = useState<'OVERVIEW' | 'SCHOOLS' | 'USERS' | 'BROADCAST' | 'HEALTH' | 'DATABASE'>('OVERVIEW');
     const [isLoading, setIsLoading] = useState(true);
     const [stats, setStats] = useState<any>({ schools: 0, teachers: 0, students: 0, users: 0, proTeachers: 0, attendanceToday: 0 });
 
     const connectionSource = useMemo(() => {
         if (import.meta.env.VITE_SUPABASE_URL) return 'VERCEL_ENV';
-        if (localStorage.getItem('custom_supabase_url')) return 'MANUAL_LOCAL';
-        return 'NOT_CONFIGURED';
+        return 'LOCAL_STORAGE';
     }, []);
 
     const loadStats = async () => {
@@ -226,7 +439,7 @@ const AdminDashboard = () => {
             setStats({ 
                 schools: sch.length, teachers: tea.length, students: std.length, 
                 users: usr.length, proTeachers: proCount, attendanceToday: attRate,
-                newSchools: 2,
+                newSchools: 1,
                 chartData: [
                     { name: 'الحضور', value: att.length },
                     { name: 'الدرجات', value: perf.length },
@@ -244,7 +457,7 @@ const AdminDashboard = () => {
             <div className="flex flex-col xl:flex-row justify-between items-center mb-8 gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-gray-800 flex items-center gap-3"><Shield className="text-indigo-600" size={36}/> الإدارة المركزية الذكية</h2>
-                    <p className="text-sm text-gray-400 font-bold mt-1 uppercase tracking-widest">منظومة المتابعة الشاملة v2.5</p>
+                    <p className="text-sm text-gray-400 font-bold mt-1 uppercase tracking-widest">منظومة المتابعة الشاملة</p>
                 </div>
                 <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm overflow-x-auto no-scrollbar max-w-full">
                     <button onClick={() => setView('OVERVIEW')} className={`px-6 py-3 rounded-xl text-[10px] font-black transition-all whitespace-nowrap ${view === 'OVERVIEW' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>الإحصائيات</button>
@@ -258,13 +471,18 @@ const AdminDashboard = () => {
             
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                 {isLoading ? (
-                    <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" size={48}/></div>
+                    <div className="h-full flex flex-col items-center justify-center gap-4">
+                        <Loader2 className="animate-spin text-indigo-600" size={48}/>
+                        <p className="font-bold text-gray-400">جاري مزامنة الإدارة العامة...</p>
+                    </div>
                 ) : (
                     <>
                         {view === 'OVERVIEW' && <AdminOverview stats={stats} connectionSource={connectionSource} onLoad={loadStats} />}
+                        {view === 'SCHOOLS' && <SchoolsManager />}
+                        {view === 'USERS' && <UsersManager />}
                         {view === 'BROADCAST' && <BroadcastManager />}
                         {view === 'HEALTH' && <HealthMonitor />}
-                        {/* المكونات الأخرى تظل كما هي لتحقيق الشمولية */}
+                        {view === 'DATABASE' && <DatabaseSettings />}
                     </>
                 )}
             </div>
