@@ -154,93 +154,66 @@ export const getStudents = () => sessionCache.students;
 export const getSchools = () => sessionCache.schools;
 export const getTeachers = () => sessionCache.teachers;
 export const getSystemUsers = () => sessionCache.systemUsers;
-
-// Fix: Add getAttendance to satisfy components/TeacherInbox.tsx
 export const getAttendance = () => sessionCache.attendance;
-
-// Fix: Add getSchedules to satisfy multiple components
 export const getSchedules = () => sessionCache.schedules;
-
-// Fix: Add getTasks to satisfy components/Dashboard.tsx and components/TasksManager.tsx
 export const getTasks = (tid?: string) => tid ? sessionCache.tasks.filter(t => t.teacherId === tid) : sessionCache.tasks;
-
-// Fix: Add getExams to satisfy components/ExamsManager.tsx and components/AutoGrading.tsx
 export const getExams = (tid?: string) => tid ? sessionCache.exams.filter(e => e.teacherId === tid) : sessionCache.exams;
-
-// Fix: Add getExamResults to satisfy components/ExamsManager.tsx
 export const getExamResults = (eid?: string) => eid ? sessionCache.examResults.filter(r => r.examId === eid) : sessionCache.examResults;
 
-// Fix: Add deleteExamResult to satisfy components/ExamsManager.tsx
 export const deleteExamResult = async (id: string) => {
     await supabase.from('exam_results').delete().eq('id', id);
     sessionCache.examResults = sessionCache.examResults.filter(r => r.id !== id);
 };
 
-// Fix: Add getQuestionBank to satisfy components/ExamsManager.tsx and components/QuestionBank.tsx
 export const getQuestionBank = (tid?: string) => tid ? sessionCache.questionBank.filter(q => q.teacherId === tid) : sessionCache.questionBank;
 
-// Fix: Add deleteQuestionFromBank to satisfy components/QuestionBank.tsx
 export const deleteQuestionFromBank = async (id: string) => {
     await supabase.from('question_bank').delete().eq('id', id);
     sessionCache.questionBank = sessionCache.questionBank.filter(q => q.id !== id);
 };
 
-// Fix: Add getCustomTables to satisfy components/DataImport.tsx and components/CustomTablesView.tsx
 export const getCustomTables = (tid?: string) => tid ? sessionCache.customTables.filter(t => t.teacherId === tid) : sessionCache.customTables;
 
-// Fix: Add deleteCustomTable to satisfy components/DataImport.tsx and components/CustomTablesView.tsx
 export const deleteCustomTable = async (id: string) => {
     await supabase.from('custom_tables').delete().eq('id', id);
     sessionCache.customTables = sessionCache.customTables.filter(t => t.id !== id);
 };
 
-// Fix: Add getLessonLinks to satisfy components/ClassroomScreen.tsx and components/ResourcesView.tsx
 export const getLessonLinks = () => sessionCache.lessonLinks;
 
-// Fix: Add deleteLessonLink to satisfy components/ResourcesView.tsx
 export const deleteLessonLink = async (id: string) => {
     await supabase.from('lesson_links').delete().eq('id', id);
     sessionCache.lessonLinks = sessionCache.lessonLinks.filter(l => l.id !== id);
 };
 
-// Fix: Add getWeeklyPlans to satisfy components/ClassroomScreen.tsx and components/ScheduleView.tsx
 export const getWeeklyPlans = (tid?: string) => tid ? sessionCache.weeklyPlans.filter(p => p.teacherId === tid) : sessionCache.weeklyPlans;
-
-// Fix: Add getEnvironmentRecords to satisfy components/ClassroomManager.tsx
 export const getEnvironmentRecords = (classId?: string) => classId ? sessionCache.environmentRecords.filter(e => e.classId === classId) : sessionCache.environmentRecords;
 
-// Fix: Add deleteLessonPlan to satisfy components/LessonPlanning.tsx
 export const deleteLessonPlan = async (id: string) => {
     await supabase.from('lesson_plans').delete().eq('id', id);
     sessionCache.lessonPlans = sessionCache.lessonPlans.filter(p => p.id !== id);
 };
 
-// Fix: Add getTrackingSheets to satisfy components/FlexibleTrackingSheet.tsx
 export const getTrackingSheets = (tid?: string) => tid ? sessionCache.trackingSheets.filter(s => s.teacherId === tid) : sessionCache.trackingSheets;
 
-// Fix: Add deleteTrackingSheet to satisfy components/FlexibleTrackingSheet.tsx
 export const deleteTrackingSheet = async (id: string) => {
     await supabase.from('tracking_sheets').delete().eq('id', id);
     sessionCache.trackingSheets = sessionCache.trackingSheets.filter(s => s.id !== id);
 };
 
-// Fix: Add getFormsDetailedResults to satisfy components/FormsAnalyzer.tsx
 export const getFormsDetailedResults = (tid?: string) => tid ? sessionCache.formsResults.filter(r => r.teacherId === tid) : sessionCache.formsResults;
 
-// Fix: Add deleteFormsDetailedResult to satisfy components/FormsAnalyzer.tsx
 export const deleteFormsDetailedResult = async (id: string) => {
     await supabase.from('forms_results').delete().eq('id', id);
     sessionCache.formsResults = sessionCache.formsResults.filter(r => r.id !== id);
 };
 
-// Fix: Add updateStudentLearningStyle to satisfy components/LearningLab.tsx and components/StudentLearningTest.tsx
 export const updateStudentLearningStyle = async (id: string, style: LearningStyle) => {
     await supabase.from('students').update({ learning_style: style }).eq('id', id);
     const idx = sessionCache.students.findIndex(s => s.id === id);
     if (idx !== -1) sessionCache.students[idx].learningStyle = style;
 };
 
-// Fix: Add saveEnvironmentRecord to satisfy components/LearningLab.tsx
 export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
     await supabase.from('environment_records').upsert({
         id: r.id, teacher_id: r.teacherId, class_id: r.classId, date: r.date,
@@ -249,28 +222,19 @@ export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
     sessionCache.environmentRecords = [r, ...sessionCache.environmentRecords.filter(e => e.id !== r.id)];
 };
 
-// Fix: Add getWorksMasterUrl to satisfy components/WorksTracking.tsx
 export const getWorksMasterUrl = () => localStorage.getItem(KEYS.WORKS_MASTER_URL) || '';
-
-// Fix: Add saveWorksMasterUrl to satisfy components/WorksTracking.tsx
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem(KEYS.WORKS_MASTER_URL, url);
 
-// Fix: Add deleteAssignment to satisfy components/WorksTracking.tsx
 export const deleteAssignment = async (id: string) => {
     await supabase.from('assignments').delete().eq('id', id);
     sessionCache.actualAssignments = sessionCache.actualAssignments.filter(a => a.id !== id);
 };
 
-// Fix: Add setSystemMode to satisfy components/Login.tsx
 export const setSystemMode = (mode: boolean) => localStorage.setItem(KEYS.SYSTEM_MODE, JSON.stringify(mode));
-
-// Fix: Add saveUserTheme to satisfy components/SchoolManagement.tsx
 export const saveUserTheme = (theme: UserTheme) => localStorage.setItem(KEYS.USER_THEME, JSON.stringify(theme));
 
-// Fix: Add getCurriculumUnits to satisfy components/CurriculumManager.tsx
 export const getCurriculumUnits = (tid?: string) => tid ? sessionCache.curriculumUnits.filter(u => u.teacherId === tid) : sessionCache.curriculumUnits;
 
-// Fix: Add saveCurriculumUnit to satisfy components/CurriculumManager.tsx
 export const saveCurriculumUnit = async (u: CurriculumUnit) => {
     await supabase.from('curriculum_units').upsert({
         id: u.id, teacher_id: u.teacherId, subject: u.subject, grade_level: u.gradeLevel, title: u.title, order_index: u.orderIndex
@@ -278,16 +242,13 @@ export const saveCurriculumUnit = async (u: CurriculumUnit) => {
     sessionCache.curriculumUnits = [...sessionCache.curriculumUnits.filter(item => item.id !== u.id), u];
 };
 
-// Fix: Add deleteCurriculumUnit to satisfy components/CurriculumManager.tsx
 export const deleteCurriculumUnit = async (id: string) => {
     await supabase.from('curriculum_units').delete().eq('id', id);
     sessionCache.curriculumUnits = sessionCache.curriculumUnits.filter(u => u.id !== id);
 };
 
-// Fix: Add getCurriculumLessons to satisfy components/CurriculumManager.tsx
 export const getCurriculumLessons = () => sessionCache.curriculumLessons;
 
-// Fix: Add saveCurriculumLesson to satisfy components/CurriculumManager.tsx
 export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     await supabase.from('curriculum_lessons').upsert({
         id: l.id, unit_id: l.unitId, title: l.title, order_index: l.orderIndex,
@@ -297,13 +258,11 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     sessionCache.curriculumLessons = [...sessionCache.curriculumLessons.filter(item => item.id !== l.id), l];
 };
 
-// Fix: Add deleteCurriculumLesson to satisfy components/CurriculumManager.tsx
 export const deleteCurriculumLesson = async (id: string) => {
     await supabase.from('curriculum_lessons').delete().eq('id', id);
     sessionCache.curriculumLessons = sessionCache.curriculumLessons.filter(l => l.id !== id);
 };
 
-// Fix: Add toggleCurriculumLesson to satisfy components/CurriculumManager.tsx
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => {
     const completedAt = completed ? new Date().toISOString() : null;
     await supabase.from('curriculum_lessons').update({ is_completed: completed, completed_at: completedAt }).eq('id', id);
@@ -314,7 +273,6 @@ export const toggleCurriculumLesson = async (id: string, completed: boolean) => 
     }
 };
 
-// Fix: Add fetchCurriculumUnits to satisfy App.tsx refresh logic
 export const fetchCurriculumUnits = async (tid?: string) => {
     let q = supabase.from('curriculum_units').select('*');
     if (tid) q = q.eq('teacher_id', tid);
@@ -325,7 +283,6 @@ export const fetchCurriculumUnits = async (tid?: string) => {
     return sessionCache.curriculumUnits;
 };
 
-// Fix: Add fetchCurriculumLessons to satisfy App.tsx refresh logic
 export const fetchCurriculumLessons = async (unitId?: string) => {
     let q = supabase.from('curriculum_lessons').select('*');
     if (unitId) q = q.eq('unit_id', unitId);
@@ -348,10 +305,11 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
         id: d.id, studentId: d.student_id, date: d.date, status: d.status,
         subject: d.subject, period: d.period, behaviorStatus: d.behavior_status,
         behaviorNote: d.behavior_note, participationScore: d.participation_score,
-        excuse_note: d.excuse_note, createdById: d.created_by_id
+        excuseNote: d.excuse_note, createdById: d.created_by_id
     }));
     return sessionCache.attendance;
 };
+
 export const saveAttendance = async (recs: AttendanceRecord[]) => {
     const dbObjs = recs.map(r => ({
         id: r.id, student_id: r.studentId, date: r.date, status: r.status,
@@ -361,6 +319,7 @@ export const saveAttendance = async (recs: AttendanceRecord[]) => {
     }));
     await supabase.from('attendance').upsert(dbObjs);
 };
+
 export const deleteAttendance = async (id: string) => {
     await supabase.from('attendance').delete().eq('id', id);
 };
@@ -377,6 +336,7 @@ export const fetchPerformance = async (teacherId?: string): Promise<PerformanceR
     }));
     return sessionCache.performance;
 };
+
 export const addPerformance = async (recs: PerformanceRecord | PerformanceRecord[]) => {
     const items = Array.isArray(recs) ? recs : [recs];
     const dbObjs = items.map(r => ({
@@ -386,6 +346,7 @@ export const addPerformance = async (recs: PerformanceRecord | PerformanceRecord
     }));
     await supabase.from('performance').upsert(dbObjs);
 };
+
 export const deletePerformance = async (id: string) => {
     await supabase.from('performance').delete().eq('id', id);
 };
@@ -397,6 +358,7 @@ export const updateSystemUser = async (u: SystemUser) => {
         role: u.role, school_id: u.schoolId, status: u.status
     }).eq('id', u.id);
 };
+
 export const deleteSystemUser = async (id: string) => {
     await supabase.from('system_users').delete().eq('id', id);
 };
@@ -414,9 +376,11 @@ export const updateSchool = async (s: School) => {
         manager_national_id: s.managerNationalId, education_administration: s.educationAdministration
     }).eq('id', s.id);
 };
+
 export const deleteSchool = async (id: string) => {
     await supabase.from('schools').delete().eq('id', id);
 };
+
 export const addSchool = async (s: School) => {
     await supabase.from('schools').insert({
         id: s.id, name: s.name, ministry_code: s.ministryCode, manager_name: s.managerName,
@@ -428,15 +392,19 @@ export const addSchool = async (s: School) => {
 export const updateTeacher = async (t: Teacher) => {
     await supabase.from('teachers').update({
         name: t.name, phone: t.phone, subject_specialty: t.subjectSpecialty,
-        school_id: t.schoolId, subscription_status: t.subscriptionStatus,
+        school_id: t.schoolId, 
+        manager_id: t.managerId,
+        subscription_status: t.subscriptionStatus,
         subscription_end_date: t.subscriptionEndDate
     }).eq('id', t.id);
 };
+
 export const addTeacher = async (t: Teacher) => {
+    // Corrected: manager_id: t.managerId (Fixed the build error TS2551)
     await supabase.from('teachers').insert({
         id: t.id, name: t.name, national_id: t.nationalId, email: t.email,
         phone: t.phone, subject_specialty: t.subjectSpecialty, password: t.password,
-        school_id: t.schoolId, manager_id: t.manager_id, subscription_status: t.subscriptionStatus
+        school_id: t.schoolId, manager_id: t.managerId, subscription_status: t.subscriptionStatus
     });
     await addSystemUser({
         id: t.id, name: t.name, email: t.email || `t.${t.nationalId}@system.local`,
@@ -457,6 +425,7 @@ export const fetchTasks = async (tid?: string) => {
     }));
     return sessionCache.tasks;
 };
+
 export const saveTask = async (t: Task) => {
     await supabase.from('tasks').upsert({
         id: t.id, teacher_id: t.teacherId, class_id: t.classId, subject: t.subject,
@@ -478,12 +447,14 @@ export const fetchAssignments = async (tid?: string) => {
     }));
     return sessionCache.actualAssignments;
 };
+
 export const getAssignments = (category?: string, tid?: string, isManager?: boolean) => {
     let list = sessionCache.actualAssignments;
     if (tid && !isManager) list = list.filter((a: Assignment) => a.teacherId === tid);
     if (category && category !== 'ALL') list = list.filter((a: Assignment) => a.category === category);
     return list;
 };
+
 export const saveAssignment = async (a: Assignment) => {
     await supabase.from('assignments').upsert({
         id: a.id, title: a.title, category: a.category, max_score: a.maxScore,
@@ -508,6 +479,7 @@ export const initAutoSync = async () => {
 export const deleteStudent = async (id: string) => {
     await supabase.from('students').delete().eq('id', id);
 };
+
 export const addStudent = async (s: Student) => {
     await supabase.from('students').insert({
         id: s.id, name: s.name, national_id: s.nationalId, class_id: s.classId,
@@ -518,6 +490,7 @@ export const addStudent = async (s: Student) => {
         learning_style: s.learningStyle, behavior_points: s.behaviorPoints
     });
 };
+
 export const updateStudent = async (s: Student) => {
     await supabase.from('students').update({
         name: s.name, national_id: s.nationalId, grade_level: s.gradeLevel,
@@ -535,12 +508,14 @@ export const fetchSchedules = async (tid: string) => {
     }));
     return sessionCache.schedules;
 };
+
 export const saveScheduleItem = async (s: ScheduleItem) => {
     await supabase.from('schedules').upsert({
         id: s.id, teacher_id: s.teacherId, class_id: s.classId,
         subject_name: s.subjectName, day: s.day, period: s.period
     });
 };
+
 export const deleteScheduleItem = async (id: string) => {
     await supabase.from('schedules').delete().eq('id', id);
 };
@@ -552,12 +527,15 @@ export const fetchTeacherAssignments = async (tid: string) => {
     }));
     return sessionCache.assignments;
 };
+
 export const getTeacherAssignments = (tid?: string) => tid ? sessionCache.assignments.filter(a => a.teacherId === tid) : sessionCache.assignments;
+
 export const addTeacherAssignment = async (a: TeacherAssignment) => {
     await supabase.from('teacher_class_map').insert({
         id: a.id, teacher_id: a.teacherId, class_id: a.classId, subject_name: a.subjectName
     });
 };
+
 export const deleteTeacherAssignment = async (id: string) => {
     await supabase.from('teacher_class_map').delete().eq('id', id);
 };
@@ -573,16 +551,20 @@ export const fetchAcademicTerms = async (tid?: string) => {
     }));
     return sessionCache.academicTerms;
 };
+
 export const getAcademicTerms = (tid?: string) => tid ? sessionCache.academicTerms.filter(t => t.teacherId === tid) : sessionCache.academicTerms;
+
 export const saveAcademicTerm = async (t: AcademicTerm) => {
     await supabase.from('academic_terms').upsert({
         id: t.id, name: t.name, start_date: t.startDate, end_date: t.endDate,
         is_current: t.isCurrent, teacher_id: t.teacherId, periods: JSON.stringify(t.periods)
     });
 };
+
 export const deleteAcademicTerm = async (id: string) => {
     await supabase.from('academic_terms').delete().eq('id', id);
 };
+
 export const setCurrentTerm = async (id: string, teacherId: string) => {
     await supabase.from('academic_terms').update({ is_current: false }).eq('teacher_id', teacherId);
     await supabase.from('academic_terms').update({ is_current: true }).eq('id', id);
@@ -593,10 +575,13 @@ export const fetchSubjects = async (tid: string) => {
     sessionCache.subjects = (data || []).map((d: any) => ({ id: d.id, name: d.name, teacherId: d.teacher_id }));
     return sessionCache.subjects;
 };
+
 export const getSubjects = (tid?: string) => tid ? sessionCache.subjects.filter(s => s.teacherId === tid) : sessionCache.subjects;
+
 export const addSubject = async (s: Subject) => {
     await supabase.from('subjects').insert({ id: s.id, name: s.name, teacher_id: s.teacherId });
 };
+
 export const deleteSubject = async (id: string) => {
     await supabase.from('subjects').delete().eq('id', id);
 };
@@ -611,7 +596,9 @@ export const fetchBehaviorIncidents = async (tid?: string) => {
     }));
     return sessionCache.behavior;
 };
+
 export const getBehaviorIncidents = (tid?: string) => tid ? sessionCache.behavior.filter(i => i.teacherId === tid) : sessionCache.behavior;
+
 export const saveBehaviorIncident = async (i: BehaviorIncident) => {
     await supabase.from('behavior_incidents').upsert({
         id: i.id, student_id: i.studentId, teacher_id: i.teacherId, type: i.type,
@@ -630,6 +617,7 @@ export const fetchExams = async (tid?: string) => {
     }));
     return sessionCache.exams;
 };
+
 export const saveExam = async (e: Exam) => {
     await supabase.from('exams').upsert({
         id: e.id, title: e.title, subject: e.subject, grade_level: e.gradeLevel,
@@ -637,6 +625,7 @@ export const saveExam = async (e: Exam) => {
         is_active: e.isActive, created_at: e.createdAt, teacher_id: e.teacherId, date: e.date
     });
 };
+
 export const deleteExam = async (id: string) => {
     await supabase.from('exams').delete().eq('id', id);
 };
@@ -664,7 +653,9 @@ export const fetchMessages = async (tid?: string) => {
     }));
     return sessionCache.messages;
 };
+
 export const getMessages = (tid?: string) => tid ? sessionCache.messages.filter(m => m.teacherId === tid) : sessionCache.messages;
+
 export const saveMessage = async (m: MessageLog) => {
     await supabase.from('messages').insert({
         id: m.id, student_id: m.studentId, student_name: m.studentName,
@@ -682,6 +673,7 @@ export const fetchCustomTables = async (tid: string) => {
     }));
     return sessionCache.customTables;
 };
+
 export const addCustomTable = async (t: CustomTable) => {
     await supabase.from('custom_tables').insert({
         id: t.id, name: t.name, created_at: t.createdAt, columns: JSON.stringify(t.columns), rows: JSON.stringify(t.rows),
@@ -700,6 +692,7 @@ export const fetchQuestionBank = async (tid?: string) => {
     }));
     return sessionCache.questionBank;
 };
+
 export const saveQuestionToBank = async (q: Question) => {
     await supabase.from('question_bank').upsert({
         id: q.id, text: q.text, type: q.type, options: JSON.stringify(q.options),
@@ -720,6 +713,7 @@ export const fetchFormsDetailedResults = async (tid?: string) => {
     }));
     return sessionCache.formsResults;
 };
+
 export const saveFormsDetailedResult = async (r: FormsDetailedResult) => {
     await supabase.from('forms_results').upsert({
         id: r.id, exam_title: r.examTitle, class_name: r.className,
@@ -734,6 +728,7 @@ export const saveRemedialPlan = async (p: RemedialPlan) => {
         subject: p.subject, topic: p.topic, content: p.content, date: p.date
     });
 };
+
 export const getRemedialPlans = () => sessionCache.remedialPlans;
 
 export const saveLessonLink = async (l: LessonLink) => {
@@ -750,6 +745,7 @@ export const saveLessonPlan = async (p: StoredLessonPlan) => {
         resources: JSON.stringify(p.resources), created_at: p.createdAt
     });
 };
+
 export const getLessonPlans = (tid?: string) => tid ? sessionCache.lessonPlans.filter(p => p.teacherId === tid) : sessionCache.lessonPlans;
 
 export const saveWeeklyPlanItem = async (p: WeeklyPlanItem) => {
