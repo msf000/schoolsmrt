@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { authenticateUser, getStudents, setSystemMode, authenticateStudent, initAutoSync } from '../services/storageService';
 import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, RefreshCw, CloudLightning } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, GraduationCap, Eye, EyeOff, User, Phone, RefreshCw, CloudLightning, Info } from 'lucide-react';
 import TeacherRegistration from './TeacherRegistration';
 
 interface LoginProps {
@@ -43,6 +44,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     try {
         const cleanIdentifier = identifier.trim();
+        
+        // دعم دخول الطوارئ admin / admin إذا لم تكن السحابة مهيأة
+        if (cleanIdentifier === 'admin' && password === 'admin' && !isSupabaseConfigured()) {
+            onLoginSuccess({ id: 'super_admin_001', name: 'مدير النظام (تجريبي)', email: 'admin@system.local', role: 'SUPER_ADMIN', status: 'ACTIVE' }, rememberMe);
+            return;
+        }
+
         if (roleMode === 'PARENT') {
             const allStudents = getStudents();
             const children = allStudents.filter(s => s.parentPhone === cleanIdentifier || s.parentPhone?.replace(/\s/g, '') === cleanIdentifier);
@@ -64,7 +72,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (user) {
             onLoginSuccess(user, rememberMe);
         } else {
-            setError('بيانات الدخول غير صحيحة أو السحابة غير متصلة.');
+            setError('بيانات الدخول غير صحيحة. يرجى التأكد من ربط Supabase أو استخدم admin/admin للتجربة.');
             setLoading(false);
         }
     } catch (e: any) {
@@ -85,8 +93,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
           )}
           {!isSupabaseConfigured() && (
-             <div className="bg-red-50 text-red-600 px-3 py-1.5 rounded-full text-[10px] font-black border border-red-100 shadow-sm flex items-center gap-2">
-                <CloudLightning size={12}/> السحابة غير مهيأة
+             <div className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-[10px] font-black border border-amber-100 shadow-sm flex items-center gap-2">
+                <CloudLightning size={12}/> وضع الطوارئ متاح
              </div>
           )}
       </div>
@@ -101,6 +109,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <h1 className="text-3xl font-black text-gray-900 mb-2">المتابع الذكي</h1>
                 <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">منصة الإدارة المدرسية الموحدة</p>
             </div>
+
+            {!isSupabaseConfigured() && (
+                <div className="mb-6 bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3">
+                    <Info className="text-blue-600 shrink-0" size={18}/>
+                    <p className="text-[11px] text-blue-800 font-bold leading-relaxed">
+                        السحابة غير متصلة. يمكنك الدخول الآن باستخدام:<br/>
+                        اسم المستخدم: <span className="font-black">admin</span> | كلمة المرور: <span className="font-black">admin</span>
+                    </p>
+                </div>
+            )}
 
             <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8">
                 <button onClick={() => setRoleMode('STAFF')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${roleMode === 'STAFF' ? 'bg-white text-indigo-700 shadow-xl' : 'text-gray-400'}`}>المعلمين</button>
@@ -146,7 +164,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <div className="mt-8 text-center space-y-4">
                 {roleMode === 'STAFF' && <button onClick={() => setView('REGISTER')} className="text-indigo-600 font-black text-xs hover:underline flex items-center justify-center gap-2 mx-auto bg-indigo-50 px-4 py-2 rounded-xl transition-colors">ليس لديك حساب؟ سجل كمعلم جديد</button>}
                 <div className="flex justify-center gap-4 text-[10px] text-gray-300 font-bold uppercase tracking-widest">
-                    <span className="flex items-center gap-1"><CloudLightning size={10}/> Cloud Sync Enabled</span>
                     <span>&copy; 2025 Smart School System</span>
                 </div>
             </div>
