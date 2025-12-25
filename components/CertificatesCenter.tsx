@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, SystemUser, School, AttendanceRecord, AttendanceStatus, BehaviorStatus, ReportHeaderConfig, AcademicTerm, TeacherAssignment } from '../types';
 import { getSchools, getAcademicTerms, getReportHeaderConfig, getTeacherAssignments } from '../services/storageService';
@@ -30,7 +31,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
 
     const [schoolInfo, setSchoolInfo] = useState<School | undefined>(() => {
         const schools = getSchools();
-        if (currentUser?.schoolId) return schools.find(s => s.id === currentUser.schoolId);
+        if (currentUser?.schoolId) return schools.find((s: School) => s.id === currentUser.schoolId);
         return undefined;
     });
 
@@ -48,7 +49,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
             if (ids && ids.length > 0) {
                 setSelectedStudents(new Set(ids));
                 // Optional: Set class filter if all students are in same class
-                const firstStudent = students.find(s => s.id === ids[0]);
+                const firstStudent = students.find((s: Student) => s.id === ids[0]);
                 if(firstStudent && firstStudent.className) setFilterClass(firstStudent.className);
             }
         }
@@ -56,7 +57,7 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
 
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
-        students.forEach(s => s.className && classes.add(s.className));
+        students.forEach(s => { if (s.className) classes.add(s.className); });
         // Add manual classes
         const manualClasses = getTeacherAssignments(currentUser?.id).map((a: TeacherAssignment) => a.classId);
         manualClasses.forEach((c: string) => classes.add(c));

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Teacher, School, SystemUser } from '../types';
 import { addTeacher, getTeachers, getSchools, addSchool, addSystemUser, fetchSchools, fetchSystemUsers } from '../services/storageService';
@@ -49,7 +50,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
     useEffect(() => {
         if (formData.schoolCode.length >= 3) {
             const schools = getSchools();
-            const match = schools.find(s => s.ministryCode === formData.schoolCode);
+            const match = schools.find((s: School) => s.ministryCode === formData.schoolCode);
             setFoundSchool(match || null);
         } else {
             setFoundSchool(null);
@@ -97,7 +98,7 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
         }
 
         const teachers = getTeachers();
-        const exists = teachers.find(t => t.nationalId === formData.nationalId || t.email === formData.email);
+        const exists = teachers.find((t: Teacher) => t.nationalId === formData.nationalId || t.email === formData.email);
         if (exists) {
             setError('رقم الهوية أو البريد الإلكتروني مسجل مسبقاً.');
             setLoading(false);

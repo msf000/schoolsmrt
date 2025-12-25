@@ -15,7 +15,7 @@ const TeacherSubscription: React.FC<TeacherSubscriptionProps> = ({ currentUser, 
 
     useEffect(() => {
         const teachers = getTeachers();
-        const me = teachers.find(t => 
+        const me = teachers.find((t: Teacher) => 
             (t.nationalId && t.nationalId === currentUser.nationalId) || 
             (t.email && t.email === currentUser.email)
         );

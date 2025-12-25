@@ -92,18 +92,18 @@ export const SchoolManagement: React.FC<SchoolManagementProps> = ({ currentUser,
       if (isManager) {
           // Fix: getSchools is now synchronous using local cache
           const allSchools = getSchools();
-          let school = allSchools.find(s => s.managerNationalId === currentUser?.nationalId || s.managerName === currentUser?.name);
+          let school = allSchools.find((s: School) => s.managerNationalId === currentUser?.nationalId || s.managerName === currentUser?.name);
           if (!school && currentUser?.role === 'SUPER_ADMIN' && allSchools.length > 0) school = allSchools[0];
           setMySchool(school || null);
       } else {
           let me: Teacher | undefined;
-          if (currentUser?.id) me = allTeachers.find(t => t.id === currentUser.id);
-          if (!me) me = allTeachers.find(t => (currentUser?.nationalId && t.nationalId === currentUser.nationalId) || (currentUser?.email && t.email === currentUser.email));
+          if (currentUser?.id) me = allTeachers.find((t: Teacher) => t.id === currentUser.id);
+          if (!me) me = allTeachers.find((t: Teacher) => (currentUser?.nationalId && t.nationalId === currentUser.nationalId) || (currentUser?.email && t.email === currentUser.email));
           if (me) {
               setTeacherProfile(me);
               if (me.schoolId) {
                   const schools = getSchools();
-                  const school = schools.find(s => s.id === me.schoolId);
+                  const school = schools.find((s: School) => s.id === me!.schoolId);
                   setMySchool(school || null);
               } else { setMySchool(null); }
           }
