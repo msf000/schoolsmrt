@@ -67,6 +67,7 @@ export const generateStudentAvatar = async (studentName: string, learningStyle: 
             }
         }
     } catch { return null; }
+    return null;
 };
 
 export const generateBadgeImage = async (prompt: string) => {
@@ -85,6 +86,7 @@ export const generateBadgeImage = async (prompt: string) => {
             }
         }
     } catch { return null; }
+    return null;
 };
 
 export const generateNarrativeInsights = async (stats: any) => {
