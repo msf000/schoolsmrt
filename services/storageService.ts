@@ -1,3 +1,4 @@
+
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -21,10 +22,10 @@ export const KEYS = {
 // --- هيكلة الأعمدة المطلوبة لكل جدول للفحص المعمق ---
 const REQUIRED_SCHEMA = {
     schools: ['id', 'name', 'ministry_code', 'manager_name', 'manager_national_id', 'type', 'phone', 'student_count', 'education_administration'],
-    system_users: ['id', 'name', 'email', 'national_id', 'password', 'role', 'school_id', 'status', 'phone'],
-    students: ['id', 'name', 'national_id', 'class_id', 'school_id', 'grade_level', 'class_name', 'email', 'phone', 'parent_phone', 'password', 'xp', 'level', 'behavior_points'],
-    attendance: ['id', 'student_id', 'date', 'status', 'subject', 'period', 'created_by_id'],
-    performance: ['id', 'student_id', 'subject', 'title', 'score', 'max_score', 'date', 'created_by_id']
+    system_users: ['id', 'name', 'email', 'national_id', 'password', 'role', 'school_id', 'status', 'phone', 'subject_specialty', 'subscription_status'],
+    students: ['id', 'name', 'national_id', 'class_id', 'school_id', 'grade_level', 'class_name', 'email', 'phone', 'parent_phone', 'password', 'xp', 'level', 'behavior_points', 'streak', 'learning_style', 'badges', 'purchased_rewards'],
+    attendance: ['id', 'student_id', 'date', 'status', 'subject', 'period', 'created_by_id', 'behavior_status', 'behavior_note', 'participation_score', 'excuse_note'],
+    performance: ['id', 'student_id', 'subject', 'title', 'score', 'max_score', 'date', 'created_by_id', 'category', 'notes']
 };
 
 // --- فحص صحة النظام السحابي المعمق ---
@@ -36,18 +37,16 @@ export const getCloudSystemStatus = async () => {
         let errorMessage = '';
 
         try {
+            // فحص وجود الجدول والأعمدة دفعة واحدة
             const { error } = await supabase.from(tableId).select(columns.join(',')).limit(1);
             
             if (error) {
                 tableStatus = 'ERROR';
                 errorMessage = error.message;
-                if (error.message.includes('column')) {
-                    for (const col of columns) {
-                        const { error: colErr } = await supabase.from(tableId).select(col).limit(1);
-                        colStatus[col] = !colErr;
-                    }
-                } else {
-                    columns.forEach(c => colStatus[c] = false);
+                // إذا كان الخطأ بسبب عمود مفقود، نفحص كل عمود على حدة لتحديد الناقص
+                for (const col of columns) {
+                    const { error: colErr } = await supabase.from(tableId).select(col).limit(1);
+                    colStatus[col] = !colErr;
                 }
             } else {
                 columns.forEach(c => colStatus[c] = true);
@@ -260,7 +259,6 @@ export const addSystemUser = async (u: SystemUser) => await supabase.from('syste
     role: u.role, school_id: u.schoolId, status: u.status, phone: u.phone 
 });
 
-/* Fix: Kept only the first unique declaration of updateSystemUser and removed redeclarations below */
 export const updateSystemUser = async (u: SystemUser) => await supabase.from('system_users').update({
     name: u.name, email: u.email, national_id: u.nationalId, role: u.role, status: u.status, phone: u.phone
 }).eq('id', u.id);
@@ -280,8 +278,9 @@ export const deleteAttendance = async (id: string) => await supabase.from('atten
 export const deletePerformance = async (id: string) => await supabase.from('performance').delete().eq('id', id);
 export const deleteSchool = async (id: string) => await supabase.from('schools').delete().eq('id', id);
 
-// --- إدارة النظام (SQL Setup) ---
+// --- إدارة النظام (SQL Setup & Migration) ---
 export const getDatabaseSchemaSQL = () => `
+-- 1. جدول المدارس
 CREATE TABLE IF NOT EXISTS schools (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -294,6 +293,11 @@ CREATE TABLE IF NOT EXISTS schools (
     education_administration TEXT
 );
 
+-- تحديث الأعمدة في حال وجود جدول قديم
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS education_administration TEXT;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS student_count INTEGER DEFAULT 0;
+
+-- 2. جدول المستخدمين
 CREATE TABLE IF NOT EXISTS system_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -308,6 +312,11 @@ CREATE TABLE IF NOT EXISTS system_users (
     subscription_status TEXT DEFAULT 'FREE'
 );
 
+ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subject_specialty TEXT;
+ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'FREE';
+ALTER TABLE system_users ADD COLUMN IF NOT EXISTS phone TEXT;
+
+-- 3. جدول الطلاب
 CREATE TABLE IF NOT EXISTS students (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -333,6 +342,16 @@ CREATE TABLE IF NOT EXISTS students (
     streak INTEGER DEFAULT 0
 );
 
+ALTER TABLE students ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS behavior_points INTEGER DEFAULT 0;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS badges JSONB DEFAULT '[]';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS purchased_rewards JSONB DEFAULT '[]';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS learning_style TEXT DEFAULT 'UNKNOWN';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone TEXT;
+
+-- 4. جدول الحضور
 CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -347,6 +366,13 @@ CREATE TABLE IF NOT EXISTS attendance (
     created_by_id TEXT REFERENCES system_users(id) ON DELETE SET NULL
 );
 
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS behavior_status TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS behavior_note TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS participation_score INTEGER DEFAULT 0;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_note TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS period INTEGER;
+
+-- 5. جدول الأداء والدرجات
 CREATE TABLE IF NOT EXISTS performance (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -361,6 +387,11 @@ CREATE TABLE IF NOT EXISTS performance (
     url TEXT
 );
 
+ALTER TABLE performance ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE performance ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE performance ADD COLUMN IF NOT EXISTS url TEXT;
+
+-- تعطيل RLS لتسهيل الاستخدام المباشر (يمكن تفعيله لاحقاً للأمان العالي)
 ALTER TABLE schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE system_users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE students DISABLE ROW LEVEL SECURITY;
