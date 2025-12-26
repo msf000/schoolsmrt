@@ -83,16 +83,14 @@ export interface SystemUser {
   status: 'ACTIVE' | 'INACTIVE'; 
   phone?: string; 
   subjectSpecialty?: string;
-  subscriptionStatus?: 'FREE' | 'PRO';
+  subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE';
 }
 
-// Added Teacher interface extending SystemUser
 export interface Teacher extends SystemUser {
   managerId?: string;
   subscriptionEndDate?: string;
 }
 
-// Added Subject interface
 export interface Subject {
   id: string;
   name: string;
@@ -101,7 +99,6 @@ export interface Subject {
 
 export enum AttendanceStatus { PRESENT = 'PRESENT', ABSENT = 'ABSENT', LATE = 'LATE', EXCUSED = 'EXCUSED' }
 
-// Added BehaviorStatus enum
 export enum BehaviorStatus {
   POSITIVE = 'POSITIVE',
   NEGATIVE = 'NEGATIVE',
@@ -133,7 +130,6 @@ export interface PerformanceRecord {
   date: string; 
   notes?: string; 
   createdById?: string; 
-  // Added url property to fix property access error
   url?: string;
 }
 
@@ -162,7 +158,6 @@ export interface Task {
     submissions: string[];
 }
 
-// Added Question interface used in exams and question bank
 export interface Question {
   id: string;
   text: string;
@@ -175,7 +170,6 @@ export interface Question {
   teacherId?: string;
 }
 
-// Added Assignment interface for performance tracking
 export interface Assignment {
   id: string;
   title: string;
@@ -219,7 +213,6 @@ export interface UserTheme { mode: 'LIGHT' | 'DARK'; backgroundStyle: 'FLAT' | '
 export interface ReportHeaderConfig { schoolName: string; educationAdmin: string; teacherName: string; schoolManager: string; academicYear: string; term: string; logoBase64?: string; signatureBase64?: string; teacherId?: string; }
 export interface MessageLog { id: string; studentId: string; studentName: string; parentPhone?: string; type: 'WHATSAPP' | 'SMS' | 'EMAIL' | 'ANNOUNCEMENT'; content: string; status: 'SENT' | 'FAILED'; date: string; sentBy: string; teacherId?: string; }
 
-// Added TermPeriod and AcademicTerm for school management
 export interface TermPeriod {
   id: string;
   name: string;
@@ -241,7 +234,6 @@ export interface WeeklyChallenge { id: string; title: string; description: strin
 export interface CustomTable { id: string; name: string; createdAt: string; columns: string[]; rows: any[]; sourceUrl?: string; lastUpdated?: string; teacherId?: string; }
 export interface FormsDetailedResult { id: string; examTitle: string; className: string; date: string; teacherId: string; questions: any[]; studentResponses: any; }
 
-// Added TrackingColumn and updated TrackingSheet to use it
 export interface TrackingColumn {
   id: string;
   title: string;
@@ -252,7 +244,6 @@ export interface TrackingSheet { id: string; title: string; subject: string; cla
 export interface RemedialPlan { id: string; studentId: string; teacherId: string; subject: string; topic: string; content: string; date: string; }
 export interface LessonLink { id: string; title: string; url: string; teacherId?: string; createdAt: string; gradeLevel?: string; className?: string; }
 
-// Added LessonBlock and StoredLessonPlan for planning
 export interface LessonBlock {
   id: string;
   type: 'CONTENT' | 'MEDIA' | 'ACTIVITY';

@@ -30,7 +30,7 @@ const TeacherSubscription: React.FC<TeacherSubscriptionProps> = ({ currentUser, 
         setTimeout(async () => {
             const updatedTeacher: Teacher = {
                 ...teacher,
-                subscriptionStatus: plan,
+                subscriptionStatus: plan === 'ENTERPRISE' ? 'ENTERPRISE' : (plan === 'PRO' ? 'PRO' : 'FREE'),
                 subscriptionEndDate: plan === 'FREE' ? undefined : new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
             };
             
@@ -38,7 +38,7 @@ const TeacherSubscription: React.FC<TeacherSubscriptionProps> = ({ currentUser, 
             setTeacher(updatedTeacher);
             setLoading(false);
             if(onProfileUpdate) onProfileUpdate();
-            alert(`تم تفعيل الباقة بنجاح: ${plan === 'PRO' ? 'المحترف' : 'المجانية'}`);
+            alert(`تم تفعيل الباقة بنجاح: ${plan === 'PRO' ? 'المحترف' : (plan === 'ENTERPRISE' ? 'المؤسسات' : 'المجانية')}`);
         }, 1500);
     };
 
@@ -150,7 +150,10 @@ const TeacherSubscription: React.FC<TeacherSubscriptionProps> = ({ currentUser, 
                             <li className="flex items-center gap-3 text-sm text-gray-600"><div className="p-1 bg-teal-100 rounded-full text-teal-600"><Check size={12}/></div> تدريب ودعم خاص</li>
                         </div>
                         
-                        <button className="w-full py-3.5 rounded-xl font-bold border border-teal-600 text-teal-700 hover:bg-teal-50 transition-colors">
+                        <button 
+                            onClick={() => handleUpgrade('ENTERPRISE')}
+                            className="w-full py-3.5 rounded-xl font-bold border border-teal-600 text-teal-700 hover:bg-teal-50 transition-colors"
+                        >
                             طلب عرض سعر للمدارس
                         </button>
                     </div>
