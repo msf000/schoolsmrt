@@ -4,7 +4,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import { 
     fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
     addPerformance, deletePerformance, getUserTheme,
-    addStudent, updateStudent, deleteStudent
+    addStudent, updateStudent, deleteStudent, downloadFromSupabase
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 import Login from './components/Login';
@@ -71,19 +71,13 @@ const App: React.FC = () => {
             const userId = currentUser.id;
             const role = (currentUser as any).role;
             
-            const [stds, atts, perfs] = await Promise.all([
-                fetchStudents(),
-                fetchAttendance(role === 'SUPER_ADMIN' ? undefined : userId),
-                fetchPerformance(role === 'SUPER_ADMIN' ? undefined : userId)
-            ]);
+            // جلب شامل للبيانات من السحابة بما فيها الجداول الجديدة
+            await downloadFromSupabase(role === 'SUPER_ADMIN' ? undefined : userId);
 
-            setStudents(stds);
-            setAttendance(atts);
-            setPerformance(perfs);
-            
-            localStorage.setItem('local_students', JSON.stringify(stds));
-            localStorage.setItem('local_attendance', JSON.stringify(atts));
-            localStorage.setItem('local_performance', JSON.stringify(perfs));
+            // تحديث الحالات المحلية من التخزين المؤقت (الذي حدثته الدالة أعلاه)
+            setStudents(JSON.parse(localStorage.getItem('local_students') || '[]'));
+            setAttendance(JSON.parse(localStorage.getItem('local_attendance') || '[]'));
+            setPerformance(JSON.parse(localStorage.getItem('local_performance') || '[]'));
             
         } catch (e) {
             console.error("Data fetch error:", e);

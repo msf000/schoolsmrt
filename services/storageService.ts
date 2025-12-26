@@ -37,7 +37,9 @@ const REQUIRED_SCHEMA = {
     subjects: ['id', 'name', 'teacher_id'],
     schedules: ['id', 'class_id', 'subject_name', 'day', 'period', 'teacher_id'],
     custom_tables: ['id', 'name', 'columns', 'rows', 'source_url', 'last_updated', 'teacher_id', 'created_at'],
-    environment_records: ['id', 'teacher_id', 'class_id', 'date', 'lighting', 'noise_level', 'mood', 'notes']
+    environment_records: ['id', 'teacher_id', 'class_id', 'date', 'lighting', 'noise_level', 'mood', 'notes'],
+    academic_terms: ['id', 'name', 'start_date', 'end_date', 'is_current', 'teacher_id', 'periods'],
+    assignments: ['id', 'title', 'category', 'max_score', 'is_visible', 'teacher_id', 'term_id', 'period_id', 'sort_order', 'url']
 };
 
 export const getCloudSystemStatus = async () => {
@@ -68,6 +70,37 @@ export const getCloudSystemStatus = async () => {
 };
 
 export const getDatabaseSchemaSQL = () => `
+-- جداول التقويم الدراسي والفترات
+CREATE TABLE IF NOT EXISTS academic_terms (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    is_current BOOLEAN DEFAULT FALSE,
+    teacher_id TEXT,
+    periods JSONB DEFAULT '[]'
+);
+
+-- جدول التكليفات والمهام (المرتبطة بسجل الرصد)
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT,
+    max_score NUMERIC DEFAULT 10,
+    is_visible BOOLEAN DEFAULT TRUE,
+    teacher_id TEXT,
+    term_id TEXT,
+    period_id TEXT,
+    sort_order INTEGER DEFAULT 0,
+    url TEXT
+);
+
+-- تحديثات الأعمدة لضمان التوافق
+ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS periods JSONB DEFAULT '[]';
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS url TEXT;
+
+-- الجداول الأساسية السابقة
 CREATE TABLE IF NOT EXISTS curriculum_units (
     id TEXT PRIMARY KEY,
     teacher_id TEXT,
@@ -203,13 +236,59 @@ export const addSubject = (s: Subject) => { const cur = getSubjects(s.teacherId)
 
 export const deleteSubject = (id: string) => { const keys = Object.keys(localStorage).filter(k => k.startsWith('local_subjects_')); keys.forEach(k => { const cur = JSON.parse(localStorage.getItem(k) || '[]'); localStorage.setItem(k, JSON.stringify(cur.filter((s: Subject) => s.id !== id))); }); };
 
-export const getAcademicTerms = (tid?: string): AcademicTerm[] => JSON.parse(localStorage.getItem(`local_terms_${tid || 'global'}`) || '[]');
+// --- تحديث Academic Terms للسحابة ---
+export const getAcademicTerms = (tid?: string): AcademicTerm[] => {
+    return JSON.parse(localStorage.getItem(`local_terms_${tid || 'global'}`) || '[]');
+};
 
-export const saveAcademicTerm = (t: AcademicTerm) => { const cur = getAcademicTerms(t.teacherId); localStorage.setItem(`local_terms_${t.teacherId || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); };
+export const fetchAcademicTerms = async (tid?: string): Promise<AcademicTerm[]> => {
+    try {
+        let query = supabase.from('academic_terms').select('*');
+        if (tid) query = query.eq('teacher_id', tid);
+        const { data } = await query;
+        const mapped = (data || []).map((d: any) => ({
+            ...d,
+            startDate: d.start_date,
+            endDate: d.end_date,
+            isCurrent: d.is_current,
+            teacherId: d.teacher_id
+        })) as AcademicTerm[];
+        localStorage.setItem(`local_terms_${tid || 'global'}`, JSON.stringify(mapped));
+        return mapped;
+    } catch { return getAcademicTerms(tid); }
+};
 
-export const deleteAcademicTerm = (id: string) => { const keys = Object.keys(localStorage).filter(k => k.startsWith('local_terms_')); keys.forEach(k => { const cur = JSON.parse(localStorage.getItem(k) || '[]'); localStorage.setItem(k, JSON.stringify(cur.filter((t: AcademicTerm) => t.id !== id))); }); };
+export const saveAcademicTerm = async (t: AcademicTerm) => {
+    const cur = getAcademicTerms(t.teacherId);
+    localStorage.setItem(`local_terms_${t.teacherId || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t]));
+    await supabase.from('academic_terms').upsert({
+        id: t.id,
+        name: t.name,
+        start_date: t.startDate,
+        end_date: t.endDate,
+        is_current: t.isCurrent,
+        teacher_id: t.teacherId,
+        periods: t.periods || []
+    });
+};
 
-export const setCurrentTerm = (id: string, tid: string) => { const cur = getAcademicTerms(tid); const updated = cur.map(t => ({ ...t, isCurrent: t.id === id })); localStorage.setItem(`local_terms_${tid}`, JSON.stringify(updated)); };
+export const deleteAcademicTerm = async (id: string) => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('local_terms_'));
+    keys.forEach(k => {
+        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        localStorage.setItem(k, JSON.stringify(cur.filter((t: AcademicTerm) => t.id !== id)));
+    });
+    await supabase.from('academic_terms').delete().eq('id', id);
+};
+
+export const setCurrentTerm = async (id: string, tid: string) => {
+    const cur = getAcademicTerms(tid);
+    const updated = cur.map(t => ({ ...t, isCurrent: t.id === id }));
+    localStorage.setItem(`local_terms_${tid}`, JSON.stringify(updated));
+    // تحديث الكل في السحابة: اجعل الكل FALSE ثم المطلوب TRUE
+    await supabase.from('academic_terms').update({ is_current: false }).eq('teacher_id', tid);
+    await supabase.from('academic_terms').update({ is_current: true }).eq('id', id);
+};
 
 export const getReportHeaderConfig = (tid?: string): ReportHeaderConfig => JSON.parse(localStorage.getItem(`report_header_${tid || 'global'}`) || '{"schoolName":"","educationAdmin":"","teacherName":"","schoolManager":"","academicYear":"","term":""}');
 
@@ -265,11 +344,54 @@ export const getMessages = (tid?: string): MessageLog[] => JSON.parse(localStora
 
 export const saveMessage = async (m: MessageLog) => { const cur = getMessages(m.teacherId); localStorage.setItem(`local_messages_${m.teacherId || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==m.id), m])); };
 
-export const getAssignments = (cat: string, tid?: string, isManager?: boolean): Assignment[] => { const all = JSON.parse(localStorage.getItem(`local_assignments_${tid || 'global'}`) || '[]'); if (cat === 'ALL') return all; return all.filter((a: Assignment) => a.category === cat); };
+// --- تحديث Assignments للسحابة ---
+export const getAssignments = (cat: string, tid?: string, isManager?: boolean): Assignment[] => {
+    const all = JSON.parse(localStorage.getItem(`local_assignments_${tid || 'global'}`) || '[]');
+    if (cat === 'ALL') return all;
+    return all.filter((a: Assignment) => a.category === cat);
+};
 
-export const saveAssignment = (a: Assignment) => { const cur = getAssignments('ALL', a.teacherId); localStorage.setItem(`local_assignments_${a.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==a.id), a])); };
+export const fetchAssignments = async (tid?: string): Promise<Assignment[]> => {
+    try {
+        let query = supabase.from('assignments').select('*');
+        if (tid) query = query.eq('teacher_id', tid);
+        const { data } = await query;
+        const mapped = (data || []).map((d: any) => ({
+            ...d,
+            maxScore: d.max_score,
+            isVisible: d.is_visible,
+            teacherId: d.teacher_id,
+            termId: d.term_id,
+            periodId: d.period_id,
+            sortOrder: d.sort_order
+        })) as Assignment[];
+        localStorage.setItem(`local_assignments_${tid || 'global'}`, JSON.stringify(mapped));
+        return mapped;
+    } catch { return getAssignments('ALL', tid); }
+};
 
-export const deleteAssignment = (id: string, tid?: string) => { const cur = getAssignments('ALL', tid); localStorage.setItem(`local_assignments_${tid || 'global'}`, JSON.stringify(cur.filter((a: Assignment) => a.id !== id))); };
+export const saveAssignment = async (a: Assignment) => {
+    const cur = getAssignments('ALL', a.teacherId);
+    localStorage.setItem(`local_assignments_${a.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==a.id), a]));
+    await supabase.from('assignments').upsert({
+        id: a.id,
+        title: a.title,
+        category: a.category,
+        max_score: a.maxScore,
+        is_visible: a.isVisible,
+        teacher_id: a.teacherId,
+        term_id: a.termId,
+        period_id: a.periodId,
+        sort_order: a.sortOrder,
+        url: a.url
+    });
+};
+
+export const deleteAssignment = async (id: string, tid?: string) => {
+    const cur = getAssignments('ALL', tid);
+    localStorage.setItem(`local_assignments_${tid || 'global'}`, JSON.stringify(cur.filter((a: Assignment) => a.id !== id)));
+    await supabase.from('assignments').delete().eq('id', id);
+};
 
 export const getCustomTables = (tid?: string): CustomTable[] => JSON.parse(localStorage.getItem(`local_custom_tables_${tid || 'global'}`) || '[]');
 
@@ -369,4 +491,15 @@ export const saveFormsDetailedResult = (r: FormsDetailedResult) => { const cur =
 
 export const deleteFormsDetailedResult = (id: string) => { const keys = Object.keys(localStorage).filter(k => k.startsWith('local_forms_results_')); keys.forEach(k => { const cur = JSON.parse(localStorage.getItem(k) || '[]'); localStorage.setItem(k, JSON.stringify(cur.filter((r: FormsDetailedResult) => r.id !== id))); }); };
 
-export const downloadFromSupabase = async () => { await Promise.all([fetchStudents(), fetchAttendance(), fetchPerformance(), fetchSchools(), fetchSystemUsers(), fetchTeachers()]); };
+export const downloadFromSupabase = async (tid?: string) => { 
+    await Promise.all([
+        fetchStudents(), 
+        fetchAttendance(tid), 
+        fetchPerformance(tid), 
+        fetchSchools(), 
+        fetchSystemUsers(), 
+        fetchTeachers(),
+        fetchAcademicTerms(tid),
+        fetchAssignments(tid)
+    ]); 
+};
