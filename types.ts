@@ -14,6 +14,7 @@ export interface Badge {
 
 export interface Reward {
   id: string;
+  teacherId?: string;
   title: string;
   cost: number;
   icon: string;
@@ -33,18 +34,6 @@ export interface PurchaseRequest {
   teacherId: string;
 }
 
-export interface WeeklyChallenge {
-  id: string;
-  title: string;
-  description: string;
-  rewardXp: number;
-  startDate: string;
-  endDate: string;
-  targetClass: string;
-  isActive: boolean;
-  type: 'ATTENDANCE' | 'ACADEMIC' | 'BEHAVIOR';
-}
-
 export interface Student {
   id: string;
   name: string;
@@ -57,7 +46,6 @@ export interface Student {
   className?: string;
   email?: string;
   phone?: string;
-  parentId?: string;
   parentName?: string;
   parentPhone?: string;
   parentEmail?: string;
@@ -72,59 +60,81 @@ export interface Student {
   streak?: number;
 }
 
-export interface Teacher {
-  id: string;
-  name: string;
-  nationalId: string;
-  email?: string;
-  phone?: string;
+export interface School { 
+  id: string; 
+  name: string; 
+  ministryCode: string; 
+  managerName: string; 
+  managerNationalId: string; 
+  type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL'; 
+  phone: string; 
+  studentCount: number; 
+  educationAdministration: string; 
+}
+
+export interface SystemUser { 
+  id: string; 
+  name: string; 
+  email: string; 
+  nationalId?: string; 
+  password?: string; 
+  role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; 
+  schoolId?: string; 
+  status: 'ACTIVE' | 'INACTIVE'; 
+  phone?: string; 
   subjectSpecialty?: string;
-  password?: string;
-  schoolId?: string;
+  subscriptionStatus?: 'FREE' | 'PRO';
+}
+
+// Added Teacher interface extending SystemUser
+export interface Teacher extends SystemUser {
   managerId?: string;
-  subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE';
   subscriptionEndDate?: string;
 }
 
+// Added Subject interface
 export interface Subject {
   id: string;
   name: string;
   teacherId?: string;
 }
 
-export interface ScheduleItem {
-  id: string;
-  classId: string;
-  subjectName: string;
-  day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
-  period: number;
-  teacherId?: string;
+export enum AttendanceStatus { PRESENT = 'PRESENT', ABSENT = 'ABSENT', LATE = 'LATE', EXCUSED = 'EXCUSED' }
+
+// Added BehaviorStatus enum
+export enum BehaviorStatus {
+  POSITIVE = 'POSITIVE',
+  NEGATIVE = 'NEGATIVE',
+  NEUTRAL = 'NEUTRAL'
 }
 
-export interface TeacherAssignment {
-  id: string;
-  classId: string;
-  subjectName: string;
-  teacherId: string;
+export interface AttendanceRecord { 
+  id: string; 
+  studentId: string; 
+  date: string; 
+  status: AttendanceStatus; 
+  subject?: string; 
+  period?: number; 
+  behaviorStatus?: string; 
+  behaviorNote?: string; 
+  participationScore?: number; 
+  excuseNote?: string; 
+  createdById?: string; 
 }
 
-export interface WeeklyPlanItem {
-  id: string;
-  teacherId: string;
-  classId: string;
-  subjectName: string;
-  day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
-  period: number;
-  weekStartDate: string;
-  lessonTopic: string;
-  homework: string;
-}
-
-export interface LessonBlock {
-  id: string;
-  type: 'CONTENT' | 'ACTIVITY' | 'ASSESSMENT' | 'MEDIA';
-  title: string;
-  content: string;
+export interface PerformanceRecord { 
+  id: string; 
+  studentId: string; 
+  subject: string; 
+  title: string; 
+  category?: PerformanceCategory; 
+  score: number; 
+  maxScore: number; 
+  date: string; 
+  notes?: string; 
+  createdById?: string; 
+  // Added url property to fix property access error
+  url?: string;
 }
 
 export interface BehaviorIncident {
@@ -152,93 +162,104 @@ export interface Task {
     submissions: string[];
 }
 
-export enum AttendanceStatus { PRESENT = 'PRESENT', ABSENT = 'ABSENT', LATE = 'LATE', EXCUSED = 'EXCUSED' }
-export enum BehaviorStatus { POSITIVE = 'POSITIVE', NEGATIVE = 'NEGATIVE', NEUTRAL = 'NEUTRAL' }
-
-export interface AttendanceRecord { 
-  id: string; 
-  studentId: string; 
-  date: string; 
-  status: AttendanceStatus; 
-  subject?: string; 
-  period?: number; 
-  behaviorStatus?: BehaviorStatus; 
-  behaviorNote?: string; 
-  participationScore?: number; 
-  excuseNote?: string; 
-  excuseFile?: string; 
-  createdById?: string; 
-  termId?: string; 
+// Added Question interface used in exams and question bank
+export interface Question {
+  id: string;
+  text: string;
+  type: 'MCQ' | 'TRUE_FALSE';
+  options: string[];
+  correctAnswer: string;
+  points: number;
+  subject?: string;
+  gradeLevel?: string;
+  teacherId?: string;
 }
 
-export interface AcademicTerm { id: string; name: string; startDate: string; endDate: string; isCurrent: boolean; teacherId?: string; periods?: TermPeriod[]; }
-export interface TermPeriod { id: string; name: string; startDate: string; endDate: string; }
-
-export interface PerformanceRecord { id: string; studentId: string; subject: string; title: string; category?: PerformanceCategory; score: number; maxScore: number; date: string; notes?: string; url?: string; createdById?: string; }
-
+// Added Assignment interface for performance tracking
 export interface Assignment {
   id: string;
   title: string;
   category: PerformanceCategory;
   maxScore: number;
   isVisible: boolean;
-  teacherId?: string;
+  teacherId: string;
   termId?: string;
   periodId?: string;
-  sourceMetadata?: string;
   sortOrder?: number;
   url?: string;
 }
 
-export interface SystemUser { 
+export interface Exam { 
   id: string; 
-  name: string; 
-  email: string; 
-  nationalId?: string; 
-  password?: string; 
-  role: 'SUPER_ADMIN' | 'SCHOOL_MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT'; 
-  schoolId?: string; 
-  status: 'ACTIVE' | 'INACTIVE'; 
-  isDemo?: boolean; 
-  phone?: string; 
-}
-
-export interface CustomTable { id: string; name: string; createdAt: string; columns: string[]; rows: any[]; sourceUrl?: string; lastUpdated?: string; teacherId?: string; }
-export interface ReportHeaderConfig { schoolName: string; educationAdmin: string; teacherName: string; schoolManager: string; academicYear: string; term: string; logoBase64?: string; signatureBase64?: string; teacherId?: string; }
-export interface MessageLog { id: string; studentId: string; studentName: string; parentPhone?: string; type: 'WHATSAPP' | 'SMS' | 'EMAIL' | 'ANNOUNCEMENT'; content: string; status: 'SENT' | 'FAILED'; date: string; sentBy: string; teacherId?: string; targetRole?: string; }
-export interface LessonLink { id: string; title: string; url: string; teacherId?: string; createdAt: string; gradeLevel?: string; className?: string; }
-export interface StoredLessonPlan { id: string; teacherId: string; lessonId?: string; subject: string; topic: string; contentJson: string; resources: string[]; createdAt: string; }
-export interface CurriculumUnit { id: string; teacherId?: string; subject: string; gradeLevel: string; title: string; orderIndex: number; }
-export interface CurriculumLesson { id: string; unitId: string; title: string; orderIndex: number; learningStandards: string[]; microConceptIds: string[]; isCompleted?: boolean; completedAt?: string; }
-
-export interface Question { id: string; text: string; type: 'MCQ' | 'TF'; options: string[]; correctAnswer: string; points: number; teacherId?: string; subject?: string; gradeLevel?: string; }
-export interface Exam { id: string; title: string; subject: string; gradeLevel: string; durationMinutes: number; questions: Question[]; isActive: boolean; createdAt: string; teacherId?: string; date?: string; }
-export interface ExamResult { id: string; examId: string; studentId: string; score: number; totalScore: number; answers: any[]; date: string; }
-export interface TrackingColumn { id: string; title: string; type: 'RATING' | 'TEXT' | 'CHECKBOX'; }
-export interface TrackingSheet { id: string; title: string; subject: string; className: string; teacherId: string; createdAt: string; columns: TrackingColumn[]; scores: Record<string, Record<string, any>>; }
-export interface RemedialPlan { id: string; studentId: string; teacherId: string; subject: string; topic: string; content: string; date: string; }
-export interface AISettings { modelId: string; temperature: number; enableReports: boolean; enableQuiz: boolean; enablePlanning: boolean; systemInstruction: string; }
-export interface UserTheme { mode: 'LIGHT' | 'DARK'; backgroundStyle: 'FLAT' | 'GRADIENT'; }
-export interface EnvironmentRecord { id: string; teacherId: string; classId: string; date: string; lighting: number; noiseLevel: number; mood: 'HAPPY' | 'TIRED' | 'FOCUSED' | 'BORED'; notes?: string; }
-export interface School { id: string; name: string; ministryCode: string; managerName: string; managerNationalId: string; type: 'PUBLIC' | 'PRIVATE' | 'INTERNATIONAL'; phone: string; studentCount: number; educationAdministration: string; }
-
-export interface FormsDetailedResult {
-  id: string;
-  examTitle: string;
-  className: string;
-  date: string;
   teacherId: string;
-  questions: {
-    id: string;
-    text: string;
-    learningOutcome: string;
-    successRate: number;
-    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    commonErrors: string[];
-  }[];
-  studentResponses: Record<string, {
-    score: number;
-    total: number;
-    answers: Record<string, string>;
-  }>;
+  title: string; 
+  subject: string; 
+  gradeLevel: string; 
+  durationMinutes: number; 
+  questions: Question[]; 
+  isActive: boolean; 
+  createdAt: string; 
 }
+
+export interface ExamResult { 
+  id: string; 
+  examId: string; 
+  studentId: string; 
+  score: number; 
+  totalScore: number; 
+  answers: any[]; 
+  date: string; 
+}
+
+export interface CurriculumUnit { id: string; teacherId?: string; subject: string; gradeLevel: string; title: string; orderIndex: number; }
+export interface CurriculumLesson { id: string; unitId: string; title: string; orderIndex: number; isCompleted?: boolean; completedAt?: string; }
+export interface ScheduleItem { id: string; classId: string; subjectName: string; day: string; period: number; teacherId: string; }
+export interface EnvironmentRecord { id: string; teacherId: string; classId: string; date: string; lighting: number; noiseLevel: number; mood: string; notes?: string; }
+export interface UserTheme { mode: 'LIGHT' | 'DARK'; backgroundStyle: 'FLAT' | 'GRADIENT'; }
+export interface ReportHeaderConfig { schoolName: string; educationAdmin: string; teacherName: string; schoolManager: string; academicYear: string; term: string; logoBase64?: string; signatureBase64?: string; teacherId?: string; }
+export interface MessageLog { id: string; studentId: string; studentName: string; parentPhone?: string; type: 'WHATSAPP' | 'SMS' | 'EMAIL' | 'ANNOUNCEMENT'; content: string; status: 'SENT' | 'FAILED'; date: string; sentBy: string; teacherId?: string; }
+
+// Added TermPeriod and AcademicTerm for school management
+export interface TermPeriod {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface AcademicTerm {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  teacherId?: string;
+  periods?: TermPeriod[];
+}
+
+export interface WeeklyChallenge { id: string; title: string; description: string; rewardXp: number; startDate: string; endDate: string; targetClass: string; isActive: boolean; type: string; }
+export interface CustomTable { id: string; name: string; createdAt: string; columns: string[]; rows: any[]; sourceUrl?: string; lastUpdated?: string; teacherId?: string; }
+export interface FormsDetailedResult { id: string; examTitle: string; className: string; date: string; teacherId: string; questions: any[]; studentResponses: any; }
+
+// Added TrackingColumn and updated TrackingSheet to use it
+export interface TrackingColumn {
+  id: string;
+  title: string;
+  type: 'TEXT' | 'RATING' | 'CHECKBOX';
+}
+
+export interface TrackingSheet { id: string; title: string; subject: string; className: string; teacherId: string; createdAt: string; columns: TrackingColumn[]; scores: any; }
+export interface RemedialPlan { id: string; studentId: string; teacherId: string; subject: string; topic: string; content: string; date: string; }
+export interface LessonLink { id: string; title: string; url: string; teacherId?: string; createdAt: string; gradeLevel?: string; className?: string; }
+
+// Added LessonBlock and StoredLessonPlan for planning
+export interface LessonBlock {
+  id: string;
+  type: 'CONTENT' | 'MEDIA' | 'ACTIVITY';
+  title: string;
+  content: string;
+}
+
+export interface StoredLessonPlan { id: string; teacherId: string; lessonId?: string; subject: string; topic: string; contentJson: string; resources: string[]; createdAt: string; }
+export interface TeacherAssignment { id: string; classId: string; subjectName: string; teacherId: string; }
+export interface WeeklyPlanItem { id: string; teacherId: string; classId: string; subjectName: string; day: string; period: number; weekStartDate: string; lessonTopic: string; homework: string; }
