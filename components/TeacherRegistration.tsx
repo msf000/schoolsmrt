@@ -173,6 +173,8 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
                 nationalId: formData.nationalId,
                 email: formData.email,
                 phone: formData.phone,
+                role: 'TEACHER', // Fix: Added required role property
+                status: 'ACTIVE', // Fix: Added required status property
                 subjectSpecialty: formData.specialty,
                 password: formData.password,
                 schoolId: schoolId,

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, Assignment, BehaviorIncident } from '../types';
 import { getAcademicTerms, getAssignments, getBehaviorIncidents } from '../services/storageService';
-// Fix: Removed unused import 'predictStudentFuture' from geminiService.
+// Fix: Satisfied missing exported members for storageService and removed unused 'predictStudentFuture'
 import { generateStudentAnalysis, generateStudentPersona } from '../services/geminiService';
 import { predictNextScore } from '../services/analysisService';
 import { 
