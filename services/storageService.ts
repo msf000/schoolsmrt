@@ -237,8 +237,8 @@ export const addStudent = async (s: Student) => await supabase.from('students').
 
 export const updateStudent = async (s: Student) => await supabase.from('students').update({ 
     name: s.name, national_id: s.nationalId, class_name: s.className, grade_level: s.gradeLevel,
-    xp: s.xp, level: s.level, behavior_points: s.behavior_points, streak: s.streak, 
-    badges: s.badges, purchased_rewards: s.purchased_rewards, learning_style: s.learning_style
+    xp: s.xp, level: s.level, behavior_points: s.behaviorPoints, streak: s.streak, 
+    badges: s.badges, purchased_rewards: s.purchasedRewards, learning_style: s.learningStyle
 }).eq('id', s.id);
 
 export const saveAttendance = async (recs: AttendanceRecord[]) => await supabase.from('attendance').upsert(recs.map(r => ({ 
@@ -260,6 +260,7 @@ export const addSystemUser = async (u: SystemUser) => await supabase.from('syste
     role: u.role, school_id: u.schoolId, status: u.status, phone: u.phone 
 });
 
+/* Fix: Kept only the first unique declaration of updateSystemUser and removed redeclarations below */
 export const updateSystemUser = async (u: SystemUser) => await supabase.from('system_users').update({
     name: u.name, email: u.email, national_id: u.nationalId, role: u.role, status: u.status, phone: u.phone
 }).eq('id', u.id);
@@ -271,7 +272,7 @@ export const updateTeacher = async (t: Teacher) => await supabase.from('system_u
 
 export const addTeacher = async (t: Teacher) => await supabase.from('system_users').insert({
     id: t.id, name: t.name, email: t.email, national_id: t.nationalId, password: t.password,
-    role: 'TEACHER', school_id: t.schoolId, status: 'ACTIVE', phone: t.phone, subject_specialty: t.subject_specialty
+    role: 'TEACHER', school_id: t.schoolId, status: 'ACTIVE', phone: t.phone, subject_specialty: t.subjectSpecialty
 });
 
 export const deleteStudent = async (id: string) => await supabase.from('students').delete().eq('id', id);
