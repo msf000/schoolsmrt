@@ -1,4 +1,3 @@
-
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -19,13 +18,19 @@ export const KEYS = {
     CUSTOM_REWARDS: 'custom_rewards'
 };
 
-// --- هيكلة الأعمدة المطلوبة لكل جدول للفحص المعمق ---
+// --- هيكلة الأعمدة المطلوبة للفحص المعمق (Deep Probe) ---
 const REQUIRED_SCHEMA = {
     schools: ['id', 'name', 'ministry_code', 'manager_name', 'manager_national_id', 'type', 'phone', 'student_count', 'education_administration'],
     system_users: ['id', 'name', 'email', 'national_id', 'password', 'role', 'school_id', 'status', 'phone', 'subject_specialty', 'subscription_status'],
     students: ['id', 'name', 'national_id', 'class_id', 'school_id', 'grade_level', 'class_name', 'email', 'phone', 'parent_phone', 'password', 'xp', 'level', 'behavior_points', 'streak', 'learning_style', 'badges', 'purchased_rewards'],
     attendance: ['id', 'student_id', 'date', 'status', 'subject', 'period', 'created_by_id', 'behavior_status', 'behavior_note', 'participation_score', 'excuse_note'],
-    performance: ['id', 'student_id', 'subject', 'title', 'score', 'max_score', 'date', 'created_by_id', 'category', 'notes']
+    performance: ['id', 'student_id', 'subject', 'title', 'score', 'max_score', 'date', 'created_by_id', 'category', 'notes'],
+    behavior_incidents: ['id', 'student_id', 'teacher_id', 'type', 'category', 'points', 'date', 'note'],
+    tasks: ['id', 'teacher_id', 'class_id', 'subject', 'title', 'due_date', 'type', 'max_score'],
+    exams: ['id', 'teacher_id', 'title', 'subject', 'is_active', 'questions'],
+    curriculum_units: ['id', 'teacher_id', 'subject', 'title', 'order_index'],
+    rewards: ['id', 'teacher_id', 'title', 'cost', 'category'],
+    purchase_requests: ['id', 'student_id', 'reward_id', 'status', 'date']
 };
 
 // --- فحص صحة النظام السحابي المعمق ---
@@ -37,13 +42,11 @@ export const getCloudSystemStatus = async () => {
         let errorMessage = '';
 
         try {
-            // فحص وجود الجدول والأعمدة دفعة واحدة
             const { error } = await supabase.from(tableId).select(columns.join(',')).limit(1);
             
             if (error) {
                 tableStatus = 'ERROR';
                 errorMessage = error.message;
-                // إذا كان الخطأ بسبب عمود مفقود، نفحص كل عمود على حدة لتحديد الناقص
                 for (const col of columns) {
                     const { error: colErr } = await supabase.from(tableId).select(col).limit(1);
                     colStatus[col] = !colErr;
@@ -55,7 +58,7 @@ export const getCloudSystemStatus = async () => {
             const end = performance.now();
             return {
                 id: tableId,
-                label: tableId === 'system_users' ? 'المستخدمين' : tableId === 'students' ? 'الطلاب' : tableId === 'attendance' ? 'الحضور' : tableId === 'performance' ? 'الدرجات' : 'المدارس',
+                label: tableId.replace('_', ' '),
                 status: tableStatus,
                 columns: colStatus,
                 latency: Math.round(end - start),
@@ -268,6 +271,7 @@ export const updateTeacher = async (t: Teacher) => await supabase.from('system_u
     subject_specialty: t.subjectSpecialty, subscription_status: t.subscriptionStatus, password: t.password
 }).eq('id', t.id);
 
+/* Fix: Access correct property name 'subjectSpecialty' from Teacher interface instead of 'subject_specialty' */
 export const addTeacher = async (t: Teacher) => await supabase.from('system_users').insert({
     id: t.id, name: t.name, email: t.email, national_id: t.nationalId, password: t.password,
     role: 'TEACHER', school_id: t.schoolId, status: 'ACTIVE', phone: t.phone, subject_specialty: t.subjectSpecialty
@@ -278,9 +282,9 @@ export const deleteAttendance = async (id: string) => await supabase.from('atten
 export const deletePerformance = async (id: string) => await supabase.from('performance').delete().eq('id', id);
 export const deleteSchool = async (id: string) => await supabase.from('schools').delete().eq('id', id);
 
-// --- إدارة النظام (SQL Setup & Migration) ---
+// --- إدارة النظام (SQL Setup & Comprehensive Migration) ---
 export const getDatabaseSchemaSQL = () => `
--- 1. جدول المدارس
+-- 1. المدارس
 CREATE TABLE IF NOT EXISTS schools (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -292,12 +296,10 @@ CREATE TABLE IF NOT EXISTS schools (
     student_count INTEGER DEFAULT 0,
     education_administration TEXT
 );
-
--- تحديث الأعمدة في حال وجود جدول قديم
 ALTER TABLE schools ADD COLUMN IF NOT EXISTS education_administration TEXT;
 ALTER TABLE schools ADD COLUMN IF NOT EXISTS student_count INTEGER DEFAULT 0;
 
--- 2. جدول المستخدمين
+-- 2. المستخدمون
 CREATE TABLE IF NOT EXISTS system_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -311,12 +313,11 @@ CREATE TABLE IF NOT EXISTS system_users (
     subject_specialty TEXT,
     subscription_status TEXT DEFAULT 'FREE'
 );
-
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subject_specialty TEXT;
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'FREE';
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS phone TEXT;
 
--- 3. جدول الطلاب
+-- 3. الطلاب
 CREATE TABLE IF NOT EXISTS students (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -341,7 +342,6 @@ CREATE TABLE IF NOT EXISTS students (
     purchased_rewards JSONB DEFAULT '[]',
     streak INTEGER DEFAULT 0
 );
-
 ALTER TABLE students ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS behavior_points INTEGER DEFAULT 0;
@@ -351,7 +351,7 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS learning_style TEXT DEFAULT 'UNKNOWN';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone TEXT;
 
--- 4. جدول الحضور
+-- 4. الحضور والغياب
 CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -365,14 +365,13 @@ CREATE TABLE IF NOT EXISTS attendance (
     excuse_note TEXT,
     created_by_id TEXT REFERENCES system_users(id) ON DELETE SET NULL
 );
-
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS behavior_status TEXT;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS behavior_note TEXT;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS participation_score INTEGER DEFAULT 0;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_note TEXT;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS period INTEGER;
 
--- 5. جدول الأداء والدرجات
+-- 5. الأداء والدرجات
 CREATE TABLE IF NOT EXISTS performance (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -386,17 +385,157 @@ CREATE TABLE IF NOT EXISTS performance (
     created_by_id TEXT REFERENCES system_users(id) ON DELETE SET NULL,
     url TEXT
 );
-
 ALTER TABLE performance ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE performance ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE performance ADD COLUMN IF NOT EXISTS url TEXT;
 
--- تعطيل RLS لتسهيل الاستخدام المباشر (يمكن تفعيله لاحقاً للأمان العالي)
-ALTER TABLE schools DISABLE ROW LEVEL SECURITY;
-ALTER TABLE system_users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE students DISABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
-ALTER TABLE performance DISABLE ROW LEVEL SECURITY;
+-- 6. سجل السلوك
+CREATE TABLE IF NOT EXISTS behavior_incidents (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE SET NULL,
+    type TEXT NOT NULL, -- POSITIVE / NEGATIVE
+    category TEXT,
+    points INTEGER,
+    date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    note TEXT,
+    action_taken TEXT
+);
+
+-- 7. المهام والواجبات
+CREATE TABLE IF NOT EXISTS tasks (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
+    class_id TEXT,
+    subject TEXT,
+    title TEXT NOT NULL,
+    description TEXT,
+    due_date DATE,
+    type TEXT, -- HOMEWORK / PROJECT / RESEARCH
+    max_score NUMERIC DEFAULT 10,
+    submissions JSONB DEFAULT '[]'
+);
+
+-- 8. الاختبارات الإلكترونية
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    subject TEXT,
+    grade_level TEXT,
+    duration_minutes INTEGER DEFAULT 30,
+    questions JSONB DEFAULT '[]',
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 9. نتائج الاختبارات
+CREATE TABLE IF NOT EXISTS exam_results (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT REFERENCES exams(id) ON DELETE CASCADE,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    score NUMERIC,
+    total_score NUMERIC,
+    answers JSONB DEFAULT '[]',
+    date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 10. المنهج وتوزيع الدروس
+CREATE TABLE IF NOT EXISTS curriculum_units (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
+    subject TEXT,
+    grade_level TEXT,
+    title TEXT NOT NULL,
+    order_index INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT REFERENCES curriculum_units(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    order_index INTEGER,
+    learning_standards JSONB DEFAULT '[]',
+    micro_concept_ids JSONB DEFAULT '[]',
+    is_completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 11. متجر المكافآت
+CREATE TABLE IF NOT EXISTS rewards (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    cost INTEGER NOT NULL,
+    icon TEXT,
+    description TEXT,
+    category TEXT -- PRIVILEGE / TITLE / ITEM
+);
+
+CREATE TABLE IF NOT EXISTS purchase_requests (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    student_name TEXT,
+    reward_id TEXT REFERENCES rewards(id) ON DELETE CASCADE,
+    reward_title TEXT,
+    cost INTEGER,
+    status TEXT DEFAULT 'PENDING', -- PENDING / APPROVED / REJECTED
+    date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE SET NULL
+);
+
+-- 12. تحضير الدروس السحابي
+CREATE TABLE IF NOT EXISTS lesson_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
+    lesson_id TEXT,
+    subject TEXT,
+    topic TEXT,
+    content_json JSONB,
+    resources JSONB DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 13. الجداول والجداول المخصصة
+CREATE TABLE IF NOT EXISTS subjects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    subject_name TEXT,
+    day TEXT,
+    period INTEGER,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS custom_tables (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    columns JSONB DEFAULT '[]',
+    rows JSONB DEFAULT '[]',
+    source_url TEXT,
+    last_updated TIMESTAMP WITH TIME ZONE,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
+);
+
+-- تعطيل RLS للمرونة في التطوير الحالي
+ALTER TABLE behavior_incidents DISABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE exams DISABLE ROW LEVEL SECURITY;
+ALTER TABLE exam_results DISABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_units DISABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculum_lessons DISABLE ROW LEVEL SECURITY;
+ALTER TABLE rewards DISABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_requests DISABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_plans DISABLE ROW LEVEL SECURITY;
+ALTER TABLE subjects DISABLE ROW LEVEL SECURITY;
+ALTER TABLE schedules DISABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_tables DISABLE ROW LEVEL SECURITY;
 `;
 
 // --- المساعدات المحلية ---
