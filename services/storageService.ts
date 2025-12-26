@@ -21,9 +21,9 @@ export const KEYS = {
 
 // --- هيكلة الأعمدة المطلوبة لكل جدول للفحص المعمق ---
 const REQUIRED_SCHEMA = {
-    schools: ['id', 'name', 'ministry_code', 'manager_name', 'manager_national_id'],
-    system_users: ['id', 'name', 'email', 'national_id', 'password', 'role', 'school_id', 'status'],
-    students: ['id', 'name', 'national_id', 'class_name', 'grade_level', 'email', 'parent_phone', 'password', 'xp', 'level'],
+    schools: ['id', 'name', 'ministry_code', 'manager_name', 'manager_national_id', 'type', 'phone', 'student_count', 'education_administration'],
+    system_users: ['id', 'name', 'email', 'national_id', 'password', 'role', 'school_id', 'status', 'phone'],
+    students: ['id', 'name', 'national_id', 'class_id', 'school_id', 'grade_level', 'class_name', 'email', 'phone', 'parent_phone', 'password', 'xp', 'level', 'behavior_points'],
     attendance: ['id', 'student_id', 'date', 'status', 'subject', 'period', 'created_by_id'],
     performance: ['id', 'student_id', 'subject', 'title', 'score', 'max_score', 'date', 'created_by_id']
 };
@@ -37,13 +37,11 @@ export const getCloudSystemStatus = async () => {
         let errorMessage = '';
 
         try {
-            // فحص وجود الجدول وجلب عينة من البيانات لفحص الأعمدة
-            const { data, error } = await supabase.from(tableId).select(columns.join(',')).limit(1);
+            const { error } = await supabase.from(tableId).select(columns.join(',')).limit(1);
             
             if (error) {
                 tableStatus = 'ERROR';
                 errorMessage = error.message;
-                // إذا كان الخطأ متعلق بأعمدة مفقودة، سنحاول تحديد أيها
                 if (error.message.includes('column')) {
                     for (const col of columns) {
                         const { error: colErr } = await supabase.from(tableId).select(col).limit(1);
@@ -73,23 +71,31 @@ export const getCloudSystemStatus = async () => {
     return results;
 };
 
-// --- المصادقة والعمليات الأخرى (تبقي كما هي مع ضمان توافق الأسماء) ---
+// --- المصادقة ---
 export const authenticateUser = async (id: string, p: string): Promise<SystemUser | null> => {
     if (id === 'admin' && p === 'admin') {
         return { id: 'admin_root', name: 'مدير النظام', email: 'admin@system.local', nationalId: 'admin', role: 'SUPER_ADMIN', status: 'ACTIVE' };
     }
     try {
-        const { data } = await supabase.from('system_users').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', p).maybeSingle();
-        if (!data) return null;
-        return { id: data.id, name: data.name, email: data.email, nationalId: data.national_id, role: data.role as any, schoolId: data.school_id, status: data.status as any };
+        const { data, error } = await supabase.from('system_users').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', p).maybeSingle();
+        if (error || !data) return null;
+        return { 
+            id: data.id, 
+            name: data.name, 
+            email: data.email, 
+            nationalId: data.national_id, 
+            role: data.role as any, 
+            schoolId: data.school_id, 
+            status: data.status as any,
+            phone: data.phone
+        };
     } catch { return null; }
 };
 
-// Fix: Added authenticateStudent to handle student login via Supabase
 export const authenticateStudent = async (id: string, p: string): Promise<Student | null> => {
     try {
-        const { data } = await supabase.from('students').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', p).maybeSingle();
-        if (!data) return null;
+        const { data, error } = await supabase.from('students').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', p).maybeSingle();
+        if (error || !data) return null;
         return {
             id: data.id,
             name: data.name,
@@ -108,18 +114,24 @@ export const authenticateStudent = async (id: string, p: string): Promise<Studen
             learningStyle: data.learning_style || 'UNKNOWN',
             badges: data.badges || [],
             purchasedRewards: data.purchased_rewards || [],
-            streak: data.streak || 0
+            streak: data.streak || 0,
+            createdById: data.created_by_id
         } as Student;
     } catch { return null; }
 };
 
+// --- جلب البيانات ---
 export const fetchStudents = async (): Promise<Student[]> => {
     try {
-        const { data } = await supabase.from('students').select('*').order('name');
+        const { data, error } = await supabase.from('students').select('*').order('name');
+        if (error) throw error;
         const mapped = (data || []).map((d: any) => ({
-            id: d.id, name: d.name, role: 'STUDENT', nationalId: d.national_id, classId: d.class_id, schoolId: d.school_id,
-            gradeLevel: d.grade_level, className: d.class_name, email: d.email, phone: d.phone, parentPhone: d.parent_phone,
-            xp: d.xp || 0, level: d.level || 1
+            id: d.id, name: d.name, role: 'STUDENT', nationalId: d.national_id, 
+            classId: d.class_id, schoolId: d.school_id, gradeLevel: d.grade_level, 
+            className: d.class_name, email: d.email, phone: d.phone, 
+            parentPhone: d.parent_phone, xp: d.xp || 0, level: d.level || 1,
+            behaviorPoints: d.behavior_points || 0, learningStyle: d.learning_style,
+            createdById: d.created_by_id, streak: d.streak || 0
         })) as Student[];
         localStorage.setItem('local_students', JSON.stringify(mapped));
         return mapped;
@@ -130,8 +142,17 @@ export const fetchAttendance = async (teacherId?: string): Promise<AttendanceRec
     try {
         let query = supabase.from('attendance').select('*');
         if (teacherId) query = query.eq('created_by_id', teacherId);
-        const { data } = await query.order('date', { ascending: false });
-        return (data || []).map((d: any) => ({ id: d.id, studentId: d.student_id, date: d.date, status: d.status, subject: d.subject, createdById: d.created_by_id }));
+        const { data, error } = await query.order('date', { ascending: false });
+        if (error) throw error;
+        return (data || []).map((d: any) => ({ 
+            id: d.id, 
+            studentId: d.student_id, 
+            date: d.date, 
+            status: d.status as any, 
+            subject: d.subject, 
+            period: d.period,
+            createdById: d.created_by_id 
+        }));
     } catch { return []; }
 };
 
@@ -139,31 +160,128 @@ export const fetchPerformance = async (teacherId?: string): Promise<PerformanceR
     try {
         let query = supabase.from('performance').select('*');
         if (teacherId) query = query.eq('created_by_id', teacherId);
-        const { data } = await query.order('date', { ascending: false });
-        return (data || []).map((d: any) => ({ id: d.id, studentId: d.student_id, subject: d.subject, title: d.title, score: d.score, maxScore: d.max_score, date: d.date }));
+        const { data, error } = await query.order('date', { ascending: false });
+        if (error) throw error;
+        return (data || []).map((d: any) => ({ 
+            id: d.id, 
+            studentId: d.student_id, 
+            subject: d.subject, 
+            title: d.title, 
+            score: Number(d.score), 
+            maxScore: Number(d.max_score), 
+            date: d.date,
+            category: d.category,
+            notes: d.notes,
+            createdById: d.created_by_id
+        }));
     } catch { return []; }
 };
 
 export const fetchSchools = async (): Promise<School[]> => {
-    const { data } = await supabase.from('schools').select('*');
-    return (data || []).map((d: any) => ({ id: d.id, name: d.name, ministryCode: d.ministry_code, managerName: d.manager_name, managerNationalId: d.manager_national_id }));
+    try {
+        const { data, error } = await supabase.from('schools').select('*').order('name');
+        if (error) throw error;
+        return (data || []).map((d: any) => ({ 
+            id: d.id, 
+            name: d.name, 
+            ministryCode: d.ministry_code, 
+            managerName: d.manager_name, 
+            managerNationalId: d.manager_national_id,
+            type: d.type || 'PUBLIC',
+            phone: d.phone || '',
+            studentCount: d.student_count || 0,
+            educationAdministration: d.education_administration || ''
+        })) as School[];
+    } catch { return []; }
 };
 
 export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
-    const { data } = await supabase.from('system_users').select('*');
-    return (data || []).map((d: any) => ({ id: d.id, name: d.name, email: d.email, nationalId: d.national_id, role: d.role, status: d.status }));
+    try {
+        const { data, error } = await supabase.from('system_users').select('*');
+        if (error) throw error;
+        return (data || []).map((d: any) => ({ 
+            id: d.id, 
+            name: d.name, 
+            email: d.email, 
+            nationalId: d.national_id, 
+            role: d.role as any, 
+            status: d.status as any,
+            schoolId: d.school_id,
+            phone: d.phone
+        })) as SystemUser[];
+    } catch { return []; }
 };
 
 export const fetchTeachers = async (): Promise<Teacher[]> => {
-    const { data } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
-    return (data || []).map((d: any) => ({ id: d.id, name: d.name, nationalId: d.national_id, email: d.email }));
+    try {
+        const { data, error } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
+        if (error) throw error;
+        return (data || []).map((d: any) => ({ 
+            id: d.id, 
+            name: d.name, 
+            nationalId: d.national_id, 
+            email: d.email,
+            phone: d.phone,
+            subjectSpecialty: d.subject_specialty,
+            schoolId: d.school_id,
+            subscriptionStatus: d.subscription_status
+        })) as Teacher[];
+    } catch { return []; }
 };
 
-// SQL Schema الموحد لضمان مطابقة الأعمدة والربط
-export const getDatabaseSchemaSQL = () => `
--- تصفير الجداول القديمة (اختياري - استخدم بحذر)
--- DROP TABLE IF EXISTS performance; DROP TABLE IF EXISTS attendance; DROP TABLE IF EXISTS students; DROP TABLE IF EXISTS system_users; DROP TABLE IF EXISTS schools;
+// --- عمليات الحفظ ---
+export const addStudent = async (s: Student) => await supabase.from('students').upsert({ 
+    id: s.id, name: s.name, national_id: s.nationalId, class_id: s.classId, 
+    grade_level: s.gradeLevel, class_name: s.className, school_id: s.schoolId, 
+    created_by_id: s.createdById, email: s.email, phone: s.phone, parent_phone: s.parentPhone
+});
 
+export const updateStudent = async (s: Student) => await supabase.from('students').update({ 
+    name: s.name, national_id: s.nationalId, class_name: s.className, grade_level: s.gradeLevel,
+    xp: s.xp, level: s.level, behavior_points: s.behaviorPoints, streak: s.streak, 
+    badges: s.badges, purchased_rewards: s.purchasedRewards, learning_style: s.learningStyle
+}).eq('id', s.id);
+
+export const saveAttendance = async (recs: AttendanceRecord[]) => await supabase.from('attendance').upsert(recs.map(r => ({ 
+    id: r.id, student_id: r.studentId, date: r.date, status: r.status, subject: r.subject, period: r.period, created_by_id: r.createdById 
+})));
+
+export const addPerformance = async (recs: PerformanceRecord[]) => await supabase.from('performance').upsert(recs.map(r => ({ 
+    id: r.id, student_id: r.studentId, subject: r.subject, title: r.title, score: r.score, max_score: r.maxScore, date: r.date, created_by_id: r.createdById, category: r.category, notes: r.notes 
+})));
+
+export const addSchool = async (s: School) => await supabase.from('schools').insert({ 
+    id: s.id, name: s.name, ministry_code: s.ministryCode, manager_name: s.managerName, 
+    manager_national_id: s.managerNationalId, type: s.type, phone: s.phone, 
+    student_count: s.studentCount, education_administration: s.educationAdministration 
+});
+
+export const addSystemUser = async (u: SystemUser) => await supabase.from('system_users').insert({ 
+    id: u.id, name: u.name, email: u.email, national_id: u.nationalId, password: u.password, 
+    role: u.role, school_id: u.schoolId, status: u.status, phone: u.phone 
+});
+
+export const updateSystemUser = async (u: SystemUser) => await supabase.from('system_users').update({
+    name: u.name, email: u.email, national_id: u.nationalId, role: u.role, status: u.status, phone: u.phone
+}).eq('id', u.id);
+
+export const updateTeacher = async (t: Teacher) => await supabase.from('system_users').update({
+    name: t.name, national_id: t.nationalId, email: t.email, phone: t.phone, 
+    subject_specialty: t.subjectSpecialty, subscription_status: t.subscriptionStatus, password: t.password
+}).eq('id', t.id);
+
+export const addTeacher = async (t: Teacher) => await supabase.from('system_users').insert({
+    id: t.id, name: t.name, email: t.email, national_id: t.nationalId, password: t.password,
+    role: 'TEACHER', school_id: t.schoolId, status: 'ACTIVE', phone: t.phone, subject_specialty: t.subjectSpecialty
+});
+
+export const deleteStudent = async (id: string) => await supabase.from('students').delete().eq('id', id);
+export const deleteAttendance = async (id: string) => await supabase.from('attendance').delete().eq('id', id);
+export const deletePerformance = async (id: string) => await supabase.from('performance').delete().eq('id', id);
+export const deleteSchool = async (id: string) => await supabase.from('schools').delete().eq('id', id);
+
+// --- إدارة النظام (SQL Setup) ---
+export const getDatabaseSchemaSQL = () => `
 CREATE TABLE IF NOT EXISTS schools (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -182,10 +300,12 @@ CREATE TABLE IF NOT EXISTS system_users (
     email TEXT UNIQUE,
     national_id TEXT UNIQUE,
     password TEXT NOT NULL,
-    role TEXT NOT NULL, -- SUPER_ADMIN, SCHOOL_MANAGER, TEACHER
+    role TEXT NOT NULL,
     school_id TEXT REFERENCES schools(id) ON DELETE SET NULL,
     status TEXT DEFAULT 'ACTIVE',
-    phone TEXT
+    phone TEXT,
+    subject_specialty TEXT,
+    subscription_status TEXT DEFAULT 'FREE'
 );
 
 CREATE TABLE IF NOT EXISTS students (
@@ -241,7 +361,6 @@ CREATE TABLE IF NOT EXISTS performance (
     url TEXT
 );
 
--- سياسات الوصول (تعطيل RLS للتسهيل في البداية)
 ALTER TABLE schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE system_users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE students DISABLE ROW LEVEL SECURITY;
@@ -249,134 +368,175 @@ ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
 ALTER TABLE performance DISABLE ROW LEVEL SECURITY;
 `;
 
-// دوال مساعدة إضافية للفيكس
-export const addStudent = async (s: Student) => await supabase.from('students').upsert({ id: s.id, name: s.name, national_id: s.nationalId, class_name: s.className, grade_level: s.gradeLevel, school_id: s.schoolId, created_by_id: s.createdById });
-
-// Fix: Updated updateStudent to include XP, levels, and other gamification data
-export const updateStudent = async (s: Student) => await supabase.from('students').update({ 
-    name: s.name, 
-    national_id: s.nationalId, 
-    class_name: s.className, 
-    grade_level: s.gradeLevel,
-    xp: s.xp,
-    level: s.level,
-    badges: s.badges,
-    purchased_rewards: s.purchasedRewards,
-    behavior_points: s.behaviorPoints,
-    seat_index: s.seatIndex,
-    learning_style: s.learningStyle,
-    streak: s.streak
-}).eq('id', s.id);
-
-export const deleteStudent = async (id: string) => await supabase.from('students').delete().eq('id', id);
-export const saveAttendance = async (recs: AttendanceRecord[]) => await supabase.from('attendance').upsert(recs.map(r => ({ id: r.id, student_id: r.studentId, date: r.date, status: r.status, subject: r.subject, created_by_id: r.createdById, behavior_status: r.behaviorStatus, behavior_note: r.behaviorNote, participation_score: r.participationScore, excuse_note: r.excuseNote })));
-
-// Fix: Updated addPerformance to handle category and notes (assignment ID link)
-export const addPerformance = async (recs: PerformanceRecord[]) => await supabase.from('performance').upsert(recs.map(r => ({ id: r.id, student_id: r.studentId, subject: r.subject, title: r.title, score: r.score, max_score: r.maxScore, date: r.date, created_by_id: r.createdById, notes: r.notes, category: r.category })));
-
-export const deletePerformance = async (id: string) => await supabase.from('performance').delete().eq('id', id);
-export const deleteAttendance = async (id: string) => await supabase.from('attendance').delete().eq('id', id);
-export const addSchool = async (s: School) => await supabase.from('schools').insert({ id: s.id, name: s.name, ministry_code: s.ministryCode, manager_name: s.managerName, manager_national_id: s.managerNationalId, type: s.type, phone: s.phone, student_count: s.studentCount, education_administration: s.educationAdministration });
-export const addSystemUser = async (u: SystemUser) => await supabase.from('system_users').insert({ id: u.id, name: u.name, email: u.email, national_id: u.nationalId, password: u.password, role: u.role, school_id: u.schoolId, status: u.status, phone: u.phone });
-
-// Fix: Added addTeacher to support teacher registration component
-export const addTeacher = async (t: Teacher) => {
-    return await supabase.from('system_users').insert({
-        id: t.id,
-        name: t.name,
-        email: t.email,
-        national_id: t.nationalId,
-        password: t.password,
-        role: 'TEACHER',
-        school_id: t.schoolId,
-        status: 'ACTIVE',
-        phone: t.phone
-    });
-};
-
+// --- المساعدات المحلية ---
 export const getStudents = (): Student[] => JSON.parse(localStorage.getItem('local_students') || '[]');
-export const getAttendance = (): AttendanceRecord[] => JSON.parse(localStorage.getItem('local_attendance') || '[]');
+export const getAttendance = (): AttendanceRecord[] => []; // يتم جلبها من السحابة حصراً
 export const getSchools = (): School[] => [];
 export const getTeachers = (): Teacher[] => [];
 export const getUserTheme = (): UserTheme => JSON.parse(localStorage.getItem(KEYS.USER_THEME) || '{"mode":"LIGHT","backgroundStyle":"FLAT"}');
 export const saveUserTheme = (t: UserTheme) => localStorage.setItem(KEYS.USER_THEME, JSON.stringify(t));
 export const getSubjects = (tid?: string): Subject[] => JSON.parse(localStorage.getItem(`local_subjects_${tid}`) || '[]');
 export const addSubject = (s: Subject) => { const cur = getSubjects(s.teacherId); localStorage.setItem(`local_subjects_${s.teacherId}`, JSON.stringify([...cur, s])); };
-export const deleteSubject = (id: string) => {};
 export const getAcademicTerms = (tid?: string): AcademicTerm[] => JSON.parse(localStorage.getItem(`local_terms_${tid}`) || '[]');
 export const saveAcademicTerm = (t: AcademicTerm) => { const cur = getAcademicTerms(t.teacherId); localStorage.setItem(`local_terms_${t.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); };
-export const deleteAcademicTerm = (id: string) => {};
-export const setCurrentTerm = (id: string, tid: string) => {};
 export const getMessages = (tid?: string): MessageLog[] => JSON.parse(localStorage.getItem(`local_messages_${tid}`) || '[]');
 export const saveMessage = (m: MessageLog) => { const cur = getMessages(m.teacherId); localStorage.setItem(`local_messages_${m.teacherId}`, JSON.stringify([m, ...cur])); };
 export const getReportHeaderConfig = (tid?: string): ReportHeaderConfig => JSON.parse(localStorage.getItem(`report_header_${tid}`) || '{"schoolName":"","educationAdmin":"","teacherName":"","schoolManager":"","academicYear":"","term":""}');
 export const saveReportHeaderConfig = (c: ReportHeaderConfig) => localStorage.setItem(`report_header_${c.teacherId}`, JSON.stringify(c));
 export const getSchedules = (): ScheduleItem[] => JSON.parse(localStorage.getItem('local_schedules') || '[]');
 export const saveScheduleItem = (s: ScheduleItem) => { const cur = getSchedules(); localStorage.setItem('local_schedules', JSON.stringify([...cur, s])); };
-export const deleteScheduleItem = (id: string) => {};
-export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => [];
-export const saveBehaviorIncident = (i: BehaviorIncident) => {};
-export const getTasks = (tid?: string): Task[] => [];
-export const saveTask = (t: Task) => {};
-export const getPurchaseRequests = (tid?: string): PurchaseRequest[] => [];
-export const savePurchaseRequest = (r: PurchaseRequest) => {};
-export const updatePurchaseStatus = (id: string, s: string) => {};
-export const getRewards = (tid?: string): Reward[] => [];
-export const saveReward = (r: Reward, tid?: string) => {};
-export const deleteReward = (id: string, tid?: string) => {};
-export const getExams = (tid?: string): Exam[] => [];
-export const saveExam = (e: Exam) => {};
-export const deleteExam = (id: string) => {};
-export const getExamResults = (id: string): ExamResult[] => [];
-export const saveExamResult = (r: ExamResult) => {};
-export const deleteExamResult = (id: string) => {};
-export const getTrackingSheets = (tid: string): TrackingSheet[] => [];
-export const saveTrackingSheet = (s: TrackingSheet) => {};
-export const deleteTrackingSheet = (id: string) => {};
-export const getWeeklyPlans = (tid: string): WeeklyPlanItem[] => [];
-export const saveWeeklyPlanItem = (i: WeeklyPlanItem) => {};
-export const getLessonLinks = (): LessonLink[] => [];
-export const saveLessonLink = (l: LessonLink) => {};
-export const deleteLessonLink = (id: string) => {};
-export const getLessonPlans = (tid?: string): StoredLessonPlan[] => [];
-export const saveLessonPlan = (p: StoredLessonPlan) => {};
-export const deleteLessonPlan = (id: string) => {};
+export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => JSON.parse(localStorage.getItem(`local_incidents_${tid}`) || '[]');
+export const saveBehaviorIncident = (i: BehaviorIncident) => { const cur = getBehaviorIncidents(i.teacherId); localStorage.setItem(`local_incidents_${i.teacherId}`, JSON.stringify([...cur, i])); };
+export const getTasks = (tid?: string): Task[] => JSON.parse(localStorage.getItem(`local_tasks_${tid}`) || '[]');
+export const saveTask = (t: Task) => { const cur = getTasks(t.teacherId); localStorage.setItem(`local_tasks_${t.teacherId}`, JSON.stringify([...cur, t])); };
+export const getPurchaseRequests = (tid?: string): PurchaseRequest[] => JSON.parse(localStorage.getItem(`local_purchases_${tid || 'global'}`) || '[]');
+export const savePurchaseRequest = (r: PurchaseRequest) => { const cur = getPurchaseRequests(r.teacherId); localStorage.setItem(`local_purchases_${r.teacherId}`, JSON.stringify([r, ...cur])); };
+export const updatePurchaseStatus = async (id: string, s: string) => { 
+    const cur = getPurchaseRequests('global');
+    const updated = cur.map(r => r.id === id ? { ...r, status: s as any } : r);
+    localStorage.setItem(`local_purchases_global`, JSON.stringify(updated));
+};
+export const getRewards = (tid?: string): Reward[] => JSON.parse(localStorage.getItem(`${KEYS.CUSTOM_REWARDS}_${tid}`) || '[]');
+export const saveReward = (r: Reward, tid?: string) => { const cur = getRewards(tid); localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid}`, JSON.stringify([...cur.filter(x=>x.id!==r.id), r])); };
+export const deleteReward = (id: string, tid?: string) => { const cur = getRewards(tid); localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
+export const getExams = (tid?: string): Exam[] => JSON.parse(localStorage.getItem(`local_exams_${tid}`) || '[]');
+export const saveExam = (e: Exam) => { const cur = getExams(e.teacherId); localStorage.setItem(`local_exams_${e.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==e.id), e])); };
+
+// Fix: Implemented deleteExam
+export const deleteExam = (id: string, tid?: string) => {
+    const cur = getExams(tid);
+    localStorage.setItem(`local_exams_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+export const getExamResults = (id: string): ExamResult[] => JSON.parse(localStorage.getItem(`local_exam_results_${id}`) || '[]');
+export const saveExamResult = (r: ExamResult) => { const cur = getExamResults(r.examId); localStorage.setItem(`local_exam_results_${r.examId}`, JSON.stringify([...cur, r])); };
+export const getTrackingSheets = (tid: string): TrackingSheet[] => JSON.parse(localStorage.getItem(`local_tracking_sheets_${tid}`) || '[]');
+export const saveTrackingSheet = (s: TrackingSheet) => { const cur = getTrackingSheets(s.teacherId); localStorage.setItem(`local_tracking_sheets_${s.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==s.id), s])); };
+export const getWeeklyPlans = (tid: string): WeeklyPlanItem[] => JSON.parse(localStorage.getItem(`local_weekly_plans_${tid}`) || '[]');
+export const saveWeeklyPlanItem = (i: WeeklyPlanItem) => { const cur = getWeeklyPlans(i.teacherId); localStorage.setItem(`local_weekly_plans_${i.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==i.id), i])); };
+export const getLessonLinks = (): LessonLink[] => JSON.parse(localStorage.getItem('local_lesson_links') || '[]');
+export const saveLessonLink = (l: LessonLink) => { const cur = getLessonLinks(); localStorage.setItem('local_lesson_links', JSON.stringify([...cur, l])); };
+export const getLessonPlans = (tid?: string): StoredLessonPlan[] => JSON.parse(localStorage.getItem(`local_lesson_plans_${tid}`) || '[]');
+export const saveLessonPlan = (p: StoredLessonPlan) => { const cur = getLessonPlans(p.teacherId); localStorage.setItem(`local_lesson_plans_${p.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==p.id), p])); };
+
+// Fix: Implemented deleteLessonPlan
+export const deleteLessonPlan = (id: string, tid?: string) => {
+    const cur = getLessonPlans(tid);
+    localStorage.setItem(`local_lesson_plans_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => JSON.parse(localStorage.getItem(`local_assignments_map_${tid}`) || '[]');
 export const addTeacherAssignment = (a: TeacherAssignment) => { const cur = getTeacherAssignments(a.teacherId); localStorage.setItem(`local_assignments_map_${a.teacherId}`, JSON.stringify([...cur, a])); };
-export const deleteTeacherAssignment = (id: string) => {};
-export const getTeacherPeriodTimings = (tid: string): string[] => ["07:00-07:45", "07:45-08:30"];
-export const saveTeacherPeriodTimings = (tid: string, t: string[]) => {};
-export const getAssignments = (c: string, tid?: string, isM?: boolean): Assignment[] => [];
-export const saveAssignment = (a: Assignment) => {};
-export const deleteAssignment = (id: string, tid?: string) => {};
+export const deleteTeacherAssignment = (id: string) => { /* logic */ };
+export const getTeacherPeriodTimings = (tid: string): string[] => JSON.parse(localStorage.getItem(`${KEYS.PERIOD_TIMINGS}_${tid}`) || ["07:00-07:45", "07:45-08:30"]);
+export const saveTeacherPeriodTimings = (tid: string, t: string[]) => localStorage.setItem(`${KEYS.PERIOD_TIMINGS}_${tid}`, JSON.stringify(t));
+export const getAssignments = (c: string, tid?: string, isM?: boolean): Assignment[] => JSON.parse(localStorage.getItem(`local_assignments_${tid}`) || '[]');
+export const saveAssignment = (a: Assignment) => { const cur = getAssignments('ALL', a.teacherId); localStorage.setItem(`local_assignments_${a.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==a.id), a])); };
+export const deleteAssignment = (id: string, tid?: string) => { const cur = getAssignments('ALL', tid); localStorage.setItem(`local_assignments_${tid}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
+export const getChallenges = (tid?: string): WeeklyChallenge[] => JSON.parse(localStorage.getItem(`local_challenges_${tid}`) || '[]');
+export const saveChallenge = (c: WeeklyChallenge, tid: string) => { const cur = getChallenges(tid); localStorage.setItem(`local_challenges_${tid}`, JSON.stringify([...cur.filter(x=>x.id!==c.id), c])); };
+export const deleteChallenge = (id: string, tid: string) => { const cur = getChallenges(tid); localStorage.setItem(`local_challenges_${tid}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
+export const getCustomTables = (tid?: string): CustomTable[] => JSON.parse(localStorage.getItem(`local_custom_tables_${tid}`) || '[]');
+export const addCustomTable = (t: CustomTable) => { const cur = getCustomTables(t.teacherId); localStorage.setItem(`local_custom_tables_${t.teacherId}`, JSON.stringify([...cur, t])); };
+
+// Fix: Implemented deleteCustomTable
+export const deleteCustomTable = (id: string, tid?: string) => {
+    const cur = getCustomTables(tid);
+    localStorage.setItem(`local_custom_tables_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+export const getRemedialPlans = (): RemedialPlan[] => JSON.parse(localStorage.getItem('local_remedial_plans') || '[]');
+export const saveRemedialPlan = (p: RemedialPlan) => { const cur = getRemedialPlans(); localStorage.setItem('local_remedial_plans', JSON.stringify([...cur.filter(x=>x.id!==p.id), p])); };
+export const getEnvironmentRecords = (cid: string): EnvironmentRecord[] => JSON.parse(localStorage.getItem(`local_env_records_${cid}`) || '[]');
+export const saveEnvironmentRecord = (r: EnvironmentRecord) => { const cur = getEnvironmentRecords(r.classId); localStorage.setItem(`local_env_records_${r.classId}`, JSON.stringify([...cur, r])); };
+
+// Fix: Used String() explicitly to ensure tid is treated as string for localStorage key
+export const getQuestionBank = (tid: string): Question[] => JSON.parse(localStorage.getItem(`local_question_bank_${String(tid)}`) || '[]');
+export const saveQuestionToBank = (q: Question) => { const cur = getQuestionBank(q.teacherId!); localStorage.setItem(`local_question_bank_${q.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==q.id), q])); };
+
+// Fix: Implemented deleteQuestionFromBank
+export const deleteQuestionFromBank = (id: string, tid?: string) => {
+    const cur = getQuestionBank(tid || '');
+    localStorage.setItem(`local_question_bank_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+export const getCurriculumUnits = (tid: string): CurriculumUnit[] => JSON.parse(localStorage.getItem(`local_curriculum_units_${tid}`) || '[]');
+export const saveCurriculumUnit = (u: CurriculumUnit) => { const cur = getCurriculumUnits(u.teacherId!); localStorage.setItem(`local_curriculum_units_${u.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==u.id), u])); };
+export const getCurriculumLessons = (uid: string): CurriculumLesson[] => JSON.parse(localStorage.getItem(`local_curriculum_lessons_${uid}`) || '[]');
+export const saveCurriculumLesson = (l: CurriculumLesson) => { const cur = getCurriculumLessons(l.unitId); localStorage.setItem(`local_curriculum_lessons_${l.unitId}`, JSON.stringify([...cur.filter(x=>x.id!==l.id), l])); };
+
+// Fix: Implemented deleteCurriculumLesson
+export const deleteCurriculumLesson = (id: string, uid: string) => {
+    const cur = getCurriculumLessons(uid);
+    localStorage.setItem(`local_curriculum_lessons_${uid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+export const toggleCurriculumLesson = (id: string, s: boolean, uid: string) => { 
+    const cur = getCurriculumLessons(uid);
+    const updated = cur.map(l => l.id === id ? { ...l, isCompleted: s } : l);
+    localStorage.setItem(`local_curriculum_lessons_${uid}`, JSON.stringify(updated));
+};
+export const getFormsDetailedResults = (tid: string): FormsDetailedResult[] => JSON.parse(localStorage.getItem(`local_forms_results_${tid}`) || '[]');
+export const saveFormsDetailedResult = (r: FormsDetailedResult) => { const cur = getFormsDetailedResults(r.teacherId); localStorage.setItem(`local_forms_results_${r.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==r.id), r])); };
+
+// Fix: Implemented deleteFormsDetailedResult
+export const deleteFormsDetailedResult = (id: string, tid?: string) => {
+    const cur = getFormsDetailedResults(tid || '');
+    localStorage.setItem(`local_forms_results_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+// Fix: Implemented deleteExamResult
+export const deleteExamResult = (id: string, examId: string) => {
+    const cur = getExamResults(examId);
+    localStorage.setItem(`local_exam_results_${examId}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+// Fix: Implemented deleteTrackingSheet
+export const deleteTrackingSheet = (id: string, tid?: string) => {
+    const cur = getTrackingSheets(tid || '');
+    localStorage.setItem(`local_tracking_sheets_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+// Fix: Implemented deleteScheduleItem
+export const deleteScheduleItem = (id: string) => {
+    const cur = getSchedules();
+    localStorage.setItem('local_schedules', JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+// Fix: Implemented deleteSubject
+export const deleteSubject = (id: string, tid?: string) => {
+    const cur = getSubjects(tid);
+    localStorage.setItem(`local_subjects_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+// Fix: Implemented deleteAcademicTerm
+export const deleteAcademicTerm = (id: string, tid?: string) => {
+    const cur = getAcademicTerms(tid);
+    localStorage.setItem(`local_terms_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+// Fix: Implemented deleteCurriculumUnit
+export const deleteCurriculumUnit = (id: string, tid: string) => {
+    const cur = getCurriculumUnits(tid);
+    localStorage.setItem(`local_curriculum_units_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+// Fix: Implemented setCurrentTerm
+export const setCurrentTerm = (id: string, tid: string) => {
+    const cur = getAcademicTerms(tid);
+    const updated = cur.map(t => ({ ...t, isCurrent: t.id === id }));
+    localStorage.setItem(`local_terms_${tid}`, JSON.stringify(updated));
+};
+
+// Fix: Implemented deleteLessonLink
+export const deleteLessonLink = (id: string) => {
+    const cur = getLessonLinks();
+    localStorage.setItem('local_lesson_links', JSON.stringify(cur.filter(x => x.id !== id)));
+};
+
+export const getAISettings = () => ({ modelId: 'gemini-3-flash-preview', temperature: 0.7, systemInstruction: 'أنت مساعد تعليمي.' });
 export const downloadFromSupabase = async () => ({ success: true });
 export const checkConnection = async () => ({ success: true });
-export const getAISettings = () => ({ modelId: 'gemini-3-flash-preview', temperature: 0.7, systemInstruction: 'أنت مساعد تعليمي.' });
-export const updateStudentLearningStyle = (id: string, s: LearningStyle) => {};
+export const updateStudentLearningStyle = (id: string, s: LearningStyle) => { /* logic */ };
 export const getWorksMasterUrl = () => '';
-export const saveWorksMasterUrl = (u: string) => {};
-export const updateTeacher = async (t: Teacher) => {};
-export const updateSystemUser = async (u: SystemUser) => {};
-export const getChallenges = (tid?: string): WeeklyChallenge[] => [];
-export const saveChallenge = (c: WeeklyChallenge, tid: string) => {};
-export const deleteChallenge = (id: string, tid: string) => {};
-export const getCustomTables = (tid?: string): CustomTable[] => [];
-export const addCustomTable = (t: CustomTable) => {};
-export const deleteCustomTable = (id: string) => {};
-export const getRemedialPlans = (): RemedialPlan[] => [];
-export const saveRemedialPlan = (p: RemedialPlan) => {};
-export const getEnvironmentRecords = (cid: string): EnvironmentRecord[] => [];
-export const saveEnvironmentRecord = (r: EnvironmentRecord) => {};
-export const getQuestionBank = (tid: string): Question[] => [];
-export const saveQuestionToBank = (q: Question) => {};
-export const deleteQuestionFromBank = (id: string) => {};
-export const getCurriculumUnits = (tid: string): CurriculumUnit[] => [];
-export const saveCurriculumUnit = (u: CurriculumUnit) => {};
-export const deleteCurriculumUnit = (id: string, tid: string) => {};
-export const getCurriculumLessons = (uid: string): CurriculumLesson[] => [];
-export const saveCurriculumLesson = (l: CurriculumLesson) => {};
-export const deleteCurriculumLesson = (id: string, uid: string) => {};
-export const toggleCurriculumLesson = (id: string, s: boolean, uid: string) => {};
-export const getFormsDetailedResults = (tid: string): FormsDetailedResult[] => [];
-export const saveFormsDetailedResult = (r: FormsDetailedResult) => {};
-export const deleteFormsDetailedResult = (id: string) => {};
+export const saveWorksMasterUrl = (u: string) => { /* logic */ };
