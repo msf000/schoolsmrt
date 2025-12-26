@@ -18,19 +18,26 @@ export const KEYS = {
     CUSTOM_REWARDS: 'custom_rewards'
 };
 
-// --- هيكلة الأعمدة المطلوبة للفحص المعمق (Deep Probe) ---
+// --- هيكلة الأعمدة المطلوبة لكافة جداول النظام (18 جدولاً) للفحص المعمق ---
 const REQUIRED_SCHEMA = {
     schools: ['id', 'name', 'ministry_code', 'manager_name', 'manager_national_id', 'type', 'phone', 'student_count', 'education_administration'],
     system_users: ['id', 'name', 'email', 'national_id', 'password', 'role', 'school_id', 'status', 'phone', 'subject_specialty', 'subscription_status'],
-    students: ['id', 'name', 'national_id', 'class_id', 'school_id', 'grade_level', 'class_name', 'email', 'phone', 'parent_phone', 'password', 'xp', 'level', 'behavior_points', 'streak', 'learning_style', 'badges', 'purchased_rewards'],
+    students: ['id', 'name', 'national_id', 'class_id', 'school_id', 'grade_level', 'class_name', 'email', 'phone', 'parent_phone', 'password', 'xp', 'level', 'behavior_points', 'streak', 'learning_style', 'badges', 'purchased_rewards', 'created_by_id'],
     attendance: ['id', 'student_id', 'date', 'status', 'subject', 'period', 'created_by_id', 'behavior_status', 'behavior_note', 'participation_score', 'excuse_note'],
     performance: ['id', 'student_id', 'subject', 'title', 'score', 'max_score', 'date', 'created_by_id', 'category', 'notes'],
-    behavior_incidents: ['id', 'student_id', 'teacher_id', 'type', 'category', 'points', 'date', 'note'],
-    tasks: ['id', 'teacher_id', 'class_id', 'subject', 'title', 'due_date', 'type', 'max_score'],
-    exams: ['id', 'teacher_id', 'title', 'subject', 'is_active', 'questions'],
-    curriculum_units: ['id', 'teacher_id', 'subject', 'title', 'order_index'],
-    rewards: ['id', 'teacher_id', 'title', 'cost', 'category'],
-    purchase_requests: ['id', 'student_id', 'reward_id', 'status', 'date']
+    behavior_incidents: ['id', 'student_id', 'teacher_id', 'type', 'category', 'points', 'date', 'note', 'action_taken'],
+    tasks: ['id', 'teacher_id', 'class_id', 'subject', 'title', 'description', 'due_date', 'type', 'max_score', 'submissions'],
+    exams: ['id', 'teacher_id', 'title', 'subject', 'grade_level', 'duration_minutes', 'questions', 'is_active', 'created_at'],
+    exam_results: ['id', 'exam_id', 'student_id', 'score', 'total_score', 'answers', 'date'],
+    curriculum_units: ['id', 'teacher_id', 'subject', 'grade_level', 'title', 'order_index'],
+    curriculum_lessons: ['id', 'unit_id', 'title', 'order_index', 'learning_standards', 'micro_concept_ids', 'is_completed', 'completed_at'],
+    rewards: ['id', 'teacher_id', 'title', 'cost', 'icon', 'description', 'category'],
+    purchase_requests: ['id', 'student_id', 'student_name', 'reward_id', 'reward_title', 'cost', 'status', 'date', 'teacher_id'],
+    lesson_plans: ['id', 'teacher_id', 'lesson_id', 'subject', 'topic', 'content_json', 'resources', 'created_at'],
+    subjects: ['id', 'name', 'teacher_id'],
+    schedules: ['id', 'class_id', 'subject_name', 'day', 'period', 'teacher_id'],
+    custom_tables: ['id', 'name', 'columns', 'rows', 'source_url', 'last_updated', 'teacher_id', 'created_at'],
+    environment_records: ['id', 'teacher_id', 'class_id', 'date', 'lighting', 'noise_level', 'mood', 'notes']
 };
 
 // --- فحص صحة النظام السحابي المعمق ---
@@ -58,7 +65,7 @@ export const getCloudSystemStatus = async () => {
             const end = performance.now();
             return {
                 id: tableId,
-                label: tableId.replace('_', ' '),
+                label: tableId.replace(/_/g, ' '),
                 status: tableStatus,
                 columns: colStatus,
                 latency: Math.round(end - start),
@@ -271,7 +278,6 @@ export const updateTeacher = async (t: Teacher) => await supabase.from('system_u
     subject_specialty: t.subjectSpecialty, subscription_status: t.subscriptionStatus, password: t.password
 }).eq('id', t.id);
 
-/* Fix: Access correct property name 'subjectSpecialty' from Teacher interface instead of 'subject_specialty' */
 export const addTeacher = async (t: Teacher) => await supabase.from('system_users').insert({
     id: t.id, name: t.name, email: t.email, national_id: t.nationalId, password: t.password,
     role: 'TEACHER', school_id: t.schoolId, status: 'ACTIVE', phone: t.phone, subject_specialty: t.subjectSpecialty
@@ -282,7 +288,7 @@ export const deleteAttendance = async (id: string) => await supabase.from('atten
 export const deletePerformance = async (id: string) => await supabase.from('performance').delete().eq('id', id);
 export const deleteSchool = async (id: string) => await supabase.from('schools').delete().eq('id', id);
 
-// --- إدارة النظام (SQL Setup & Comprehensive Migration) ---
+// --- إدارة النظام (SQL Setup & Migration) ---
 export const getDatabaseSchemaSQL = () => `
 -- 1. المدارس
 CREATE TABLE IF NOT EXISTS schools (
@@ -299,7 +305,7 @@ CREATE TABLE IF NOT EXISTS schools (
 ALTER TABLE schools ADD COLUMN IF NOT EXISTS education_administration TEXT;
 ALTER TABLE schools ADD COLUMN IF NOT EXISTS student_count INTEGER DEFAULT 0;
 
--- 2. المستخدمون
+-- 2. المستخدمون (المعلمون والمدراء)
 CREATE TABLE IF NOT EXISTS system_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -350,6 +356,7 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS purchased_rewards JSONB DEFAULT '[
 ALTER TABLE students ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS learning_style TEXT DEFAULT 'UNKNOWN';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS created_by_id TEXT REFERENCES system_users(id) ON DELETE SET NULL;
 
 -- 4. الحضور والغياب
 CREATE TABLE IF NOT EXISTS attendance (
@@ -394,13 +401,14 @@ CREATE TABLE IF NOT EXISTS behavior_incidents (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
     teacher_id TEXT REFERENCES system_users(id) ON DELETE SET NULL,
-    type TEXT NOT NULL, -- POSITIVE / NEGATIVE
+    type TEXT NOT NULL,
     category TEXT,
     points INTEGER,
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     note TEXT,
     action_taken TEXT
 );
+ALTER TABLE behavior_incidents ADD COLUMN IF NOT EXISTS action_taken TEXT;
 
 -- 7. المهام والواجبات
 CREATE TABLE IF NOT EXISTS tasks (
@@ -411,12 +419,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     title TEXT NOT NULL,
     description TEXT,
     due_date DATE,
-    type TEXT, -- HOMEWORK / PROJECT / RESEARCH
+    type TEXT,
     max_score NUMERIC DEFAULT 10,
     submissions JSONB DEFAULT '[]'
 );
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS submissions JSONB DEFAULT '[]';
 
--- 8. الاختبارات الإلكترونية
+-- 8. الاختبارات
 CREATE TABLE IF NOT EXISTS exams (
     id TEXT PRIMARY KEY,
     teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
@@ -440,7 +449,7 @@ CREATE TABLE IF NOT EXISTS exam_results (
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 10. المنهج وتوزيع الدروس
+-- 10. وحدات المنهج
 CREATE TABLE IF NOT EXISTS curriculum_units (
     id TEXT PRIMARY KEY,
     teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
@@ -450,6 +459,7 @@ CREATE TABLE IF NOT EXISTS curriculum_units (
     order_index INTEGER
 );
 
+-- 11. دروس المنهج
 CREATE TABLE IF NOT EXISTS curriculum_lessons (
     id TEXT PRIMARY KEY,
     unit_id TEXT REFERENCES curriculum_units(id) ON DELETE CASCADE,
@@ -461,7 +471,7 @@ CREATE TABLE IF NOT EXISTS curriculum_lessons (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- 11. متجر المكافآت
+-- 12. المكافآت
 CREATE TABLE IF NOT EXISTS rewards (
     id TEXT PRIMARY KEY,
     teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
@@ -469,9 +479,10 @@ CREATE TABLE IF NOT EXISTS rewards (
     cost INTEGER NOT NULL,
     icon TEXT,
     description TEXT,
-    category TEXT -- PRIVILEGE / TITLE / ITEM
+    category TEXT
 );
 
+-- 13. طلبات الشراء
 CREATE TABLE IF NOT EXISTS purchase_requests (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -479,12 +490,12 @@ CREATE TABLE IF NOT EXISTS purchase_requests (
     reward_id TEXT REFERENCES rewards(id) ON DELETE CASCADE,
     reward_title TEXT,
     cost INTEGER,
-    status TEXT DEFAULT 'PENDING', -- PENDING / APPROVED / REJECTED
+    status TEXT DEFAULT 'PENDING',
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     teacher_id TEXT REFERENCES system_users(id) ON DELETE SET NULL
 );
 
--- 12. تحضير الدروس السحابي
+-- 14. خطط الدروس
 CREATE TABLE IF NOT EXISTS lesson_plans (
     id TEXT PRIMARY KEY,
     teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
@@ -496,13 +507,14 @@ CREATE TABLE IF NOT EXISTS lesson_plans (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 13. الجداول والجداول المخصصة
+-- 15. المواد
 CREATE TABLE IF NOT EXISTS subjects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
 );
 
+-- 16. الجداول الدراسية
 CREATE TABLE IF NOT EXISTS schedules (
     id TEXT PRIMARY KEY,
     class_id TEXT,
@@ -512,18 +524,36 @@ CREATE TABLE IF NOT EXISTS schedules (
     teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
 );
 
+-- 17. الجداول المخصصة
 CREATE TABLE IF NOT EXISTS custom_tables (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     columns JSONB DEFAULT '[]',
     rows JSONB DEFAULT '[]',
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE,
-    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- تعطيل RLS للمرونة في التطوير الحالي
+-- 18. قياسات بيئة الصف
+CREATE TABLE IF NOT EXISTS environment_records (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE,
+    class_id TEXT,
+    date DATE NOT NULL,
+    lighting INTEGER,
+    noise_level INTEGER,
+    mood TEXT,
+    notes TEXT
+);
+
+-- تعطيل RLS لتسهيل البدء السريع
+ALTER TABLE schools DISABLE ROW LEVEL SECURITY;
+ALTER TABLE system_users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
+ALTER TABLE performance DISABLE ROW LEVEL SECURITY;
 ALTER TABLE behavior_incidents DISABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
 ALTER TABLE exams DISABLE ROW LEVEL SECURITY;
@@ -536,6 +566,7 @@ ALTER TABLE lesson_plans DISABLE ROW LEVEL SECURITY;
 ALTER TABLE subjects DISABLE ROW LEVEL SECURITY;
 ALTER TABLE schedules DISABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_tables DISABLE ROW LEVEL SECURITY;
+ALTER TABLE environment_records DISABLE ROW LEVEL SECURITY;
 `;
 
 // --- المساعدات المحلية ---
@@ -596,7 +627,6 @@ export const deleteLessonPlan = (id: string, tid?: string) => {
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => JSON.parse(localStorage.getItem(`local_assignments_map_${tid || 'global'}`) || '[]');
 export const addTeacherAssignment = (a: TeacherAssignment) => { const cur = getTeacherAssignments(a.teacherId); localStorage.setItem(`local_assignments_map_${a.teacherId || 'global'}`, JSON.stringify([...cur, a])); };
 export const deleteTeacherAssignment = (id: string) => { /* logic */ };
-// Fix getTeacherPeriodTimings to use a stringified array as fallback to JSON.parse
 export const getTeacherPeriodTimings = (tid: string): string[] => JSON.parse(localStorage.getItem(`${KEYS.PERIOD_TIMINGS}_${String(tid)}`) || '["07:00-07:45", "07:45-08:30"]');
 export const saveTeacherPeriodTimings = (tid: string, t: string[]) => localStorage.setItem(`${KEYS.PERIOD_TIMINGS}_${String(tid)}`, JSON.stringify(t));
 export const getAssignments = (c: string, tid?: string, isM?: boolean): Assignment[] => JSON.parse(localStorage.getItem(`local_assignments_${tid || 'global'}`) || '[]');
