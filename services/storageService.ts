@@ -1,4 +1,3 @@
-
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -238,8 +237,8 @@ export const addStudent = async (s: Student) => await supabase.from('students').
 
 export const updateStudent = async (s: Student) => await supabase.from('students').update({ 
     name: s.name, national_id: s.nationalId, class_name: s.className, grade_level: s.gradeLevel,
-    xp: s.xp, level: s.level, behavior_points: s.behaviorPoints, streak: s.streak, 
-    badges: s.badges, purchased_rewards: s.purchasedRewards, learning_style: s.learningStyle
+    xp: s.xp, level: s.level, behavior_points: s.behavior_points, streak: s.streak, 
+    badges: s.badges, purchased_rewards: s.purchased_rewards, learning_style: s.learning_style
 }).eq('id', s.id);
 
 export const saveAttendance = async (recs: AttendanceRecord[]) => await supabase.from('attendance').upsert(recs.map(r => ({ 
@@ -272,7 +271,7 @@ export const updateTeacher = async (t: Teacher) => await supabase.from('system_u
 
 export const addTeacher = async (t: Teacher) => await supabase.from('system_users').insert({
     id: t.id, name: t.name, email: t.email, national_id: t.nationalId, password: t.password,
-    role: 'TEACHER', school_id: t.schoolId, status: 'ACTIVE', phone: t.phone, subject_specialty: t.subjectSpecialty
+    role: 'TEACHER', school_id: t.schoolId, status: 'ACTIVE', phone: t.phone, subject_specialty: t.subject_specialty
 });
 
 export const deleteStudent = async (id: string) => await supabase.from('students').delete().eq('id', id);
@@ -375,160 +374,146 @@ export const getSchools = (): School[] => [];
 export const getTeachers = (): Teacher[] => [];
 export const getUserTheme = (): UserTheme => JSON.parse(localStorage.getItem(KEYS.USER_THEME) || '{"mode":"LIGHT","backgroundStyle":"FLAT"}');
 export const saveUserTheme = (t: UserTheme) => localStorage.setItem(KEYS.USER_THEME, JSON.stringify(t));
-export const getSubjects = (tid?: string): Subject[] => JSON.parse(localStorage.getItem(`local_subjects_${tid}`) || '[]');
-export const addSubject = (s: Subject) => { const cur = getSubjects(s.teacherId); localStorage.setItem(`local_subjects_${s.teacherId}`, JSON.stringify([...cur, s])); };
-export const getAcademicTerms = (tid?: string): AcademicTerm[] => JSON.parse(localStorage.getItem(`local_terms_${tid}`) || '[]');
-export const saveAcademicTerm = (t: AcademicTerm) => { const cur = getAcademicTerms(t.teacherId); localStorage.setItem(`local_terms_${t.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); };
-export const getMessages = (tid?: string): MessageLog[] => JSON.parse(localStorage.getItem(`local_messages_${tid}`) || '[]');
-export const saveMessage = (m: MessageLog) => { const cur = getMessages(m.teacherId); localStorage.setItem(`local_messages_${m.teacherId}`, JSON.stringify([m, ...cur])); };
-export const getReportHeaderConfig = (tid?: string): ReportHeaderConfig => JSON.parse(localStorage.getItem(`report_header_${tid}`) || '{"schoolName":"","educationAdmin":"","teacherName":"","schoolManager":"","academicYear":"","term":""}');
-export const saveReportHeaderConfig = (c: ReportHeaderConfig) => localStorage.setItem(`report_header_${c.teacherId}`, JSON.stringify(c));
+export const getSubjects = (tid?: string): Subject[] => JSON.parse(localStorage.getItem(`local_subjects_${tid || 'global'}`) || '[]');
+export const addSubject = (s: Subject) => { const cur = getSubjects(s.teacherId); localStorage.setItem(`local_subjects_${s.teacherId || 'global'}`, JSON.stringify([...cur, s])); };
+export const getAcademicTerms = (tid?: string): AcademicTerm[] => JSON.parse(localStorage.getItem(`local_terms_${tid || 'global'}`) || '[]');
+export const saveAcademicTerm = (t: AcademicTerm) => { const cur = getAcademicTerms(t.teacherId); localStorage.setItem(`local_terms_${t.teacherId || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); };
+export const getMessages = (tid?: string): MessageLog[] => JSON.parse(localStorage.getItem(`local_messages_${tid || 'global'}`) || '[]');
+export const saveMessage = (m: MessageLog) => { const cur = getMessages(m.teacherId); localStorage.setItem(`local_messages_${m.teacherId || 'global'}`, JSON.stringify([m, ...cur])); };
+export const getReportHeaderConfig = (tid?: string): ReportHeaderConfig => JSON.parse(localStorage.getItem(`report_header_${tid || 'global'}`) || '{"schoolName":"","educationAdmin":"","teacherName":"","schoolManager":"","academicYear":"","term":""}');
+export const saveReportHeaderConfig = (c: ReportHeaderConfig) => localStorage.setItem(`report_header_${c.teacherId || 'global'}`, JSON.stringify(c));
 export const getSchedules = (): ScheduleItem[] => JSON.parse(localStorage.getItem('local_schedules') || '[]');
 export const saveScheduleItem = (s: ScheduleItem) => { const cur = getSchedules(); localStorage.setItem('local_schedules', JSON.stringify([...cur, s])); };
-export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => JSON.parse(localStorage.getItem(`local_incidents_${tid}`) || '[]');
-export const saveBehaviorIncident = (i: BehaviorIncident) => { const cur = getBehaviorIncidents(i.teacherId); localStorage.setItem(`local_incidents_${i.teacherId}`, JSON.stringify([...cur, i])); };
-export const getTasks = (tid?: string): Task[] => JSON.parse(localStorage.getItem(`local_tasks_${tid}`) || '[]');
-export const saveTask = (t: Task) => { const cur = getTasks(t.teacherId); localStorage.setItem(`local_tasks_${t.teacherId}`, JSON.stringify([...cur, t])); };
+export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => JSON.parse(localStorage.getItem(`local_incidents_${tid || 'global'}`) || '[]');
+export const saveBehaviorIncident = (i: BehaviorIncident) => { const cur = getBehaviorIncidents(i.teacherId); localStorage.setItem(`local_incidents_${i.teacherId || 'global'}`, JSON.stringify([...cur, i])); };
+export const getTasks = (tid?: string): Task[] => JSON.parse(localStorage.getItem(`local_tasks_${tid || 'global'}`) || '[]');
+export const saveTask = (t: Task) => { const cur = getTasks(t.teacherId); localStorage.setItem(`local_tasks_${t.teacherId || 'global'}`, JSON.stringify([...cur, t])); };
 export const getPurchaseRequests = (tid?: string): PurchaseRequest[] => JSON.parse(localStorage.getItem(`local_purchases_${tid || 'global'}`) || '[]');
-export const savePurchaseRequest = (r: PurchaseRequest) => { const cur = getPurchaseRequests(r.teacherId); localStorage.setItem(`local_purchases_${r.teacherId}`, JSON.stringify([r, ...cur])); };
+export const savePurchaseRequest = (r: PurchaseRequest) => { const cur = getPurchaseRequests(r.teacherId); localStorage.setItem(`local_purchases_${r.teacherId || 'global'}`, JSON.stringify([r, ...cur])); };
 export const updatePurchaseStatus = async (id: string, s: string) => { 
     const cur = getPurchaseRequests('global');
     const updated = cur.map(r => r.id === id ? { ...r, status: s as any } : r);
     localStorage.setItem(`local_purchases_global`, JSON.stringify(updated));
 };
-export const getRewards = (tid?: string): Reward[] => JSON.parse(localStorage.getItem(`${KEYS.CUSTOM_REWARDS}_${tid}`) || '[]');
-export const saveReward = (r: Reward, tid?: string) => { const cur = getRewards(tid); localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid}`, JSON.stringify([...cur.filter(x=>x.id!==r.id), r])); };
-export const deleteReward = (id: string, tid?: string) => { const cur = getRewards(tid); localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
-export const getExams = (tid?: string): Exam[] => JSON.parse(localStorage.getItem(`local_exams_${tid}`) || '[]');
-export const saveExam = (e: Exam) => { const cur = getExams(e.teacherId); localStorage.setItem(`local_exams_${e.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==e.id), e])); };
+export const getRewards = (tid?: string): Reward[] => JSON.parse(localStorage.getItem(`${KEYS.CUSTOM_REWARDS}_${tid || 'global'}`) || '[]');
+export const saveReward = (r: Reward, tid?: string) => { const cur = getRewards(tid); localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==r.id), r])); };
+export const deleteReward = (id: string, tid?: string) => { const cur = getRewards(tid); localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid || 'global'}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
+export const getExams = (tid?: string): Exam[] => JSON.parse(localStorage.getItem(`local_exams_${tid || 'global'}`) || '[]');
+export const saveExam = (e: Exam) => { const cur = getExams(e.teacherId); localStorage.setItem(`local_exams_${e.teacherId || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==e.id), e])); };
 
-// Fix: Implemented deleteExam
 export const deleteExam = (id: string, tid?: string) => {
     const cur = getExams(tid);
-    localStorage.setItem(`local_exams_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_exams_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
 export const getExamResults = (id: string): ExamResult[] => JSON.parse(localStorage.getItem(`local_exam_results_${id}`) || '[]');
 export const saveExamResult = (r: ExamResult) => { const cur = getExamResults(r.examId); localStorage.setItem(`local_exam_results_${r.examId}`, JSON.stringify([...cur, r])); };
-export const getTrackingSheets = (tid: string): TrackingSheet[] => JSON.parse(localStorage.getItem(`local_tracking_sheets_${tid}`) || '[]');
+export const getTrackingSheets = (tid: string): TrackingSheet[] => JSON.parse(localStorage.getItem(`local_tracking_sheets_${String(tid)}`) || '[]');
 export const saveTrackingSheet = (s: TrackingSheet) => { const cur = getTrackingSheets(s.teacherId); localStorage.setItem(`local_tracking_sheets_${s.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==s.id), s])); };
-export const getWeeklyPlans = (tid: string): WeeklyPlanItem[] => JSON.parse(localStorage.getItem(`local_weekly_plans_${tid}`) || '[]');
+export const getWeeklyPlans = (tid: string): WeeklyPlanItem[] => JSON.parse(localStorage.getItem(`local_weekly_plans_${String(tid)}`) || '[]');
 export const saveWeeklyPlanItem = (i: WeeklyPlanItem) => { const cur = getWeeklyPlans(i.teacherId); localStorage.setItem(`local_weekly_plans_${i.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==i.id), i])); };
 export const getLessonLinks = (): LessonLink[] => JSON.parse(localStorage.getItem('local_lesson_links') || '[]');
 export const saveLessonLink = (l: LessonLink) => { const cur = getLessonLinks(); localStorage.setItem('local_lesson_links', JSON.stringify([...cur, l])); };
-export const getLessonPlans = (tid?: string): StoredLessonPlan[] => JSON.parse(localStorage.getItem(`local_lesson_plans_${tid}`) || '[]');
-export const saveLessonPlan = (p: StoredLessonPlan) => { const cur = getLessonPlans(p.teacherId); localStorage.setItem(`local_lesson_plans_${p.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==p.id), p])); };
+export const getLessonPlans = (tid?: string): StoredLessonPlan[] => JSON.parse(localStorage.getItem(`local_lesson_plans_${tid || 'global'}`) || '[]');
+export const saveLessonPlan = (p: StoredLessonPlan) => { const cur = getLessonPlans(p.teacherId); localStorage.setItem(`local_lesson_plans_${p.teacherId || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==p.id), p])); };
 
-// Fix: Implemented deleteLessonPlan
 export const deleteLessonPlan = (id: string, tid?: string) => {
     const cur = getLessonPlans(tid);
-    localStorage.setItem(`local_lesson_plans_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_lesson_plans_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => JSON.parse(localStorage.getItem(`local_assignments_map_${tid}`) || '[]');
-export const addTeacherAssignment = (a: TeacherAssignment) => { const cur = getTeacherAssignments(a.teacherId); localStorage.setItem(`local_assignments_map_${a.teacherId}`, JSON.stringify([...cur, a])); };
+export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => JSON.parse(localStorage.getItem(`local_assignments_map_${tid || 'global'}`) || '[]');
+export const addTeacherAssignment = (a: TeacherAssignment) => { const cur = getTeacherAssignments(a.teacherId); localStorage.setItem(`local_assignments_map_${a.teacherId || 'global'}`, JSON.stringify([...cur, a])); };
 export const deleteTeacherAssignment = (id: string) => { /* logic */ };
-export const getTeacherPeriodTimings = (tid: string): string[] => JSON.parse(localStorage.getItem(`${KEYS.PERIOD_TIMINGS}_${tid}`) || ["07:00-07:45", "07:45-08:30"]);
-export const saveTeacherPeriodTimings = (tid: string, t: string[]) => localStorage.setItem(`${KEYS.PERIOD_TIMINGS}_${tid}`, JSON.stringify(t));
-export const getAssignments = (c: string, tid?: string, isM?: boolean): Assignment[] => JSON.parse(localStorage.getItem(`local_assignments_${tid}`) || '[]');
-export const saveAssignment = (a: Assignment) => { const cur = getAssignments('ALL', a.teacherId); localStorage.setItem(`local_assignments_${a.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==a.id), a])); };
-export const deleteAssignment = (id: string, tid?: string) => { const cur = getAssignments('ALL', tid); localStorage.setItem(`local_assignments_${tid}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
-export const getChallenges = (tid?: string): WeeklyChallenge[] => JSON.parse(localStorage.getItem(`local_challenges_${tid}`) || '[]');
-export const saveChallenge = (c: WeeklyChallenge, tid: string) => { const cur = getChallenges(tid); localStorage.setItem(`local_challenges_${tid}`, JSON.stringify([...cur.filter(x=>x.id!==c.id), c])); };
-export const deleteChallenge = (id: string, tid: string) => { const cur = getChallenges(tid); localStorage.setItem(`local_challenges_${tid}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
-export const getCustomTables = (tid?: string): CustomTable[] => JSON.parse(localStorage.getItem(`local_custom_tables_${tid}`) || '[]');
-export const addCustomTable = (t: CustomTable) => { const cur = getCustomTables(t.teacherId); localStorage.setItem(`local_custom_tables_${t.teacherId}`, JSON.stringify([...cur, t])); };
+// Fix getTeacherPeriodTimings to use a stringified array as fallback to JSON.parse
+export const getTeacherPeriodTimings = (tid: string): string[] => JSON.parse(localStorage.getItem(`${KEYS.PERIOD_TIMINGS}_${String(tid)}`) || '["07:00-07:45", "07:45-08:30"]');
+export const saveTeacherPeriodTimings = (tid: string, t: string[]) => localStorage.setItem(`${KEYS.PERIOD_TIMINGS}_${String(tid)}`, JSON.stringify(t));
+export const getAssignments = (c: string, tid?: string, isM?: boolean): Assignment[] => JSON.parse(localStorage.getItem(`local_assignments_${tid || 'global'}`) || '[]');
+export const saveAssignment = (a: Assignment) => { const cur = getAssignments('ALL', a.teacherId); localStorage.setItem(`local_assignments_${a.teacherId || 'global'}`, JSON.stringify([...cur.filter(x=>x.id!==a.id), a])); };
+export const deleteAssignment = (id: string, tid?: string) => { const cur = getAssignments('ALL', tid); localStorage.setItem(`local_assignments_${tid || 'global'}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
+export const getChallenges = (tid?: string): WeeklyChallenge[] => JSON.parse(localStorage.getItem(`local_challenges_${tid || 'global'}`) || '[]');
+export const saveChallenge = (c: WeeklyChallenge, tid: string) => { const cur = getChallenges(tid); localStorage.setItem(`local_challenges_${String(tid)}`, JSON.stringify([...cur.filter(x=>x.id!==c.id), c])); };
+export const deleteChallenge = (id: string, tid: string) => { const cur = getChallenges(tid); localStorage.setItem(`local_challenges_${String(tid)}`, JSON.stringify(cur.filter(x=>x.id!==id))); };
+export const getCustomTables = (tid?: string): CustomTable[] => JSON.parse(localStorage.getItem(`local_custom_tables_${tid || 'global'}`) || '[]');
+export const addCustomTable = (t: CustomTable) => { const cur = getCustomTables(t.teacherId); localStorage.setItem(`local_custom_tables_${t.teacherId || 'global'}`, JSON.stringify([...cur, t])); };
 
-// Fix: Implemented deleteCustomTable
 export const deleteCustomTable = (id: string, tid?: string) => {
     const cur = getCustomTables(tid);
-    localStorage.setItem(`local_custom_tables_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_custom_tables_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
 export const getRemedialPlans = (): RemedialPlan[] => JSON.parse(localStorage.getItem('local_remedial_plans') || '[]');
 export const saveRemedialPlan = (p: RemedialPlan) => { const cur = getRemedialPlans(); localStorage.setItem('local_remedial_plans', JSON.stringify([...cur.filter(x=>x.id!==p.id), p])); };
-export const getEnvironmentRecords = (cid: string): EnvironmentRecord[] => JSON.parse(localStorage.getItem(`local_env_records_${cid}`) || '[]');
+export const getEnvironmentRecords = (cid: string): EnvironmentRecord[] => JSON.parse(localStorage.getItem(`local_env_records_${String(cid)}`) || '[]');
 export const saveEnvironmentRecord = (r: EnvironmentRecord) => { const cur = getEnvironmentRecords(r.classId); localStorage.setItem(`local_env_records_${r.classId}`, JSON.stringify([...cur, r])); };
 
-// Fix: Used String() explicitly to ensure tid is treated as string for localStorage key
 export const getQuestionBank = (tid: string): Question[] => JSON.parse(localStorage.getItem(`local_question_bank_${String(tid)}`) || '[]');
 export const saveQuestionToBank = (q: Question) => { const cur = getQuestionBank(q.teacherId!); localStorage.setItem(`local_question_bank_${q.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==q.id), q])); };
 
-// Fix: Implemented deleteQuestionFromBank
 export const deleteQuestionFromBank = (id: string, tid?: string) => {
     const cur = getQuestionBank(tid || '');
-    localStorage.setItem(`local_question_bank_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_question_bank_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-export const getCurriculumUnits = (tid: string): CurriculumUnit[] => JSON.parse(localStorage.getItem(`local_curriculum_units_${tid}`) || '[]');
+export const getCurriculumUnits = (tid: string): CurriculumUnit[] => JSON.parse(localStorage.getItem(`local_curriculum_units_${String(tid)}`) || '[]');
 export const saveCurriculumUnit = (u: CurriculumUnit) => { const cur = getCurriculumUnits(u.teacherId!); localStorage.setItem(`local_curriculum_units_${u.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==u.id), u])); };
-export const getCurriculumLessons = (uid: string): CurriculumLesson[] => JSON.parse(localStorage.getItem(`local_curriculum_lessons_${uid}`) || '[]');
+export const getCurriculumLessons = (uid: string): CurriculumLesson[] => JSON.parse(localStorage.getItem(`local_curriculum_lessons_${String(uid)}`) || '[]');
 export const saveCurriculumLesson = (l: CurriculumLesson) => { const cur = getCurriculumLessons(l.unitId); localStorage.setItem(`local_curriculum_lessons_${l.unitId}`, JSON.stringify([...cur.filter(x=>x.id!==l.id), l])); };
 
-// Fix: Implemented deleteCurriculumLesson
 export const deleteCurriculumLesson = (id: string, uid: string) => {
     const cur = getCurriculumLessons(uid);
-    localStorage.setItem(`local_curriculum_lessons_${uid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_curriculum_lessons_${String(uid)}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
 export const toggleCurriculumLesson = (id: string, s: boolean, uid: string) => { 
     const cur = getCurriculumLessons(uid);
     const updated = cur.map(l => l.id === id ? { ...l, isCompleted: s } : l);
-    localStorage.setItem(`local_curriculum_lessons_${uid}`, JSON.stringify(updated));
+    localStorage.setItem(`local_curriculum_lessons_${String(uid)}`, JSON.stringify(updated));
 };
-export const getFormsDetailedResults = (tid: string): FormsDetailedResult[] => JSON.parse(localStorage.getItem(`local_forms_results_${tid}`) || '[]');
+export const getFormsDetailedResults = (tid: string): FormsDetailedResult[] => JSON.parse(localStorage.getItem(`local_forms_results_${String(tid)}`) || '[]');
 export const saveFormsDetailedResult = (r: FormsDetailedResult) => { const cur = getFormsDetailedResults(r.teacherId); localStorage.setItem(`local_forms_results_${r.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==r.id), r])); };
 
-// Fix: Implemented deleteFormsDetailedResult
 export const deleteFormsDetailedResult = (id: string, tid?: string) => {
     const cur = getFormsDetailedResults(tid || '');
-    localStorage.setItem(`local_forms_results_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_forms_results_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-// Fix: Implemented deleteExamResult
 export const deleteExamResult = (id: string, examId: string) => {
     const cur = getExamResults(examId);
-    localStorage.setItem(`local_exam_results_${examId}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_exam_results_${String(examId)}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-// Fix: Implemented deleteTrackingSheet
 export const deleteTrackingSheet = (id: string, tid?: string) => {
     const cur = getTrackingSheets(tid || '');
-    localStorage.setItem(`local_tracking_sheets_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_tracking_sheets_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-// Fix: Implemented deleteScheduleItem
 export const deleteScheduleItem = (id: string) => {
     const cur = getSchedules();
     localStorage.setItem('local_schedules', JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-// Fix: Implemented deleteSubject
 export const deleteSubject = (id: string, tid?: string) => {
     const cur = getSubjects(tid);
-    localStorage.setItem(`local_subjects_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_subjects_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-// Fix: Implemented deleteAcademicTerm
 export const deleteAcademicTerm = (id: string, tid?: string) => {
     const cur = getAcademicTerms(tid);
-    localStorage.setItem(`local_terms_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_terms_${tid || 'global'}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-// Fix: Implemented deleteCurriculumUnit
 export const deleteCurriculumUnit = (id: string, tid: string) => {
     const cur = getCurriculumUnits(tid);
-    localStorage.setItem(`local_curriculum_units_${tid}`, JSON.stringify(cur.filter(x => x.id !== id)));
+    localStorage.setItem(`local_curriculum_units_${String(tid)}`, JSON.stringify(cur.filter(x => x.id !== id)));
 };
 
-// Fix: Implemented setCurrentTerm
 export const setCurrentTerm = (id: string, tid: string) => {
     const cur = getAcademicTerms(tid);
     const updated = cur.map(t => ({ ...t, isCurrent: t.id === id }));
-    localStorage.setItem(`local_terms_${tid}`, JSON.stringify(updated));
+    localStorage.setItem(`local_terms_${String(tid)}`, JSON.stringify(updated));
 };
 
-// Fix: Implemented deleteLessonLink
 export const deleteLessonLink = (id: string) => {
     const cur = getLessonLinks();
     localStorage.setItem('local_lesson_links', JSON.stringify(cur.filter(x => x.id !== id)));
