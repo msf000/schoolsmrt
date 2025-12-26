@@ -94,7 +94,8 @@ const AutoGrading: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => 
             date: new Date().toISOString().split('T')[0],
             createdById: currentUser.id
         };
-        addPerformance(record);
+        // Fix: Wrap record in an array because addPerformance expects PerformanceRecord[]
+        addPerformance([record]);
         alert('تم رصد الدرجة بنجاح في سجل الطالب!');
         setStep('INPUT'); 
         setResult(null); 
