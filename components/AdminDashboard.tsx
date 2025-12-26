@@ -6,7 +6,7 @@ import {
     fetchTeachers, updateTeacher,
     fetchAttendance, fetchPerformance, fetchStudents,
     checkConnection, downloadFromSupabase, getDatabaseSchemaSQL,
-    saveMessage
+    saveMessage, getCloudSystemStatus
 } from '../services/storageService';
 import { AttendanceStatus, School, Teacher, SystemUser, MessageLog } from '../types';
 import { 
@@ -14,7 +14,7 @@ import {
     RefreshCw, Trash2, Edit, CheckCircle, Info, 
     AlertTriangle, CloudLightning, Crown, Search, UserCog, 
     Wifi, BarChart3, Bell, Send, Activity, Settings, Activity as Pulse,
-    Loader2, X, Save, Plus, ChevronRight, FileSpreadsheet
+    Loader2, X, Save, Plus, ChevronRight, FileSpreadsheet, Zap, Server, Globe
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -61,15 +61,17 @@ const AdminDashboard = () => {
                 <div className="flex gap-2">
                     <button onClick={handleExportFullSystem} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-xs flex items-center gap-2 shadow-lg hover:bg-emerald-700 transition-all"><FileSpreadsheet size={18}/> تصدير السجل الشامل</button>
                     <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
-                        {['OVERVIEW', 'SCHOOLS', 'USERS', 'BROADCAST', 'DATABASE'].map(v => (
-                            <button key={v} onClick={() => setView(v as any)} className={`px-6 py-3 rounded-xl text-[10px] font-black transition-all whitespace-nowrap ${view === v ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>{v === 'OVERVIEW' ? 'الإحصائيات' : v === 'SCHOOLS' ? 'المدارس' : v === 'USERS' ? 'المستخدمين' : v === 'BROADCAST' ? 'البث' : 'البيانات'}</button>
+                        {['OVERVIEW', 'SCHOOLS', 'USERS', 'BROADCAST', 'HEALTH', 'DATABASE'].map(v => (
+                            <button key={v} onClick={() => setView(v as any)} className={`px-6 py-3 rounded-xl text-[10px] font-black transition-all whitespace-nowrap ${view === v ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>
+                                {v === 'OVERVIEW' ? 'الإحصائيات' : v === 'SCHOOLS' ? 'المدارس' : v === 'USERS' ? 'المستخدمين' : v === 'BROADCAST' ? 'البث' : v === 'HEALTH' ? 'فحص السحابة' : 'البيانات'}
+                            </button>
                         ))}
                     </div>
                 </div>
             </div>
             
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {isLoading ? <div className="h-full flex flex-col items-center justify-center gap-4"><Loader2 className="animate-spin text-indigo-600" size={48}/><p className="font-bold text-gray-400">جاري مزامنة السحابة...</p></div> : (
+                {isLoading && view !== 'HEALTH' ? <div className="h-full flex flex-col items-center justify-center gap-4"><Loader2 className="animate-spin text-indigo-600" size={48}/><p className="font-bold text-gray-400">جاري مزامنة السحابة...</p></div> : (
                     <>
                         {view === 'OVERVIEW' && (
                             <div className="space-y-6 animate-fade-in">
@@ -91,6 +93,7 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         )}
+                        {view === 'HEALTH' && <CloudDiagnostics />}
                         {view === 'DATABASE' && (
                             <div className="space-y-8 animate-fade-in max-w-4xl mx-auto pb-10">
                                 <div className="bg-slate-900 text-white p-10 rounded-[3rem] border-b-[8px] border-slate-950">
@@ -114,6 +117,72 @@ const StatCard = ({ label, value, icon, color }: any) => (
         <div className={`p-4 ${color} rounded-2xl shadow-inner`}>{icon}</div>
     </div>
 );
+
+const CloudDiagnostics = () => {
+    const [diagnostics, setDiagnostics] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    const runCheck = async () => {
+        setLoading(true);
+        const res = await getCloudSystemStatus();
+        setDiagnostics(res);
+        setLoading(false);
+    };
+
+    useEffect(() => { runCheck(); }, []);
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-10">
+            <div className="bg-white p-8 rounded-[3rem] border shadow-sm">
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><Server className="text-indigo-600"/> فحص سلامة قاعدة البيانات السحابية</h3>
+                        <p className="text-xs text-slate-400 font-bold mt-1">التحقق من وجود الجداول واستقرار الاتصال بـ Supabase</p>
+                    </div>
+                    <button onClick={runCheck} disabled={loading} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-all">
+                        {loading ? <Loader2 className="animate-spin"/> : <RefreshCw/>}
+                    </button>
+                </div>
+
+                <div className="space-y-4">
+                    {diagnostics.map(t => (
+                        <div key={t.id} className={`p-6 rounded-[2rem] border-2 transition-all flex items-center justify-between ${t.status === 'ACTIVE' ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                            <div className="flex items-center gap-4">
+                                <div className={`p-4 rounded-2xl ${t.status === 'ACTIVE' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                                    {t.status === 'ACTIVE' ? <CheckCircle/> : <AlertTriangle/>}
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-slate-800">{t.label} (Table: {t.id})</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                                        الحالة: {t.status === 'ACTIVE' ? 'يعمل بكفاءة' : 'جدول مفقود أو خطأ بالصلاحيات'}
+                                    </p>
+                                    {t.error && <p className="text-[9px] text-red-400 font-mono mt-1">{t.error}</p>}
+                                </div>
+                            </div>
+                            <div className="text-left">
+                                <div className="text-2xl font-black text-slate-800">{t.count}</div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase">سجل مخزن</div>
+                                <div className="flex items-center gap-1 mt-2 text-[9px] font-bold text-indigo-400">
+                                    <Zap size={10}/> {t.latency}ms
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {diagnostics.some(t => t.status !== 'ACTIVE') && (
+                    <div className="mt-8 p-6 bg-indigo-900 text-white rounded-3xl shadow-xl flex items-center gap-6">
+                        <div className="p-4 bg-white/10 rounded-2xl"><Info size={32}/></div>
+                        <div className="flex-1">
+                            <h4 className="font-black mb-1">تم اكتشاف جداول مفقودة!</h4>
+                            <p className="text-xs text-indigo-200 font-medium">يرجى الذهاب إلى تبويب "البيانات" ونسخ كود SQL وتشغيله في Supabase SQL Editor لإنشاء الجداول المطلوبة.</p>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const BroadcastManager = () => {
     const [msg, setMsg] = useState('');

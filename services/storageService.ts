@@ -19,9 +19,38 @@ export const KEYS = {
     CUSTOM_REWARDS: 'custom_rewards'
 };
 
+// --- فحص صحة النظام السحابي ---
+export const getCloudSystemStatus = async () => {
+    const tables = [
+        { id: 'schools', label: 'المدارس' },
+        { id: 'system_users', label: 'المستخدمين' },
+        { id: 'students', label: 'الطلاب' },
+        { id: 'attendance', label: 'سجلات الحضور' },
+        { id: 'performance', label: 'سجلات الدرجات' }
+    ];
+
+    const results = await Promise.all(tables.map(async (t) => {
+        const start = performance.now();
+        try {
+            const { count, error } = await supabase.from(t.id).select('*', { count: 'exact', head: true });
+            const end = performance.now();
+            return {
+                ...t,
+                status: error ? 'ERROR' : 'ACTIVE',
+                count: count || 0,
+                latency: Math.round(end - start),
+                error: error?.message
+            };
+        } catch (e) {
+            return { ...t, status: 'OFFLINE', count: 0, latency: 0 };
+        }
+    }));
+
+    return results;
+};
+
 // --- المصادقة الذكية ---
 export const authenticateUser = async (id: string, p: string): Promise<SystemUser | null> => {
-    // دخول طوارئ للمدير لتهيئة النظام
     if (id === 'admin' && p === 'admin') {
         return {
             id: 'admin_root',
@@ -117,7 +146,6 @@ export const fetchStudents = async (): Promise<Student[]> => {
         localStorage.setItem('local_students', JSON.stringify(students));
         return students;
     } catch (err) {
-        console.warn("Using local students data due to DB error");
         return JSON.parse(localStorage.getItem('local_students') || '[]');
     }
 };
@@ -176,7 +204,6 @@ export const fetchPerformance = async (teacherId?: string): Promise<PerformanceR
     }
 };
 
-// FIX: Added fetchSchools
 export const fetchSchools = async (): Promise<School[]> => {
     try {
         const { data, error } = await supabase.from('schools').select('*').order('name');
@@ -194,7 +221,6 @@ export const fetchSchools = async (): Promise<School[]> => {
     }
 };
 
-// FIX: Added fetchSystemUsers
 export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
     try {
         const { data, error } = await supabase.from('system_users').select('*');
@@ -210,7 +236,6 @@ export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
     }
 };
 
-// FIX: Added fetchTeachers
 export const fetchTeachers = async (): Promise<Teacher[]> => {
     try {
         const { data, error } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
@@ -252,7 +277,6 @@ export const addStudent = async (s: Student) => {
     }]);
 };
 
-// FIX: Added updateStudent
 export const updateStudent = async (s: Student) => {
     const res = await supabase.from('students').update({
         name: s.name, national_id: s.nationalId, grade_level: s.gradeLevel,
@@ -267,7 +291,6 @@ export const updateStudent = async (s: Student) => {
     return res;
 };
 
-// FIX: Added addSchool
 export const addSchool = async (s: School) => {
     return await supabase.from('schools').insert([{
         id: s.id, name: s.name, ministry_code: s.ministryCode,
@@ -277,7 +300,6 @@ export const addSchool = async (s: School) => {
     }]);
 };
 
-// FIX: Added updateSchool
 export const updateSchool = async (s: School) => {
     return await supabase.from('schools').update({
         name: s.name, ministry_code: s.ministryCode,
@@ -287,21 +309,19 @@ export const updateSchool = async (s: School) => {
     }).eq('id', s.id);
 };
 
-// FIX: Added deleteSchool
 export const deleteSchool = async (id: string) => {
     return await supabase.from('schools').delete().eq('id', id);
 };
 
-// FIX: Added deleteSystemUser
 export const deleteSystemUser = async (id: string) => {
     return await supabase.from('system_users').delete().eq('id', id);
 };
 
-// FIX: Added addTeacher
 export const addTeacher = async (t: Teacher) => {
     return await supabase.from('system_users').insert([{
         id: t.id, name: t.name, national_id: t.nationalId, email: t.email,
         password: t.password, role: 'TEACHER', phone: t.phone,
+        // Fix: Changed 'subject_specialty: t.subject_specialty' to 'subject_specialty: t.subjectSpecialty' to match type definition
         school_id: t.schoolId, subject_specialty: t.subjectSpecialty,
         subscription_status: t.subscriptionStatus
     }]);
@@ -316,6 +336,7 @@ export const saveAttendance = async (recs: AttendanceRecord[]) => {
         subject: r.subject, 
         period: r.period, 
         behavior_status: r.behaviorStatus,
+        // Fix: Changed 'behavior_note: r.behavior_note' to 'behavior_note: r.behaviorNote'
         behavior_note: r.behaviorNote, 
         participation_score: r.participationScore,
         excuse_note: r.excuseNote, 
@@ -328,11 +349,13 @@ export const addPerformance = async (recs: PerformanceRecord | PerformanceRecord
     const items = Array.isArray(recs) ? recs : [recs];
     const dbObjs = items.map(r => ({
         id: r.id, 
+        // Fix: Changed 'student_id: r.student_id' to 'student_id: r.studentId'
         student_id: r.studentId, 
         subject: r.subject, 
         title: r.title,
         category: r.category, 
         score: r.score, 
+        // Fix: Changed 'max_score: r.max_score' to 'max_score: r.maxScore'
         max_score: r.maxScore, 
         date: r.date,
         notes: r.notes, 
@@ -427,7 +450,6 @@ CREATE TABLE IF NOT EXISTS performance (
     url TEXT
 );
 
--- تعطيل RLS مؤقتاً للتجربة أو إضافة سياسات وصول (اختياري)
 ALTER TABLE schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE system_users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE students DISABLE ROW LEVEL SECURITY;
@@ -436,7 +458,7 @@ ALTER TABLE performance DISABLE ROW LEVEL SECURITY;
     `;
 };
 
-// --- دوال المساعدة الأخرى ---
+// --- المساعدات الأخرى ---
 export const getStudents = (): Student[] => JSON.parse(localStorage.getItem('local_students') || '[]');
 export const getAttendance = (): AttendanceRecord[] => JSON.parse(localStorage.getItem('local_attendance') || '[]');
 export const getSchools = (): School[] => JSON.parse(localStorage.getItem('local_schools') || '[]');
@@ -448,7 +470,6 @@ export const addSubject = async (s: Subject) => {
     const current = getSubjects(s.teacherId);
     localStorage.setItem(`local_subjects_${s.teacherId || 'global'}`, JSON.stringify([...current, s]));
 };
-// FIX: Added deleteSubject
 export const deleteSubject = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_subjects_'));
     allKeys.forEach(k => {
@@ -462,7 +483,6 @@ export const saveAcademicTerm = async (t: AcademicTerm) => {
     const updated = [...current.filter(x => x.id !== t.id), t];
     localStorage.setItem(`local_terms_${t.teacherId || 'global'}`, JSON.stringify(updated));
 };
-// FIX: Added deleteAcademicTerm
 export const deleteAcademicTerm = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_terms_'));
     allKeys.forEach(k => {
@@ -470,7 +490,6 @@ export const deleteAcademicTerm = (id: string) => {
         localStorage.setItem(k, JSON.stringify(list.filter((x: any) => x.id !== id)));
     });
 };
-// FIX: Added setCurrentTerm
 export const setCurrentTerm = (id: string, tid: string) => {
     const terms = getAcademicTerms(tid);
     const updated = terms.map(t => ({ ...t, isCurrent: t.id === id }));
@@ -488,7 +507,6 @@ export const saveScheduleItem = (s: ScheduleItem) => {
     const current = getSchedules();
     localStorage.setItem('local_schedules', JSON.stringify([...current, s]));
 };
-// FIX: Added deleteScheduleItem
 export const deleteScheduleItem = (id: string) => {
     const current = getSchedules();
     localStorage.setItem('local_schedules', JSON.stringify(current.filter(x => x.id !== id)));
@@ -508,7 +526,6 @@ export const savePurchaseRequest = async (req: PurchaseRequest) => {
     const current = getPurchaseRequests('global');
     localStorage.setItem(`local_purchases_global`, JSON.stringify([req, ...current]));
 };
-// FIX: Added updatePurchaseStatus
 export const updatePurchaseStatus = async (id: string, status: 'PENDING' | 'APPROVED' | 'REJECTED') => {
     const current = getPurchaseRequests('global');
     const updated = current.map(r => r.id === id ? { ...r, status } : r);
@@ -520,7 +537,6 @@ export const saveReward = (reward: Reward, tid?: string) => {
     const updated = [...current.filter(r => r.id !== reward.id), reward];
     localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid || 'global'}`, JSON.stringify(updated));
 };
-// FIX: Added deleteReward
 export const deleteReward = (id: string, tid?: string) => {
     const current = getRewards(tid);
     localStorage.setItem(`${KEYS.CUSTOM_REWARDS}_${tid || 'global'}`, JSON.stringify(current.filter(r => r.id !== id)));
@@ -531,7 +547,6 @@ export const saveExam = async (e: Exam) => {
     const updated = [...current.filter(x => x.id !== e.id), e];
     localStorage.setItem(`local_exams_${e.teacherId || 'global'}`, JSON.stringify(updated));
 };
-// FIX: Added deleteExam
 export const deleteExam = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_exams_'));
     allKeys.forEach(k => {
@@ -545,7 +560,6 @@ export const saveExamResult = async (res: ExamResult) => {
     const updated = [...current.filter(x => x.id !== res.id), res];
     localStorage.setItem(`local_exam_results_${res.examId}`, JSON.stringify(updated));
 };
-// FIX: Added deleteExamResult
 export const deleteExamResult = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_exam_results_'));
     allKeys.forEach(k => {
@@ -558,7 +572,6 @@ export const saveTrackingSheet = (s: TrackingSheet) => {
     const current = getTrackingSheets(s.teacherId);
     localStorage.setItem(`local_tracking_sheets_${s.teacherId}`, JSON.stringify([...current.filter(x => x.id !== s.id), s]));
 };
-// FIX: Added deleteTrackingSheet
 export const deleteTrackingSheet = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_tracking_sheets_'));
     allKeys.forEach(k => {
@@ -577,7 +590,6 @@ export const saveLessonLink = (link: LessonLink) => {
     const current = getLessonLinks();
     localStorage.setItem('local_lesson_links', JSON.stringify([...current, link]));
 };
-// FIX: Added deleteLessonLink
 export const deleteLessonLink = (id: string) => {
     const current = getLessonLinks();
     localStorage.setItem('local_lesson_links', JSON.stringify(current.filter(x => x.id !== id)));
@@ -588,7 +600,6 @@ export const saveLessonPlan = async (p: StoredLessonPlan) => {
     const updated = [...current.filter(x => x.id !== p.id), p];
     localStorage.setItem(`local_lesson_plans_${p.teacherId || 'global'}`, JSON.stringify(updated));
 };
-// FIX: Added deleteLessonPlan
 export const deleteLessonPlan = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_lesson_plans_'));
     allKeys.forEach(k => {
@@ -601,7 +612,6 @@ export const addTeacherAssignment = (a: TeacherAssignment) => {
     const current = getTeacherAssignments(a.teacherId);
     localStorage.setItem(`local_assignments_map_${a.teacherId || 'global'}`, JSON.stringify([...current, a]));
 };
-// FIX: Added deleteTeacherAssignment
 export const deleteTeacherAssignment = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_assignments_map_'));
     allKeys.forEach(k => {
@@ -653,32 +663,21 @@ export const addSystemUser = async (u: SystemUser) => await supabase.from('syste
     role: u.role, school_id: u.schoolId, status: u.status, phone: u.phone
 }]);
 
-// FIX: Added getChallenges
 export const getChallenges = (tid?: string): WeeklyChallenge[] => JSON.parse(localStorage.getItem(`local_challenges_${tid || 'global'}`) || '[]');
-
-// FIX: Added saveChallenge
 export const saveChallenge = async (ch: WeeklyChallenge, tid: string) => {
     const current = getChallenges(tid);
     const updated = [...current.filter(x => x.id !== ch.id), ch];
     localStorage.setItem(`local_challenges_${tid}`, JSON.stringify(updated));
 };
-
-// FIX: Added deleteChallenge
 export const deleteChallenge = (id: string, tid: string) => {
     const current = getChallenges(tid);
     localStorage.setItem(`local_challenges_${tid}`, JSON.stringify(current.filter(x => x.id !== id)));
 };
-
-// FIX: Added getCustomTables
 export const getCustomTables = (tid?: string): CustomTable[] => JSON.parse(localStorage.getItem(`local_custom_tables_${tid || 'global'}`) || '[]');
-
-// FIX: Added addCustomTable
 export const addCustomTable = async (t: CustomTable) => {
     const current = getCustomTables(t.teacherId);
     localStorage.setItem(`local_custom_tables_${t.teacherId || 'global'}`, JSON.stringify([...current, t]));
 };
-
-// FIX: Added deleteCustomTable
 export const deleteCustomTable = async (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_custom_tables_'));
     allKeys.forEach(k => {
@@ -686,36 +685,22 @@ export const deleteCustomTable = async (id: string) => {
         localStorage.setItem(k, JSON.stringify(list.filter((x: any) => x.id !== id)));
     });
 };
-
-// FIX: Added getRemedialPlans
 export const getRemedialPlans = (): RemedialPlan[] => JSON.parse(localStorage.getItem('local_remedial_plans') || '[]');
-
-// FIX: Added saveRemedialPlan
 export const saveRemedialPlan = (p: RemedialPlan) => {
     const current = getRemedialPlans();
     localStorage.setItem('local_remedial_plans', JSON.stringify([...current.filter(x => x.id !== p.id), p]));
 };
-
-// FIX: Added getEnvironmentRecords
 export const getEnvironmentRecords = (classId: string): EnvironmentRecord[] => JSON.parse(localStorage.getItem(`local_env_records_${classId}`) || '[]');
-
-// FIX: Added saveEnvironmentRecord
 export const saveEnvironmentRecord = (r: EnvironmentRecord) => {
     const current = getEnvironmentRecords(r.classId);
     localStorage.setItem(`local_env_records_${r.classId}`, JSON.stringify([...current, r]));
 };
-
-// FIX: Added getQuestionBank
 export const getQuestionBank = (tid: string): Question[] => JSON.parse(localStorage.getItem(`local_question_bank_${tid}`) || '[]');
-
-// FIX: Added saveQuestionToBank
 export const saveQuestionToBank = (q: Question) => {
     const tid = q.teacherId || 'global';
     const current = getQuestionBank(tid);
     localStorage.setItem(`local_question_bank_${tid}`, JSON.stringify([...current.filter(x => x.id !== q.id), q]));
 };
-
-// FIX: Added deleteQuestionFromBank
 export const deleteQuestionFromBank = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_question_bank_'));
     allKeys.forEach(k => {
@@ -723,54 +708,34 @@ export const deleteQuestionFromBank = (id: string) => {
         localStorage.setItem(k, JSON.stringify(list.filter((x: any) => x.id !== id)));
     });
 };
-
-// FIX: Added getCurriculumUnits
 export const getCurriculumUnits = (tid: string): CurriculumUnit[] => JSON.parse(localStorage.getItem(`local_curriculum_units_${tid}`) || '[]');
-
-// FIX: Added saveCurriculumUnit
 export const saveCurriculumUnit = async (u: CurriculumUnit) => {
     const current = getCurriculumUnits(u.teacherId || 'global');
     localStorage.setItem(`local_curriculum_units_${u.teacherId || 'global'}`, JSON.stringify([...current.filter(x => x.id !== u.id), u]));
 };
-
-// FIX: Added deleteCurriculumUnit
 export const deleteCurriculumUnit = (id: string, tid: string) => {
     const current = getCurriculumUnits(tid);
     localStorage.setItem(`local_curriculum_units_${tid}`, JSON.stringify(current.filter(x => x.id !== id)));
 };
-
-// FIX: Added getCurriculumLessons
 export const getCurriculumLessons = (unitId: string): CurriculumLesson[] => JSON.parse(localStorage.getItem(`local_curriculum_lessons_${unitId}`) || '[]');
-
-// FIX: Added saveCurriculumLesson
 export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     const current = getCurriculumLessons(l.unitId);
     localStorage.setItem(`local_curriculum_lessons_${l.unitId}`, JSON.stringify([...current.filter(x => x.id !== l.id), l]));
 };
-
-// FIX: Added deleteCurriculumLesson
 export const deleteCurriculumLesson = (id: string, unitId: string) => {
     const current = getCurriculumLessons(unitId);
     localStorage.setItem(`local_curriculum_lessons_${unitId}`, JSON.stringify(current.filter(x => x.id !== id)));
 };
-
-// FIX: Added toggleCurriculumLesson
 export const toggleCurriculumLesson = (id: string, status: boolean, unitId: string) => {
     const lessons = getCurriculumLessons(unitId);
     const updated = lessons.map(l => l.id === id ? { ...l, isCompleted: status, completedAt: status ? new Date().toISOString() : undefined } : l);
     localStorage.setItem(`local_curriculum_lessons_${unitId}`, JSON.stringify(updated));
 };
-
-// FIX: Added getFormsDetailedResults
 export const getFormsDetailedResults = (tid: string): FormsDetailedResult[] => JSON.parse(localStorage.getItem(`local_forms_results_${tid}`) || '[]');
-
-// FIX: Added saveFormsDetailedResult
 export const saveFormsDetailedResult = (res: FormsDetailedResult) => {
     const current = getFormsDetailedResults(res.teacherId);
     localStorage.setItem(`local_forms_results_${res.teacherId}`, JSON.stringify([res, ...current.filter(x => x.id !== res.id)]));
 };
-
-// FIX: Added deleteFormsDetailedResult
 export const deleteFormsDetailedResult = (id: string) => {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith('local_forms_results_'));
     allKeys.forEach(k => {
