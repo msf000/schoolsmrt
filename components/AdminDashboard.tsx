@@ -7,10 +7,9 @@ import {
 import { AttendanceStatus, MessageLog } from '../types';
 import { 
     Shield, Building, Users, Database, RefreshCw, CheckCircle, Info, 
-    AlertTriangle, Server, Loader2, Zap, FileSpreadsheet, Bell, Send, ChevronDown, ChevronUp
+    AlertTriangle, Server, Loader2, Zap, FileSpreadsheet, Bell, Send, ChevronDown, ChevronUp, Copy
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import * as XLSX from 'xlsx';
 
 const AdminDashboard = () => {
     const [view, setView] = useState<'OVERVIEW' | 'HEALTH' | 'DATABASE' | 'BROADCAST'>('OVERVIEW');
@@ -73,9 +72,16 @@ const AdminDashboard = () => {
                 {view === 'DATABASE' && (
                     <div className="max-w-4xl mx-auto space-y-6">
                         <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl">
-                            <h3 className="text-2xl font-black mb-4 text-indigo-400 flex items-center gap-3"><Database/> كود تهيئة القاعدة (SQL)</h3>
-                            <p className="text-sm text-gray-400 mb-8 leading-relaxed">انسخ هذا الكود والصقه في SQL Editor في Supabase لإصلاح كافة الجداول والأعمدة الناقصة وضمان الربط الصحيح.</p>
-                            <button onClick={() => { navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ الكود!'); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl font-black transition-all shadow-xl">نسخ كود SQL للإصلاح</button>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-2xl font-black text-indigo-400 flex items-center gap-3"><Database/> كود إصلاح القاعدة</h3>
+                                <button onClick={() => { navigator.clipboard.writeText(getDatabaseSchemaSQL()); alert('تم نسخ كود الإصلاح بنجاح!'); }} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-2xl font-bold text-sm shadow-xl transition-all">
+                                    <Copy size={18}/> نسخ كود SQL
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-400 mb-8 leading-relaxed">انسخ الكود بالكامل، ثم اذهب إلى <b>SQL Editor</b> في لوحة تحكم <b>Supabase</b> الخاصة بك، الصق الكود واضغط <b>Run</b> لإصلاح الأعمدة المفقودة تلقائياً.</p>
+                            <pre className="bg-black/50 p-6 rounded-2xl font-mono text-xs text-indigo-300 overflow-x-auto max-h-96">
+                                {getDatabaseSchemaSQL()}
+                            </pre>
                         </div>
                     </div>
                 )}
@@ -132,7 +138,7 @@ const CloudDeepDiagnostic = () => {
                                         {t.status === 'ACTIVE' ? <CheckCircle size={20}/> : <AlertTriangle size={20}/>}
                                     </div>
                                     <div>
-                                        <h4 className="font-black text-slate-800">جدول {t.label} ({t.id})</h4>
+                                        <h4 className="font-black text-slate-800">جدول {t.label}</h4>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">الحالة: {t.status === 'ACTIVE' ? 'مستقر' : 'يوجد نقص في البيانات'}</p>
                                     </div>
                                 </div>
@@ -144,12 +150,12 @@ const CloudDeepDiagnostic = () => {
 
                             {expandedTable === t.id && (
                                 <div className="p-6 bg-white border-t border-slate-100 animate-slide-up">
-                                    <h5 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">فحص حالة الأعمدة (Columns Integrity)</h5>
+                                    <h5 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">فحص حالة الأعمدة</h5>
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                         {Object.entries(t.columns).map(([col, exists]: any) => (
                                             <div key={col} className={`p-3 rounded-xl border flex items-center justify-between ${exists ? 'bg-white border-slate-100' : 'bg-red-50 border-red-200 shadow-inner'}`}>
                                                 <span className={`text-xs font-bold ${exists ? 'text-slate-600' : 'text-red-600'}`}>{col}</span>
-                                                {exists ? <CheckCircle size={14} className="text-emerald-500"/> : <XCircle size={14} className="text-red-500"/>}
+                                                {exists ? <CheckCircle size={14} className="text-emerald-500"/> : <X size={14} className="text-red-500"/>}
                                             </div>
                                         ))}
                                     </div>
@@ -174,7 +180,7 @@ const CloudDeepDiagnostic = () => {
     );
 };
 
-const XCircle = ({ size, className }: any) => (
+const X = ({ size, className }: any) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
     </svg>

@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan } from '../services/storageService';
+import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan, exportToWord } from '../services/storageService';
 import { generateLessonBlocks } from '../services/geminiService';
 import { LessonBlock, StoredLessonPlan, Subject, SystemUser } from '../types';
-import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X, Printer, Copy, Check } from 'lucide-react';
+import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X, Printer, FileText } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const SAUDI_GRADES = [
@@ -27,7 +27,6 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
     const [lessonContent, setLessonContent] = useState<LessonBlock[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [savedPlans, setSavedPlans] = useState<StoredLessonPlan[]>([]);
-    const [isCopied, setIsCopied] = useState(false);
     const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 
     const location = useLocation();
@@ -108,7 +107,7 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
     };
 
     return (
-        <div className="p-6 h-full bg-gray-50 overflow-y-auto animate-fade-in flex flex-col md:flex-row gap-6 print:p-0 print:bg-white print:overflow-visible">
+        <div className="p-6 h-full bg-gray-50 overflow-y-auto animate-fade-in flex flex-col md:flex-row gap-6 print:p-0 print:bg-white print:overflow-visible font-tajawal" dir="rtl">
             <div className="w-full md:w-1/4 space-y-4 print:hidden">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                     <h3 className="font-bold text-gray-700 mb-4 border-b pb-2 flex items-center gap-2"><BookOpen size={18}/> خططي المحفوظة</h3>
@@ -148,22 +147,29 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
                         <button onClick={() => setIsAddMenuOpen(!isAddMenuOpen)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm hover:bg-gray-200 flex items-center gap-2">
                             <Plus size={16}/> إضافة عنصر
                         </button>
-                        <button onClick={() => window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2"><Printer size={16}/> طباعة</button>
-                        <button onClick={handleSave} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2"><Save size={16}/> حفظ</button>
+                        <button onClick={() => exportToWord('lesson-printable-area', `${lessonTopic || 'lesson'}.doc`)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm hover:bg-blue-700"><FileText size={16}/> تصدير Word</button>
+                        <button onClick={() => window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm hover:bg-gray-900"><Printer size={16}/> طباعة PDF</button>
+                        <button onClick={handleSave} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm hover:bg-green-700"><Save size={16}/> حفظ</button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-4">
+                <div id="lesson-printable-area" className="flex-1 overflow-y-auto space-y-4">
                     {lessonContent.map((block, idx) => (
                         <div key={block.id} className="p-4 bg-gray-50 rounded-lg border border-gray-100 relative group print:bg-white print:border-none print:p-0 print:mb-6">
                             <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1 rounded border print:hidden">
                                 <button onClick={() => moveBlock(idx, 'UP')} className="p-1 hover:bg-gray-100"><ArrowUp size={14}/></button>
                                 <button onClick={() => moveBlock(idx, 'DOWN')} className="p-1 hover:bg-gray-100"><ArrowDown size={14}/></button>
                             </div>
-                            <input className="font-bold text-gray-800 bg-transparent border-none outline-none w-full mb-2" value={block.title} onChange={(e) => updateBlock(block.id, { title: e.target.value })} />
-                            <textarea className="w-full p-2 bg-transparent border-none outline-none text-gray-700 leading-relaxed min-h-[100px] resize-none" value={block.content} onChange={(e) => updateBlock(block.id, { content: e.target.value })} />
+                            <input className="font-bold text-xl text-indigo-900 bg-transparent border-none outline-none w-full mb-2" value={block.title} onChange={(e) => updateBlock(block.id, { title: e.target.value })} />
+                            <textarea className="w-full p-2 bg-transparent border-none outline-none text-gray-700 leading-relaxed min-h-[100px] resize-none text-lg" value={block.content} onChange={(e) => updateBlock(block.id, { content: e.target.value })} />
                         </div>
                     ))}
+                    {lessonContent.length === 0 && (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-20 py-20">
+                            <PenTool size={100} className="mb-4"/>
+                            <p className="text-xl font-bold">ابدأ بكتابة التحضير أو استخدم الذكاء الاصطناعي</p>
+                        </div>
+                    )}
                 </div>
             </div>
 

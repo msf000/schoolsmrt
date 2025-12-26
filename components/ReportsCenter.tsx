@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, RemedialPlan, Assignment } from '../types';
-import { getAcademicTerms, saveRemedialPlan, getRemedialPlans, getAssignments } from '../services/storageService';
+import { getAcademicTerms, saveRemedialPlan, getRemedialPlans, getAssignments, exportToWord } from '../services/storageService';
 import { detectAtRiskStudents } from '../services/analysisService';
 import { generateSmartRemedialPlan } from '../services/geminiService';
 import { 
@@ -70,7 +70,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         }
     };
 
-    const TabBtn = ({ label, active, onClick, icon: Icon }: any) => (
+    const TabBtn = ({ label, icon: Icon, active, onClick }: any) => (
         <button onClick={onClick} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white border border-transparent hover:border-gray-100'}`}>
             <Icon size={16}/>
             {label}
@@ -131,12 +131,6 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                                         </tbody>
                                     </table>
                                 </div>
-                                <div className="mt-8 flex gap-6 justify-center">
-                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-emerald-500 rounded"></div> 90%+</div>
-                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-emerald-300 rounded"></div> 75-90%</div>
-                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-yellow-200 rounded"></div> 60-75%</div>
-                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500"><div className="w-4 h-4 bg-red-500 rounded"></div> أقل من 60%</div>
-                                </div>
                             </div>
                         ) : <div className="p-20 text-center text-gray-300 font-bold italic">يرجى اختيار الفصل لعرض المصفوفة</div>}
                     </div>
@@ -195,7 +189,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                             </div>
                             <button onClick={() => { setViewingStudent(null); setCurrentPlan(''); }} className="p-2 hover:bg-white/10 rounded-full"><X/></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-8 bg-slate-50 custom-scrollbar">
+                        <div id="remedial-plan-content" className="flex-1 overflow-y-auto p-8 bg-slate-50 custom-scrollbar">
                             {isGenerating ? (
                                 <div className="h-full flex flex-col items-center justify-center text-indigo-600 gap-4">
                                     <Loader2 size={48} className="animate-spin opacity-50"/>
@@ -207,11 +201,12 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                                 </div>
                             )}
                         </div>
-                        <div className="p-6 border-t bg-gray-50 flex justify-between items-center gap-4 print:hidden">
-                            <button onClick={() => window.print()} className="px-8 py-3 bg-gray-800 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><Printer size={18}/> طباعة</button>
+                        <div className="p-6 border-t bg-gray-50 flex justify-end items-center gap-4 print:hidden">
+                            <button onClick={() => exportToWord('remedial-plan-content', `plan_${viewingStudent.name}.doc`)} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><FileText size={18}/> Word</button>
+                            <button onClick={() => window.print()} className="px-8 py-3 bg-gray-800 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><Printer size={18}/> PDF</button>
                             {currentPlan && (
-                                <button className="flex-1 py-3 bg-green-600 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 hover:bg-green-700">
-                                    <Save size={18}/> اعتماد وحفظ الخطة
+                                <button className="px-8 py-3 bg-green-600 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 hover:bg-green-700">
+                                    <Save size={18}/> حفظ الخطة
                                 </button>
                             )}
                         </div>

@@ -52,7 +52,8 @@ const CurriculumManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser 
                     if (u.lessons) {
                         for (let lIdx = 0; lIdx < u.lessons.length; lIdx++) {
                             const l = u.lessons[lIdx];
-                            await saveCurriculumLesson({ id: `l_${Date.now()}_${lIdx}`, unitId, title: l.title, orderIndex: lIdx, learningStandards: [], microConceptIds: [] });
+                            // Fix: Removed non-existent properties 'learningStandards' and 'microConceptIds' from CurriculumLesson object literal
+                            await saveCurriculumLesson({ id: `l_${Date.now()}_${lIdx}`, unitId, title: l.title, orderIndex: lIdx });
                         }
                     }
                 }
@@ -101,13 +102,15 @@ const CurriculumManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser 
                                         <span className="text-[10px] font-bold text-teal-600">{pct}%</span>
                                     </div>
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); deleteCurriculumUnit(unit.id, currentUser.id); refresh(); }} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>
+                                // Fix: Corrected argument count for deleteCurriculumUnit
+                                <button onClick={(e) => { e.stopPropagation(); deleteCurriculumUnit(unit.id); refresh(); }} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>
                             </div>
                             {isExpanded && (
                                 <div className="divide-y animate-slide-up">
                                     {unitLessons.map(l => (
                                         <div key={l.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                                            <button onClick={() => { toggleCurriculumLesson(l.id, !l.isCompleted, unit.id); refresh(); }}>
+                                            // Fix: Corrected argument count for toggleCurriculumLesson
+                                            <button onClick={() => { toggleCurriculumLesson(l.id, !l.isCompleted); refresh(); }}>
                                                 {l.isCompleted ? <CheckCircle2 className="text-green-500"/> : <Circle className="text-gray-300"/>}
                                             </button>
                                             <div className="flex-1 font-medium text-gray-700">{l.title}</div>
