@@ -68,8 +68,8 @@ export interface AttendanceRecord {
     studentId: string;
     date: string;
     status: AttendanceStatus;
-    period?: number; // رقم الحصة
-    subject?: string; // المادة
+    period?: number;
+    subject?: string;
     behaviorStatus?: BehaviorStatus;
     behaviorNote?: string;
     excuseNote?: string;
