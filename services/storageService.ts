@@ -16,6 +16,7 @@ const setLocal = (key: string, val: any) => localStorage.setItem(key, JSON.strin
 
 /**
  * محول البيانات من Supabase (snake_case) إلى التطبيق (camelCase)
+ * لضمان سحب الأعمدة بشكل صحيح من قاعدة البيانات السحابية
  */
 const mapStudentFromDB = (s: any): Student => ({
     id: s.id,
@@ -39,7 +40,7 @@ const mapStudentFromDB = (s: any): Student => ({
     seatIndex: s.seat_index || 0
 });
 
-// --- الطلاب ---
+// --- الطلاب (Students) ---
 export const fetchStudents = async () => {
     try {
         const { data, error } = await supabase.from('students').select('*').order('name');
@@ -79,7 +80,9 @@ export const updateStudent = async (student: Student) => {
         learning_style: student.learningStyle,
         seat_index: student.seatIndex,
         aura_color: student.auraColor,
-        active_title: student.activeTitle
+        active_title: student.activeTitle,
+        badges: student.badges,
+        purchased_rewards: student.purchasedRewards
     }).eq('id', student.id);
     if (error) throw error;
     await fetchStudents();
@@ -95,22 +98,27 @@ export const deleteAllStudents = async () => {
     setLocal('students', []);
 };
 
-// --- الحضور ---
+// --- الحضور (Attendance) ---
 export const fetchAttendance = async () => {
-    const { data, error } = await supabase.from('attendance').select('*').order('date', { ascending: false });
-    const mapped = (data || []).map(a => ({
-        id: a.id,
-        studentId: a.student_id,
-        date: a.date,
-        status: a.status,
-        period: a.period,
-        subject: a.subject,
-        behaviorStatus: a.behavior_status,
-        behaviorNote: a.behavior_note,
-        createdById: a.created_by_id
-    }));
-    setLocal('attendance', mapped);
-    return mapped;
+    try {
+        const { data, error } = await supabase.from('attendance').select('*').order('date', { ascending: false });
+        if (error) throw error;
+        const mapped = (data || []).map(a => ({
+            id: a.id,
+            studentId: a.student_id,
+            date: a.date,
+            status: a.status,
+            period: a.period,
+            subject: a.subject,
+            behaviorStatus: a.behavior_status,
+            behaviorNote: a.behavior_note,
+            createdById: a.created_by_id
+        }));
+        setLocal('attendance', mapped);
+        return mapped;
+    } catch (e) {
+        return getLocal('attendance');
+    }
 };
 
 export const getAttendance = (): AttendanceRecord[] => getLocal('attendance');
@@ -136,25 +144,30 @@ export const deleteAttendance = async (id: string) => {
     await fetchAttendance();
 };
 
-// --- الأداء ---
+// --- الأداء (Performance) ---
 export const fetchPerformance = async (tid?: string) => {
-    let query = supabase.from('performance').select('*');
-    if (tid) query = query.eq('created_by_id', tid);
-    const { data } = await query.order('date', { ascending: false });
-    const mapped = (data || []).map(p => ({
-        id: p.id,
-        studentId: p.student_id,
-        subject: p.subject,
-        title: p.title,
-        score: p.score,
-        maxScore: p.max_score,
-        date: p.date,
-        category: p.category,
-        notes: p.notes,
-        createdById: p.created_by_id
-    }));
-    setLocal('performance', mapped);
-    return mapped;
+    try {
+        let query = supabase.from('performance').select('*');
+        if (tid) query = query.eq('created_by_id', tid);
+        const { data, error } = await query.order('date', { ascending: false });
+        if (error) throw error;
+        const mapped = (data || []).map(p => ({
+            id: p.id,
+            studentId: p.student_id,
+            subject: p.subject,
+            title: p.title,
+            score: p.score,
+            maxScore: p.max_score,
+            date: p.date,
+            category: p.category,
+            notes: p.notes,
+            createdById: p.created_by_id
+        }));
+        setLocal('performance', mapped);
+        return mapped;
+    } catch (e) {
+        return getLocal('performance');
+    }
 };
 
 export const getPerformance = (): PerformanceRecord[] => getLocal('performance');
@@ -181,7 +194,7 @@ export const deletePerformance = async (id: string) => {
     await fetchPerformance();
 };
 
-// --- المعلمون والمدارس ---
+// --- المعلمون والمدارس (Management) ---
 export const fetchTeachers = async () => {
     const { data } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
     setLocal('teachers', data || []);
@@ -241,7 +254,7 @@ export const updateSystemUser = async (user: SystemUser) => {
     await supabase.from('system_users').update(user).eq('id', user.id);
 };
 
-// --- الإعدادات والمواد ---
+// --- الإعدادات والمواد (Settings) ---
 export const getSubjects = (tid: string): Subject[] => (getLocal('subjects') || []).filter((s: Subject) => s.teacherId === tid);
 export const addSubject = (subject: Subject) => setLocal('subjects', [...getLocal('subjects'), subject]);
 export const deleteSubject = (id: string) => setLocal('subjects', getLocal('subjects').filter((s: Subject) => s.id !== id));
@@ -268,7 +281,7 @@ export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => (get
 export const addTeacherAssignment = (a: TeacherAssignment) => setLocal('teacher_assignments', [...getLocal('teacher_assignments'), a]);
 export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getLocal('teacher_assignments').filter((a: any) => a.id !== id));
 
-// --- الاختبارات والمهام ---
+// --- الاختبارات والمهام (Exams and Tasks) ---
 export const getExams = (tid?: string): Exam[] => (getLocal('exams') || []).filter((e: any) => !tid || e.teacherId === tid);
 export const saveExam = (exam: Exam) => setLocal('exams', [...getLocal('exams').filter((e: any) => e.id !== exam.id), exam]);
 export const deleteExam = (id: string) => setLocal('exams', getLocal('exams').filter((e: any) => e.id !== id));
@@ -286,7 +299,7 @@ export const deleteAssignment = (id: string) => setLocal('assignments', getLocal
 export const getTasks = (tid?: string): Task[] => (getLocal('tasks') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const saveTask = (task: Task) => setLocal('tasks', [...getLocal('tasks').filter((t: any) => t.id !== task.id), task]);
 
-// --- التحليلات والجداول الخاصة ---
+// --- التحليلات والجداول الخاصة (Analytics and Custom Tables) ---
 export const getCustomTables = (tid?: string): CustomTable[] => (getLocal('custom_tables') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const addCustomTable = async (table: CustomTable) => setLocal('custom_tables', [...getLocal('custom_tables'), table]);
 export const deleteCustomTable = async (id: string) => setLocal('custom_tables', getLocal('custom_tables').filter((t: any) => t.id !== id));
@@ -308,7 +321,7 @@ export const saveBehaviorIncident = async (incident: BehaviorIncident) => {
     });
 };
 
-// --- الحائط والمراسلات ---
+// --- الحائط والمراسلات (Communication) ---
 export const saveWallPost = async (post: WallPost) => {
     await supabase.from('wall_posts').insert({
         id: post.id, user_id: post.userId, user_name: post.userName,
@@ -326,7 +339,7 @@ export const fetchWallPosts = async (sid: string) => {
 export const saveMessage = async (msg: MessageLog) => setLocal('messages', [msg, ...(getLocal('messages') || [])]);
 export const getMessages = (tid?: string): MessageLog[] => (getLocal('messages') || []).filter((m: any) => !tid || m.teacherId === tid);
 
-// --- دوال متنوعة ---
+// --- دوال متنوعة (Utility) ---
 export const getAISettings = () => JSON.parse(localStorage.getItem('ai_settings') || '{"systemInstruction": "أنت مساعد تعليمي محترف.", "temperature": 0.7}');
 export const saveAISettings = (config: any) => localStorage.setItem('ai_settings', JSON.stringify(config));
 
@@ -380,6 +393,7 @@ export const getExamResults = (examId?: string): ExamResult[] => (getLocal('exam
 export const saveExamResult = async (res: ExamResult) => setLocal('exam_results', [...getLocal('exam_results'), res]);
 
 export const getQuestionBank = (tid: string): Question[] => (getLocal('question_bank') || []).filter((q: any) => q.teacherId === tid);
+// Fix: Corrected build error TS2488 by separating filtering and storage update
 export const saveQuestionToBank = (q: Question) => {
     const list = getLocal('question_bank').filter((x: any) => x.id !== q.id);
     setLocal('question_bank', [...list, q]);
@@ -409,7 +423,7 @@ export const saveTrackingSheet = (sheet: TrackingSheet) => setLocal('tracking_sh
 export const deleteTrackingSheet = (id: string) => setLocal('tracking_sheets', getLocal('tracking_sheets').filter((x: any) => x.id !== id));
 
 export const getPurchaseRequests = (tid: string): PurchaseRequest[] => (getLocal('purchase_requests') || []).filter((r: any) => r.teacherId === tid);
-export const updatePurchaseStatus = async (id: string, status: 'APPROVED' | 'REJECTED') => {
+export const updatePurchaseStatus = async (id: string, status: 'APPROVED' | 'REJECTED' | 'PENDING') => {
     const reqs = getLocal('purchase_requests').map((r: any) => r.id === id ? { ...r, status } : r);
     setLocal('purchase_requests', reqs);
 };
@@ -438,7 +452,7 @@ export const toggleResourceShare = async (id: string, isShared: boolean) => {
 export const fetchParentRequests = async (tid: string) => {
     const { data } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
     return (data || []).map(r => ({
-        id: r.id, parentId: r.parent_id, studentId: r.student_id, teacherId: r.teacher_id,
+        id: r.id, parentId: r.parent_id, studentId: r.student_id, teacher_id: r.teacher_id,
         type: r.type, content: r.content, status: r.status, date: r.date
     }));
 };
