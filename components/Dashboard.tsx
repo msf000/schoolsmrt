@@ -11,8 +11,7 @@ import {
     Calendar, ClipboardList, 
     Trophy, Zap, PlusCircle, Search, Radio, Waves, Mic, Flame,
     Settings, Star, LayoutGrid, Users, Clock, ArrowRight, Bell,
-    // Fix: Added missing Activity and AlertTriangle icons
-    Activity, AlertTriangle
+    Activity, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getBehaviorIncidents, getTeacherAssignments, getPurchaseRequests, getMessages } from '../services/storageService';
@@ -143,7 +142,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={pulseData}>
                             <defs>
-                                {/* Fix: Removed duplicate x1 attribute and corrected to y1 for vertical gradient */}
                                 <linearGradient id="colorPart" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient>
                                 <linearGradient id="colorGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
                             </defs>
@@ -224,12 +222,6 @@ const QuickActionBtn = ({ icon, label, onClick, color }: any) => (
         </div>
         <span className="text-[10px] font-black text-slate-500 text-center uppercase tracking-tighter transition-colors group-hover:text-indigo-600">{label}</span>
     </button>
-);
-
-const TrendingUp = ({ size, className }: any) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
-    </svg>
 );
 
 export default Dashboard;

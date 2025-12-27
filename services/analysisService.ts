@@ -104,7 +104,6 @@ export const getDailyFocusStudents = (students: Student[], attendance: Attendanc
     }).filter(x => x !== null).sort((a, b) => b!.priority - a!.priority).slice(0, 3);
 };
 
-// Fix for ClassroomManager.tsx errors: Implementation of balanced group generator
 export const generateVarkBalancedGroups = (students: Student[], groupSize: number): Student[][] => {
     const groupsByStyle: Record<string, Student[]> = {
         VISUAL: [], AUDITORY: [], READ_WRITE: [], KINESTHETIC: [], UNKNOWN: []
@@ -146,7 +145,6 @@ export const generateVarkBalancedGroups = (students: Student[], groupSize: numbe
     return result;
 };
 
-// Fix for ClassroomManager.tsx errors: Implementation of local seating arrangement logic
 export const generateLocalSeatingPlan = (students: any[], criterion: string) => {
     const cols = 5;
     const sorted = [...students];
@@ -178,4 +176,17 @@ export const generateLocalSeatingPlan = (students: any[], criterion: string) => 
             col: i % cols
         }))
     };
+};
+
+export const calculateStudentConsistency = (studentId: string, performance: PerformanceRecord[]) => {
+    const sPerf = performance.filter(p => p.studentId === studentId);
+    if (sPerf.length < 3) return 100;
+    
+    const scores = sPerf.map(p => (p.score / p.maxScore) * 100);
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
+    const stdDev = Math.sqrt(variance);
+    
+    // Stability score (100 - standard deviation)
+    return Math.round(Math.max(0, 100 - stdDev));
 };

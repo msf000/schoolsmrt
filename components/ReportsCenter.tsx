@@ -2,11 +2,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AcademicTerm, RemedialPlan, Assignment } from '../types';
 import { getAcademicTerms, saveRemedialPlan, getRemedialPlans, getAssignments, exportToWord } from '../services/storageService';
-import { detectAtRiskStudents } from '../services/analysisService';
+import { detectAtRiskStudents, calculateStudentConsistency } from '../services/analysisService';
 import { generateSmartRemedialPlan } from '../services/geminiService';
 import { 
     FileText, AlertTriangle, Printer, Sparkles, Loader2, 
-    Save, X, BookOpen, History, BrainCircuit, Calendar, Grid3X3, ArrowRight
+    Save, X, BookOpen, History, BrainCircuit, Calendar, Grid3X3, ArrowRight, TrendingUp, ShieldCheck
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { formatDualDate } from '../services/dateService';
@@ -42,7 +42,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
     const heatmapData = useMemo(() => {
         if (!selectedClass) return null;
         const classStudents = students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
-        const classAssignments = allAssignments.filter(a => a.isVisible).slice(0, 8); // Top 8 tasks for viewability
+        const classAssignments = allAssignments.filter(a => a.isVisible).slice(0, 8); 
 
         return {
             students: classStudents,
@@ -70,17 +70,13 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
         }
     };
 
-    const TabBtn = ({ label, icon: Icon, active, onClick }: any) => (
-        <button onClick={onClick} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white border border-transparent hover:border-gray-100'}`}>
-            <Icon size={16}/>
-            {label}
-        </button>
-    );
-
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden font-tajawal">
             <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 print:hidden">
-                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><FileText className="text-purple-600"/> مركز التقارير والخطط</h2>
+                <div>
+                    <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><FileText className="text-purple-600"/> مركز الرؤى والتقارير</h2>
+                    <p className="text-xs text-slate-400 font-bold uppercase mt-1">تحليل البيانات والخطط العلاجية الذكية</p>
+                </div>
                 <div className="flex bg-white p-1 rounded-xl border shadow-sm overflow-x-auto no-scrollbar max-w-full">
                     <TabBtn label="التقرير الشامل" icon={FileText} active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
                     <TabBtn label="سجل الحضور" icon={Calendar} active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
@@ -107,27 +103,39 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                                     <table className="w-full text-center border-collapse">
                                         <thead>
                                             <tr>
-                                                <th className="p-4 text-right sticky right-0 bg-white z-10 w-48 border-b font-black text-gray-400 text-[10px] uppercase">اسم الطالب</th>
+                                                <th className="p-4 text-right sticky right-0 bg-white z-10 w-48 border-b font-black text-gray-400 text-[10px] uppercase tracking-widest">اسم الطالب</th>
                                                 {heatmapData.tasks.map(t => (
                                                     <th key={t.id} className="p-4 border-b font-black text-gray-700 text-xs min-w-[120px]">{t.title}</th>
                                                 ))}
+                                                <th className="p-4 border-b font-black text-indigo-600 text-xs">الاستقرار الأكاديمي</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
-                                            {heatmapData.students.map(s => (
-                                                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="p-3 text-right sticky right-0 bg-white z-10 font-bold text-gray-700 border-l">{s.name}</td>
-                                                    {heatmapData.tasks.map(t => {
-                                                        const score = heatmapData.getScore(s.id, t.id);
-                                                        const colorClass = score === null ? 'bg-gray-50' : score >= 90 ? 'bg-emerald-500 text-white' : score >= 75 ? 'bg-emerald-300' : score >= 60 ? 'bg-yellow-200' : 'bg-red-500 text-white';
-                                                        return (
-                                                            <td key={t.id} className={`p-3 border-l border-white/10 font-black text-xs transition-all ${colorClass}`}>
-                                                                {score !== null ? `${score}%` : '-'}
-                                                            </td>
-                                                        );
-                                                    })}
-                                                </tr>
-                                            ))}
+                                            {heatmapData.students.map(s => {
+                                                const consistency = calculateStudentConsistency(s.id, performance);
+                                                return (
+                                                    <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="p-3 text-right sticky right-0 bg-white z-10 font-bold text-gray-700 border-l">{s.name}</td>
+                                                        {heatmapData.tasks.map(t => {
+                                                            const score = heatmapData.getScore(s.id, t.id);
+                                                            const colorClass = score === null ? 'bg-gray-50' : score >= 90 ? 'bg-emerald-500 text-white' : score >= 75 ? 'bg-emerald-300' : score >= 60 ? 'bg-yellow-200' : 'bg-red-500 text-white';
+                                                            return (
+                                                                <td key={t.id} className={`p-3 border-l border-white/10 font-black text-xs transition-all ${colorClass}`}>
+                                                                    {score !== null ? `${score}%` : '-'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td className="p-3 border-l font-black text-xs">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[50px]">
+                                                                    <div className={`h-full ${consistency > 80 ? 'bg-indigo-500' : 'bg-orange-500'}`} style={{width: `${consistency}%`}}></div>
+                                                                </div>
+                                                                <span className="text-[10px]">{consistency}%</span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -170,11 +178,11 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                 )}
 
                 {activeTab === 'COMPREHENSIVE' && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-                        <ReportCategoryBtn label="المتتبع الحراري" icon={Grid3X3} onClick={()=>setActiveTab('HEATMAP')} color="bg-teal-50 text-teal-600" />
-                        <ReportCategoryBtn label="كشوفات الحضور" icon={Calendar} onClick={()=>setActiveTab('MONTHLY')} color="bg-indigo-50 text-indigo-600" />
-                        <ReportCategoryBtn label="تحليل المتعثرين" icon={AlertTriangle} onClick={()=>setActiveTab('AT_RISK')} color="bg-orange-50 text-orange-600" />
-                        <ReportCategoryBtn label="الخطط العلاجية" icon={BrainCircuit} onClick={()=>setActiveTab('REMEDIAL')} color="bg-purple-50 text-purple-600" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                        <ReportCategoryBtn label="المتتبع الحراري" desc="ارتباط الدرجات بالزمن" icon={Grid3X3} onClick={()=>setActiveTab('HEATMAP')} color="bg-teal-50 text-teal-600" />
+                        <ReportCategoryBtn label="كشوفات الحضور" desc="تقارير غياب شهرية" icon={Calendar} onClick={()=>setActiveTab('MONTHLY')} color="bg-indigo-50 text-indigo-600" />
+                        <ReportCategoryBtn label="تحليل المتعثرين" desc="اكتشاف حالات الضعف" icon={AlertTriangle} onClick={()=>setActiveTab('AT_RISK')} color="bg-orange-50 text-orange-600" />
+                        <ReportCategoryBtn label="الخطط العلاجية" desc="توليد محتوى دعم ذكي" icon={BrainCircuit} onClick={()=>setActiveTab('REMEDIAL')} color="bg-purple-50 text-purple-600" />
                     </div>
                 )}
             </div>
@@ -196,7 +204,7 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                                     <p className="font-black text-xl animate-pulse">جاري صياغة استراتيجية دعم مخصصة...</p>
                                 </div>
                             ) : (
-                                <div className="prose prose-indigo max-w-none bg-white p-8 rounded-3xl border shadow-sm leading-relaxed text-gray-700">
+                                <div className="prose prose-indigo max-w-none bg-white p-12 rounded-3xl border shadow-sm leading-relaxed text-gray-700">
                                     <ReactMarkdown>{currentPlan}</ReactMarkdown>
                                 </div>
                             )}
@@ -204,11 +212,6 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
                         <div className="p-6 border-t bg-gray-50 flex justify-end items-center gap-4 print:hidden">
                             <button onClick={() => exportToWord('remedial-plan-content', `plan_${viewingStudent.name}.doc`)} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><FileText size={18}/> Word</button>
                             <button onClick={() => window.print()} className="px-8 py-3 bg-gray-800 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"><Printer size={18}/> PDF</button>
-                            {currentPlan && (
-                                <button className="px-8 py-3 bg-green-600 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 hover:bg-green-700">
-                                    <Save size={18}/> حفظ الخطة
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -217,12 +220,19 @@ const ReportsCenter: React.FC<ReportsCenterProps> = ({ students, attendance, per
     );
 };
 
-const ReportCategoryBtn = ({ label, icon: Icon, onClick, color }: any) => (
-    <button onClick={onClick} className="bg-white p-8 rounded-[2rem] border shadow-sm flex flex-col items-center text-center gap-4 hover:border-indigo-400 transition-all group">
-        <div className={`p-4 ${color} rounded-3xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-inner`}><Icon size={32}/></div>
+const TabBtn = ({ label, icon: Icon, active, onClick }: any) => (
+    <button onClick={onClick} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white border border-transparent hover:border-gray-100'}`}>
+        <Icon size={16}/>
+        {label}
+    </button>
+);
+
+const ReportCategoryBtn = ({ label, desc, icon: Icon, onClick, color }: any) => (
+    <button onClick={onClick} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center text-center gap-4 hover:border-indigo-400 hover:shadow-xl transition-all group">
+        <div className={`p-4 ${color} rounded-3xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner`}><Icon size={32}/></div>
         <div>
             <h4 className="font-black text-gray-800">{label}</h4>
-            <p className="text-[10px] text-gray-400 mt-1 font-bold uppercase tracking-widest">عرض التقرير التفصيلي</p>
+            <p className="text-[10px] text-gray-400 mt-1 font-bold uppercase tracking-widest">{desc}</p>
         </div>
     </button>
 );
