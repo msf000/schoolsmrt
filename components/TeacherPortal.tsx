@@ -8,8 +8,7 @@ import {
     ChevronLeft, ChevronRight, Menu, Bell, Search,
     FileQuestion, Library, Trophy, Award, Sparkles, 
     ShieldAlert, BrainCircuit, Calendar, PenTool, Zap, Heart,
-    // Fix: Added missing Star import from lucide-react
-    Star
+    Star, Shield, CreditCard, Bot, User
 } from 'lucide-react';
 
 interface Props {
@@ -22,6 +21,9 @@ const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => 
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+    const isManager = currentUser.role === 'SCHOOL_MANAGER' || isSuperAdmin;
 
     const NavItem = ({ path, label, icon: Icon, color, isActive, isCollapsed }: any) => (
         <button 
@@ -47,7 +49,7 @@ const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => 
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
-                    <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الأساسية</label>
+                    <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>القائمة الرئيسية</label>
                     <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} color="text-blue-500" isActive={location.pathname === '/'} isCollapsed={!isSidebarOpen} />
                     <NavItem path="/students" label="إدارة الطلاب" icon={Users} color="text-teal-500" isActive={location.pathname === '/students'} isCollapsed={!isSidebarOpen} />
                     <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} color="text-emerald-500" isActive={location.pathname === '/attendance'} isCollapsed={!isSidebarOpen} />
@@ -62,25 +64,24 @@ const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => 
                         <NavItem path="/games" label="مصنع الألعاب" icon={Gamepad2} color="text-orange-500" isActive={location.pathname === '/games'} isCollapsed={!isSidebarOpen} />
                     </div>
 
-                    <div className="pt-4">
-                        <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الذكاء والتحليل</label>
-                        <NavItem path="/lab" label="مختبر الأنماط" icon={BrainCircuit} color="text-indigo-500" isActive={location.pathname === '/lab'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/reports" label="مركز التقارير" icon={BarChart3} color="text-purple-500" isActive={location.pathname === '/reports'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/behavior" label="سجل السلوك" icon={Zap} color="text-yellow-500" isActive={location.pathname === '/behavior'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/interventions" label="التدخلات" icon={ShieldAlert} color="text-red-500" isActive={location.pathname === '/interventions'} isCollapsed={!isSidebarOpen} />
-                    </div>
+                    {isManager && (
+                        <div className="pt-4">
+                            <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الإدارة والضبط</label>
+                            {isSuperAdmin && <NavItem path="/admin" label="لوحة النظام" icon={Shield} color="text-slate-900" isActive={location.pathname === '/admin'} isCollapsed={!isSidebarOpen} />}
+                            <NavItem path="/principal" label="لوحة القائد" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/principal'} isCollapsed={!isSidebarOpen} />
+                            <NavItem path="/school-mgmt" label="إدارة المنشأة" icon={Settings} color="text-blue-700" isActive={location.pathname === '/school-mgmt'} isCollapsed={!isSidebarOpen} />
+                        </div>
+                    )}
 
                     <div className="pt-4">
-                        <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>التكريم والموارد</label>
-                        <NavItem path="/badges" label="الأوسمة الذكية" icon={Star} color="text-yellow-500" isActive={location.pathname === '/badges'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/certificates" label="الشهادات" icon={Award} color="text-purple-500" isActive={location.pathname === '/certificates'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/library" label="المكتبة" icon={Library} color="text-blue-600" isActive={location.pathname === '/library'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/hall-of-fame" label="لوحة الأبطال" icon={Trophy} color="text-amber-500" isActive={location.pathname === '/hall-of-fame'} isCollapsed={!isSidebarOpen} />
+                        <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>التخصيص</label>
+                        <NavItem path="/ai-config" label="إعدادات AI" icon={Bot} color="text-purple-500" isActive={location.pathname === '/ai-config'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/subscription" label="الاشتراك والترقية" icon={CreditCard} color="text-emerald-600" isActive={location.pathname === '/subscription'} isCollapsed={!isSidebarOpen} />
                     </div>
                 </div>
 
                 <div className="p-4 border-t border-slate-50 space-y-2">
-                    <NavItem path="/inbox" label="البريد" icon={Inbox} color="text-indigo-600" isActive={location.pathname === '/inbox'} isCollapsed={!isSidebarOpen} />
+                    <NavItem path="/profile" label="ملفي الشخصي" icon={User} color="text-indigo-600" isActive={location.pathname === '/profile'} isCollapsed={!isSidebarOpen} />
                     <button onClick={onLogout} className="w-full flex items-center gap-4 p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all font-black text-xs">
                         <LogOut size={20} />
                         {isSidebarOpen && <span>تسجيل الخروج</span>}
@@ -103,16 +104,17 @@ const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => 
                             <Menu />
                         </div>
                         <h2 className="font-black text-slate-800 hidden md:block text-sm">أهلاً بك، {currentUser.name}</h2>
+                        <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase">{currentUser.role}</span>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <button className="relative p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-indigo-600 transition-all">
-                            <Bell size={18} />
+                        <button className="relative p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-indigo-600 transition-all" onClick={() => navigate('/inbox')}>
+                            <Inbox size={18} />
                             <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-rose-500 rounded-full border-2 border-white"></div>
                         </button>
-                        <div className="flex items-center gap-3 pr-4 border-r border-slate-100">
+                        <div className="flex items-center gap-3 pr-4 border-r border-slate-100 cursor-pointer" onClick={() => navigate('/profile')}>
                             <div className="text-left hidden sm:block">
-                                <p className="text-[10px] font-black text-slate-800 leading-none">{currentUser.role}</p>
+                                <p className="text-[10px] font-black text-slate-800 leading-none">{currentUser.name.split(' ')[0]}</p>
                             </div>
                             <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center font-black text-indigo-600 text-xs shadow-inner">
                                 {currentUser.name.charAt(0)}

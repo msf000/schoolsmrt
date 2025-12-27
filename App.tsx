@@ -28,7 +28,13 @@ import SmartBadges from './components/SmartBadges';
 import InterventionLog from './components/InterventionLog';
 import ScheduleView from './components/ScheduleView';
 import HallOfFame from './components/HallOfFame';
-import { fetchStudents, fetchAttendance, fetchPerformance, getBehaviorIncidents } from './services/storageService';
+import AdminDashboard from './components/AdminDashboard';
+import SchoolManagement from './components/SchoolManagement';
+import PrincipalDashboard from './components/PrincipalDashboard';
+import TeacherProfile from './components/TeacherProfile';
+import TeacherAIConfig from './components/TeacherAIConfig';
+import TeacherSubscription from './components/TeacherSubscription';
+import { fetchStudents, fetchAttendance, fetchPerformance, getBehaviorIncidents, fetchTeachers } from './services/storageService';
 import Login from './components/Login';
 import ReloadPrompt from './components/ReloadPrompt';
 import AIChatBot from './components/AIChatBot';
@@ -39,6 +45,7 @@ const App: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
+    const [teachers, setTeachers] = useState<any[]>([]);
 
     useEffect(() => {
         const saved = localStorage.getItem('current_user');
@@ -50,9 +57,11 @@ const App: React.FC = () => {
         const stds = await fetchStudents();
         const att = await fetchAttendance();
         const perf = await fetchPerformance();
+        const tchs = await fetchTeachers();
         setStudents(stds);
         setAttendance(att);
         setPerformance(perf);
+        setTeachers(tchs);
     };
 
     const handleLoginSuccess = (user: any) => {
@@ -93,6 +102,14 @@ const App: React.FC = () => {
                 <Route path="/interventions" element={<InterventionLog students={students} incidents={getBehaviorIncidents()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
+                
+                {/* Advanced Routes */}
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/school-mgmt" element={<SchoolManagement students={students} onImportStudents={loadData} onImportPerformance={loadData} onImportAttendance={loadData} currentUser={currentUser as SystemUser} />} />
+                <Route path="/principal" element={<PrincipalDashboard students={students} attendance={attendance} performance={performance} teachers={teachers} />} />
+                <Route path="/profile" element={<TeacherProfile currentUser={currentUser as SystemUser} />} />
+                <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
+                <Route path="/subscription" element={<TeacherSubscription currentUser={currentUser as SystemUser} />} />
             </Routes>
         </TeacherPortal>
     );
