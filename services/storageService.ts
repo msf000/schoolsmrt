@@ -1,4 +1,3 @@
-
 import { 
     Student, AttendanceRecord, PerformanceRecord, Teacher, School, 
     SystemUser, Subject, ScheduleItem, TeacherAssignment, 
@@ -16,7 +15,8 @@ export const KEYS = {
     REPORT_HEADER: 'report_header_config',
     PERIOD_TIMINGS: 'period_timings',
     WORKS_MASTER_URL: 'works_master_url',
-    CUSTOM_REWARDS: 'custom_rewards'
+    CUSTOM_REWARDS: 'custom_rewards',
+    AI_SETTINGS: 'ai_settings'
 };
 
 const REQUIRED_SCHEMA = {
@@ -590,7 +590,10 @@ export const getTeacherPeriodTimings = (tid: string): string[] => JSON.parse(loc
 
 export const saveTeacherPeriodTimings = (tid: string, t: string[]) => localStorage.setItem(`${KEYS.PERIOD_TIMINGS}_${tid}`, JSON.stringify(t));
 
-export const getAISettings = () => ({ modelId: 'gemini-3-flash-preview', temperature: 0.7, systemInstruction: 'أنت مساعد تعليمي.' });
+/* Fix: saveAISettings and persistent getAISettings */
+export const getAISettings = () => JSON.parse(localStorage.getItem(KEYS.AI_SETTINGS) || '{"modelId": "gemini-3-flash-preview", "temperature": 0.7, "systemInstruction": "أنت مساعد تعليمي."}');
+
+export const saveAISettings = (settings: any) => localStorage.setItem(KEYS.AI_SETTINGS, JSON.stringify(settings));
 
 export const getUserTheme = (): UserTheme => JSON.parse(localStorage.getItem(KEYS.USER_THEME) || '{"mode":"LIGHT","backgroundStyle":"FLAT"}');
 
@@ -738,6 +741,7 @@ export const fetchWeeklyPlans = async (tid?: string): Promise<WeeklyPlanItem[]> 
     } catch { return getWeeklyPlans(tid); }
 };
 
+// Fix: Corrected property mappings for WeeklyPlanItem using camelCase
 export const saveWeeklyPlanItem = async (p: WeeklyPlanItem) => {
     const cur = getWeeklyPlans(p.teacherId);
     localStorage.setItem(`local_weekly_plans_${p.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==p.id), p]));
@@ -757,6 +761,7 @@ export const fetchLessonLinks = async (tid?: string): Promise<LessonLink[]> => {
     } catch { return getLessonLinks(); }
 };
 
+// Fix: Corrected property mappings for LessonLink using camelCase
 export const saveLessonLink = async (l: LessonLink) => {
     const all = getLessonLinks();
     localStorage.setItem('local_lesson_links', JSON.stringify([...all.filter(x=>x.id!==l.id), l]));
@@ -867,7 +872,6 @@ export const deleteLessonPlan = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_lesson_plans_'));
     keys.forEach(k => {
         const cur: StoredLessonPlan[] = JSON.parse(localStorage.getItem(k) || '[]');
-        // Fix: Use localStorage.setItem instead of non-existent setLocalStorage and avoid double prefixing
         localStorage.setItem(k, JSON.stringify(cur.filter((p: StoredLessonPlan) => p.id !== id)));
     });
     await supabase.from('lesson_plans').delete().eq('id', id);

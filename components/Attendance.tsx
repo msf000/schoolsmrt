@@ -1,11 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, SystemUser, ScheduleItem } from '../types';
 import { 
     CheckCircle, XCircle, Clock, Users, Search, 
     Calendar as CalendarIcon, Loader2, UserCheck, History, 
-    Trash2, BookOpen, Check, AlertCircle, RefreshCw, UserMinus, UserPlus, ArrowRight
+    Trash2, BookOpen, Check, AlertCircle, RefreshCw, UserMinus, UserPlus, ArrowRight, Camera, Sparkles, Image as ImageIcon,
+    Bot
 } from 'lucide-react';
 import { getSchedules, saveAttendance, deleteAttendance } from '../services/storageService';
+import { analyzeAttendancePhoto } from '../services/geminiService';
 
 interface AttendanceProps {
   students: Student[];
@@ -15,23 +17,20 @@ interface AttendanceProps {
 }
 
 const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, currentUser }) => {
-  const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY'>('RECORD');
+  const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY' | 'AI_VISION'>('RECORD');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<number>(1);
   const [selectedSubject, setSelectedSubject] = useState('عام');
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [todaysSchedule, setTodaysSchedule] = useState<ScheduleItem[]>([]);
-
-  useEffect(() => {
-    if (currentUser) {
-        const allSchedules = getSchedules();
-        const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
-        const mine = allSchedules.filter(s => s.day === dayName && s.teacherId === currentUser.id);
-        setTodaysSchedule(mine.sort((a, b) => a.period - b.period));
-    }
-  }, [currentUser]);
+  
+  // AI Vision States
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -73,6 +72,71 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     }
   };
 
+  const startCamera = async () => {
+      setIsCapturing(true);
+      setCapturedImage(null);
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+          }
+      } catch (err) {
+          alert('تعذر الوصول للكاميرا. يرجى التحقق من الأذونات.');
+          setIsCapturing(false);
+      }
+  };
+
+  const capturePhoto = () => {
+      if (videoRef.current && canvasRef.current) {
+          const context = canvasRef.current.getContext('2d');
+          canvasRef.current.width = videoRef.current.videoWidth;
+          canvasRef.current.height = videoRef.current.videoHeight;
+          context?.drawImage(videoRef.current, 0, 0);
+          const dataUrl = canvasRef.current.toDataURL('image/jpeg');
+          setCapturedImage(dataUrl);
+          
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream?.getTracks().forEach(t => t.stop());
+          setIsCapturing(false);
+      }
+  };
+
+  const handleAiAnalyze = async () => {
+      if (!capturedImage || !selectedClass) return;
+      setAiLoading(true);
+      try {
+          const classStudents = students.filter(s => s.className === selectedClass);
+          const result = await analyzeAttendancePhoto(capturedImage, classStudents);
+          
+          if (result.attendance && result.attendance.length > 0) {
+              const records: AttendanceRecord[] = result.attendance.map((res: any) => {
+                  const student = classStudents.find(s => s.name.includes(res.name) || res.name.includes(s.name));
+                  if (!student) return null;
+                  return {
+                      id: `${student.id}_${selectedDate}_${selectedPeriod}`,
+                      studentId: student.id,
+                      date: selectedDate,
+                      period: selectedPeriod,
+                      subject: selectedSubject,
+                      status: res.status as AttendanceStatus,
+                      createdById: currentUser?.id
+                  };
+              }).filter(Boolean) as AttendanceRecord[];
+
+              if (records.length > 0) {
+                  await saveAttendance(records);
+                  onSaveAttendance(records);
+                  alert(`تم رصد حضور ${records.length} طالباً بنجاح عبر التحليل البصري.`);
+                  setActiveTab('RECORD');
+              }
+          }
+      } catch (e) {
+          alert('فشل التحليل البصري للذكاء الاصطناعي.');
+      } finally {
+          setAiLoading(false);
+      }
+  };
+
   const markAllPresent = async () => {
       if (!selectedClass) return alert('يرجى اختيار الفصل أولاً');
       if (!confirm('هل تريد تحضير جميع الطلاب الظاهرين حالياً؟')) return;
@@ -103,11 +167,14 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     <div className="p-4 md:p-8 h-full flex flex-col bg-[#F8FAFC] animate-fade-in pb-24 font-tajawal overflow-hidden">
       {/* Top Controls */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 shrink-0">
-          <div className="flex bg-white p-1.5 rounded-2xl shadow-xl border border-slate-100">
-              <button onClick={() => setActiveTab('RECORD')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
-                  <UserCheck size={18}/> رصد الحضور
+          <div className="flex bg-white p-1.5 rounded-2xl shadow-xl border border-slate-100 overflow-x-auto no-scrollbar max-w-full">
+              <button onClick={() => setActiveTab('RECORD')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
+                  <UserCheck size={18}/> رصد يدوي
               </button>
-              <button onClick={() => setActiveTab('HISTORY')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
+              <button onClick={() => setActiveTab('AI_VISION')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'AI_VISION' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
+                  <Camera size={18}/> تحضير AI
+              </button>
+              <button onClick={() => setActiveTab('HISTORY')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
                   <History size={18}/> سجل الغياب
               </button>
           </div>
@@ -212,7 +279,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                     <div className="relative">
                         <Users size={150} strokeWidth={1}/>
                         <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white p-4 rounded-full shadow-2xl">
-                            {/* Fixed ArrowRight missing error */}
                             <ArrowRight size={32}/>
                         </div>
                     </div>
@@ -220,6 +286,80 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 </div>
             )}
           </div>
+        </div>
+      ) : activeTab === 'AI_VISION' ? (
+        <div className="flex-1 flex flex-col gap-6 animate-fade-in overflow-hidden">
+             <div className="bg-white p-8 rounded-[3.5rem] shadow-2xl border border-slate-100 flex flex-col md:flex-row items-center gap-8 shrink-0">
+                <div className="p-5 bg-purple-50 text-purple-600 rounded-[2rem]"><Sparkles size={40}/></div>
+                <div className="flex-1 text-center md:text-right">
+                    <h3 className="text-2xl font-black text-slate-800">التحضير الذكي (AI Vision)</h3>
+                    <p className="text-sm text-slate-400 font-bold mt-1 uppercase tracking-widest">قم بالتقاط صورة للفصل، وسيتولى الذكاء الاصطناعي رصد الحضور تلقائياً</p>
+                </div>
+                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-4 border rounded-[1.5rem] bg-slate-50 font-black text-sm outline-none min-w-[200px] focus:ring-4 focus:ring-purple-500/10">
+                    <option value="">-- اختر الفصل --</option>
+                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+             </div>
+
+             <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-8 overflow-hidden">
+                <div className="bg-slate-900 rounded-[3rem] border-8 border-slate-800 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center">
+                    {isCapturing ? (
+                        <>
+                            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 border-[20px] border-indigo-600/20 pointer-events-none"></div>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-white/20 rounded-full animate-ping pointer-events-none"></div>
+                            <button onClick={capturePhoto} className="absolute bottom-10 p-6 bg-white text-indigo-600 rounded-full shadow-[0_0_40px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-95 transition-all">
+                                <Camera size={32}/>
+                            </button>
+                        </>
+                    ) : capturedImage ? (
+                        <div className="relative w-full h-full">
+                            <img src={capturedImage} className="w-full h-full object-cover" alt="Captured" />
+                            <button onClick={startCamera} className="absolute top-6 left-6 p-3 bg-red-500 text-white rounded-2xl shadow-lg"><Trash2 size={20}/></button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-6 opacity-30">
+                            <ImageIcon size={120} strokeWidth={1} className="text-white"/>
+                            <button onClick={startCamera} className="bg-white/10 text-white px-10 py-4 rounded-3xl font-black text-xl border border-white/10 hover:bg-white/20 transition-all">فتح الكاميرا</button>
+                        </div>
+                    )}
+                    <canvas ref={canvasRef} className="hidden" />
+                </div>
+
+                <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl p-10 flex flex-col justify-center items-center text-center gap-8">
+                    {!capturedImage ? (
+                        <div className="space-y-4">
+                            <div className="w-20 h-20 bg-purple-50 text-purple-600 rounded-3xl flex items-center justify-center mx-auto"><Bot size={40}/></div>
+                            <h4 className="text-xl font-black text-slate-800">بانتظار التقاط الصورة</h4>
+                            <p className="text-slate-400 text-sm font-medium max-w-xs leading-relaxed">تأكد من إظهار وجوه جميع الطلاب في الصورة للحصول على أدق النتائج.</p>
+                        </div>
+                    ) : (
+                        <div className="w-full space-y-8 animate-fade-in">
+                            <div className="space-y-2">
+                                <h4 className="text-2xl font-black text-indigo-600">تم التقاط الصورة بنجاح!</h4>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">جاهز لبدء التحليل البصري بذكاء Gemini</p>
+                            </div>
+                            
+                            <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex items-center gap-4">
+                                <div className="p-3 bg-white rounded-xl shadow-sm text-indigo-600"><Users size={24}/></div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase">الفصل المستهدف</p>
+                                    <p className="text-lg font-black text-slate-800">{selectedClass || 'لم يتم الاختيار'}</p>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={handleAiAnalyze}
+                                disabled={aiLoading || !selectedClass}
+                                className="w-full py-6 bg-purple-600 text-white rounded-[2rem] font-black text-xl shadow-2xl hover:bg-purple-700 active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50"
+                            >
+                                {aiLoading ? <Loader2 className="animate-spin" size={28}/> : <Sparkles size={28}/>}
+                                {aiLoading ? 'جاري التحليل...' : 'بدء التحضير الذكي الآن'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+             </div>
         </div>
       ) : (
         <div className="flex-1 bg-white rounded-[3.5rem] border border-slate-50 shadow-2xl overflow-hidden flex flex-col animate-fade-in">

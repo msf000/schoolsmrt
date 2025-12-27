@@ -1,12 +1,14 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorIncident, Task, MessageLog } from '../types';
 import { saveAttendance, getBehaviorIncidents, getTasks, getMessages } from '../services/storageService';
 import { 
     User, LogOut, AlertTriangle, Clock, MessageCircle, X, ShieldCheck, 
-    Trophy, BookOpen, Bell, ChevronLeft, Star, Calendar, CheckCircle2, Zap, Radar as RadarIcon, TrendingUp, BarChart3
+    Trophy, BookOpen, Bell, ChevronLeft, Star, Calendar, CheckCircle2, Zap, Radar as RadarIcon, TrendingUp, BarChart3, Sparkles
 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip } from 'recharts';
+import SmartParentDigest from './SmartParentDigest';
 
 interface ParentPortalProps {
     parentPhone: string;
@@ -18,7 +20,7 @@ interface ParentPortalProps {
 
 const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, attendance, performance, onLogout }) => {
     const myChildren = useMemo(() => 
-        allStudents.filter(s => s.parentPhone === parentPhone || s.parentPhone?.replace(/\s/g, '') === parentPhone),
+        allStudents.filter(s => s.parentPhone === parentPhone || s.parentPhone?.replace(/\s+/g, '') === parentPhone),
     [allStudents, parentPhone]);
 
     const [activeChildId, setActiveChildId] = useState<string>(myChildren.length > 0 ? myChildren[0].id : '');
@@ -73,13 +75,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
         alert('تم إرسال العذر للمعلم للمراجعة.');
     };
 
-    if (!activeChild) return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-            <User size={64} className="text-gray-300 mb-4"/>
-            <h2 className="text-xl font-bold text-gray-800">لم يتم العثور على أبناء مرتبطين بهذا الرقم</h2>
-            <button onClick={onLogout} className="mt-6 text-indigo-600 font-bold hover:underline flex items-center gap-2"><LogOut size={18}/> خروج</button>
-        </div>
-    );
+    if (!activeChild) return null;
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-tajawal text-right pb-24 lg:pb-0" dir="rtl">
@@ -103,8 +99,8 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                 </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-4 md:p-8 max-w-6xl mx-auto w-full">
-                <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white mb-8 relative overflow-hidden shadow-2xl">
+            <main className="flex-1 overflow-y-auto p-4 md:p-8 max-w-6xl mx-auto w-full space-y-10">
+                <div className="bg-indigo-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
                     <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-500/20 to-transparent opacity-50"></div>
                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                         <div className="flex items-center gap-6">
@@ -124,7 +120,10 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     </div>
                 </div>
 
-                <div className="flex bg-white rounded-2xl p-1 mb-8 shadow-sm border border-slate-200 overflow-x-auto no-scrollbar">
+                {/* AI Digest Integration */}
+                <SmartParentDigest student={activeChild} attendance={attendance.filter(a=>a.studentId===activeChild.id)} performance={performance.filter(p=>p.studentId===activeChild.id)} />
+
+                <div className="flex bg-white rounded-2xl p-1 shadow-sm border border-slate-200 overflow-x-auto no-scrollbar">
                     <TabBtn active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} label="نظرة عامة" icon={<RadarIcon size={18}/>}/>
                     <TabBtn active={activeTab === 'ACADEMIC'} onClick={() => setActiveTab('ACADEMIC')} label="التحصيل" icon={<TrendingUp size={18}/>}/>
                     <TabBtn active={activeTab === 'TASKS'} onClick={() => setActiveTab('TASKS')} label="المهام" icon={<BookOpen size={18}/>}/>
@@ -132,7 +131,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                     <TabBtn active={activeTab === 'MESSAGES'} onClick={() => setActiveTab('MESSAGES')} label="الرسائل" icon={<Bell size={18}/>}/>
                 </div>
 
-                <div className="animate-fade-in space-y-8">
+                <div className="animate-fade-in pb-20">
                     {activeTab === 'OVERVIEW' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
@@ -149,106 +148,34 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                                 </div>
                             </div>
                             
-                            <div className="space-y-6">
-                                <div className="bg-white p-6 rounded-[2rem] border shadow-sm">
-                                    <h3 className="font-black text-slate-800 mb-6 flex items-center gap-3"><Clock className="text-red-500"/> غياب يحتاج تبرير</h3>
-                                    <div className="space-y-3">
-                                        {stats?.recentAtt.filter((a: any) => a.status === AttendanceStatus.ABSENT).map((a: any) => (
-                                            <div key={a.id} className="flex justify-between items-center p-4 bg-red-50 rounded-2xl border border-red-100">
-                                                <div>
-                                                    <p className="font-black text-red-900 text-sm">{formatDualDate(a.date)}</p>
-                                                    <p className="text-[10px] text-red-600 font-bold uppercase">{a.subject || 'غائب كامل اليوم'}</p>
-                                                </div>
-                                                {a.excuseNote ? (
-                                                    <span className="text-[10px] font-black bg-white text-green-600 px-3 py-1 rounded-full border border-green-100 flex items-center gap-1"><CheckCircle2 size={12}/> تم إرسال العذر</span>
-                                                ) : (
-                                                    <button onClick={() => { setSelectedAbsentRecord(a); setIsExcuseModalOpen(true); }} className="px-6 py-2 bg-red-600 text-white rounded-xl text-xs font-black shadow-lg hover:bg-red-700 active:scale-95 transition-all">تقديم عذر</button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        {stats?.recentAtt.filter((a: any) => a.status === AttendanceStatus.ABSENT).length === 0 && <p className="text-center py-6 text-slate-400 font-bold text-xs italic">لا يوجد سجلات غياب حالياً ✨</p>}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    
-                    {activeTab === 'ACADEMIC' && (
-                        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
-                            <h3 className="font-black text-slate-800 mb-8 flex items-center gap-3"><TrendingUp className="text-emerald-500"/> سجل الدرجات الأخير</h3>
-                            <div className="space-y-4">
-                                {stats?.childPerf.slice().reverse().map((p: any) => (
-                                    <div key={p.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-600"><BookOpen size={20}/></div>
+                            <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                                <h3 className="font-black text-slate-800 mb-6 flex items-center gap-3"><Clock className="text-red-500"/> سجل الغياب</h3>
+                                <div className="space-y-3">
+                                    {stats?.recentAtt.filter((a: any) => a.status === AttendanceStatus.ABSENT).map((a: any) => (
+                                        <div key={a.id} className="flex justify-between items-center p-4 bg-red-50 rounded-2xl border border-red-100">
                                             <div>
-                                                <h4 className="font-black text-slate-800 text-sm">{p.title}</h4>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{p.subject} • {formatDualDate(p.date)}</p>
+                                                <p className="font-black text-red-900 text-sm">{formatDualDate(a.date)}</p>
+                                                <p className="text-[10px] text-red-600 font-bold uppercase">{a.subject || 'غائب كامل اليوم'}</p>
                                             </div>
+                                            {a.excuseNote ? (
+                                                <span className="text-[10px] font-black bg-white text-green-600 px-3 py-1 rounded-full border border-green-100 flex items-center gap-1"><CheckCircle2 size={12}/> تم التبرير</span>
+                                            ) : (
+                                                <button onClick={() => { setSelectedAbsentRecord(a); setIsExcuseModalOpen(true); }} className="px-6 py-2 bg-red-600 text-white rounded-xl text-xs font-black">تبرير</button>
+                                            )}
                                         </div>
-                                        <div className="text-left">
-                                            <span className="text-2xl font-black text-indigo-600">{p.score}</span>
-                                            <span className="text-xs text-slate-300 font-bold mr-1">/ {p.maxScore}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'MESSAGES' && (
-                        <div className="space-y-4">
-                            {childMessages.map(m => (
-                                <div key={m.id} className="bg-white p-6 rounded-[2rem] border-r-[6px] border-indigo-500 shadow-sm relative group">
-                                    <div className="absolute top-4 left-4 p-2 text-indigo-100 group-hover:text-indigo-200 transition-colors"><Bell size={24}/></div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">{formatDualDate(m.date)}</p>
-                                    <p className="text-slate-700 leading-relaxed font-bold">"{m.content}"</p>
-                                    <div className="mt-4 pt-4 border-t border-slate-50 text-[10px] font-black text-indigo-600 uppercase tracking-widest">المرسل: {m.sentBy}</div>
+                                    ))}
                                 </div>
-                            ))}
-                            {childMessages.length === 0 && <div className="text-center py-32 text-slate-300 italic"><Bell size={64} className="mx-auto mb-4 opacity-10"/><p className="font-black">لا توجد رسائل جديدة من المدرسة</p></div>}
+                            </div>
                         </div>
                     )}
                 </div>
             </main>
-
-            {isExcuseModalOpen && (
-                <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-zoom-in border border-white/20">
-                        <div className="flex justify-between items-center mb-8">
-                            <h3 className="text-2xl font-black text-slate-800">تقديم عذر غياب</h3>
-                            <button onClick={() => setIsExcuseModalOpen(false)} className="text-slate-400 hover:text-red-500 transition-colors"><X size={28}/></button>
-                        </div>
-                        <div className="space-y-6">
-                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">تاريخ الغياب</p>
-                                <p className="font-black text-slate-700">{selectedAbsentRecord && formatDualDate(selectedAbsentRecord.date)}</p>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">نص العذر أو التوضيح</label>
-                                <textarea 
-                                    className="w-full p-4 border rounded-2xl bg-gray-50 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 outline-none h-32 font-bold text-slate-800 transition-all"
-                                    placeholder="مثال: الطالب كان يعاني من حالة صحية..."
-                                    value={excuseText}
-                                    onChange={e => setExcuseText(e.target.value)}
-                                />
-                            </div>
-                            <button onClick={handleSendExcuse} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">إرسال العذر للمدرسة</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
 
 const TabBtn = ({ active, onClick, label, icon }: any) => (
-    <button 
-        onClick={onClick}
-        className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-2 py-4 px-2 rounded-2xl transition-all font-black text-[10px] md:text-xs whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-xl scale-105' : 'text-slate-400 hover:bg-slate-50'}`}
-    >
-        {icon} <span>{label}</span>
-    </button>
+    <button onClick={onClick} className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-2 py-4 px-2 rounded-2xl transition-all font-black text-[10px] md:text-xs whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>{icon} <span>{label}</span></button>
 );
 
 export default ParentPortal;

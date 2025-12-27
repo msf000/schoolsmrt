@@ -110,14 +110,45 @@ export const generateWeeklyQuests = async (grade: string, subject: string) => {
 };
 
 export const analyzeAttendancePhoto = async (imageBase64: string, students: Student[]) => {
-    const { model, config } = getModelConfig({ responseMimeType: "application/json" });
+    const { model, config } = getModelConfig({ 
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                attendance: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            name: { type: Type.STRING },
+                            status: { type: Type.STRING }
+                        },
+                        required: ["name", "status"]
+                    }
+                }
+            },
+            required: ["attendance"]
+        }
+    });
     const studentList = students.map(s => s.name).join(', ');
-    const prompt = `Identify attendance from photo. Students: [${studentList}]. JSON output: {"attendance": [{"name": "...", "status": "PRESENT" | "ABSENT"}]}`;
+    const prompt = `Identify attendance from photo. Look at all people in the image. Match them against this list: [${studentList}]. Status should be PRESENT or ABSENT. Output JSON with names and status.`;
     try {
         const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } }, { text: prompt }] }, config });
+        const response = await ai.models.generateContent({ 
+            model, 
+            contents: { 
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } }, 
+                    { text: prompt }
+                ] 
+            }, 
+            config 
+        });
         return JSON.parse(response.text || "{\"attendance\": []}");
-    } catch { return { attendance: [] }; }
+    } catch (e) { 
+        console.error("AI Photo Attendance Error:", e);
+        return { attendance: [] }; 
+    }
 };
 
 export const generateStudentAnalysis = async (student: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {

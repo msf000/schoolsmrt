@@ -11,7 +11,7 @@ import {
     Calendar, ClipboardList, 
     Trophy, Zap, PlusCircle, Search, Radio, Waves, Mic, Flame,
     Settings, Star, LayoutGrid, Users, Clock, ArrowRight, Bell,
-    Activity, AlertTriangle, TrendingUp
+    Activity, AlertTriangle, TrendingUp, Siren
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getBehaviorIncidents, getTeacherAssignments, getPurchaseRequests, getMessages } from '../services/storageService';
@@ -91,7 +91,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           <div className="xl:col-span-2">
               <NarrativeAIInsights stats={dashboardStats} />
           </div>
-          <div className="bg-white p-8 rounded-[3.5rem] border border-slate-50 shadow-xl shadow-slate-200/20 flex flex-col justify-between group hover:border-indigo-100 transition-all">
+          <div className="bg-white p-8 rounded-[3.5rem] border border-slate-50 shadow-xl shadow-slate-200/20 flex flex-col justify-between group hover:border-indigo-100 transition-all relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Siren size={150}/></div>
               <div className="flex justify-between items-start mb-6">
                   <div className="p-4 bg-orange-50 text-orange-600 rounded-[1.5rem]"><Flame size={28} fill="currentColor"/></div>
                   <div className="text-right">
@@ -173,7 +174,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                   <div className="relative z-10">
                       <div className="bg-white/10 w-fit p-3 rounded-2xl mb-4 backdrop-blur-md border border-white/10"><Zap className="text-yellow-400" fill="currentColor"/></div>
                       <h3 className="text-2xl font-black mb-2">طلاب للمتابعة</h3>
-                      <p className="text-indigo-200 text-sm font-bold leading-relaxed mb-6">النظام رصد تراجعاً في تفاعل 3 طلاب اليوم.</p>
+                      <p className="text-indigo-200 text-sm font-bold leading-relaxed mb-6">النظام رصد تراجعاً في تفاعل طلاب معينين.</p>
                   </div>
                   <div className="space-y-3 relative z-10">
                       {getDailyFocusStudents(students, attendance, performance).map(s => (
@@ -185,6 +186,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                               <ArrowRight size={14} className="text-white/40"/>
                           </div>
                       ))}
+                      {getDailyFocusStudents(students, attendance, performance).length === 0 && (
+                          <div className="py-4 text-center opacity-40 font-bold text-xs italic">لا توجد حالات طارئة</div>
+                      )}
                   </div>
               </div>
 

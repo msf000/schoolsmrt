@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, MessageLog, AttendanceStatus, BehaviorStatus, Assignment, TermPeriod, Badge, Reward, WeeklyChallenge, PurchaseRequest, ScheduleItem, Exam } from '../types';
 import { downloadFromSupabase, getAcademicTerms, getAssignments, getMessages, updateStudent, getChallenges, savePurchaseRequest, getSchedules, getRewards, getExams, getExamResults } from '../services/storageService';
 import { 
-    LogOut, LayoutGrid, Bell, Zap, Star, Radar as RadarIcon, TrendingUp, BookOpen, ClipboardList, CheckCircle, BrainCircuit, Medal, Globe, Info, Sparkles, Trophy, Target, ShieldCheck, Flame, ChevronRight, Crown, ShoppingBag, ShoppingCart, Heart, Share2, Download, X, ListChecks, Clock, QrCode, CreditCard, CalendarDays, FileQuestion, Activity, UserCircle, Wand2
+    LogOut, LayoutGrid, Bell, Zap, Star, Radar as RadarIcon, TrendingUp, BookOpen, ClipboardList, CheckCircle, BrainCircuit, Medal, Globe, Info, Sparkles, Trophy, Target, ShieldCheck, Flame, ChevronRight, Crown, ShoppingBag, ShoppingCart, Heart, Share2, Download, X, ListChecks, Clock, QrCode, CreditCard, CalendarDays, FileQuestion, Activity, UserCircle, Wand2, Bot
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip } from 'recharts';
@@ -15,6 +15,7 @@ import StudentQuizPlayer from './StudentQuizPlayer';
 import StudentDigitalID from './StudentDigitalID';
 import StudentQuestSystem from './StudentQuestSystem';
 import StudentAvatarGen from './StudentAvatarGen';
+import StudentAITutor from './StudentAITutor';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -75,6 +76,9 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
 
     return (
         <div className="flex h-screen bg-[#020617] overflow-hidden text-right font-tajawal" dir="rtl">
+            {/* AI Tutor Floating Always Available */}
+            <StudentAITutor student={currentUser} />
+
             <aside className="hidden lg:flex flex-col w-80 bg-slate-950 border-l border-white/5 shadow-2xl z-30">
                 <div className="p-10 border-b border-white/5 flex flex-col items-center bg-gradient-to-b from-indigo-950/40 to-transparent">
                     <div className="relative mb-6 group cursor-pointer" onClick={() => navigate('/avatar')}>
@@ -93,8 +97,6 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
                     <NavItem path="/" label="قاعدة العمليات" icon={LayoutGrid} isActive={location.pathname === '/'} />
                     <NavItem path="/avatar" label="مصنع الأفاتار" icon={UserCircle} isActive={location.pathname === '/avatar'} />
                     <NavItem path="/quests" label="المهام (Quests)" icon={Target} isActive={location.pathname === '/quests'} />
-                    <NavItem path="/achievements" label="معرض الإنجازات" icon={Trophy} isActive={location.pathname === '/achievements'} />
-                    <NavItem path="/id" label="بطاقة الهوية" icon={CreditCard} isActive={location.pathname === '/id'} />
                     <NavItem path="/quizzes" label="الاختبارات" icon={FileQuestion} isActive={location.pathname === '/quizzes'} />
                     <NavItem path="/shop" label="متجر المكافآت" icon={ShoppingBag} isActive={location.pathname === '/shop'} />
                     <NavItem path="/evaluation" label="سجل الإنجازات" icon={TrendingUp} isActive={location.pathname === '/evaluation'} />
@@ -110,7 +112,6 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
                         <Route path="/quests" element={<StudentQuestSystem student={currentUser} />} />
                         <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />
                         <Route path="/achievements" element={<StudentAchievements student={currentUser} />} />
-                        <Route path="/id" element={<StudentDigitalID student={currentUser} stats={stats} />} />
                         <Route path="/quizzes" element={selectedExam ? <StudentQuizPlayer exam={selectedExam} student={currentUser} onComplete={() => {setSelectedExam(null); navigate('/achievements');}} /> : <StudentQuizzesList exams={availableExams} onStart={setSelectedExam} />} />
                         <Route path="/shop" element={<StudentShop stats={stats} onPurchase={handlePurchase} rewards={rewards} />} />
                         <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />

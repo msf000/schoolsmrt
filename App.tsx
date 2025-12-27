@@ -20,6 +20,7 @@ import StudentFollowUp from './components/StudentFollowUp';
 import Leaderboard from './components/Leaderboard';
 import ExamsManager from './components/ExamsManager';
 import MessageCenter from './components/MessageCenter';
+import CertificatesCenter from './components/CertificatesCenter';
 import ClassroomManager from './components/ClassroomManager';
 import ClassroomScreen from './components/ClassroomScreen';
 import WorksTracking from './components/WorksTracking';
@@ -34,7 +35,6 @@ import ReportsCenter from './components/ReportsCenter';
 import BehaviorTracking from './components/BehaviorTracking';
 import TasksManager from './components/TasksManager';
 import TeacherInbox from './components/TeacherInbox';
-import CertificatesCenter from './components/CertificatesCenter';
 import SmartBadges from './components/SmartBadges';
 import ChallengesManager from './components/ChallengesManager';
 import RewardsManager from './components/RewardsManager';
@@ -45,6 +45,7 @@ import TeacherProfile from './components/TeacherProfile';
 import ClassStrategy from './components/ClassStrategy';
 import BehaviorAnalyzer from './components/BehaviorAnalyzer';
 import HallOfFame from './components/HallOfFame';
+import TeacherAIConfig from './components/TeacherAIConfig';
 import { RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -70,15 +71,10 @@ const App: React.FC = () => {
         try {
             const userId = currentUser.id;
             const role = (currentUser as any).role;
-            
-            // جلب شامل للبيانات من السحابة بما فيها الجداول الجديدة
             await downloadFromSupabase(role === 'SUPER_ADMIN' ? undefined : userId);
-
-            // تحديث الحالات المحلية من التخزين المؤقت (الذي حدثته الدالة أعلاه)
             setStudents(JSON.parse(localStorage.getItem('local_students') || '[]'));
             setAttendance(JSON.parse(localStorage.getItem('local_attendance') || '[]'));
             setPerformance(JSON.parse(localStorage.getItem('local_performance') || '[]'));
-            
         } catch (e) {
             console.error("Data fetch error:", e);
         } finally {
@@ -120,33 +116,12 @@ const App: React.FC = () => {
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={async (recs: PerformanceRecord[]) => { await addPerformance(recs); refreshCloudData(); }} onDeletePerformance={async (id) => { await deletePerformance(id); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
-                <Route path="/behavior-analysis" element={<BehaviorAnalyzer students={students} currentUser={currentUser as SystemUser} />} />
+                <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
                 <Route path="/tasks" element={<TasksManager students={students} currentUser={currentUser as SystemUser} />} />
                 <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={()=>{}}/>} />
-                <Route path="/followup" element={<StudentFollowUp students={students} performance={performance} attendance={attendance} currentUser={currentUser as SystemUser} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }}/>} />
-                <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
-                <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} />} />
-                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} onImportAttendance={async (recs)=>{ await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={async (recs)=>{ await addPerformance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/badges" element={<SmartBadges students={students} />} />
-                <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
-                <Route path="/lab" element={<LearningLab students={students} currentUserId={currentUser?.id} />} />
-                <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser as SystemUser} />} />
-                <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
-                <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} onNavigateToAttendance={() => navigate('/attendance')} />} />
-                <Route path="/inbox" element={<TeacherInbox currentUser={currentUser as SystemUser} />} />
-                <Route path="/challenges" element={<ChallengesManager currentUser={currentUser as SystemUser} />} />
-                <Route path="/shop-admin" element={<RewardsManager currentUser={currentUser as SystemUser} />} />
-                <Route path="/noor" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/analytics" element={<AdvancedAnalytics students={students} attendance={attendance} performance={performance} />} />
-                <Route path="/subscription" element={<TeacherSubscription currentUser={currentUser as SystemUser} />} />
-                <Route path="/profile" element={<TeacherProfile currentUser={currentUser as SystemUser} />} />
-                <Route path="/strategy" element={<ClassStrategy students={students} currentUserId={currentUser?.id} />} />
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/hall-of-fame" element={<HallOfFame students={students} attendance={attendance} performance={performance} />} />
+                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} onImportAttendance={async (recs)=>{ await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={()=>{}}/>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </TeacherPortal>
