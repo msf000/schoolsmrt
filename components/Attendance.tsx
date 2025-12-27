@@ -1,14 +1,13 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, SystemUser, ScheduleItem } from '../types';
 import { 
     CheckCircle, XCircle, Clock, Users, Search, Sparkles, 
-    Calendar as CalendarIcon, Loader2, UserCheck, Timer, 
-    History, Trash2, Cloud, Camera, RefreshCw, Database, Check, ChevronRight, BookOpen
+    Calendar as CalendarIcon, Loader2, UserCheck, History, 
+    Trash2, Camera, Check, BookOpen, AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSchedules, getTeacherAssignments, getSubjects, saveAttendance, deleteAttendance } from '../services/storageService';
-import { analyzeAttendancePhoto } from '../services/geminiService';
+import { getSchedules, saveAttendance, deleteAttendance, fetchAttendance } from '../services/storageService';
 
 interface AttendanceProps {
   students: Student[];
@@ -28,9 +27,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [todaysSchedule, setTodaysSchedule] = useState<ScheduleItem[]>([]);
-  
-  const [isAiScanning, setIsAiScanning] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (currentUser) {
@@ -54,7 +50,10 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     }).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   }, [students, selectedClass, searchTerm]);
 
-  const handleUpdate = async (studentId: string, status: AttendanceStatus) => {
+  const handleUpdateStatus = async (studentId: string, status: AttendanceStatus) => {
+    if (!selectedClass) return alert('يرجى اختيار الفصل أولاً');
+    
+    setIsSyncing(true);
     const sub = selectedSubject || 'عام';
     const recordId = `${studentId}_${selectedDate}_${selectedPeriod}_${sub.replace(/\s+/g, '_')}`;
     
@@ -68,130 +67,113 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       createdById: currentUser?.id
     };
     
-    setIsSyncing(true);
     try {
         await saveAttendance([record]);
         onSaveAttendance([record]); 
     } catch (e) {
-        alert('حدث خطأ في الاتصال بالسحابة.');
+        alert('فشل الاتصال بالسحابة، سيتم الحفظ محلياً.');
     } finally {
         setIsSyncing(false);
     }
   };
 
-  const selectFromSchedule = (s: ScheduleItem) => {
-      setSelectedClass(s.classId);
-      setSelectedSubject(s.subjectName);
-      setSelectedPeriod(s.period);
-  };
-
   return (
-    <div className="p-4 md:p-6 h-full flex flex-col bg-[#F8FAFC] animate-fade-in pb-24 font-tajawal overflow-hidden">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 shrink-0">
-          <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
-              <button onClick={() => setActiveTab('RECORD')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>
-                  <UserCheck size={16}/> رصد الحضور
+    <div className="p-4 md:p-8 h-full flex flex-col bg-[#F8FAFC] animate-fade-in pb-24 font-tajawal overflow-hidden">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 shrink-0">
+          <div className="flex bg-white p-1.5 rounded-2xl shadow-xl border border-slate-100">
+              <button onClick={() => setActiveTab('RECORD')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
+                  <UserCheck size={18}/> رصد الحضور
               </button>
-              <button onClick={() => setActiveTab('HISTORY')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>
-                  <History size={16}/> السجل السحابي
+              <button onClick={() => setActiveTab('HISTORY')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'HISTORY' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
+                  <History size={18}/> سجل الغياب
               </button>
           </div>
+          
           <div className="flex items-center gap-3">
-            {activeTab === 'RECORD' && (
-                <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isAiScanning || !selectedClass}
-                    className="bg-purple-600 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg hover:bg-purple-700 transition-all disabled:opacity-50"
-                >
-                    {isAiScanning ? <Loader2 className="animate-spin" size={16}/> : <Camera size={16}/>}
-                    تحضير ذكي (AI)
-                </button>
-            )}
+             <div className={`px-4 py-2 rounded-2xl text-[10px] font-black border transition-all flex items-center gap-2 ${isSyncing ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                {isSyncing ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}
+                {isSyncing ? 'جاري المزامنة...' : 'السحابة متصلة'}
+             </div>
           </div>
       </div>
 
       {activeTab === 'RECORD' ? (
         <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
-          
-          {/* Today's Quick Schedule */}
+          {/* Quick Schedule Selector */}
           {todaysSchedule.length > 0 && (
               <div className="mb-6 overflow-x-auto no-scrollbar pb-2 shrink-0">
-                  <div className="flex gap-3">
+                  <div className="flex gap-4">
                       {todaysSchedule.map(s => (
                           <button 
                             key={s.id} 
-                            onClick={() => selectFromSchedule(s)}
-                            className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all min-w-[110px] ${selectedPeriod === s.period && selectedClass === s.classId ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl scale-105' : 'bg-white border-transparent text-slate-500 shadow-sm hover:border-indigo-100'}`}
+                            onClick={() => { setSelectedClass(s.classId); setSelectedSubject(s.subjectName); setSelectedPeriod(s.period); }}
+                            className={`flex flex-col items-center p-4 rounded-3xl border-2 transition-all min-w-[130px] ${selectedPeriod === s.period && selectedClass === s.classId ? 'bg-indigo-600 border-indigo-400 text-white shadow-2xl scale-105' : 'bg-white border-transparent text-slate-500 shadow-sm hover:border-indigo-100'}`}
                           >
                               <span className="text-[10px] font-black opacity-60 uppercase mb-1">الحصة {s.period}</span>
-                              <span className="text-xs font-black truncate w-full text-center">{s.subjectName}</span>
-                              <span className="text-[9px] font-bold mt-1 px-2 bg-black/10 rounded-full">{s.classId}</span>
+                              <span className="text-sm font-black truncate w-full text-center">{s.subjectName}</span>
+                              <span className="text-[9px] font-bold mt-1 px-3 py-0.5 bg-black/10 rounded-full">{s.classId}</span>
                           </button>
                       ))}
                   </div>
               </div>
           )}
 
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100 mb-6 relative overflow-hidden shrink-0">
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
-                <div className="space-y-1">
-                    <h2 className="text-2xl font-black text-slate-800">التحضير المباشر</h2>
-                    <div className="flex items-center gap-4 text-slate-400 text-[10px] font-black uppercase tracking-wider">
-                        <span className="flex items-center gap-1"><CalendarIcon size={14}/> {selectedDate}</span>
-                        <div className="h-3 w-px bg-slate-200"></div>
-                        <span className="flex items-center gap-1"><Timer size={14}/> الحصة {selectedPeriod}</span>
+          <div className="bg-white p-8 rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-slate-50 mb-8 relative overflow-hidden shrink-0">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 relative z-10">
+                <div className="space-y-2">
+                    <h2 className="text-3xl font-black text-slate-800">التحضير المباشر</h2>
+                    <div className="flex items-center gap-4 text-slate-400 text-xs font-black uppercase tracking-widest">
+                        <span className="flex items-center gap-2"><CalendarIcon size={16} className="text-indigo-500"/> {selectedDate}</span>
+                        <div className="h-4 w-px bg-slate-200"></div>
+                        <span className="flex items-center gap-2"><Clock size={16} className="text-indigo-500"/> الحصة {selectedPeriod}</span>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 w-full lg:w-auto">
-                    <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
-                        <Users size={16} className="text-slate-400 mr-2"/>
-                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="bg-transparent font-black text-xs outline-none min-w-[120px] text-slate-700">
-                            <option value="">اختر الفصل...</option>
+                <div className="flex flex-wrap gap-4 w-full lg:w-auto">
+                    <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100 shadow-inner">
+                        <Users size={18} className="text-slate-400 mr-2"/>
+                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="bg-transparent font-black text-sm outline-none min-w-[150px] text-slate-700">
+                            <option value="">-- اختر الفصل --</option>
                             {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                        <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                        <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="bg-transparent font-black text-xs outline-none min-w-[120px] text-indigo-600 font-black">
-                            <option value="">المادة...</option>
-                            {Array.from(new Set(attendanceHistory.map(a => a.subject).filter(Boolean))).map(name => (
-                                <option key={name} value={name}>{name}</option>
-                            ))}
-                        </select>
+                    </div>
+                    <div className="relative flex-1 lg:w-80">
+                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
+                        <input className="w-full pr-12 pl-4 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-inner" placeholder="ابحث عن طالب..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
                     </div>
                 </div>
-            </div>
-            <div className="mt-6 relative">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300" size={18}/>
-                <input className="w-full pr-12 pl-4 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="ابحث عن طالب في هذا الفصل..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-10">
+          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-10">
             {selectedClass ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredStudents.map(student => {
                     const recordId = `${student.id}_${selectedDate}_${selectedPeriod}_${(selectedSubject || 'عام').replace(/\s+/g, '_')}`;
                     const record = attendanceHistory.find(a => a.id === recordId);
                     const status = record?.status || null;
 
                     return (
-                        <div key={student.id} className={`p-5 rounded-[2.5rem] border-2 transition-all flex flex-col justify-between h-48 shadow-sm group ${status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-200' : status === AttendanceStatus.PRESENT ? 'bg-white border-emerald-100' : 'bg-white border-transparent hover:border-slate-200'}`}>
-                            <div className="flex items-start gap-4">
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white shadow-red-200' : status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-slate-100 text-slate-400'}`}>
+                        <div key={student.id} className={`p-6 rounded-[3rem] border-4 transition-all flex flex-col justify-between h-56 shadow-sm group ${status === AttendanceStatus.ABSENT ? 'bg-red-50 border-red-200' : status === AttendanceStatus.PRESENT ? 'bg-white border-emerald-100 shadow-xl' : 'bg-white border-transparent hover:border-slate-100 hover:shadow-lg'}`}>
+                            <div className="flex items-start gap-5">
+                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl shadow-2xl ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white' : status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                     {student.name.charAt(0)}
                                 </div>
                                 <div className="flex-1 overflow-hidden">
-                                    <h4 className="text-sm font-black text-slate-800 truncate">{student.name}</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold mt-1">رقم المقعد: {student.seatIndex || '--'}</p>
+                                    <h4 className="text-base font-black text-slate-800 truncate">{student.name}</h4>
+                                    <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-tighter">رقم المقعد: {student.seatIndex || '--'}</p>
+                                    <div className="mt-2 flex gap-1">
+                                        {status === AttendanceStatus.PRESENT && <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded-full">حاضر</span>}
+                                        {status === AttendanceStatus.ABSENT && <span className="bg-red-100 text-red-700 text-[8px] font-black px-2 py-0.5 rounded-full">غائب</span>}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-50">
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.PRESENT)} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 ${status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-50 text-slate-400 hover:bg-emerald-50'}`}>
-                                    <CheckCircle size={14}/> حاضر
+                            <div className="flex items-center gap-3 mt-6 pt-6 border-t border-slate-50">
+                                <button onClick={() => handleUpdateStatus(student.id, AttendanceStatus.PRESENT)} className={`flex-1 py-4 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 ${status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-100' : 'bg-slate-50 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}>
+                                    <CheckCircle size={18}/> حاضر
                                 </button>
-                                <button onClick={() => handleUpdate(student.id, AttendanceStatus.ABSENT)} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white shadow-lg shadow-red-100' : 'bg-slate-50 text-slate-400 hover:bg-red-50'}`}>
-                                    <XCircle size={14}/> غائب
+                                <button onClick={() => handleUpdateStatus(student.id, AttendanceStatus.ABSENT)} className={`flex-1 py-4 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 ${status === AttendanceStatus.ABSENT ? 'bg-red-600 text-white shadow-xl shadow-red-100' : 'bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600'}`}>
+                                    <XCircle size={18}/> غائب
                                 </button>
                             </div>
                         </div>
@@ -199,45 +181,47 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                     })}
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-6 opacity-30">
-                    <BookOpen size={100} strokeWidth={1.5}/>
-                    <p className="text-2xl font-black">اختر حصة من الجدول أعلاه للبدء</p>
+                <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-8 opacity-40">
+                    <div className="relative">
+                         <div className="absolute -inset-10 bg-indigo-500/10 rounded-full blur-[60px]"></div>
+                         <BookOpen size={120} strokeWidth={1.5} className="relative z-10"/>
+                    </div>
+                    <p className="text-3xl font-black text-center max-w-sm">يرجى اختيار فصل دراسي من القائمة لبدء الرصد</p>
                 </div>
             )}
           </div>
         </div>
       ) : (
-        <div className="flex-1 bg-white rounded-[3rem] border shadow-sm flex flex-col overflow-hidden animate-fade-in">
-            <div className="p-6 border-b bg-slate-50/50 flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="relative flex-1 md:w-64">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                    <input className="w-full pr-10 pl-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold shadow-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="بحث باسم الطالب..." />
-                </div>
-                <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black border border-indigo-100 flex items-center gap-2">
-                    <Database size={14}/> إجمالي السجلات: {attendanceHistory.length}
+        <div className="flex-1 bg-white rounded-[3.5rem] border border-slate-50 shadow-2xl shadow-slate-200/50 flex flex-col overflow-hidden animate-fade-in">
+            <div className="p-8 border-b bg-slate-50/50 flex flex-col md:row justify-between gap-6 items-center">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100"><History size={24}/></div>
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800">السجل التاريخي</h3>
+                        <p className="text-xs text-slate-400 font-bold">إجمالي السجلات السحابية: {attendanceHistory.length}</p>
+                    </div>
                 </div>
             </div>
             <div className="flex-1 overflow-auto custom-scrollbar">
                 <table className="w-full text-right text-xs">
-                    <thead className="bg-slate-50/80 sticky top-0 z-10 border-b text-slate-500 font-black uppercase">
-                        <tr><th className="p-5 w-12 text-center">#</th><th className="p-5">التاريخ</th><th className="p-5">الطالب</th><th className="p-5">المادة</th><th className="p-5 text-center">الحالة</th><th className="p-5 text-center">إجراءات</th></tr>
+                    <thead className="bg-[#F8FAFC] border-b text-slate-400 font-black uppercase tracking-widest sticky top-0 z-10 shadow-sm">
+                        <tr><th className="p-6">التاريخ</th><th className="p-6">الطالب</th><th className="p-6">المادة</th><th className="p-6 text-center">الحالة</th><th className="p-6 text-center">إجراءات</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 font-bold">
-                        {attendanceHistory.slice(0, 100).map((rec, idx) => {
+                        {attendanceHistory.slice(0, 50).map((rec) => {
                             const student = students.find(s => s.id === rec.studentId);
                             return (
-                                <tr key={rec.id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="p-5 text-center font-mono text-slate-300">{idx + 1}</td>
-                                    <td className="p-5 text-slate-500 whitespace-nowrap">{rec.date}</td>
-                                    <td className="p-5"><p className="text-slate-800 font-black">{student?.name || 'طالب مجهول'}</p></td>
-                                    <td className="p-5 text-indigo-600">{rec.subject || 'عام'}</td>
-                                    <td className="p-5 text-center">
-                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black ${rec.status === AttendanceStatus.PRESENT ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                <tr key={rec.id} className="hover:bg-indigo-50/20 transition-all group">
+                                    <td className="p-6 text-slate-400 font-mono">{rec.date}</td>
+                                    <td className="p-6"><p className="text-slate-800 font-black text-sm">{student?.name || 'مجهول'}</p></td>
+                                    <td className="p-6 text-indigo-600 font-black uppercase tracking-tighter">{rec.subject || 'عام'}</td>
+                                    <td className="p-6 text-center">
+                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black ${rec.status === AttendanceStatus.PRESENT ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                                             {rec.status === AttendanceStatus.PRESENT ? 'حاضر' : 'غائب'}
                                         </span>
                                     </td>
-                                    <td className="p-5 text-center">
-                                        <button onClick={() => deleteAttendance(rec.id)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                                    <td className="p-6 text-center">
+                                        <button onClick={() => deleteAttendance(rec.id)} className="p-3 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><Trash2 size={18}/></button>
                                     </td>
                                 </tr>
                             );
@@ -247,13 +231,6 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
             </div>
         </div>
       )}
-
-      <div className="fixed bottom-24 left-6 pointer-events-none">
-          <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold animate-slide-up pointer-events-auto border border-white/10">
-              <Check size={14} className="text-emerald-400"/>
-              السحابة: <span className="text-emerald-400">متصلة وجاهزة</span>
-          </div>
-      </div>
     </div>
   );
 };
