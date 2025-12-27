@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { 
     Student, AttendanceRecord, PerformanceRecord, BehaviorIncident, 
@@ -11,6 +10,7 @@ import {
     StoredLessonPlan, ScheduleItem, Task, EnvironmentRecord
 } from '../types';
 
+// Helper for local storage
 const getLocal = (key: string) => JSON.parse(localStorage.getItem(key) || '[]');
 const setLocal = (key: string, val: any) => localStorage.setItem(key, JSON.stringify(val));
 
@@ -358,40 +358,34 @@ export const authenticateStudent = async (id: string, pass: string) => {
     return null;
 };
 
-// Fix: Added getDatabaseSchemaSQL for AdminDashboard.tsx
 export const getDatabaseSchemaSQL = () => `-- SQL Schema Placeholder`;
 
-// Fix: Added getCloudSystemStatus for AdminDashboard.tsx
 export const getCloudSystemStatus = () => ({ status: 'CONNECTED', latency: '24ms', region: 'eu-central-1' });
 
-// Fix: Added getWorksMasterUrl and saveWorksMasterUrl for WorksTracking.tsx
 export const getWorksMasterUrl = (): string => localStorage.getItem('works_master_url') || '';
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem('works_master_url', url);
 
-// Fix: Added getGames, saveGame, and deleteGame for StudentPortal and GamesBuilder
 export const getGames = (tid?: string): InteractiveGame[] => (getLocal('games') || []).filter((g: any) => !tid || g.teacherId === tid);
 export const saveGame = async (game: InteractiveGame) => setLocal('games', [...getLocal('games').filter((g: any) => g.id !== game.id), game]);
 export const deleteGame = async (id: string) => setLocal('games', getLocal('games').filter((g: any) => g.id !== id));
 
-// Fix: Added saveRemedialPlan and getRemedialPlans for AITools and ReportsCenter
 export const saveRemedialPlan = (plan: RemedialPlan) => setLocal('remedial_plans', [...getLocal('remedial_plans').filter((p: any) => p.id !== plan.id), plan]);
 export const getRemedialPlans = (tid?: string): RemedialPlan[] => (getLocal('remedial_plans') || []).filter((p: any) => !tid || p.teacherId === tid);
 
-// Fix: Added saveLessonPlan, getLessonPlans, and deleteLessonPlan for LessonPlanning and ScheduleView
 export const saveLessonPlan = (plan: StoredLessonPlan) => setLocal('lesson_plans', [...getLocal('lesson_plans').filter((p: any) => p.id !== plan.id), plan]);
 export const getLessonPlans = (tid?: string): StoredLessonPlan[] => (getLocal('lesson_plans') || []).filter((p: any) => !tid || p.teacherId === tid);
 export const deleteLessonPlan = (id: string) => setLocal('lesson_plans', getLocal('lesson_plans').filter((p: any) => p.id !== id));
 
-// Fix: Added getExamResults and saveExamResult for ExamsManager and StudentQuizPlayer
 export const getExamResults = (examId?: string): ExamResult[] => (getLocal('exam_results') || []).filter((r: any) => !examId || r.examId === examId);
 export const saveExamResult = async (res: ExamResult) => setLocal('exam_results', [...getLocal('exam_results'), res]);
 
-// Fix: Added getQuestionBank, saveQuestionToBank, and deleteQuestionFromBank for QuestionBank
 export const getQuestionBank = (tid: string): Question[] => (getLocal('question_bank') || []).filter((q: any) => q.teacherId === tid);
-export const saveQuestionToBank = (q: Question) => setLocal('question_bank', [...setLocal('question_bank', getLocal('question_bank').filter((x: any) => x.id !== q.id)), q]);
-export const deleteQuestionFromBank = (id: string) => setLocal('question_bank', getLocal('question_bank').filter((x: any) => x.id !== id));
+export const saveQuestionToBank = (q: Question) => {
+    const list = getLocal('question_bank').filter((x: any) => x.id !== q.id);
+    setLocal('question_bank', [...list, q]);
+};
+export const deleteQuestionFromBank = (id: string) => setLocal('question_bank', getLocal('question_bank').filter((q: any) => q.id !== id));
 
-// Fix: Added curriculum management functions for CurriculumManager
 export const getCurriculumUnits = (tid: string): CurriculumUnit[] => (getLocal('curriculum_units') || []).filter((u: any) => u.teacherId === tid);
 export const saveCurriculumUnit = async (u: CurriculumUnit) => setLocal('curriculum_units', [...getLocal('curriculum_units').filter((x: any) => x.id !== u.id), u]);
 export const deleteCurriculumUnit = (id: string) => setLocal('curriculum_units', getLocal('curriculum_units').filter((x: any) => x.id !== id));
@@ -403,21 +397,17 @@ export const toggleCurriculumLesson = (id: string, isCompleted: boolean) => {
     setLocal('curriculum_lessons', lessons);
 };
 
-// Fix: Added resource link management for ResourcesView and RemedialBridge
 export const getLessonLinks = (): LessonLink[] => getLocal('lesson_links') || [];
 export const saveLessonLink = (link: LessonLink) => setLocal('lesson_links', [...getLessonLinks().filter(l=>l.id!==link.id), link]);
 export const deleteLessonLink = (id: string) => setLocal('lesson_links', getLessonLinks().filter(l=>l.id!==id));
 
-// Fix: Added weekly plan functions for ScheduleView
 export const getWeeklyPlans = (tid: string): WeeklyPlanItem[] => (getLocal('weekly_plans') || []).filter((p: any) => p.teacherId === tid);
 export const saveWeeklyPlanItem = (item: WeeklyPlanItem) => setLocal('weekly_plans', [...getLocal('weekly_plans').filter((x: any) => x.id !== item.id), item]);
 
-// Fix: Added tracking sheet functions for FlexibleTrackingSheet
 export const getTrackingSheets = (tid: string): TrackingSheet[] => (getLocal('tracking_sheets') || []).filter((s: any) => s.teacherId === tid);
 export const saveTrackingSheet = (sheet: TrackingSheet) => setLocal('tracking_sheets', [...getLocal('tracking_sheets').filter((x: any) => x.id !== sheet.id), sheet]);
 export const deleteTrackingSheet = (id: string) => setLocal('tracking_sheets', getLocal('tracking_sheets').filter((x: any) => x.id !== id));
 
-// Fix: Added purchase request management for TeacherInbox and StudentShop
 export const getPurchaseRequests = (tid: string): PurchaseRequest[] => (getLocal('purchase_requests') || []).filter((r: any) => r.teacherId === tid);
 export const updatePurchaseStatus = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     const reqs = getLocal('purchase_requests').map((r: any) => r.id === id ? { ...r, status } : r);
@@ -425,17 +415,14 @@ export const updatePurchaseStatus = async (id: string, status: 'APPROVED' | 'REJ
 };
 export const savePurchaseRequest = async (req: PurchaseRequest) => setLocal('purchase_requests', [...getLocal('purchase_requests'), req]);
 
-// Fix: Added challenge functions for ChallengesManager
 export const getChallenges = (tid: string): WeeklyChallenge[] => (getLocal('challenges') || []).filter((c: any) => c.teacherId === tid);
 export const saveChallenge = async (ch: WeeklyChallenge, tid: string) => setLocal('challenges', [...(getLocal('challenges') || []).filter((c: any) => c.id !== ch.id), { ...ch, teacherId: tid }]);
 export const deleteChallenge = (id: string, tid: string) => setLocal('challenges', (getLocal('challenges') || []).filter((c: any) => c.id !== id));
 
-// Fix: Added reward functions for RewardsManager
 export const getRewards = (tid: string): Reward[] => (getLocal('rewards') || []).filter((r: any) => r.teacherId === tid);
 export const saveReward = (reward: Reward, tid: string) => setLocal('rewards', [...getLocal('rewards').filter((r: any) => r.id !== reward.id), { ...reward, teacherId: tid }]);
 export const deleteReward = (id: string, tid: string) => setLocal('rewards', getLocal('rewards').filter((r: any) => r.id !== id));
 
-// Fix: Added library sharing functions for SharedLibrary
 export const fetchSharedResources = async (schoolId?: string) => {
     const { data } = await supabase.from('lesson_plans').select('*').eq('is_shared', true);
     return (data || []).map(p => ({
@@ -448,7 +435,6 @@ export const toggleResourceShare = async (id: string, isShared: boolean) => {
     await supabase.from('lesson_plans').update({ is_shared: isShared }).eq('id', id);
 };
 
-// Fix: Added parent request functions for MeetingScheduler
 export const fetchParentRequests = async (tid: string) => {
     const { data } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
     return (data || []).map(r => ({
