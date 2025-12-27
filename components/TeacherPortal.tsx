@@ -6,7 +6,7 @@ import {
   BarChart2, Settings, LogOut, Menu, X, 
   CalendarDays, Trophy, BookOpen, 
   Sparkles, BrainCircuit, ShieldCheck, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Zap, ShoppingBag, ClipboardList,
-  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck
+  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -38,6 +38,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
 
     return (
         <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-tajawal" dir="rtl">
@@ -64,6 +65,14 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                 </div>
 
                 <nav className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-1 mt-2">
+                    {/* Admin Access Section */}
+                    {isSuperAdmin && (
+                        <div className="mb-4">
+                            {isSidebarOpen && <label className="px-4 text-[9px] font-black text-indigo-600 block mb-2 uppercase tracking-widest">إدارة النظام المركزية</label>}
+                            <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} color="text-indigo-600" isActive={location.pathname === '/admin'} isCollapsed={!isSidebarOpen} />
+                        </div>
+                    )}
+
                     <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} isActive={location.pathname === '/'} isCollapsed={!isSidebarOpen} />
                     <NavItem path="/inbox" label="بريد المعلم" icon={Inbox} color="text-indigo-600" isActive={location.pathname === '/inbox'} isCollapsed={!isSidebarOpen} />
                     
@@ -147,6 +156,9 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-white/10 rounded-full"><X size={20}/></button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
+                             {isSuperAdmin && (
+                                <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} isActive={location.pathname === '/admin'} />
+                             )}
                              <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
                              <NavItem path="/inbox" label="البريد" icon={Inbox} isActive={location.pathname === '/inbox'} />
                              <NavItem path="/students" label="الطلاب" icon={Users} isActive={location.pathname === '/students'} />
