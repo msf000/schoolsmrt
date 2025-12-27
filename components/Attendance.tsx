@@ -1,13 +1,16 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Student, AttendanceRecord, AttendanceStatus, SystemUser, ScheduleItem } from '../types';
 import { 
     CheckCircle, XCircle, Clock, Users, Search, 
     Calendar as CalendarIcon, Loader2, UserCheck, History, 
     Trash2, BookOpen, Check, AlertCircle, RefreshCw, UserMinus, UserPlus, ArrowRight, Camera, Sparkles, Image as ImageIcon,
-    Bot
+    Bot, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { getSchedules, saveAttendance, deleteAttendance } from '../services/storageService';
 import { analyzeAttendancePhoto } from '../services/geminiService';
+import { formatDualDate } from '../services/dateService';
 
 interface AttendanceProps {
   students: Student[];
@@ -17,6 +20,7 @@ interface AttendanceProps {
 }
 
 const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, currentUser }) => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY' | 'AI_VISION'>('RECORD');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedClass, setSelectedClass] = useState('');
@@ -31,6 +35,13 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // التأكد من استقبال اسم الفصل من الحالة المرسلة (مثلاً من جدول الحصص)
+  useEffect(() => {
+    if (location.state && (location.state as any).className) {
+      setSelectedClass((location.state as any).className);
+    }
+  }, [location.state]);
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -377,7 +388,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                             const student = students.find(s => s.id === rec.studentId);
                             return (
                                 <tr key={rec.id} className="hover:bg-indigo-50/20 transition-all group">
-                                    <td className="p-6 text-slate-400 font-mono">{rec.date}</td>
+                                    <td className="p-6 text-slate-400 font-mono">{formatDualDate(rec.date)}</td>
                                     <td className="p-6">
                                         <p className="text-slate-800 font-black text-sm">{student?.name || 'طالب مجهول'}</p>
                                         <p className="text-[9px] text-slate-400 mt-1 uppercase tracking-tighter">{student?.className}</p>

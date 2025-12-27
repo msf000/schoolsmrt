@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, SystemUser, BehaviorIncident } from '../types';
-import { saveBehaviorIncident } from '../services/storageService';
+import { saveBehaviorIncident, updateStudent } from '../services/storageService';
 import { 
     Zap, Star, ShieldAlert, MonitorPlay, CheckCircle, 
-    XCircle, User, Info, Trophy, Ghost, Sparkles, Smile, Frown, MessageSquare
+    XCircle, User, Info, Trophy, Ghost, Sparkles, Smile, Frown, MessageSquare, ArrowRightLeft, X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,11 +17,43 @@ interface InteractiveSeatMapProps {
 const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selectedClass, currentUser }) => {
     const navigate = useNavigate();
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+    const [swapCandidate, setSwapCandidate] = useState<Student | null>(null);
+    const [isSwapMode, setIsSwapMode] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
     const filteredStudents = useMemo(() => 
         students.filter(s => s.className === selectedClass).sort((a,b) => (a.seatIndex || 0) - (b.seatIndex || 0)),
     [students, selectedClass]);
+
+    const handleStudentClick = (student: Student) => {
+        if (isSwapMode) {
+            if (!selectedStudent) {
+                setSelectedStudent(student);
+            } else if (selectedStudent.id !== student.id) {
+                handlePerformSwap(selectedStudent, student);
+            }
+        } else {
+            setSelectedStudent(student);
+        }
+    };
+
+    const handlePerformSwap = async (s1: Student, s2: Student) => {
+        setActionLoading(true);
+        const idx1 = s1.seatIndex || 0;
+        const idx2 = s2.seatIndex || 0;
+        
+        try {
+            await updateStudent({ ...s1, seatIndex: idx2 });
+            await updateStudent({ ...s2, seatIndex: idx1 });
+            alert(`تم تبديل مقعد ${s1.name.split(' ')[0]} مع ${s2.name.split(' ')[0]}`);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setActionLoading(false);
+            setIsSwapMode(false);
+            setSelectedStudent(null);
+        }
+    };
 
     const handleQuickAction = async (type: 'POSITIVE' | 'NEGATIVE', category: string, points: number) => {
         if (!selectedStudent) return;
@@ -47,11 +79,19 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
             <div className="w-full md:w-64 bg-white p-6 rounded-[2.5rem] border shadow-sm h-fit">
                 <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2 text-sm"><MonitorPlay size={18} className="text-indigo-600"/> رصد الفصل الذكي</h3>
                 <div className="space-y-4">
+                    <button 
+                        onClick={() => { setIsSwapMode(!isSwapMode); setSelectedStudent(null); }}
+                        className={`w-full py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-all ${isSwapMode ? 'bg-orange-500 text-white shadow-lg' : 'bg-slate-50 text-slate-600 hover:bg-indigo-50'}`}
+                    >
+                        <ArrowRightLeft size={16}/> {isSwapMode ? 'إلغاء التبديل' : 'تبديل مقاعد الطلاب'}
+                    </button>
                     <div className="flex items-center gap-3 text-xs font-bold text-gray-500"><div className="w-4 h-4 bg-indigo-600 rounded-lg"></div> مقعد مشغول</div>
                     <div className="flex items-center gap-3 text-xs font-bold text-gray-500"><div className="w-4 h-4 bg-gray-100 rounded-lg border-2 border-dashed"></div> مقعد شاغر</div>
                     <div className="pt-4 border-t mt-4">
                         <p className="text-[10px] font-black text-indigo-400 uppercase mb-2">تعليمات</p>
-                        <p className="text-[11px] text-gray-400 leading-relaxed">انقر على مقعد الطالب لفتح قائمة الرصد السريع للسلوك والمشاركة.</p>
+                        <p className="text-[11px] text-gray-400 leading-relaxed">
+                            {isSwapMode ? 'انقر على الطالب الأول ثم الثاني للتبديل بينهما.' : 'انقر على مقعد الطالب لفتح قائمة الرصد السريع للسلوك والمشاركة.'}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -64,7 +104,7 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
                         {filteredStudents.map((s) => (
                             <button 
                                 key={s.id} 
-                                onClick={() => setSelectedStudent(s)}
+                                onClick={() => handleStudentClick(s)}
                                 className={`aspect-[4/3] rounded-[2.5rem] border-4 transition-all flex flex-col items-center justify-center p-4 relative group ${selectedStudent?.id === s.id ? 'bg-indigo-600 border-indigo-400 text-white shadow-2xl scale-110 z-20' : 'bg-white border-slate-50 text-slate-800 hover:border-indigo-100 shadow-sm'}`}
                             >
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black mb-2 ${selectedStudent?.id === s.id ? 'bg-white/20' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors'}`}>
@@ -72,13 +112,18 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
                                 </div>
                                 <span className="text-[10px] font-black text-center line-clamp-1">{s.name.split(' ')[0]}</span>
                                 <div className="absolute -top-3 -right-3 bg-yellow-400 text-slate-900 w-8 h-8 rounded-xl flex items-center justify-center font-black border-4 border-white shadow-lg text-[10px]">Lv{s.level || 1}</div>
+                                {isSwapMode && selectedStudent?.id === s.id && (
+                                    <div className="absolute inset-0 bg-indigo-600/40 rounded-[2rem] flex items-center justify-center animate-pulse">
+                                        <ArrowRightLeft className="text-white" size={32}/>
+                                    </div>
+                                )}
                             </button>
                         ))}
                      </div>
                 </div>
             </div>
 
-            {selectedStudent && (
+            {selectedStudent && !isSwapMode && (
                 <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fade-in">
                     <div className="bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden animate-zoom-in">
                         <div className="p-8 bg-indigo-600 text-white flex items-center gap-6">
@@ -87,7 +132,7 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
                                 <h3 className="text-xl font-black">{selectedStudent.name}</h3>
                                 <p className="text-indigo-200 text-xs font-bold uppercase">{selectedStudent.className}</p>
                             </div>
-                            <button onClick={() => setSelectedStudent(null)} className="mr-auto p-2 bg-white/10 rounded-full"><XCircle/></button>
+                            <button onClick={() => setSelectedStudent(null)} className="mr-auto p-2 bg-white/10 rounded-full hover:bg-white/20"><X size={20}/></button>
                         </div>
                         <div className="p-8 grid grid-cols-1 gap-4">
                             <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2"><Sparkles size={12}/> رصد سلوك فوري</div>
@@ -114,7 +159,7 @@ const QuickBtn = ({ icon, label, points, onClick }: any) => (
     <button onClick={onClick} className="p-4 bg-gray-50 border rounded-2xl flex flex-col items-center gap-2 hover:bg-white hover:border-indigo-100 hover:shadow-lg transition-all group">
         <div className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm group-hover:scale-110 transition-transform">{icon}</div>
         <span className="text-[10px] font-black text-slate-800 text-center">{label}</span>
-        <span className={`text-[9px] font-black ${points.startsWith('+') ? 'text-emerald-600' : 'text-red-600'}`}>{points} n</span>
+        <span className={`text-[9px] font-black ${points.startsWith('+') ? 'text-emerald-600' : 'text-red-600'}`}>{points} XP</span>
     </button>
 );
 

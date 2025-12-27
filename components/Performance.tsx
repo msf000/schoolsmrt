@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, SystemUser, Assignment, AttendanceRecord } from '../types';
 import { getAssignments, getTeacherAssignments, addPerformance, deletePerformance } from '../services/storageService';
 import { 
-    PlusCircle, Search, Trash2, Zap, ArrowRight, List, PieChart, TrendingUp, Sparkles, Loader2, Save, FileText, ChevronLeft
+    PlusCircle, Search, Trash2, Zap, ArrowRight, List, PieChart, TrendingUp, Sparkles, Loader2, Save, FileText, ChevronLeft, Check, RefreshCw
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { formatDualDate } from '../services/dateService';
 
 interface PerformanceProps {
   students: Student[];
@@ -19,6 +20,7 @@ interface PerformanceProps {
 
 const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onDeletePerformance, currentUser }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'BULK' | 'LOG' | 'ANALYTICS'>('BULK');
   const [selectedClass, setSelectedClass] = useState('');
   const [bulkScores, setBulkScores] = useState<Record<string, string>>({});
@@ -30,7 +32,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
     if (currentUser) {
         setAssignments(getAssignments('ALL', currentUser.id, true));
     }
-  }, [currentUser, activeTab]);
+    // استقبال الفصل من المسار إذا وجد
+    if (location.state && (location.state as any).className) {
+        setSelectedClass((location.state as any).className);
+    }
+  }, [currentUser, location.state]);
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -245,7 +251,7 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                                 const s = students.find(std => std.id === rec.studentId);
                                 return (
                                     <tr key={rec.id} className="hover:bg-indigo-50/20 transition-all group">
-                                        <td className="p-6 text-slate-400 font-mono text-xs">{rec.date}</td>
+                                        <td className="p-6 text-slate-400 font-mono text-xs">{formatDualDate(rec.date)}</td>
                                         <td className="p-6">
                                             <p className="font-black text-slate-800">{s?.name || '---'}</p>
                                             <p className="text-[9px] text-slate-300 uppercase mt-1">{s?.className}</p>
