@@ -254,4 +254,93 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                 <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-zoom-in">
                         <div className="p-6 bg-indigo-600 text-white flex justify-between items-center">
-                            <h3 className="text
+                            <h3 className="text-xl font-black flex items-center gap-2"><Settings2/> إعدادات سجل الرصد والمزامنة</h3>
+                            <button onClick={() => setIsSettingsOpen(false)}><X/></button>
+                        </div>
+                        <div className="flex-1 flex overflow-hidden">
+                            <aside className="w-64 bg-slate-50 border-l p-6 space-y-3">
+                                <SidebarBtn icon={Link2} label="ربط Google Sheets" active={settingsTab==='SHEET'} onClick={()=>setSettingsTab('SHEET')}/>
+                                <SidebarBtn icon={Plus} label="أعمدة رصد يدوي" active={settingsTab==='MANUAL'} onClick={()=>setSettingsTab('MANUAL')}/>
+                                <SidebarBtn icon={Sliders} label="توزيع الأوزان" active={settingsTab==='WEIGHTS'} onClick={()=>setSettingsTab('WEIGHTS')}/>
+                            </aside>
+                            <main className="flex-1 p-10 overflow-y-auto custom-scrollbar">
+                                {settingsTab === 'SHEET' && (
+                                    <div className="space-y-8">
+                                        <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                                            <h4 className="font-black text-indigo-900 mb-2 flex items-center gap-2 text-sm"><Globe size={18}/> ربط ملف درجات خارجي</h4>
+                                            <p className="text-xs text-indigo-600 mb-4 font-bold">ضع رابط ملف Google Sheets الذي يحتوي على درجات الطلاب لمزامنتها آلياً.</p>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    className="flex-1 p-4 rounded-2xl border-2 border-indigo-100 outline-none font-bold text-sm" 
+                                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                                    value={sheetUrl}
+                                                    onChange={e=>setSheetUrl(e.target.value)}
+                                                />
+                                                <button onClick={handleConnectSheet} disabled={isFetchingSheet} className="bg-indigo-600 text-white px-6 rounded-2xl font-black">
+                                                    {isFetchingSheet ? <Loader2 className="animate-spin"/> : 'اتصال'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {sheetHeaders.length > 0 && (
+                                            <div className="space-y-6 animate-slide-up">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">عمود اسم الطالب في الملف</label>
+                                                        <select className="w-full p-3 border rounded-xl font-bold" value={syncMapping['studentName']} onChange={e=>setSyncMapping({...syncMapping, studentName: e.target.value})}>
+                                                            <option value="">-- اختر --</option>
+                                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">عمود الدرجة في الملف</label>
+                                                        <select className="w-full p-3 border rounded-xl font-bold" value={syncMapping['score']} onChange={e=>setSyncMapping({...syncMapping, score: e.target.value})}>
+                                                            <option value="">-- اختر --</option>
+                                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <button onClick={handleSyncGrades} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-2">
+                                                    <CheckCircle size={20}/> بدء المزامنة وتحديث سجل الرصد
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {settingsTab === 'MANUAL' && (
+                                    <div className="space-y-6">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="col-span-2">
+                                                <label className="text-[10px] font-black text-indigo-400 mb-1 block">عنوان التقييم</label>
+                                                <input className="w-full p-3 rounded-xl border border-indigo-200 outline-none font-bold" value={newCol.title} onChange={e=>setNewCol({...newCol, title: e.target.value})}/>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-indigo-400 mb-1 block">القسم</label>
+                                                <select className="w-full p-3 rounded-xl border border-indigo-200 font-bold" value={newCol.category} onChange={e=>setNewCol({...newCol, category: e.target.value})}>
+                                                    {categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-indigo-400 mb-1 block">الدرجة</label>
+                                                <input type="number" className="w-full p-3 rounded-xl border border-indigo-200 font-bold" value={newCol.max} onChange={e=>setNewCol({...newCol, max: e.target.value})}/>
+                                            </div>
+                                            <button onClick={handleAddManualCol} className="col-span-2 py-4 bg-indigo-600 text-white rounded-2xl font-black">إدراج في السجل</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </main>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const SidebarBtn = ({ icon: Icon, label, active, onClick }: any) => (
+    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-black transition-all ${active ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:bg-white border-2 border-transparent hover:border-indigo-100'}`}>
+        <Icon size={18}/> <span>{label}</span>
+    </button>
+);
+
+export default WorksTracking;

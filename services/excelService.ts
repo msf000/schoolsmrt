@@ -104,6 +104,19 @@ export const guessMapping = (headers: string[], fieldType: 'STUDENTS' | 'PERFORM
     return mapping;
 };
 
+// Added processMappedData to handle column remapping of imported rows
+export const processMappedData = (rawData: any[], mapping: Record<string, string>, type: string, existingStudents: any[]): any[] => {
+    return rawData.map(row => {
+        const mappedRow: any = {};
+        Object.entries(mapping).forEach(([field, header]) => {
+            if (header) {
+                mappedRow[field] = row[header];
+            }
+        });
+        return mappedRow;
+    });
+};
+
 export const getSheetHeadersAndData = (workbook: any, sheetName: string): { headers: string[], data: any[] } => {
     const worksheet = workbook.Sheets[sheetName];
     if (!worksheet) return { headers: [], data: [] };
