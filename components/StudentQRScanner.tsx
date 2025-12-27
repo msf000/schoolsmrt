@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Camera, X, QrCode, ShieldCheck, Loader2, Sparkles, CheckCircle2, UserCheck } from 'lucide-react';
+import { Camera, X, QrCode, ShieldCheck, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { AttendanceStatus, Student } from '../types';
 import { saveAttendance } from '../services/storageService';
 
@@ -21,34 +21,33 @@ const StudentQRScanner: React.FC<Props> = ({ student, onClose }) => {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             if (videoRef.current) videoRef.current.srcObject = stream;
             
-            // Mock QR Detection Logic
+            // محاكاة منطق كشف الكود والمعالجة
             setTimeout(async () => {
                 setLoading(true);
-                // Simulate processing and matching with classroom
                 const today = new Date().toISOString().split('T')[0];
                 await saveAttendance([{
                     id: `qr_att_${student.id}_${Date.now()}`,
                     studentId: student.id,
                     date: today,
                     status: AttendanceStatus.PRESENT,
-                    behaviorNote: 'تحضير ذاتي عبر كود QR',
+                    behaviorNote: 'تحضير ذاتي عبر كود QR المباشر',
                     createdById: student.createdById
                 }]);
                 
-                stream.getTracks().forEach(t => t.stop());
+                if (stream) stream.getTracks().forEach(t => t.stop());
                 setLoading(false);
                 setSuccess(true);
-                setTimeout(onClose, 2000);
+                setTimeout(onClose, 2500);
             }, 3000);
             
         } catch (e) {
-            alert('يرجى السماح بالوصول للكاميرا.');
+            alert('يرجى السماح بالوصول للكاميرا لتسجيل الحضور.');
             setIsScanning(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 z-[200] bg-[#020617] flex flex-col items-center justify-center p-6 font-tajawal">
+        <div className="fixed inset-0 z-[200] bg-[#020617] flex flex-col items-center justify-center p-6 font-tajawal animate-fade-in">
             <button onClick={onClose} className="absolute top-8 left-8 text-white/40 hover:text-white p-3 bg-white/5 rounded-full"><X size={32}/></button>
             
             <div className="w-full max-w-sm flex flex-col items-center text-center gap-10">
@@ -59,7 +58,7 @@ const StudentQRScanner: React.FC<Props> = ({ student, onClose }) => {
                         </div>
                         <div>
                             <h2 className="text-3xl font-black text-white mb-2">تحضير QR الذكي</h2>
-                            <p className="text-indigo-300 font-medium">قم بمسح الكود المعروض على سبورة المعلم لتسجيل حضورك فوراً</p>
+                            <p className="text-indigo-300 font-medium">قم بمسح الكود المعروض على سبورة المعلم لتسجيل حضورك في الحصة الجارية فوراً</p>
                         </div>
                         <button 
                             onClick={startScanner}
@@ -100,7 +99,7 @@ const StudentQRScanner: React.FC<Props> = ({ student, onClose }) => {
                         </div>
                         <div>
                             <h2 className="text-4xl font-black text-white mb-2">تم التحضير بنجاح!</h2>
-                            <p className="text-emerald-400 font-black flex items-center justify-center gap-2"><Sparkles size={16}/> حصلت على +5 XP للانضباط</p>
+                            <p className="text-emerald-400 font-black flex items-center justify-center gap-2"><Sparkles size={16}/> بطل! حصلت على نقاط للانضباط</p>
                         </div>
                         <p className="text-white/20 text-[10px] uppercase font-black tracking-widest mt-10">جاري العودة للرئيسية...</p>
                     </div>

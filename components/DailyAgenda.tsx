@@ -17,17 +17,13 @@ const DailyAgenda: React.FC<Props> = ({ schedule, onAction }) => {
             .sort((a, b) => a.period - b.period);
     }, [schedule, today]);
 
-    // تحديد الحصة الحالية (بشكل تجريبي بناءً على الوقت الحالي)
     const currentPeriod = useMemo(() => {
         const now = new Date();
         const hour = now.getHours();
         const min = now.getMinutes();
         const totalMin = (hour * 60) + min;
-        
-        // أوقات افتراضية للحصص (تبدأ 7:00 ص، كل حصة 45 دقيقة)
-        const startMin = 7 * 60;
-        const periodLen = 50; // شامل الفسحة البسيطة
-        
+        const startMin = 7 * 60; // 7:00 AM
+        const periodLen = 50; 
         const current = Math.floor((totalMin - startMin) / periodLen) + 1;
         return (current >= 1 && current <= 8) ? current : null;
     }, []);
@@ -80,7 +76,7 @@ const DailyAgenda: React.FC<Props> = ({ schedule, onAction }) => {
                     );
                 }) : (
                     <div className="col-span-full py-10 text-center text-slate-300 font-bold italic bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
-                        لا توجد حصص مجدولة لهذا اليوم في نظام المتابعة.
+                        لا توجد حصص مجدولة لهذا اليوم.
                     </div>
                 )}
             </div>

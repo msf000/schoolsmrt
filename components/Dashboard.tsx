@@ -12,7 +12,6 @@ import {
     Trophy, Zap, PlusCircle, Search, Radio, Waves, Mic, Flame,
     Settings, Star, LayoutGrid, Users, Clock, ArrowRight, Bell,
     Activity, AlertTriangle, TrendingUp, Siren, MonitorPlay, CalendarDays,
-    /* Added missing Shield icon import */
     Shield
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
