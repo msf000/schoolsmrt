@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, Assignment, BehaviorIncident } from '../types';
-import { getAcademicTerms, getAssignments, getBehaviorIncidents } from '../services/storageService';
-// Fix: Satisfied missing exported members for storageService and removed unused 'predictStudentFuture'
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, AcademicTerm, Assignment, BehaviorIncident, FormsDetailedResult } from '../types';
+import { getAcademicTerms, getAssignments, getBehaviorIncidents, getFormsDetailedResults } from '../services/storageService';
 import { generateStudentAnalysis, generateStudentPersona } from '../services/geminiService';
 import { predictNextScore } from '../services/analysisService';
 import { 
@@ -10,7 +9,7 @@ import {
     TrendingUp, Loader2, Bot, 
     ArrowRight, Star, Radar as RadarIcon, 
     BookOpen, ClipboardList, BrainCircuit, Eye, Lightbulb, BarChart,
-    FileText, ChevronLeft, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, ShieldCheck, Target, Crown, LineChart as LineIcon
+    FileText, ChevronLeft, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, ShieldCheck, Target, Crown, LineChart as LineIcon, Printer
 } from 'lucide-react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -20,6 +19,8 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { formatDualDate } from '../services/dateService';
+import ReportCard from './ReportCard';
+import RemedialBridge from './RemedialBridge';
 
 interface StudentFollowUpProps {
   students: Student[];
@@ -51,6 +52,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     const [persona, setPersona] = useState<any>(null);
     const [isPersonaLoading, setIsPersonaLoading] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isReportCardOpen, setIsReportCardOpen] = useState(false);
 
     useEffect(() => {
         localStorage.setItem('sf_selected_student', selectedStudentId);
@@ -59,6 +61,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
     }, [selectedStudentId, activeTab]);
 
     const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
+    const formsResults = useMemo(() => getFormsDetailedResults(currentUser?.id), [currentUser]);
 
     const stats = useMemo(() => {
         if (!student) return null;
@@ -83,7 +86,6 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
         ];
 
         const trendData = sPerf.slice(-8).map(p => ({ date: p.date.slice(5), score: Math.round((p.score / p.maxScore) * 100) }));
-        
         const predicted = predictNextScore(student.id, sPerf);
 
         return { attRate, gradeAvg, radarData, trendData, sAtt, sPerf, predicted };
@@ -117,27 +119,31 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden relative font-tajawal">
+            {isReportCardOpen && student && <ReportCard student={student} performance={performance} attendance={attendance} onClose={() => setIsReportCardOpen(false)} />}
+            
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-3xl border shadow-sm print:hidden">
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate('/students')} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowRight size={20}/></button>
                     <div><h2 className="text-xl font-bold text-gray-800">الملف التفاعلي الموحد</h2></div>
                 </div>
-                <div className="relative flex-1 md:max-w-xs">
-                    <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
-                    <input className="w-full pr-10 pl-4 py-2 border rounded-xl outline-none text-sm font-bold bg-gray-50 focus:bg-white transition-all shadow-inner" placeholder="بحث عن طالب..." value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }} />
-                    {isDropdownOpen && searchTerm && (
-                        <div className="absolute top-full right-0 w-full bg-white border rounded-2xl shadow-2xl mt-2 max-h-60 overflow-y-auto z-50">
-                            {students.filter(s => s.name.includes(searchTerm)).map(s => (
-                                <div key={s.id} onClick={() => { setSelectedStudentId(s.id); setSearchTerm(''); setIsDropdownOpen(false); setPersona(null); }} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 flex items-center gap-3 text-sm font-bold">{s.name}</div>
-                            ))}
-                        </div>
-                    )}
+                <div className="flex gap-2 w-full md:w-auto">
+                    <div className="relative flex-1 md:max-w-xs">
+                        <Search className="absolute right-3 top-2.5 text-gray-400" size={18}/>
+                        <input className="w-full pr-10 pl-4 py-2 border rounded-xl outline-none text-sm font-bold bg-gray-50 focus:bg-white transition-all shadow-inner" placeholder="بحث عن طالب..." value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }} />
+                        {isDropdownOpen && searchTerm && (
+                            <div className="absolute top-full right-0 w-full bg-white border rounded-2xl shadow-2xl mt-2 max-h-60 overflow-y-auto z-50">
+                                {students.filter(s => s.name.includes(searchTerm)).map(s => (
+                                    <div key={s.id} onClick={() => { setSelectedStudentId(s.id); setSearchTerm(''); setIsDropdownOpen(false); setPersona(null); }} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 flex items-center gap-3 text-sm font-bold">{s.name}</div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {student && stats ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="bg-white rounded-[2.5rem] p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+                    <div className="bg-white rounded-[2.5rem] p-6 border shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden shrink-0">
                         <div className="flex items-center gap-4 relative z-10">
                             <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-600 flex items-center justify-center text-3xl font-black text-white shadow-xl">{student.name.charAt(0)}</div>
                             <div>
@@ -145,9 +151,12 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                                 <p className="text-xs text-gray-400 font-bold">{student.className}</p>
                             </div>
                         </div>
-                        <div className="flex gap-8 relative z-10">
+                        <div className="flex items-center gap-8 relative z-10">
                             <div className="text-center"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">المعدل</p><p className="text-xl font-black text-indigo-600">{stats.gradeAvg}%</p></div>
-                            <div className="text-center"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">الانضباط</p><p className="text-xl font-black text-green-600">{stats.attRate}%</p></div>
+                            <div className="text-center border-r pr-8"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">الانضباط</p><p className="text-xl font-black text-green-600">{stats.attRate}%</p></div>
+                            <button onClick={() => setIsReportCardOpen(true)} className="mr-6 px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-xs flex items-center gap-2 hover:bg-black transition-all shadow-xl">
+                                <FileText size={18}/> استخراج بطاقة التقرير
+                            </button>
                         </div>
                     </div>
 
@@ -158,10 +167,11 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                         <TabBtn label="تحليل الدرجات" icon={<BarChart size={16}/>} active={activeTab==='AI'} onClick={()=>setActiveTab('AI')}/>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pb-20">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pb-20 pr-1">
                         {activeTab === 'SUMMARY' && (
-                            <div className="space-y-6 animate-fade-in">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-8 animate-fade-in">
+                                <RemedialBridge student={student} formsResults={formsResults} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm h-80">
                                         <h3 className="font-black text-gray-800 mb-6 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-indigo-600"/> رادار المهارات</h3>
                                         <div className="h-full pb-10">
@@ -197,7 +207,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ students = [], perfor
                         {activeTab === 'PREDICTION' && (
                              <div className="space-y-6 animate-fade-in">
                                  <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl">
-                                     <div className="absolute top-0 right-0 p-10 opacity-10"><TrendingUp size={200}/></div>
+                                     <div className="absolute top-0 right-0 p-10 opacity-10 pointer-events-none"><TrendingUp size={200}/></div>
                                      <div className="relative z-10">
                                          <h3 className="text-2xl font-black mb-4 flex items-center gap-3"><Sparkles className="text-yellow-400"/> توقعات الأداء المستقبلي</h3>
                                          <p className="text-indigo-100 text-lg leading-relaxed max-w-2xl font-medium mb-8">
