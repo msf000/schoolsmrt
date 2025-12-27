@@ -72,6 +72,7 @@ const AITools: React.FC<Props> = ({ students, performance, currentUser }) => {
             </div>
 
             <div className="flex gap-2 mb-8 overflow-x-auto pb-2 no-scrollbar print:hidden">
+                {/* Fixed name error by replacing setActiveTab with setActiveTool */}
                 <ToolTab icon={<PenTool size={18}/>} label="تحضير درس" active={activeTool==='PLAN'} onClick={()=>setActiveTool('PLAN')}/>
                 <ToolTab icon={<Sparkles size={18}/>} label="خطة علاجية" active={activeTool==='REMEDIAL'} onClick={()=>setActiveTool('REMEDIAL')}/>
                 <ToolTab icon={<MessageSquare size={18}/>} label="رسالة ذكية" active={activeTool==='MESSAGE'} onClick={()=>setActiveTool('MESSAGE')}/>
