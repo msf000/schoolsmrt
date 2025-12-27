@@ -19,6 +19,177 @@ const getModelConfig = (extraConfig?: any) => {
     };
 };
 
+export const generateClassroomPulse = async (vibeData: { noise: number, mood: string, lastTopic: string }) => {
+    const { model, config } = getModelConfig();
+    const prompt = `بيانات الفصل الحالية: مستوى الضجيج ${vibeData.noise}/5، مزاج الطلاب ${vibeData.mood}، الموضوع الحالي "${vibeData.lastTopic}". 
+    قدم تحليلًا تربويًا بليغًا في سطرين ونشاطًا حركيًا أو ذهنيًا سريعًا (30 ثانية) لتنشيط الفصل. بالعربية.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "الفصل يبلي بلاءً حسناً!";
+    } catch { return "التحليل الذكي للنبض غير متاح حالياً."; }
+};
+
+export const generateStudyPlan = async (topics: string, learningStyle: string, days: number) => {
+    const { model, config } = getModelConfig();
+    const prompt = `أنا طالب نمط تعلمي هو "${learningStyle}". أريد خطة مذاكرة لهذه موضوعات: "${topics}" لمدة ${days} أيام. المطلوب: جدول يومي، نصائح مخصصة لنمطي، ومصادر مقترحة. بالعربية Markdown.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "جاري تجميع خطتك...";
+    } catch { return "عذراً، فشل توليد الخطة."; }
+};
+
+export const generateParentDigest = async (studentName: string, recentAtt: any[], recentPerf: any[]) => {
+    const { model, config } = getModelConfig();
+    const data = { att: recentAtt, perf: recentPerf };
+    const prompt = `اكتب تقريراً قصصياً ودوداً جداً لولي أمر الطالب ${studentName} يلخص أداءه اليومي/الأسبوعي بناءً على: ${JSON.stringify(data)}. 
+    حول الأرقام إلى قصة نجاح. مثلاً بدلاً من "غاب يومين"، قل "افتقدناه في يومين وكنا ننتظر إبداعه". بالعربية بلهجة سعودية بيضاء مهذبة.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "ابنكم يبلي بلاءً حسناً!";
+    } catch { return "لا يوجد ملخص متاح حالياً."; }
+};
+
+export const gradeExamPaper = async (imageBase64: string, exam: Exam) => {
+    const { model, config } = getModelConfig({ 
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                studentNameDetected: { type: Type.STRING, description: "الاسم المكتوب على الورقة" },
+                questions: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            index: { type: Type.NUMBER },
+                            studentAnswer: { type: Type.STRING },
+                            isCorrect: { type: Type.BOOLEAN },
+                            feedback: { type: Type.STRING, description: "لماذا الإجابة خاطئة؟" }
+                        },
+                        required: ["index", "studentAnswer", "isCorrect"]
+                    }
+                },
+                totalScore: { type: Type.NUMBER },
+                maxTotalScore: { type: Type.NUMBER },
+                aiRecommendation: { type: Type.STRING, description: "نصيحة للطالب بناءً على أخطائه" }
+            },
+            required: ["questions", "totalScore", "maxTotalScore"]
+        }
+    });
+
+    const prompt = `قم بتصحيح ورقة الاختبار المرفقة. 
+    نموذج الإجابة الصحيحة هو: ${JSON.stringify(exam.questions.map(q => ({ q: q.text, a: q.correctAnswer, points: q.points })))}. 
+    اقرأ خط الطالب بدقة، حدد الاسم المكتوب، وصحح كل سؤال. إذا كانت الإجابة مطابقة للمعنى تقبله كصحيح.`;
+    
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ 
+            model, 
+            contents: { 
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } }, 
+                    { text: prompt }
+                ] 
+            }, 
+            config 
+        });
+        return JSON.parse(response.text || "{}");
+    } catch (e) { 
+        console.error("AI Grading Error:", e);
+        return null; 
+    }
+};
+
+export const analyzeAttendanceTrend = async (history: AttendanceRecord[]) => {
+    const { model, config } = getModelConfig();
+    const data = history.map(h => `${h.date}: ${h.status}`).join('\n');
+    const prompt = `حلل نمط غياب الفصل التالي: \n${data}\n تنبأ بالأيام التي قد يزداد فيها الغياب الأسبوع القادم وقدم نصيحة وقائية للمعلم. بالعربية.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text;
+    } catch { return "التحليل التنبؤي غير متاح حالياً."; }
+};
+
+export const predictColumnMapping = async (fileHeaders: string[], targetFields: any[], sampleData: any[]) => {
+    const { model, config } = getModelConfig({ responseMimeType: "application/json" });
+    const targetKeys = targetFields.map(f => f.key).join(', ');
+    const sample = sampleData.length > 0 ? JSON.stringify(sampleData[0]) : "No data available";
+    const prompt = `Match the following file headers to the system keys.
+    File Headers: [${fileHeaders.join(', ')}]
+    System Keys: [${targetKeys}]
+    Sample data from first row: ${sample}
+    Return a JSON object where the keys are the system keys and the values are the corresponding file headers. 
+    Only include matches you are confident about.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return JSON.parse(response.text || '{}');
+    } catch { return {}; }
+};
+
+export const generateClassStrategy = async (varkStats: Record<string, number>, topic: string) => {
+    const { model, config } = getModelConfig();
+    const prompt = `Class Statistics (Learning Styles - VARK): ${JSON.stringify(varkStats)}. Topic: ${topic}. 
+    Suggest a comprehensive teaching strategy in Arabic using Markdown that engages all student types.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "الاستراتيجية غير متوفرة حالياً.";
+    } catch { return "خطأ في الاتصال بمحرك الاستراتيجيات."; }
+};
+
+export const analyzeBehaviorTrends = async (studentName: string, incidents: BehaviorIncident[]) => {
+    const { model, config } = getModelConfig();
+    const data = incidents.map(i => `${i.date}: ${i.category} (${i.points} points) - ${i.note}`).join('\n');
+    const prompt = `Analyze behavior trends for student ${studentName} based on these incidents recorded in the system:\n${data}\nProvide a summary of patterns and pedagogical advice for improvement in Arabic Markdown.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "تحليل السلوك غير متوفر لهذا الطالب.";
+    } catch { return "خطأ في تحليل البيانات السلوكية."; }
+};
+
+export const generateStudentAvatar = async (studentName: string, learningStyle: string, description: string) => {
+    try {
+        const ai = getAIClient();
+        const prompt = `A professional, high-quality 3D stylized character avatar icon for a student named ${studentName}. 
+        Theme based on learning style: ${learningStyle}. 
+        User details: ${description}. 
+        Clean white background, vibrant colors, premium 3D render look.`;
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [{ text: prompt }] },
+            config: { imageConfig: { aspectRatio: "1:1" } }
+        });
+
+        const parts = response.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+            if (part.inlineData) {
+                return `data:image/png;base64,${part.inlineData.data}`;
+            }
+        }
+        return null;
+    } catch (e) {
+        console.error("AI Avatar Gen Error:", e);
+        return null;
+    }
+};
+
+export const generateNarrativeInsights = async (stats: any) => {
+    const { model, config } = getModelConfig();
+    const prompt = `حلل بيانات الفصل التالية: ${JSON.stringify(stats)}. المطلوب: فقرة سردية تلخص أهم ملاحظة تربوية ونصيحة للمعلم. بالعربية بأسلوب ودود ومحفز.`;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({ model, contents: prompt, config });
+        return response.text || "جاري تجميع الرؤى...";
+    } catch { return "الذكاء الاصطناعي مشغول حالياً."; }
+};
+
 export const generateWeeklyQuests = async (grade: string, subject: string) => {
     const { model, config } = getModelConfig({ 
         responseMimeType: "application/json",
@@ -123,16 +294,6 @@ export const chatWithData = async (query: string, context: { students: any[], at
         const response = await ai.models.generateContent({ model, contents: prompt, config });
         return response.text || "عذراً، لم أستطع تحليل الطلب.";
     } catch { return "خطأ في الاتصال بالذكاء الاصطناعي."; }
-};
-
-export const generateNarrativeInsights = async (stats: any) => {
-    const { model, config } = getModelConfig();
-    const prompt = `حلل بيانات الفصل التالية: ${JSON.stringify(stats)}. المطلوب: فقرة سردية تلخص أهم ملاحظة تربوية ونصيحة للمعلم. بالعربية بأسلوب ودود ومحفز.`;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return response.text || "جاري تجميع الرؤى...";
-    } catch { return "الذكاء الاصطناعي مشغول حالياً."; }
 };
 
 export const parseRawDataWithAI = async (text: string, type: string, imageBase64?: string) => {
@@ -328,170 +489,4 @@ export const generateRemedialPlan = async (name: string, grade: string, sub: str
         const response = await ai.models.generateContent({ model, contents: prompt, config });
         return response.text || "";
     } catch { return ""; }
-};
-
-export const generateStudyPlan = async (topics: string, learningStyle: string, days: number) => {
-    const { model, config } = getModelConfig();
-    const prompt = `أنا طالب نمط تعلمي هو "${learningStyle}". أريد خطة مذاكرة لهذه موضوعات: "${topics}" لمدة ${days} أيام. المطلوب: جدول يومي، نصائح مخصصة لنمطي، ومصادر مقترحة. بالعربية Markdown.`;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return response.text || "جاري تجميع خطتك...";
-    } catch { return "عذراً، فشل توليد الخطة."; }
-};
-
-export const generateParentDigest = async (studentName: string, recentAtt: any[], recentPerf: any[]) => {
-    const { model, config } = getModelConfig();
-    const data = { att: recentAtt, perf: recentPerf };
-    const prompt = `اكتب تقريراً قصصياً ودوداً جداً لولي أمر الطالب ${studentName} يلخص أداءه اليومي/الأسبوعي بناءً على: ${JSON.stringify(data)}. 
-    حول الأرقام إلى قصة نجاح. مثلاً بدلاً من "غاب يومين"، قل "افتقدناه في يومين وكنا ننتظر إبداعه". بالعربية بلهجة سعودية بيضاء مهذبة.`;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return response.text || "ابنكم يبلي بلاءً حسناً!";
-    } catch { return "لا يوجد ملخص متاح حالياً."; }
-};
-
-export const gradeExamPaper = async (imageBase64: string, exam: Exam) => {
-    const { model, config } = getModelConfig({ 
-        responseMimeType: "application/json",
-        responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-                studentNameDetected: { type: Type.STRING, description: "الاسم المكتوب على الورقة" },
-                questions: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            index: { type: Type.NUMBER },
-                            studentAnswer: { type: Type.STRING },
-                            isCorrect: { type: Type.BOOLEAN },
-                            feedback: { type: Type.STRING, description: "لماذا الإجابة خاطئة؟" }
-                        },
-                        required: ["index", "studentAnswer", "isCorrect"]
-                    }
-                },
-                totalScore: { type: Type.NUMBER },
-                maxTotalScore: { type: Type.NUMBER },
-                aiRecommendation: { type: Type.STRING, description: "نصيحة للطالب بناءً على أخطائه" }
-            },
-            required: ["questions", "totalScore", "maxTotalScore"]
-        }
-    });
-
-    const prompt = `قم بتصحيح ورقة الاختبار المرفقة. 
-    نموذج الإجابة الصحيحة هو: ${JSON.stringify(exam.questions.map(q => ({ q: q.text, a: q.correctAnswer, points: q.points })))}. 
-    اقرأ خط الطالب بدقة، حدد الاسم المكتوب، وصحح كل سؤال. إذا كانت الإجابة مطابقة للمعنى تقبله كصحيح.`;
-    
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ 
-            model, 
-            contents: { 
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } }, 
-                    { text: prompt }
-                ] 
-            }, 
-            config 
-        });
-        return JSON.parse(response.text || "{}");
-    } catch (e) { 
-        console.error("AI Grading Error:", e);
-        return null; 
-    }
-};
-
-export const analyzeAttendanceTrend = async (history: AttendanceRecord[]) => {
-    const { model, config } = getModelConfig();
-    const data = history.map(h => `${h.date}: ${h.status}`).join('\n');
-    const prompt = `حلل نمط غياب الفصل التالي: \n${data}\n تنبأ بالأيام التي قد يزداد فيها الغياب الأسبوع القادم وقدم نصيحة وقائية للمعلم. بالعربية.`;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return response.text;
-    } catch { return "التحليل التنبؤي غير متاح حالياً."; }
-};
-
-/**
- * Fix: Export predictColumnMapping to resolve module member error.
- * This function helps match source file headers to system fields using Gemini.
- */
-export const predictColumnMapping = async (fileHeaders: string[], targetFields: any[], sampleData: any[]) => {
-    const { model, config } = getModelConfig({ responseMimeType: "application/json" });
-    const targetKeys = targetFields.map(f => f.key).join(', ');
-    const sample = sampleData.length > 0 ? JSON.stringify(sampleData[0]) : "No data available";
-    const prompt = `Match the following file headers to the system keys.
-    File Headers: [${fileHeaders.join(', ')}]
-    System Keys: [${targetKeys}]
-    Sample data from first row: ${sample}
-    Return a JSON object where the keys are the system keys and the values are the corresponding file headers. 
-    Only include matches you are confident about.`;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return JSON.parse(response.text || '{}');
-    } catch { return {}; }
-};
-
-/**
- * Fix: Export generateClassStrategy to resolve module member error.
- * Suggests an optimal teaching strategy based on the class's learning styles distribution.
- */
-export const generateClassStrategy = async (varkStats: Record<string, number>, topic: string) => {
-    const { model, config } = getModelConfig();
-    const prompt = `Class Statistics (Learning Styles - VARK): ${JSON.stringify(varkStats)}. Topic: ${topic}. 
-    Suggest a comprehensive teaching strategy in Arabic using Markdown that engages all student types.`;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return response.text || "الاستراتيجية غير متوفرة حالياً.";
-    } catch { return "خطأ في الاتصال بمحرك الاستراتيجيات."; }
-};
-
-/**
- * Fix: Export analyzeBehaviorTrends to resolve module member error.
- * Analyzes behavior incident history for a specific student to identify patterns.
- */
-export const analyzeBehaviorTrends = async (studentName: string, incidents: BehaviorIncident[]) => {
-    const { model, config } = getModelConfig();
-    const data = incidents.map(i => `${i.date}: ${i.category} (${i.points} points) - ${i.note}`).join('\n');
-    const prompt = `Analyze behavior trends for student ${studentName} based on these incidents recorded in the system:\n${data}\nProvide a summary of patterns and pedagogical advice for improvement in Arabic Markdown.`;
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return response.text || "تحليل السلوك غير متوفر لهذا الطالب.";
-    } catch { return "خطأ في تحليل البيانات السلوكية."; }
-};
-
-/**
- * Fix: Export generateStudentAvatar to resolve module member error.
- * Generates a unique character avatar for a student using gemini-2.5-flash-image.
- */
-export const generateStudentAvatar = async (studentName: string, learningStyle: string, description: string) => {
-    try {
-        const ai = getAIClient();
-        const prompt = `A professional, high-quality 3D stylized character avatar icon for a student named ${studentName}. 
-        Theme based on learning style: ${learningStyle}. 
-        User details: ${description}. 
-        Clean white background, vibrant colors, premium 3D render look.`;
-        
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: { parts: [{ text: prompt }] },
-            config: { imageConfig: { aspectRatio: "1:1" } }
-        });
-
-        const parts = response.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-            if (part.inlineData) {
-                return `data:image/png;base64,${part.inlineData.data}`;
-            }
-        }
-        return null;
-    } catch (e) {
-        console.error("AI Avatar Gen Error:", e);
-        return null;
-    }
 };

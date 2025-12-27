@@ -4,18 +4,20 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus, BehaviorIncident } from '../types';
 import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts } from '../services/analysisService';
 import { 
-    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame
+    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSchedules } from '../services/storageService';
+import { getSchedules, saveAttendance, saveBehaviorIncident } from '../services/storageService';
+import { generateClassroomPulse } from '../services/geminiService';
 import LiveAssistant from './LiveAssistant';
 import NarrativeAIInsights from './NarrativeAIInsights';
 import OmniSearch from './OmniSearch';
 import DailyAgenda from './DailyAgenda';
 import RecommendationHub from './RecommendationHub';
+import { useToast } from './ToastProvider';
 
 interface DashboardProps {
   students: Student[];
@@ -27,15 +29,58 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isOmniOpen, setIsOmniOpen] = useState(false);
   const [teacherSchedule, setTeacherSchedule] = useState<ScheduleItem[]>([]);
+  const [classPulse, setClassPulse] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentUser) {
         setTeacherSchedule(getSchedules().filter(s => s.teacherId === currentUser.id));
+        // توليد نبض الفصل عند الدخول
+        loadClassPulse();
     }
   }, [currentUser]);
+
+  const loadClassPulse = async () => {
+      const insight = await generateClassroomPulse({ noise: 2, mood: 'تفاعل متوسط', lastTopic: 'الحصة الماضية' });
+      setClassPulse(insight);
+  };
+
+  const handleVoiceAction = async (action: string, data: any) => {
+      if (action === 'mark_attendance') {
+          const student = students.find(s => s.name.includes(data.studentName) || data.studentName.includes(s.name));
+          if (student) {
+              const record: AttendanceRecord = {
+                  id: `voice_att_${Date.now()}`,
+                  studentId: student.id,
+                  date: new Date().toISOString().split('T')[0],
+                  status: data.status as AttendanceStatus,
+                  createdById: currentUser?.id
+              };
+              await saveAttendance([record]);
+              showToast(`تم تسجيل ${student.name.split(' ')[0]} ${data.status === 'PRESENT' ? 'حاضراً' : 'غائباً'} بالصوت`, 'SUCCESS');
+          }
+      }
+      if (action === 'award_points') {
+          const student = students.find(s => s.name.includes(data.studentName) || data.studentName.includes(s.name));
+          if (student && currentUser) {
+              const incident: BehaviorIncident = {
+                  id: `voice_beh_${Date.now()}`,
+                  studentId: student.id,
+                  teacherId: currentUser.id,
+                  type: data.points > 0 ? 'POSITIVE' : 'NEGATIVE',
+                  category: data.reason || 'مشاركة صوتية',
+                  points: data.points,
+                  date: new Date().toISOString(),
+                  note: 'رصد عبر المساعد الصوتي'
+              };
+              await saveBehaviorIncident(incident);
+              showToast(`تمت إضافة ${data.points} نقطة لـ ${student.name.split(' ')[0]}`, 'SUCCESS');
+          }
+      }
+  };
 
   const pulseData = useMemo(() => getClassPulseData(attendance, performance), [attendance, performance]);
   const dashboardStats = useMemo(() => ({
@@ -87,6 +132,16 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-8">
               <DailyAgenda schedule={teacherSchedule} onAction={(cls) => navigate('/attendance', { state: { className: cls } })} />
+              
+              {/* Class Pulse Widget */}
+              <div className="bg-gradient-to-r from-purple-600 to-indigo-700 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none"><Activity size={180}/></div>
+                  <div className="relative z-10">
+                      <h3 className="text-xl font-black mb-4 flex items-center gap-3"><Sparkles className="text-yellow-400"/> نبض الفصل الحالي (AI)</h3>
+                      <p className="text-indigo-100 font-medium leading-relaxed italic">"{classPulse || 'جاري استشعار طاقة الفصل...'}"</p>
+                  </div>
+              </div>
+
               <RecommendationHub students={students} attendance={attendance} performance={performance} />
               <NarrativeAIInsights stats={dashboardStats} />
 
@@ -123,12 +178,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                               <ArrowRight size={14} className="text-white/40"/>
                           </div>
                       ))}
-                      {getDailyFocusStudents(students, attendance, performance).length === 0 && (
-                          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
-                              <CheckCircle size={48} className="text-emerald-500"/>
-                              <p className="text-sm font-black">جميع الطلاب مستقرون أكاديمياً</p>
-                          </div>
-                      )}
                   </div>
               </div>
 
@@ -164,14 +213,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
            </button>
       </div>
 
-      <LiveAssistant isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} students={students} onAction={(action, data) => {
-          // التعامل مع أوامر المساعد الصوتي
-          if (action === 'mark_attendance') {
-              const student = students.find(s => s.name.includes(data.studentName) || data.studentName.includes(s.name));
-              if (student) navigate('/attendance', { state: { className: student.className } });
-          }
-      }} />
-
+      <LiveAssistant isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} students={students} onAction={handleVoiceAction} />
       <OmniSearch isOpen={isOmniOpen} onClose={() => setIsOmniOpen(false)} students={students} />
     </div>
   );

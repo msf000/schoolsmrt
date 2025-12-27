@@ -2,22 +2,23 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, Exam, Reward, PurchaseRequest } from '../types';
 import { downloadFromSupabase, getMessages, updateStudent, getRewards, getExams, savePurchaseRequest } from '../services/storageService';
-// Added Star to the imports
+// Added QrCode to the imports list from lucide-react
 import { 
-    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star
+    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import StudentJourney from './StudentJourney';
 import StudentQuestSystem from './StudentQuestSystem';
 import StudentAvatarGen from './StudentAvatarGen';
 import StudentAchievements from './StudentAchievements';
-import StudentShop from './StudentShop'; // Assume standard shop component
-import StudentEvaluationView from './StudentEvaluationView'; // Assume standard evaluation component
-import StudentMessages from './StudentMessages'; // Assume standard messages component
+import StudentShop from './StudentShop';
+import StudentEvaluationView from './StudentEvaluationView';
+import StudentMessages from './StudentMessages';
 import StudentAITutor from './StudentAITutor';
 import StudentQRScanner from './StudentQRScanner';
 import StudentLearningTest from './StudentLearningTest';
 import StudentQuizPlayer from './StudentQuizPlayer';
+import StudentDigitalID from './StudentDigitalID';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -98,6 +99,8 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
                 </div>
                 <nav className="flex-1 p-6 space-y-1">
                     <NavItem path="/" label="قاعدة العمليات" icon={LayoutGrid} isActive={location.pathname === '/'} />
+                    {/* Fixed missing QrCode reference by adding it to imports */}
+                    <NavItem path="/id" label="الهوية الرقمية" icon={QrCode} isActive={location.pathname === '/id'} />
                     <NavItem path="/avatar" label="مصنع الأفاتار" icon={UserCircle} isActive={location.pathname === '/avatar'} />
                     <NavItem path="/quests" label="المهام (Quests)" icon={Target} isActive={location.pathname === '/quests'} />
                     <NavItem path="/shop" label="متجر المكافآت" icon={ShoppingBag} isActive={location.pathname === '/shop'} />
@@ -176,6 +179,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
                                 </div>
                             </div>
                         } />
+                        <Route path="/id" element={<StudentDigitalID student={currentUser} stats={stats} />} />
                         <Route path="/quests" element={<StudentQuestSystem student={currentUser} />} />
                         <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />
                         <Route path="/achievements" element={<StudentAchievements student={currentUser} />} />
