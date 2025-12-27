@@ -41,7 +41,7 @@ const REQUIRED_SCHEMA = {
     academic_terms: ['id', 'name', 'start_date', 'end_date', 'is_current', 'teacher_id', 'periods'],
     assignments: ['id', 'title', 'category', 'max_score', 'is_visible', 'teacher_id', 'term_id', 'period_id', 'sort_order', 'url'],
     tracking_sheets: ['id', 'title', 'subject', 'class_name', 'teacher_id', 'created_at', 'columns', 'scores'],
-    weekly_plans: ['id', 'teacher_id', 'class_id', 'subject_name', 'day', 'period', 'week_start_date', 'lesson_topic', 'homework'],
+    weekly_plans: ['id', 'teacher_id', 'class_id', 'subject_name', 'day', 'period', 'week_start_date', 'lesson_topic', 'homework', 'grade_level'],
     lesson_links: ['id', 'title', 'url', 'teacher_id', 'created_at', 'grade_level', 'class_name'],
     weekly_challenges: ['id', 'title', 'description', 'reward_xp', 'start_date', 'end_date', 'target_class', 'is_active', 'type'],
     messages: ['id', 'student_id', 'student_name', 'parent_phone', 'type', 'content', 'status', 'date', 'sent_by', 'teacher_id']
@@ -376,7 +376,8 @@ CREATE TABLE IF NOT EXISTS weekly_plans (
     period INTEGER,
     week_start_date DATE,
     lesson_topic TEXT,
-    homework TEXT
+    homework TEXT,
+    grade_level TEXT
 );
 
 -- 7. ترقيات الأعمدة (لضمان عمل التحديثات الجديدة)
@@ -395,6 +396,8 @@ ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS class_name TEXT;
 
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subject_specialty TEXT;
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'FREE';
+
+ALTER TABLE weekly_plans ADD COLUMN IF NOT EXISTS grade_level TEXT;
 `;
 
 export const exportToWord = (elementId: string, filename: string = 'report.doc') => {
@@ -729,7 +732,7 @@ export const fetchWeeklyPlans = async (tid?: string): Promise<WeeklyPlanItem[]> 
         let query = supabase.from('weekly_plans').select('*');
         if (tid) query = query.eq('teacher_id', tid);
         const { data } = await query;
-        const mapped = (data || []).map((d: any) => ({ ...d, teacherId: d.teacher_id, classId: d.class_id, subjectName: d.subject_name, weekStartDate: d.week_start_date, lessonTopic: d.lesson_topic })) as WeeklyPlanItem[];
+        const mapped = (data || []).map((d: any) => ({ ...d, teacherId: d.teacher_id, classId: d.class_id, subjectName: d.subject_name, weekStartDate: d.week_start_date, lessonTopic: d.lesson_topic, gradeLevel: d.grade_level })) as WeeklyPlanItem[];
         localStorage.setItem(`local_weekly_plans_${tid || 'global'}`, JSON.stringify(mapped));
         return mapped;
     } catch { return getWeeklyPlans(tid); }
@@ -738,7 +741,7 @@ export const fetchWeeklyPlans = async (tid?: string): Promise<WeeklyPlanItem[]> 
 export const saveWeeklyPlanItem = async (p: WeeklyPlanItem) => {
     const cur = getWeeklyPlans(p.teacherId);
     localStorage.setItem(`local_weekly_plans_${p.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==p.id), p]));
-    await supabase.from('weekly_plans').upsert({ id: p.id, teacher_id: p.teacherId, class_id: p.classId, subject_name: p.subjectName, day: p.day, period: p.period, week_start_date: p.weekStartDate, lesson_topic: p.lessonTopic, homework: p.homework });
+    await supabase.from('weekly_plans').upsert({ id: p.id, teacher_id: p.teacherId, class_id: p.classId, subject_name: p.subjectName, day: p.day, period: p.period, week_start_date: p.weekStartDate, lesson_topic: p.lessonTopic, homework: p.homework, grade_level: p.gradeLevel });
 };
 
 export const getLessonLinks = (): LessonLink[] => JSON.parse(localStorage.getItem('local_lesson_links') || '[]');
@@ -859,10 +862,12 @@ export const saveLessonPlan = async (p: StoredLessonPlan) => {
     localStorage.setItem(`local_lesson_plans_${p.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: StoredLessonPlan) => x.id !== p.id), p]));
     await supabase.from('lesson_plans').upsert({ ...p, teacher_id: p.teacherId, content_json: p.contentJson, created_at: p.createdAt });
 };
+
 export const deleteLessonPlan = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_lesson_plans_'));
     keys.forEach(k => {
         const cur: StoredLessonPlan[] = JSON.parse(localStorage.getItem(k) || '[]');
+        // Fix: Use localStorage.setItem instead of non-existent setLocalStorage and avoid double prefixing
         localStorage.setItem(k, JSON.stringify(cur.filter((p: StoredLessonPlan) => p.id !== id)));
     });
     await supabase.from('lesson_plans').delete().eq('id', id);
@@ -912,7 +917,7 @@ export const saveFormsDetailedResult = async (r: FormsDetailedResult) => {
 export const deleteFormsDetailedResult = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_forms_results_'));
     keys.forEach(k => {
-        const cur: FormsDetailedResult[] = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((r: FormsDetailedResult) => r.id !== id)));
     });
 };

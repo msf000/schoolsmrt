@@ -253,4 +253,4 @@ export interface LessonBlock {
 
 export interface StoredLessonPlan { id: string; teacherId: string; lessonId?: string; subject: string; topic: string; contentJson: string; resources: string[]; createdAt: string; }
 export interface TeacherAssignment { id: string; classId: string; subjectName: string; teacherId: string; }
-export interface WeeklyPlanItem { id: string; teacherId: string; classId: string; subjectName: string; day: string; period: number; weekStartDate: string; lessonTopic: string; homework: string; }
+export interface WeeklyPlanItem { id: string; teacherId: string; classId: string; subjectName: string; day: string; period: number; weekStartDate: string; lessonTopic: string; homework: string; gradeLevel?: string; }

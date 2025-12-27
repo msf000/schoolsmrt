@@ -143,8 +143,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={pulseData}>
                             <defs>
-                                <linearGradient id="colorPart" x1="0" x1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient>
-                                <linearGradient id="colorGrad" x1="0" x1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
+                                {/* Fix: Removed duplicate x1 attribute and corrected to y1 for vertical gradient */}
+                                <linearGradient id="colorPart" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient>
+                                <linearGradient id="colorGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                             <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'black', fill: '#94A3B8'}} axisLine={false} tickLine={false} />

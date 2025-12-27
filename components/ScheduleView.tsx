@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ScheduleItem, TeacherAssignment, SystemUser, Subject, WeeklyPlanItem, StoredLessonPlan } from '../types';
-import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, getLessonPlans, getTeacherPeriodTimings } from '../services/storageService';
+import { ScheduleItem, TeacherAssignment, SystemUser, Subject, WeeklyPlanItem, StoredLessonPlan, Student } from '../types';
+import { getSchedules, getTeacherAssignments, getSubjects, saveScheduleItem, deleteScheduleItem, getWeeklyPlans, saveWeeklyPlanItem, getLessonPlans, getTeacherPeriodTimings, getStudents } from '../services/storageService';
 import { Calendar, PenTool, Plus, Trash2, Edit2, Check, Printer, ChevronRight, ChevronLeft, BookOpen, FileCheck, X, Sparkles, Clock, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,6 +20,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
     const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlanItem[]>([]);
     const [myLessonPlans, setMyLessonPlans] = useState<StoredLessonPlan[]>([]);
     const [periodTimings, setPeriodTimings] = useState<string[]>([]);
+    const [students, setStudents] = useState<Student[]>([]);
 
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<{day: string, period: number} | null>(null);
@@ -33,7 +34,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
         return d.toISOString().split('T')[0];
     });
 
-    const [editingPlan, setEditingPlan] = useState<{item: WeeklyPlanItem, slot: any} | null>(null);
+    const [editingPlan, setEditingPlan] = useState<{item: WeeklyPlanItem, slot: ScheduleItem} | null>(null);
     const [tempTopic, setTempTopic] = useState('');
     const [tempHomework, setTempHomework] = useState('');
 
@@ -52,6 +53,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
             setWeeklyPlans(getWeeklyPlans(currentUser.id));
             setMyLessonPlans(getLessonPlans(currentUser.id));
             setPeriodTimings(getTeacherPeriodTimings(currentUser.id));
+            setStudents(getStudents());
         }
     }, [currentUser]);
 
@@ -80,16 +82,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
         return schedules.filter(s => s.teacherId === currentUser.id);
     }, [schedules, currentUser]);
 
-    const hasLessonPlan = (topic: string) => {
-        if (!topic) return false;
-        return myLessonPlans.some(p => p.topic.trim() === topic.trim());
-    };
-
     const handleSlotClick = (day: string, period: number) => {
         if (viewMode === 'PLAN') {
             const session = mySchedules.find(s => s.day === day && s.period === period);
             if (!session) return;
             const existingPlan = weeklyPlans.find(p => p.day === day && p.period === period && p.weekStartDate === currentWeekStart);
+            
+            // محاولة إيجاد المرحلة الدراسية للفصل من قائمة الطلاب
+            const firstStudentInClass = students.find(s => s.className === session.classId);
+            const classGrade = firstStudentInClass?.gradeLevel || '';
+
             const newItem: WeeklyPlanItem = existingPlan || {
                 id: `${session.classId}-${day}-${period}-${currentWeekStart}`,
                 teacherId: currentUser!.id,
@@ -99,7 +101,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                 period: period,
                 weekStartDate: currentWeekStart,
                 lessonTopic: '',
-                homework: ''
+                homework: '',
+                gradeLevel: classGrade
             };
             setEditingPlan({ item: newItem, slot: session });
             setTempTopic(newItem.lessonTopic);
@@ -313,11 +316,11 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ currentUser, onNavigateToLe
                         </div>
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">موضوع الدرس</label>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">موضوع الدرس</label>
                                 <input className="w-full p-4 border rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 bg-slate-50 transition-all" value={tempTopic} onChange={e => setTempTopic(e.target.value)} placeholder="مثلاً: الخلية النباتية..." autoFocus />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">الواجب المنزلي</label>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">الواجب المنزلي</label>
                                 <textarea className="w-full p-4 border rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 bg-slate-50 h-32 resize-none transition-all" value={tempHomework} onChange={e => setTempHomework(e.target.value)} placeholder="رقم الصفحة أو السؤال..." />
                             </div>
                             <div className="flex gap-3">
