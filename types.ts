@@ -154,7 +154,8 @@ export interface Task {
     subject: string;
     title: string;
     description: string;
-    dueDate: string;
+    due_date?: string; // Standardize with DB
+    dueDate?: string;  // Keep for compatibility
     type: 'HOMEWORK' | 'PROJECT' | 'RESEARCH';
     maxScore: number;
     submissions: string[];
@@ -253,6 +254,29 @@ export interface LessonBlock {
   content: string;
 }
 
-export interface StoredLessonPlan { id: string; teacherId: string; lessonId?: string; subject: string; topic: string; contentJson: string; resources: string[]; createdAt: string; }
+export interface StoredLessonPlan { id: string; teacherId: string; lessonId?: string; subject: string; topic: string; contentJson: string; resources: string[]; createdAt: string; isShared?: boolean; }
 export interface TeacherAssignment { id: string; classId: string; subjectName: string; teacherId: string; }
 export interface WeeklyPlanItem { id: string; teacherId: string; classId: string; subjectName: string; day: string; period: number; weekStartDate: string; lessonTopic: string; homework: string; gradeLevel?: string; }
+
+export interface WallPost {
+    id: string;
+    userId: string;
+    userName: string;
+    content: string;
+    imageUrl?: string;
+    type: 'NEWS' | 'ACHIEVEMENT' | 'EVENT';
+    createdAt: string;
+    likes: number;
+    schoolId: string;
+}
+
+export interface ParentRequest {
+    id: string;
+    parentId: string;
+    studentId: string;
+    teacherId: string;
+    type: 'MEETING' | 'QUERY';
+    content: string;
+    status: 'PENDING' | 'ACCEPTED' | 'COMPLETED';
+    date: string;
+}

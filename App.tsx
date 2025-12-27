@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -46,7 +47,8 @@ import ScheduleView from './components/ScheduleView';
 import LessonPlanning from './components/LessonPlanning';
 import PrincipalDashboard from './components/PrincipalDashboard';
 import StudentAchievementTimeline from './components/StudentAchievementTimeline';
-// Add missing import for CertificatesCenter
+import SchoolWall from './components/SchoolWall';
+import SharedLibrary from './components/SharedLibrary';
 import CertificatesCenter from './components/CertificatesCenter';
 import { RefreshCw } from 'lucide-react';
 
@@ -113,20 +115,16 @@ const App: React.FC = () => {
                 </div>
             )}
             <Routes>
-                {/* الرئيسية والبريد */}
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v: string) => navigate(v)} />} />
                 <Route path="/inbox" element={<TeacherInbox currentUser={currentUser as SystemUser} />} />
                 <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
-                <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
-
-                {/* المتابعة اليومية */}
+                <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
+                <Route path="/library" element={<SharedLibrary currentUser={currentUser as SystemUser} />} />
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={async (s) => { await addStudent(s); refreshCloudData(); }} onUpdateStudent={async (s) => { await updateStudent(s); refreshCloudData(); }} onDeleteStudent={async (id) => { await deleteStudent(id); refreshCloudData(); }} onImportStudents={() => refreshCloudData()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
                 <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/followup" element={<StudentFollowUp students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-
-                {/* التقييم والرصد */}
                 <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={async (recs)=>{ await addPerformance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={async (recs: PerformanceRecord[]) => { await addPerformance(recs); refreshCloudData(); }} onDeletePerformance={async (id) => { await deletePerformance(id); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/tasks" element={<TasksManager students={students} currentUser={currentUser as SystemUser} />} />
@@ -134,8 +132,6 @@ const App: React.FC = () => {
                 <Route path="/questions" element={<QuestionBank currentUser={currentUser as SystemUser} />} />
                 <Route path="/auto-grading" element={<AutoGrading currentUser={currentUser as SystemUser} />} />
                 <Route path="/flexible-tracking" element={<FlexibleTrackingSheet currentUser={currentUser as SystemUser} />} />
-
-                {/* الأدوات الذكية */}
                 <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} onImportAttendance={async (recs)=>{ await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
                 <Route path="/lab" element={<LearningLab students={students} currentUserId={currentUser?.id || ''} />} />
@@ -143,20 +139,15 @@ const App: React.FC = () => {
                 <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
                 <Route path="/badges" element={<SmartBadges students={students} />} />
                 <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
-
-                {/* التحفيز والتقارير */}
                 <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} />} />
                 <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/challenges" element={<ChallengesManager currentUser={currentUser as SystemUser} />} />
                 <Route path="/shop-admin" element={<RewardsManager currentUser={currentUser as SystemUser} />} />
                 <Route path="/noor" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                
-                {/* الإعدادات والمدير */}
                 <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={()=>{}}/>} />
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/principal" element={<PrincipalDashboard students={students} attendance={attendance} performance={performance} teachers={getTeachers()} />} />
-
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </TeacherPortal>

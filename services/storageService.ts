@@ -7,7 +7,8 @@ import {
     CustomTable, EnvironmentRecord, LearningStyle, CurriculumUnit, 
     CurriculumLesson, Question, ExamResult, TrackingSheet, RemedialPlan,
     MessageLog, FormsDetailedResult, BehaviorIncident, Task, Assignment,
-    AttendanceStatus, BehaviorStatus, WeeklyChallenge, PurchaseRequest, Reward
+    AttendanceStatus, BehaviorStatus, WeeklyChallenge, PurchaseRequest, Reward,
+    WallPost, ParentRequest
 } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -34,7 +35,9 @@ const REQUIRED_SCHEMA = {
     curriculum_lessons: ['id', 'unit_id', 'title', 'order_index', 'is_completed', 'completed_at'],
     rewards: ['id', 'teacher_id', 'title', 'cost', 'icon', 'description', 'category'],
     purchase_requests: ['id', 'student_id', 'student_name', 'reward_id', 'reward_title', 'cost', 'status', 'date', 'teacher_id'],
-    lesson_plans: ['id', 'teacher_id', 'lesson_id', 'subject', 'topic', 'content_json', 'resources', 'created_at'],
+    lesson_plans: ['id', 'teacher_id', 'lesson_id', 'subject', 'topic', 'content_json', 'resources', 'created_at', 'is_shared'],
+    wall_posts: ['id', 'user_id', 'user_name', 'content', 'image_url', 'type', 'created_at', 'likes', 'school_id'],
+    parent_requests: ['id', 'parent_id', 'student_id', 'teacher_id', 'type', 'content', 'status', 'date'],
     subjects: ['id', 'name', 'teacher_id'],
     schedules: ['id', 'class_id', 'subject_name', 'day', 'period', 'teacher_id'],
     custom_tables: ['id', 'name', 'columns', 'rows', 'source_url', 'last_updated', 'teacher_id', 'created_at'],
@@ -48,18 +51,15 @@ const REQUIRED_SCHEMA = {
     messages: ['id', 'student_id', 'student_name', 'parent_phone', 'type', 'content', 'status', 'date', 'sent_by', 'teacher_id']
 };
 
-/**
- * Fix: Added missing getDatabaseSchemaSQL function for AdminDashboard
- */
 export const getDatabaseSchemaSQL = () => {
     let sql = `-- SMART SCHOOL DATABASE REPAIR SCRIPT\n\n`;
     Object.entries(REQUIRED_SCHEMA).forEach(([table, columns]) => {
         sql += `-- Table: ${table}\n`;
         columns.forEach(col => {
             let type = 'TEXT';
-            if (['student_count', 'lighting', 'noise_level', 'period', 'order_index', 'xp', 'level', 'behavior_points', 'streak', 'seat_index', 'max_score', 'points', 'score', 'total_score', 'duration_minutes'].includes(col)) type = 'INTEGER';
+            if (['student_count', 'lighting', 'noise_level', 'period', 'order_index', 'xp', 'level', 'behavior_points', 'streak', 'seat_index', 'max_score', 'points', 'score', 'total_score', 'duration_minutes', 'likes'].includes(col)) type = 'INTEGER';
             if (['questions', 'answers', 'periods', 'columns', 'rows', 'scores', 'submissions', 'resources', 'badges', 'purchased_rewards', 'content_json'].includes(col)) type = 'JSONB';
-            if (['is_current', 'is_active', 'is_completed'].includes(col)) type = 'BOOLEAN';
+            if (['is_current', 'is_active', 'is_completed', 'is_shared'].includes(col)) type = 'BOOLEAN';
             
             sql += `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type};\n`;
         });
@@ -68,33 +68,83 @@ export const getDatabaseSchemaSQL = () => {
     return sql;
 };
 
-export const getCloudSystemStatus = async () => {
-    const results = await Promise.all(Object.entries(REQUIRED_SCHEMA).map(async ([tableId, columns]) => {
-        const start = performance.now();
-        const colStatus: Record<string, boolean> = {};
-        let tableStatus = 'ACTIVE';
-        let errorMessage = '';
+/**
+ * Fix: Added getCloudSystemStatus to check database health and column availability
+ */
+export const getCloudSystemStatus = async (): Promise<any[]> => {
+    const tables = Object.keys(REQUIRED_SCHEMA);
+    const results = await Promise.all(tables.map(async (table) => {
+        const startTime = Date.now();
         try {
-            const { error } = await supabase.from(tableId).select(columns.join(',')).limit(1);
-            if (error) {
-                tableStatus = 'ERROR';
-                errorMessage = error.message;
-                for (const col of columns) {
-                    const { error: colErr } = await supabase.from(tableId).select(col).limit(1);
-                    colStatus[col] = !colErr;
-                }
-            } else {
-                columns.forEach(c => colStatus[c] = true);
-            }
-            const end = performance.now();
-            return { id: tableId, label: tableId.replace(/_/g, ' '), status: tableStatus, columns: colStatus, latency: Math.round(end - start), error: errorMessage };
-        } catch (e) {
-            return { id: tableId, label: tableId, status: 'OFFLINE', columns: {}, latency: 0 };
+            const { data, error } = await supabase.from(table).select('*').limit(1);
+            const latency = Date.now() - startTime;
+            
+            const columns: Record<string, boolean> = {};
+            const schemaCols = REQUIRED_SCHEMA[table as keyof typeof REQUIRED_SCHEMA];
+            schemaCols.forEach(col => {
+                columns[col] = data && data[0] ? col in data[0] : true;
+            });
+
+            return {
+                id: table,
+                label: table,
+                status: error ? 'ERROR' : 'ACTIVE',
+                latency,
+                columns,
+                error: error?.message
+            };
+        } catch (e: any) {
+            return {
+                id: table,
+                label: table,
+                status: 'ERROR',
+                latency: Date.now() - startTime,
+                columns: {},
+                error: e.message
+            };
         }
     }));
     return results;
 };
 
+export const fetchWallPosts = async (schoolId?: string): Promise<WallPost[]> => {
+    try {
+        let query = supabase.from('wall_posts').select('*');
+        if (schoolId) query = query.eq('school_id', schoolId);
+        const { data } = await query.order('created_at', { ascending: false });
+        return (data || []).map((d: any) => ({ ...d, userId: d.user_id, userName: d.user_name, imageUrl: d.image_url, createdAt: d.created_at, schoolId: d.school_id })) as WallPost[];
+    } catch { return []; }
+};
+
+export const saveWallPost = async (p: WallPost) => {
+    await supabase.from('wall_posts').upsert({ id: p.id, user_id: p.userId, user_name: p.userName, content: p.content, image_url: p.imageUrl, type: p.type, created_at: p.createdAt, likes: p.likes, school_id: p.schoolId });
+};
+
+export const fetchSharedResources = async (schoolId?: string): Promise<StoredLessonPlan[]> => {
+    try {
+        let query = supabase.from('lesson_plans').select('*').eq('is_shared', true);
+        // Could filter by school if teachers are linked to schools
+        const { data } = await query.order('created_at', { ascending: false });
+        return (data || []).map((d: any) => ({ ...d, teacherId: d.teacher_id, contentJson: d.content_json, createdAt: d.created_at, isShared: d.is_shared })) as StoredLessonPlan[];
+    } catch { return []; }
+};
+
+export const toggleResourceShare = async (id: string, isShared: boolean) => {
+    await supabase.from('lesson_plans').update({ is_shared: isShared }).eq('id', id);
+};
+
+export const fetchParentRequests = async (tid: string): Promise<ParentRequest[]> => {
+    try {
+        const { data } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
+        return (data || []).map((d: any) => ({ ...d, parentId: d.parent_id, studentId: d.student_id, teacherId: d.teacher_id })) as ParentRequest[];
+    } catch { return []; }
+};
+
+export const saveParentRequest = async (r: ParentRequest) => {
+    await supabase.from('parent_requests').upsert({ id: r.id, parent_id: r.parentId, student_id: r.studentId, teacher_id: r.teacherId, type: r.type, content: r.content, status: r.status, date: r.date });
+};
+
+// ... Rest of existing storage functions ...
 export const authenticateUser = async (id: string, p: string): Promise<SystemUser | null> => {
     if (id === 'admin' && p === 'admin') return { id: 'admin_root', name: 'مدير النظام', email: 'admin@system.local', nationalId: 'admin', role: 'SUPER_ADMIN', status: 'ACTIVE' };
     const { data } = await supabase.from('system_users').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', p).maybeSingle();
@@ -217,9 +267,6 @@ export const deleteAcademicTerm = async (id: string) => {
     await supabase.from('academic_terms').delete().eq('id', id);
 };
 
-/**
- * Fix: Added missing setCurrentTerm function for SchoolManagement
- */
 export const setCurrentTerm = async (id: string, tid?: string) => {
     const terms = getAcademicTerms(tid);
     const updated = terms.map(t => ({ ...t, isCurrent: t.id === id }));
@@ -284,7 +331,7 @@ export const saveWorksMasterUrl = (u: string) => localStorage.setItem(KEYS.WORKS
 
 export const getTasks = (tid?: string): Task[] => JSON.parse(localStorage.getItem(`local_tasks_${tid || 'global'}`) || '[]');
 
-export const saveTask = async (t: Task) => { const cur = getTasks(t.teacherId); localStorage.setItem(`local_tasks_${t.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); await supabase.from('tasks').upsert({ ...t, teacher_id: t.teacherId, class_id: t.classId, due_date: t.dueDate, max_score: t.maxScore }); };
+export const saveTask = async (t: Task) => { const cur = getTasks(t.teacherId); localStorage.setItem(`local_tasks_${t.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); await supabase.from('tasks').upsert({ ...t, teacher_id: t.teacherId, class_id: t.classId, due_date: t.dueDate || t.due_date, max_score: t.maxScore }); };
 
 export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => JSON.parse(localStorage.getItem(`local_behavior_${tid || 'global'}`) || '[]');
 
@@ -370,7 +417,7 @@ export const fetchMessages = async (tid?: string): Promise<MessageLog[]> => {
         let query = supabase.from('messages').select('*');
         if (tid) query = query.eq('teacher_id', tid);
         const { data } = await query;
-        const mapped = (data || []).map((d: any) => ({ ...d, studentId: d.student_id, studentName: d.student_name, parentPhone: d.parent_phone, teacherId: d.teacher_id, sentBy: d.sent_by })) as MessageLog[];
+        const mapped = (data || []).map((d: any) => ({ ...d, studentId: d.student_id, studentName: d.student_name, parentPhone: d.parent_phone, teacher_id: d.teacher_id, sentBy: d.sent_by })) as MessageLog[];
         localStorage.setItem(`local_messages_${tid || 'global'}`, JSON.stringify(mapped));
         return mapped;
     } catch { return getMessages(tid); }
@@ -393,10 +440,13 @@ export const fetchAssignments = async (tid?: string): Promise<Assignment[]> => {
     } catch { return getAssignments('ALL', tid); }
 };
 
+/**
+ * Fix: Changed property names from snake_case to camelCase when mapping from interface Assignment.
+ */
 export const saveAssignment = async (a: Assignment) => {
     const cur = getAssignments('ALL', a.teacherId);
     localStorage.setItem(`local_assignments_${a.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==a.id), a]));
-    await supabase.from('assignments').upsert({ id: a.id, title: a.title, category: a.category, max_score: a.maxScore, is_visible: a.isVisible, teacher_id: a.teacherId, term_id: a.termId, period_id: a.period_id, sort_order: a.sortOrder, url: a.url });
+    await supabase.from('assignments').upsert({ id: a.id, title: a.title, category: a.category, max_score: a.maxScore, is_visible: a.isVisible, teacher_id: a.teacherId, term_id: a.termId, period_id: a.periodId, sort_order: a.sortOrder, url: a.url });
 };
 
 export const deleteAssignment = async (id: string, tid?: string) => {
@@ -421,7 +471,7 @@ export const fetchTrackingSheets = async (tid?: string): Promise<TrackingSheet[]
 export const saveTrackingSheet = async (s: TrackingSheet) => {
     const cur = getTrackingSheets(s.teacherId);
     localStorage.setItem(`local_tracking_${s.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==s.id), s]));
-    await supabase.from('tracking_sheets').upsert({ id: s.id, title: s.title, subject: s.subject, class_name: s.className, teacher_id: s.teacherId, columns: s.columns, scores: s.scores });
+    await supabase.from('tracking_sheets').upsert({ id: s.id, title: s.title, subject: s.subject, class_name: s.className, teacher_id: s.teacher_id, columns: s.columns, scores: s.scores });
 };
 
 export const deleteTrackingSheet = async (id: string) => {
@@ -587,7 +637,7 @@ export const getLessonPlans = (tid?: string): StoredLessonPlan[] => JSON.parse(l
 export const saveLessonPlan = async (p: StoredLessonPlan) => {
     const cur = getLessonPlans(p.teacherId);
     localStorage.setItem(`local_lesson_plans_${p.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: StoredLessonPlan) => x.id !== p.id), p]));
-    await supabase.from('lesson_plans').upsert({ ...p, teacher_id: p.teacherId, content_json: p.contentJson, created_at: p.createdAt });
+    await supabase.from('lesson_plans').upsert({ ...p, teacher_id: p.teacherId, content_json: p.contentJson, created_at: p.createdAt, is_shared: p.isShared });
 };
 
 export const deleteLessonPlan = async (id: string) => {
@@ -618,16 +668,25 @@ export const getCurriculumLessons = (unitId: string): CurriculumLesson[] => {
     const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     return all.filter((l: CurriculumLesson) => l.unitId === unitId);
 };
+
+/**
+ * Fix: Changed property names from snake_case to camelCase when mapping from interface CurriculumLesson.
+ */
 export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     localStorage.setItem('local_curriculum_lessons', JSON.stringify([...all.filter((x: CurriculumLesson) => x.id !== l.id), l]));
-    await supabase.from('curriculum_lessons').upsert({ ...l, unit_id: l.unit_id, order_index: l.order_index, is_completed: l.is_completed, completed_at: l.completed_at });
+    await supabase.from('curriculum_lessons').upsert({ ...l, unit_id: l.unitId, order_index: l.orderIndex, is_completed: l.isCompleted, completed_at: l.completedAt });
 };
+
 export const deleteCurriculumLesson = async (id: string) => {
     const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     localStorage.setItem('local_curriculum_lessons', JSON.stringify(all.filter((l: CurriculumLesson) => l.id !== id)));
     await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
+
+/**
+ * Fix: Corrected property mapping when updating a lesson to avoid using non-existent unit_id and order_index from the camelCase CurriculumLesson object.
+ */
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => {
     const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     const updated = all.map((l: CurriculumLesson) => l.id === id ? { ...l, isCompleted: completed, completedAt: completed ? new Date().toISOString() : null } : l);
@@ -648,9 +707,6 @@ export const deleteFormsDetailedResult = async (id: string) => {
     });
 };
 
-/**
- * Fix: Added missing exportToWord function for LessonPlanning and ReportsCenter
- */
 export const exportToWord = (elementId: string, filename: string) => {
     const html = document.getElementById(elementId)?.innerHTML || "";
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });

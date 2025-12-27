@@ -6,7 +6,7 @@ import {
   BarChart2, Settings, LogOut, Menu, X, 
   CalendarDays, Trophy, BookOpen, 
   Sparkles, BrainCircuit, ShieldCheck, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Zap, ShoppingBag, ClipboardList,
-  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield, Camera, Plus, ScanLine, ListChecks, History, Database
+  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield, Camera, Plus, ScanLine, ListChecks, History, Database, Newspaper
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -53,7 +53,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                             </div>
                             <div className="flex flex-col">
                                 <span className="font-black text-slate-800 text-sm leading-tight">المتابع الذكي</span>
-                                <span className="text-[8px] font-black text-indigo-500 tracking-widest uppercase">Elite System v2.5</span>
+                                <span className="text-[8px] font-black text-indigo-50 tracking-widest uppercase">Elite System v2.5</span>
                             </div>
                         </div>
                     ) : (
@@ -75,6 +75,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                     )}
 
                     <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} isActive={location.pathname === '/'} isCollapsed={!isSidebarOpen} />
+                    <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} color="text-indigo-600" isActive={location.pathname === '/wall'} isCollapsed={!isSidebarOpen} />
                     <NavItem path="/inbox" label="بريد المعلم" icon={Inbox} color="text-indigo-600" isActive={location.pathname === '/inbox'} isCollapsed={!isSidebarOpen} />
                     
                     <div className="pt-4 mt-4 border-t border-slate-50">
@@ -91,29 +92,22 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <NavItem path="/performance" label="كشف الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/tasks" label="المهام والواجبات" icon={BookOpen} color="text-orange-600" isActive={location.pathname === '/tasks'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/exams" label="بنك الاختبارات" icon={FileQuestion} color="text-purple-600" isActive={location.pathname === '/exams'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/questions" label="بنك الأسئلة" icon={Database} color="text-indigo-500" isActive={location.pathname === '/questions'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/auto-grading" label="المصحح الآلي (AI)" icon={ScanLine} color="text-purple-500" isActive={location.pathname === '/auto-grading'} isCollapsed={!isSidebarOpen} />
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-50">
                         {isSidebarOpen && <label className="px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest opacity-60">الأدوات الذكية</label>}
                         <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/library" label="المكتبة التشاركية" icon={Library} color="text-indigo-600" isActive={location.pathname === '/library'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/flexible-tracking" label="السجلات المرنة" icon={ListChecks} color="text-teal-500" isActive={location.pathname === '/flexible-tracking'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/forms" label="محلل النماذج (Forms)" icon={ClipboardCheck} color="text-emerald-500" isActive={location.pathname === '/forms'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/lab" label="مختبر VARK" icon={BrainCircuit} color="text-orange-600" isActive={location.pathname === '/lab'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/curriculum" label="توزيع المنهج" icon={FileStack} color="text-indigo-400" isActive={location.pathname === '/curriculum'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/badges" label="الأوسمة (AI)" icon={Award} color="text-purple-600" isActive={location.pathname === '/badges'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/resources" label="المصادر والمكتبة" icon={Library} color="text-cyan-600" isActive={location.pathname === '/resources'} isCollapsed={!isSidebarOpen} />
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-50 pb-10">
                         {isSidebarOpen && <label className="px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest opacity-60">التحفيز والتقارير</label>}
                         <NavItem path="/certificates" label="مركز الشهادات" icon={GraduationCap} color="text-blue-700" isActive={location.pathname === '/certificates'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/leaderboard" label="لوحة الصدارة" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/leaderboard'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/challenges" label="التحديات" icon={Zap} color="text-yellow-500" isActive={location.pathname === '/challenges'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/shop-admin" label="المتجر" icon={ShoppingBag} color="text-pink-600" isActive={location.pathname === '/shop-admin'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/noor" label="نظام نور" icon={Globe} color="text-blue-600" isActive={location.pathname === '/noor'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/reports" label="التقارير التحليلية" icon={BarChart2} isActive={location.pathname === '/reports'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} isCollapsed={!isSidebarOpen} />
                     </div>
                 </nav>
 
@@ -149,23 +143,6 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                 </main>
 
                 <BottomNavigation role={currentUser.role} onMenuClick={() => setIsMobileMenuOpen(true)} />
-                
-                {/* Floating Quick Action Menu */}
-                <div className="fixed bottom-24 right-6 lg:bottom-10 lg:right-10 z-[100] flex flex-col items-end gap-3">
-                    {isFloatingMenuOpen && (
-                        <div className="flex flex-col gap-3 mb-3 animate-slide-up">
-                            <QuickActionBtn icon={<Plus/>} label="طالب" onClick={()=>navigate('/students')} color="bg-emerald-500"/>
-                            <QuickActionBtn icon={<Camera/>} label="رصد AI" onClick={()=>navigate('/attendance')} color="bg-purple-600"/>
-                            <QuickActionBtn icon={<ScanLine/>} label="تصحيح" onClick={()=>navigate('/exams')} color="bg-indigo-600"/>
-                        </div>
-                    )}
-                    <button 
-                        onClick={() => setIsFloatingMenuOpen(!isFloatingMenuOpen)}
-                        className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-500 ${isFloatingMenuOpen ? 'bg-red-500 rotate-[135deg]' : 'bg-indigo-600 shadow-indigo-200'}`}
-                    >
-                        <Plus size={32}/>
-                    </button>
-                </div>
             </div>
 
             {/* Mobile Sidebar Overlay */}
@@ -182,17 +159,12 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                                 <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} isActive={location.pathname === '/admin'} />
                              )}
                              <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
+                             <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} isActive={location.pathname === '/wall'} />
                              <NavItem path="/inbox" label="البريد" icon={Inbox} isActive={location.pathname === '/inbox'} />
                              <NavItem path="/students" label="الطلاب" icon={Users} isActive={location.pathname === '/students'} />
-                             <NavItem path="/works" label="سجل الرصد" icon={ClipboardList} isActive={location.pathname === '/works'} />
                              <NavItem path="/attendance" label="التحضير" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
-                             <NavItem path="/behavior" label="السلوك" icon={ShieldCheck} isActive={location.pathname === '/behavior'} />
-                             <NavItem path="/tasks" label="المهام" icon={BookOpen} isActive={location.pathname === '/tasks'} />
-                             <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} isActive={location.pathname === '/exams'} />
-                             <NavItem path="/certificates" label="الشهادات" icon={GraduationCap} isActive={location.pathname === '/certificates'} />
-                             <NavItem path="/messages" label="الرسائل" icon={Send} isActive={location.pathname === '/messages'} />
                              <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} isActive={location.pathname === '/classroom'} />
-                             <NavItem path="/forms" label="تحليل النماذج" icon={ClipboardCheck} isActive={location.pathname === '/forms'} />
+                             <NavItem path="/library" label="المكتبة التشاركية" icon={Library} isActive={location.pathname === '/library'} />
                              <NavItem path="/reports" label="التقارير" icon={BarChart2} isActive={location.pathname === '/reports'} />
                              <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} />
                         </div>
@@ -202,14 +174,5 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
         </div>
     );
 };
-
-const QuickActionBtn = ({ icon, label, onClick, color }: any) => (
-    <div className="flex items-center gap-3 group cursor-pointer" onClick={onClick}>
-        <span className="bg-white/90 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-black text-slate-800 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{label}</span>
-        <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl ${color} text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform`}>
-            {icon}
-        </div>
-    </div>
-);
 
 export default TeacherPortal;
