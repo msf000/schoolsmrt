@@ -26,6 +26,13 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
     const location = useLocation();
     const [currentUser, setCurrentUser] = useState<Student>(initialUser);
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+    const [availableRewards, setAvailableRewards] = useState<Reward[]>([]);
+
+    useEffect(() => {
+        if (currentUser.createdById) {
+            setAvailableRewards(getRewards(currentUser.createdById));
+        }
+    }, [currentUser]);
 
     const stats = useMemo(() => {
         const myPerf = performance.filter(p => p.studentId === currentUser.id);
@@ -33,6 +40,11 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
         const avg = myPerf.length > 0 ? Math.round(myPerf.reduce((a,c)=>a+(c.score/c.maxScore),0)/myPerf.length*100) : 0;
         return { xp, level: Math.floor(xp / 500) + 1, progress: ((xp % 500) / 500) * 100, avg };
     }, [currentUser, performance]);
+
+    const handlePurchaseComplete = (updatedStudent: Student) => {
+        setCurrentUser(updatedStudent);
+        localStorage.setItem('current_user', JSON.stringify(updatedStudent));
+    };
 
     return (
         <div className="flex h-screen bg-[#020617] overflow-hidden text-right font-tajawal" dir="rtl">
@@ -42,12 +54,13 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
             <aside className="hidden lg:flex flex-col w-80 bg-slate-950 border-l border-white/5 shadow-2xl z-30">
                 <div className="p-10 border-b border-white/5 flex flex-col items-center bg-gradient-to-b from-indigo-950/40 to-transparent">
                     <div className="relative mb-6 group cursor-pointer" onClick={() => navigate('/avatar')}>
-                        <div className="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-[2rem] flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden ring-4 ring-white/5">
+                        <div className="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-[2rem] flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden ring-4 ring-white/5 group-hover:scale-105 transition-transform duration-500">
                             {currentUser.email?.startsWith('data:image') ? <img src={currentUser.email} className="w-full h-full object-cover" alt="Avatar"/> : currentUser.name.charAt(0)}
                         </div>
                         <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-950 w-10 h-10 rounded-2xl flex items-center justify-center font-black border-4 border-slate-950 shadow-xl">{stats.level}</div>
                     </div>
-                    <h1 className="text-xl font-black text-white text-center">{currentUser.name}</h1>
+                    <h1 className="text-xl font-black text-white text-center mb-1">{currentUser.name}</h1>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{currentUser.activeTitle || 'بطل المتابع الذكي'}</p>
                 </div>
                 <nav className="flex-1 p-6 space-y-1 overflow-y-auto custom-scrollbar">
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
@@ -75,7 +88,7 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                                                 <button onClick={() => navigate('/test')} className="bg-purple-600 text-white px-4 py-1 rounded-2xl font-black text-xs animate-pulse">اكتشف نمط تعلمك الآن!</button>
                                             )}
                                         </div>
-                                        <h2 className="text-4xl md:text-6xl font-black mb-8">بطلنا المبدع، {currentUser.name.split(' ')[0]}! 🚀</h2>
+                                        <h2 className="text-4xl md:text-6xl font-black mb-8 leading-tight">بطلنا المبدع، {currentUser.name.split(' ')[0]}! 🚀</h2>
                                         <div className="w-full max-w-md bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10">
                                             <div className="flex justify-between mb-3 text-xs font-black uppercase text-indigo-300"><span>التقدم للمستوى {stats.level + 1}</span><span>{Math.round(stats.progress)}%</span></div>
                                             <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1"><div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000" style={{width:`${stats.progress}%`}}></div></div>
@@ -98,7 +111,7 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                         <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />
                         <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
                         <Route path="/study-plan" element={<SmartStudyPlan student={currentUser} />} />
-                        <Route path="/shop" element={<StudentShop xp={stats.xp} onPurchase={()=>{}} rewards={[]} />} />
+                        <Route path="/shop" element={<StudentShop xp={stats.xp} rewards={availableRewards} student={currentUser} onPurchaseComplete={handlePurchaseComplete} />} />
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
                 </main>

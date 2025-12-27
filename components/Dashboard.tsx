@@ -4,7 +4,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, A
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus, BehaviorIncident, Exam } from '../types';
 import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts } from '../services/analysisService';
 import { 
-    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles, Swords, Layout, ShieldAlert
+    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles, Swords, Layout, ShieldAlert, Target, Users
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSchedules, saveAttendance, saveBehaviorIncident, getExams } from '../services/storageService';
@@ -48,6 +48,13 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       }
   };
 
+  const dashboardStats = useMemo(() => {
+      const total = students.length;
+      const attRate = attendance.length > 0 ? (attendance.filter(a => a.status === AttendanceStatus.PRESENT).length / attendance.length) * 100 : 95;
+      const perfAvg = performance.length > 0 ? (performance.reduce((a, b) => a + (b.score / b.maxScore), 0) / performance.length) * 100 : 82;
+      return { total, attRate: Math.round(attRate), perfAvg: Math.round(perfAvg) };
+  }, [students, attendance, performance]);
+
   return (
     <div className="p-4 md:p-10 space-y-10 animate-fade-in bg-[#F8FAFC] pb-32 font-tajawal overflow-x-hidden">
       
@@ -70,15 +77,20 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
            
            <div className="flex items-center gap-3 w-full lg:w-auto">
                 <button onClick={() => setIsOmniOpen(true)} className="flex-1 lg:w-80 flex items-center gap-3 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-xl text-slate-400 hover:border-indigo-300 transition-all group">
-                    <Search size={20} className="group-hover:text-indigo-500"/>
+                    <Search size={20} className="group-hover:text-indigo-50"/>
                     <span className="text-sm font-bold">البحث الذكي (Cmd+K)</span>
                 </button>
            </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <QuickStatCard icon={Users} label="إجمالي الطلاب" value={dashboardStats.total} color="text-indigo-600" bg="bg-indigo-50" />
+           <QuickStatCard icon={CheckCircle} label="معدل الحضور" value={`${dashboardStats.attRate}%`} color="text-emerald-600" bg="bg-emerald-50" />
+           <QuickStatCard icon={Target} label="كفاءة التعلم" value={`${dashboardStats.perfAvg}%`} color="text-amber-600" bg="bg-amber-50" />
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-8">
-              {/* AI Pulse Banner */}
               <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-800 p-10 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none group-hover:scale-110 transition-transform duration-700"><Sparkles size={250}/></div>
                   <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
@@ -110,7 +122,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
           </div>
 
           <div className="space-y-8">
-              <NarrativeAIInsights stats={{ total: students.length, avg: 85 }} />
+              <NarrativeAIInsights stats={dashboardStats} />
               
               <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
                   <div className="absolute -bottom-10 -left-10 opacity-[0.03] group-hover:scale-110 transition-all duration-700"><TrendingUp size={200}/></div>
@@ -154,7 +166,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       </div>
 
       <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] flex gap-4">
-           <button onClick={() => setIsAssistantOpen(true)} className="bg-indigo-600 text-white px-12 py-5 rounded-full font-black shadow-[0_20px_50px_rgba(79,70,229,0.4)] hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-3">
+           <button onClick={() => setIsAssistantOpen(true)} className="bg-indigo-600 text-white px-12 py-5 rounded-full font-black shadow-[0_20px_50px_rgba(79,70,229,0.4)] hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3">
                 <Bot size={24} className="animate-pulse"/>
                 المساعد الصوتي المباشر
            </button>
@@ -165,6 +177,16 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
     </div>
   );
 };
+
+const QuickStatCard = ({ icon: Icon, label, value, color, bg }: any) => (
+    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
+        <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+            <h3 className={`text-3xl font-black ${color}`}>{value}</h3>
+        </div>
+        <div className={`p-4 ${bg} ${color} rounded-2xl group-hover:scale-110 transition-transform`}><Icon size={24}/></div>
+    </div>
+);
 
 const QuickAccessCard = ({ icon, label, color, onClick }: any) => (
     <button onClick={onClick} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:border-indigo-400 hover:shadow-xl transition-all group flex flex-col items-center gap-4 active:scale-95">

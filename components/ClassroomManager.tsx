@@ -1,14 +1,13 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, SystemUser, PerformanceRecord, EnvironmentRecord, TeacherAssignment } from '../types';
-import { 
-    MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid, Users, Shuffle, User, Info, MoreHorizontal, MousePointer2
-} from 'lucide-react';
-import { getTeacherAssignments, updateStudent, getEnvironmentRecords } from '../services/storageService';
+import { Student, AttendanceRecord, SystemUser, PerformanceRecord, EnvironmentRecord, TeacherAssignment, Assignment } from '../types';
+import { getTeacherAssignments, updateStudent, getEnvironmentRecords, getAssignments } from '../services/storageService';
 import { suggestSeatingPlan } from '../services/geminiService';
 import { generateLocalSeatingPlan, generateVarkBalancedGroups } from '../services/analysisService';
 import { useNavigate } from 'react-router-dom';
 import InteractiveSeatMap from './InteractiveSeatMap';
+import ClassMasteryHeatmap from './ClassMasteryHeatmap';
+import { MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid, Users, Shuffle, User, Info, MoreHorizontal, MousePointer2, Grid3X3, Target } from 'lucide-react';
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -28,12 +27,13 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     currentUser,
     performance = []
 }) => {
-    const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'ENVIRONMENT' | 'GROUPS'>('SEATING');
+    const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'ENVIRONMENT' | 'GROUPS' | 'HEATMAP'>('SEATING');
     const [selectedClass, setSelectedClass] = useState('');
     const [isArranging, setIsArranging] = useState(false);
     const [arrangeMethod, setArrangeMethod] = useState<'AI' | 'LOCAL'>('LOCAL');
     const [aiCriterion, setAiCriterion] = useState('مزج المستويات (متفوق بجانب ضعيف)');
     const [envHistory, setEnvHistory] = useState<EnvironmentRecord[]>([]);
+    const [assignments, setAssignments] = useState<Assignment[]>([]);
     
     const [groupSize, setGroupSize] = useState(4);
     const [generatedGroups, setGeneratedGroups] = useState<Student[][]>([]);
@@ -50,8 +50,9 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
         if (selectedClass) {
             setEnvHistory(getEnvironmentRecords(selectedClass));
+            setAssignments(getAssignments('ALL', currentUser?.id));
         }
-    }, [uniqueClasses, selectedClass, activeTab]);
+    }, [uniqueClasses, selectedClass, activeTab, currentUser]);
 
     const filteredStudents = useMemo(() => 
         students.filter(s => s.className === selectedClass).sort((a,b) => (a.seatIndex || 0) - (b.seatIndex || 0)),
@@ -64,27 +65,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
         setActiveTab('GROUPS');
     };
 
-    const handleArrange = async (method: 'AI' | 'LOCAL') => {
-        if (filteredStudents.length === 0) return;
-        setArrangeMethod(method);
-        setIsArranging(true);
-        try {
-            const studentStats = filteredStudents.map(s => {
-                const sPerf = performance.filter(p => p.studentId === s.id);
-                const avg = sPerf.length > 0 ? sPerf.reduce((a,b)=>a+(b.score/b.maxScore),0)/sPerf.length*100 : 0;
-                return { ...s, stats: { gradeAvg: avg } };
-            });
-            let result = method === 'AI' ? await suggestSeatingPlan(studentStats, aiCriterion) : generateLocalSeatingPlan(studentStats, aiCriterion);
-            if (result && result.seating) {
-                result.seating.forEach((item: any) => {
-                    const s = students.find(x => x.id === item.studentId);
-                    if (s) updateStudent({ ...s, seatIndex: (item.row * 10) + item.col });
-                });
-                alert('تم التوزيع بنجاح');
-            }
-        } catch (e) { alert('فشل التوزيع.'); } finally { setIsArranging(false); }
-    };
-
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden font-tajawal">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
@@ -93,8 +73,9 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-white font-black text-sm outline-none shadow-sm min-w-[150px]">{uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                    <div className="bg-white p-1 rounded-xl border flex gap-1 shadow-sm">
+                    <div className="bg-white p-1 rounded-xl border flex gap-1 shadow-sm overflow-x-auto no-scrollbar max-w-[500px]">
                         <TabItem label="المقاعد" active={activeTab === 'SEATING'} onClick={() => setActiveTab('SEATING')} />
+                        <TabItem label="خريطة الإتقان" active={activeTab === 'HEATMAP'} onClick={() => setActiveTab('HEATMAP')} />
                         <TabItem label="المجموعات" active={activeTab === 'GROUPS'} onClick={() => setActiveTab('GROUPS')} />
                         <TabItem label="الأدوات" active={activeTab === 'TOOLS'} onClick={() => setActiveTab('TOOLS')} />
                         <TabItem label="البيئة" active={activeTab === 'ENVIRONMENT'} onClick={() => setActiveTab('ENVIRONMENT')} />
@@ -103,6 +84,10 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
             </div>
 
             <div className="flex-1 bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col relative">
+                {activeTab === 'HEATMAP' && (
+                    <ClassMasteryHeatmap selectedClass={selectedClass} students={students} performance={performance} assignments={assignments} />
+                )}
+
                 {activeTab === 'TOOLS' && (
                     <div className="h-full flex flex-col items-center justify-center p-10 text-center gap-8">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
@@ -158,13 +143,22 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                         )}
                     </div>
                 )}
+
+                {activeTab === 'ENVIRONMENT' && (
+                    <div className="p-10 flex flex-col items-center justify-center text-center gap-8 h-full">
+                         <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mb-4 animate-bounce"><Sun size={48}/></div>
+                         <h3 className="text-3xl font-black text-slate-800">جهاز استشعار بيئة التعلم</h3>
+                         <p className="text-slate-400 max-w-md font-bold leading-relaxed">يمكنك متابعة وتحسين جودة البيئة الصفية لزيادة تركيز الطلاب من خلال لوحة "بيئة الصف" في الشاشة الذكية.</p>
+                         <button onClick={onLaunchScreen} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:bg-black transition-all">فتح مستشعر البيئة</button>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
 const TabItem = ({ label, active, onClick }: any) => (
-    <button onClick={onClick} className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${active ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}>{label}</button>
+    <button onClick={onClick} className={`px-5 py-2 rounded-xl text-[10px] md:text-xs font-black transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}>{label}</button>
 );
 
 const ToolCard = ({ icon: Icon, title, desc, color, textColor, children }: any) => (
