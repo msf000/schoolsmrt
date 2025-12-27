@@ -1,17 +1,18 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
+import { Student, PerformanceRecord, AttendanceRecord, Assignment, SystemUser, Subject, AcademicTerm } from '../types';
 import { getSubjects, getAssignments, getAcademicTerms, saveAssignment, deleteAssignment, saveWorksMasterUrl, getWorksMasterUrl, addPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { 
     Plus, Trash2, RefreshCw, Loader2, Globe, Link2, 
     ArrowRightLeft, CheckCircle, Database, Settings2, 
-    ChevronUp, ChevronDown, Save, ExternalLink, ListFilter, LayoutGrid
+    ChevronUp, ChevronDown, Save, ExternalLink, ListFilter, LayoutGrid, X
 } from 'lucide-react';
 
 interface WorksTrackingProps {
     students: Student[];
     performance: PerformanceRecord[];
+    attendance: AttendanceRecord[]; // تم إضافة هذا الحقل لإصلاح خطأ Build
     onAddPerformance: (records: PerformanceRecord[]) => void;
     currentUser?: SystemUser | null;
 }
@@ -63,7 +64,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
     const filteredAssignments = useMemo(() => {
         return assignments
-            .filter(a => a.category === activeTab && (!selectedTermId || a.termId === selectedTermId))
+            .filter(a => (activeTab === 'YEAR_WORK' ? true : a.category === activeTab) && (!selectedTermId || a.termId === selectedTermId))
             .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     }, [assignments, activeTab, selectedTermId]);
 
@@ -72,14 +73,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
     // --- وظائف إدارة الأعمدة ---
     const handleAddColumn = async () => {
         if (!currentUser || !selectedTermId) return alert('يرجى اختيار الفصل الدراسي أولاً');
-        const title = prompt('أدخل عنوان العمود الجديد:');
+        const title = prompt('أدخل عنوان العمود الجديد (مثلاً: واجب 1):');
         if (!title) return;
-        const max = prompt('الدرجة العظمى:', '10');
+        const max = prompt('الدرجة العظمى لهذا العمود:', '10');
         
         const newAssign: Assignment = {
             id: `col_${Date.now()}`,
             title,
-            category: activeTab as any,
+            category: activeTab === 'YEAR_WORK' ? 'HOMEWORK' : activeTab as any,
             maxScore: Number(max) || 10,
             isVisible: true,
             teacherId: currentUser.id,
@@ -113,29 +114,25 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             setSheetData(data);
             saveWorksMasterUrl(sheetUrl);
             
-            // محاولة تخمين أعمدة الهوية والاسم
             setIdHeader(headers.find(h => h.includes('هوية') || h.includes('سجل') || h.includes('ID')) || '');
             setNameHeader(headers.find(h => h.includes('اسم') || h.includes('Name')) || '');
         } catch (e) {
-            alert('تعذر جلب البيانات. تأكد من أن الرابط "عام".');
+            alert('تعذر جلب البيانات. تأكد من أن الرابط "عام للجميع".');
         } finally {
             setIsFetchingSheet(false);
         }
     };
 
-    // --- المزامنة الكلية للتبويب ---
     const handleSyncTab = async () => {
         if (!sheetData.length || !currentUser) return;
         if (!idHeader && !nameHeader) return alert('يرجى تحديد أعمدة المطابقة أولاً (هوية أو اسم)');
 
         setIsFetchingSheet(true);
-        let totalSynced = 0;
         const allRecords: PerformanceRecord[] = [];
         const today = new Date().toISOString().split('T')[0];
 
-        // المزامنة لكل عمود تم ربطه بترويسة في الملف
         for (const assign of filteredAssignments) {
-            if (!assign.url) continue; // url هنا نستخدمها لتخزين اسم الترويسة في Excel
+            if (!assign.url) continue; // نستخدم url لتخزين اسم عمود Excel المقابل
 
             sheetData.forEach(row => {
                 const rowId = String(row[idHeader] || '').trim();
@@ -168,7 +165,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
         if (allRecords.length > 0) {
             await addPerformance(allRecords);
-            alert(`تم تحديث رصد ${allRecords.length} درجات في هذا التبويب!`);
+            alert(`تم مزامنة ${allRecords.length} درجة بنجاح!`);
             setIsSettingsOpen(false);
             window.location.reload();
         } else {
@@ -179,7 +176,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-[#F8FAFC] animate-fade-in font-tajawal">
-            {/* واجهة التحكم العلوية */}
+            {/* التحكم العلوي */}
             <div className="bg-white p-5 rounded-[2.5rem] shadow-xl border border-gray-100 mb-6 flex flex-col md:flex-row justify-between gap-4 print:hidden">
                 <div className="flex flex-wrap items-center gap-3">
                     <select className="p-2.5 border rounded-2xl bg-slate-50 font-black text-xs outline-none" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
@@ -196,7 +193,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                     </select>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={handleAddColumn} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-all border border-indigo-100 shadow-sm" title="إضافة عمود رصد">
+                    <button onClick={handleAddColumn} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-all border border-indigo-100 shadow-sm" title="إضافة مهمة رصد">
                         <Plus size={20}/>
                     </button>
                     <button onClick={() => setIsSettingsOpen(true)} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs flex items-center gap-2 shadow-xl hover:bg-indigo-700 transition-all">
@@ -205,7 +202,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                 </div>
             </div>
 
-            {/* الجدول الرئيسي */}
+            {/* سجل الرصد */}
             <div className="bg-white rounded-[3rem] shadow-2xl border border-gray-100 flex-1 overflow-hidden flex flex-col relative">
                 <div className="flex bg-gray-50/50 border-b p-2 overflow-x-auto no-scrollbar gap-2 shadow-inner">
                     {CATEGORIES.map(cat => (
@@ -213,6 +210,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             {cat.label}
                         </button>
                     ))}
+                    <button onClick={() => setActiveTab('YEAR_WORK')} className={`px-10 py-3.5 rounded-2xl text-xs font-black transition-all ${activeTab === 'YEAR_WORK' ? 'bg-gray-900 text-white shadow-2xl scale-105' : 'text-gray-400 hover:bg-gray-100'}`}>أعمال السنة</button>
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">
@@ -221,7 +219,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                             <tr className="text-[11px] text-slate-400 font-black h-16 uppercase tracking-widest">
                                 <th className="p-4 w-16 border-l border-gray-50">م</th>
                                 <th className="p-4 text-right sticky right-0 bg-[#F8FAFC] z-40 w-72 border-l border-gray-50 shadow-sm">اسم الطالب</th>
-                                {filteredAssignments.map(a => (
+                                {activeTab !== 'YEAR_WORK' && filteredAssignments.map(a => (
                                     <th key={a.id} className="p-4 border-l border-gray-100 min-w-[120px] group">
                                         <div className="flex flex-col items-center relative">
                                             <span className="text-slate-800 font-black text-sm">{a.title}</span>
@@ -230,7 +228,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                         </div>
                                     </th>
                                 ))}
-                                <th className="p-4 bg-indigo-50 text-indigo-600 font-black text-xs">المجموع</th>
+                                {activeTab === 'YEAR_WORK' && (
+                                    <>
+                                        <th className="p-4 border-l border-gray-100 font-black text-indigo-600">المجموع</th>
+                                        <th className="p-4 border-l border-gray-100 font-black">التقدير</th>
+                                    </>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -240,17 +243,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                     <tr key={student.id} className="hover:bg-indigo-50/10 transition-colors h-14">
                                         <td className="p-3 border-l border-gray-50 text-xs text-slate-300 font-mono">{idx + 1}</td>
                                         <td className="p-3 text-right font-black text-slate-700 sticky right-0 bg-white z-10 border-l border-gray-50 shadow-sm">{student.name}</td>
-                                        {filteredAssignments.map(a => {
+                                        {activeTab !== 'YEAR_WORK' && filteredAssignments.map(a => {
                                             const record = performance.find(p => p.studentId === student.id && (p.notes === a.id || p.title === a.title));
                                             const score = record?.score ?? 0;
-                                            total += score;
                                             return (
                                                 <td key={a.id} className="p-0 border-l border-gray-50 h-full">
                                                     <span className={`font-black text-sm ${score > 0 ? 'text-indigo-900' : 'text-slate-200'}`}>{score || '-'}</span>
                                                 </td>
                                             );
                                         })}
-                                        <td className="p-3 font-black text-indigo-600 bg-indigo-50/30">{total}</td>
+                                        {activeTab === 'YEAR_WORK' && (
+                                            <>
+                                                <td className="p-3 font-black text-indigo-600 bg-indigo-50/30">
+                                                    {performance.filter(p => p.studentId === student.id).reduce((acc, curr) => acc + curr.score, 0)}
+                                                </td>
+                                                <td className="p-3 font-black text-xs text-slate-500">جيد جداً</td>
+                                            </>
+                                        )}
                                     </tr>
                                 );
                             })}
@@ -259,24 +268,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                 </div>
             </div>
 
-            {/* مودال الإعدادات والربط والترتيب */}
+            {/* نافذة الإعدادات والربط */}
             {isSettingsOpen && (
                 <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-5xl h-[85vh] rounded-[3rem] shadow-2xl flex flex-col overflow-hidden animate-zoom-in">
                         <div className="p-6 bg-indigo-600 text-white flex justify-between items-center shrink-0">
-                            <h3 className="text-xl font-black flex items-center gap-3"><Settings2/> إعدادات التبويب: {CATEGORIES.find(c=>c.id===activeTab)?.label}</h3>
-                            <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-white/10 rounded-full"><Trash2 className="rotate-45"/></button>
+                            <h3 className="text-xl font-black flex items-center gap-3"><Settings2/> تخصيص الأعمدة وربط Excel</h3>
+                            <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-white/10 rounded-full"><X/></button>
                         </div>
                         
                         <div className="flex-1 flex overflow-hidden">
-                            {/* جانب الربط مع Google Sheets */}
+                            {/* جانب الربط */}
                             <div className="w-1/3 border-l bg-slate-50 p-8 overflow-y-auto custom-scrollbar">
-                                <h4 className="font-black text-indigo-900 mb-6 flex items-center gap-2"><Globe size={18}/> ربط ملف الرصد</h4>
+                                <h4 className="font-black text-indigo-900 mb-6 flex items-center gap-2"><Globe size={18}/> مصدر البيانات</h4>
                                 <div className="space-y-6">
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">رابط ملف Excel / Google Sheets</label>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">رابط ملف Google Sheets (عام)</label>
                                         <div className="flex gap-2">
-                                            <input className="flex-1 p-3 border rounded-xl text-xs dir-ltr outline-none focus:ring-2 focus:ring-indigo-500" value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} placeholder="https://..." />
+                                            <input className="flex-1 p-3 border rounded-xl text-xs dir-ltr outline-none" value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} placeholder="https://..." />
                                             <button onClick={handleConnectSheet} className="p-3 bg-indigo-600 text-white rounded-xl shadow-lg">
                                                 {isFetchingSheet ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>}
                                             </button>
@@ -284,8 +293,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                     </div>
 
                                     {sheetHeaders.length > 0 && (
-                                        <div className="space-y-4 animate-slide-up bg-white p-5 rounded-3xl border border-indigo-100 shadow-sm">
-                                            <div className="flex items-center gap-2 text-indigo-600 font-black text-xs mb-4"><ArrowRightLeft size={16}/> مطابقة الطلاب</div>
+                                        <div className="space-y-4 animate-slide-up bg-white p-5 rounded-3xl border border-indigo-100">
+                                            <div className="flex items-center gap-2 text-indigo-600 font-black text-xs mb-4"><ArrowRightLeft size={16}/> أعمدة المطابقة</div>
                                             <div>
                                                 <label className="block text-[10px] font-black text-slate-400 mb-1">عمود الهوية</label>
                                                 <select className="w-full p-2 border rounded-lg text-xs font-bold" value={idHeader} onChange={e=>setIdHeader(e.target.value)}>
@@ -301,17 +310,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                                 </select>
                                             </div>
                                             <button onClick={handleSyncTab} disabled={isFetchingSheet} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 mt-4">
-                                                <Database size={18}/> مزامنة التبويب بالكامل
+                                                <Database size={18}/> مزامنة التبويب كاملاً
                                             </button>
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* جانب إدارة الأعمدة وترتيبها */}
+                            {/* جانب إدارة الأعمدة */}
                             <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
                                 <div className="flex justify-between items-center mb-8 border-b pb-4">
-                                    <h4 className="font-black text-slate-800 flex items-center gap-2"><LayoutGrid size={18} className="text-indigo-600"/> تخصيص أعمدة التبويب</h4>
+                                    <h4 className="font-black text-slate-800 flex items-center gap-2"><LayoutGrid size={18} className="text-indigo-600"/> ترتيب وتخصيص الأعمدة</h4>
                                     <button onClick={handleAddColumn} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black hover:bg-indigo-100 transition-all flex items-center gap-2"><Plus size={14}/> إضافة عمود</button>
                                 </div>
 
@@ -326,10 +335,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                             <div className="flex-1">
                                                 <input className="font-black text-slate-800 bg-transparent border-none outline-none w-full" value={a.title} onChange={e=>handleUpdateColumn(a, {title: e.target.value})} />
                                                 <div className="flex items-center gap-4 mt-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-black text-slate-400">الدرجة:</span>
-                                                        <input type="number" className="w-12 bg-slate-50 border rounded px-1 text-[10px] font-black" value={a.maxScore} onChange={e=>handleUpdateColumn(a, {maxScore: Number(e.target.value)})} />
-                                                    </div>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase">الدرجة العظمى: {a.maxScore}</span>
                                                 </div>
                                             </div>
 
@@ -344,12 +350,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                             <button onClick={()=>handleDeleteColumn(a.id)} className="p-3 text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={18}/></button>
                                         </div>
                                     ))}
-                                    {filteredAssignments.length === 0 && (
-                                        <div className="py-20 text-center text-slate-300 italic flex flex-col items-center gap-4">
-                                            <LayoutGrid size={48} className="opacity-10"/>
-                                            <p>لا توجد أعمدة في هذا التبويب حالياً</p>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
