@@ -7,6 +7,8 @@ import {
     addStudent, updateStudent, deleteStudent, downloadFromSupabase
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
+
+// Components
 import Login from './components/Login';
 import TeacherPortal from './components/TeacherPortal';
 import StudentPortal from './components/StudentPortal';
@@ -26,10 +28,7 @@ import ClassroomScreen from './components/ClassroomScreen';
 import WorksTracking from './components/WorksTracking';
 import FormsAnalyzer from './components/FormsAnalyzer';
 import LearningLab from './components/LearningLab';
-import CustomTablesView from './components/CustomTablesView';
 import ResourcesView from './components/ResourcesView';
-import ScheduleView from './components/ScheduleView';
-import ReloadPrompt from './components/ReloadPrompt';
 import AdminDashboard from './components/AdminDashboard';
 import ReportsCenter from './components/ReportsCenter';
 import BehaviorTracking from './components/BehaviorTracking';
@@ -39,12 +38,10 @@ import SmartBadges from './components/SmartBadges';
 import ChallengesManager from './components/ChallengesManager';
 import RewardsManager from './components/RewardsManager';
 import NoorExporter from './components/NoorExporter';
-import AdvancedAnalytics from './components/AdvancedAnalytics';
-import TeacherSubscription from './components/TeacherSubscription';
-import TeacherProfile from './components/TeacherProfile';
-import ClassStrategy from './components/ClassStrategy';
-import BehaviorAnalyzer from './components/BehaviorAnalyzer';
-import HallOfFame from './components/HallOfFame';
+import CurriculumManager from './components/CurriculumManager';
+import QuestionBank from './components/QuestionBank';
+import AutoGrading from './components/AutoGrading';
+import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import TeacherAIConfig from './components/TeacherAIConfig';
 import { RefreshCw } from 'lucide-react';
 
@@ -111,17 +108,47 @@ const App: React.FC = () => {
                 </div>
             )}
             <Routes>
+                {/* الرئيسية والبريد */}
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v: string) => navigate(v)} />} />
+                <Route path="/inbox" element={<TeacherInbox currentUser={currentUser as SystemUser} />} />
+                <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
+
+                {/* المتابعة اليومية */}
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={async (s) => { await addStudent(s); refreshCloudData(); }} onUpdateStudent={async (s) => { await updateStudent(s); refreshCloudData(); }} onDeleteStudent={async (id) => { await deleteStudent(id); refreshCloudData(); }} onImportStudents={() => refreshCloudData()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
-                <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={async (recs: PerformanceRecord[]) => { await addPerformance(recs); refreshCloudData(); }} onDeletePerformance={async (id) => { await deletePerformance(id); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
-                <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
-                <Route path="/tasks" element={<TasksManager students={students} currentUser={currentUser as SystemUser} />} />
-                <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/messages" element={<MessageCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/followup" element={<StudentFollowUp students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+
+                {/* التقييم والرصد */}
                 <Route path="/works" element={<WorksTracking students={students} attendance={attendance} performance={performance} onAddPerformance={async (recs)=>{ await addPerformance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={async (recs: PerformanceRecord[]) => { await addPerformance(recs); refreshCloudData(); }} onDeletePerformance={async (id) => { await deletePerformance(id); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/tasks" element={<TasksManager students={students} currentUser={currentUser as SystemUser} />} />
+                <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
+                <Route path="/questions" element={<QuestionBank currentUser={currentUser as SystemUser} />} />
+                <Route path="/auto-grading" element={<AutoGrading currentUser={currentUser as SystemUser} />} />
+                <Route path="/flexible-tracking" element={<FlexibleTrackingSheet currentUser={currentUser as SystemUser} />} />
+
+                {/* الأدوات الذكية */}
                 <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} onImportAttendance={async (recs)=>{ await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
+                <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
+                <Route path="/lab" element={<LearningLab students={students} currentUserId={currentUser?.id || ''} />} />
+                <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser as SystemUser} />} />
+                <Route path="/badges" element={<SmartBadges students={students} />} />
+                <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
+
+                {/* التحفيز والتقارير */}
+                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} />} />
+                <Route path="/leaderboard" element={<Leaderboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/challenges" element={<ChallengesManager currentUser={currentUser as SystemUser} />} />
+                <Route path="/shop-admin" element={<RewardsManager currentUser={currentUser as SystemUser} />} />
+                <Route path="/noor" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                
+                {/* الإعدادات والمدير */}
                 <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={()=>{}}/>} />
+                <Route path="/admin" element={<AdminDashboard />} />
+
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </TeacherPortal>
@@ -129,7 +156,6 @@ const App: React.FC = () => {
 
     return (
         <div className={`min-h-screen ${theme.mode === 'DARK' ? 'dark bg-gray-900 text-white' : 'bg-gray-50'}`}>
-            <ReloadPrompt />
             <Routes>
                 <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
                 {currentUser?.role === 'STUDENT' ? (

@@ -6,7 +6,7 @@ import {
   BarChart2, Settings, LogOut, Menu, X, 
   CalendarDays, Trophy, BookOpen, 
   Sparkles, BrainCircuit, ShieldCheck, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Zap, ShoppingBag, ClipboardList,
-  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield, Camera, Plus, ScanLine
+  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield, Camera, Plus, ScanLine, ListChecks, History, Database
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -91,13 +91,17 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         <NavItem path="/performance" label="كشف الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/tasks" label="المهام والواجبات" icon={BookOpen} color="text-orange-600" isActive={location.pathname === '/tasks'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/exams" label="بنك الاختبارات" icon={FileQuestion} color="text-purple-600" isActive={location.pathname === '/exams'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/questions" label="بنك الأسئلة" icon={Database} color="text-indigo-500" isActive={location.pathname === '/questions'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/auto-grading" label="المصحح الآلي (AI)" icon={ScanLine} color="text-purple-500" isActive={location.pathname === '/auto-grading'} isCollapsed={!isSidebarOpen} />
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-50">
                         {isSidebarOpen && <label className="px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest opacity-60">الأدوات الذكية</label>}
                         <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/flexible-tracking" label="السجلات المرنة" icon={ListChecks} color="text-teal-500" isActive={location.pathname === '/flexible-tracking'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/forms" label="محلل النماذج (Forms)" icon={ClipboardCheck} color="text-emerald-500" isActive={location.pathname === '/forms'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/lab" label="مختبر VARK" icon={BrainCircuit} color="text-orange-600" isActive={location.pathname === '/lab'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/curriculum" label="توزيع المنهج" icon={FileStack} color="text-indigo-400" isActive={location.pathname === '/curriculum'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/badges" label="الأوسمة (AI)" icon={Award} color="text-purple-600" isActive={location.pathname === '/badges'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/resources" label="المصادر والمكتبة" icon={Library} color="text-cyan-600" isActive={location.pathname === '/resources'} isCollapsed={!isSidebarOpen} />
                     </div>
