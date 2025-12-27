@@ -44,7 +44,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
         <div className="flex h-screen bg-slate-50 overflow-hidden" dir="rtl">
             {/* Sidebar Desktop */}
             <aside className={`hidden lg:flex flex-col bg-white border-l border-gray-200 transition-all duration-300 z-30 ${isSidebarOpen ? 'w-72' : 'w-20'}`}>
-                <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                <div className="p-6 border-b border-gray-50 flex items-center justify-between shrink-0">
                     {isSidebarOpen && (
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
@@ -91,7 +91,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                     </div>
                 </nav>
 
-                <div className="p-4 border-t border-gray-50 space-y-2">
+                <div className="p-4 border-t border-gray-50 space-y-2 shrink-0">
                     {isSuperAdmin && <NavItem path="/admin" label="إدارة النظام" icon={ShieldCheck} isActive={location.pathname === '/admin'} />}
                     <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} />
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 font-bold transition-all">
@@ -103,7 +103,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
 
             {/* Mobile Drawer */}
             {isMobileMenuOpen && (
-                <div className="fixed inset-0 z-100 lg:hidden">
+                <div className="fixed inset-0 z-[150] lg:hidden">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
                     <div className="absolute top-0 right-0 h-full w-4/5 bg-white shadow-2xl flex flex-col animate-slide-right">
                         <div className="p-6 border-b flex items-center justify-between">
@@ -142,8 +142,10 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-hidden relative pb-20 lg:pb-0">
-                    {children}
+                <main className="flex-1 overflow-hidden relative min-h-0 bg-slate-50">
+                    <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
+                        {children}
+                    </div>
                 </main>
 
                 <BottomNavigation role={currentUser.role} onMenuClick={() => setIsMobileMenuOpen(true)} />
