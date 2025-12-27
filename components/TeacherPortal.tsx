@@ -8,7 +8,8 @@ import {
     ChevronLeft, ChevronRight, Menu, Bell, Search,
     FileQuestion, Library, Trophy, Award, Sparkles, 
     ShieldAlert, BrainCircuit, Calendar, PenTool, Zap, Heart,
-    Star, Shield, CreditCard, Bot, User, Table, Database, Activity
+    Star, Shield, CreditCard, Bot, User, Table, Database, Activity,
+    ScanLine, DownloadCloud, MessageSquare, History, Globe
 } from 'lucide-react';
 
 interface Props {
@@ -61,6 +62,7 @@ const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => 
                         <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/planning" label="تحضير الدروس" icon={PenTool} color="text-purple-600" isActive={location.pathname === '/planning'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} color="text-pink-600" isActive={location.pathname === '/exams'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/auto-grade" label="المصحح الآلي" icon={ScanLine} color="text-fuchsia-600" isActive={location.pathname === '/auto-grade'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/bank" label="بنك الأسئلة" icon={Database} color="text-cyan-600" isActive={location.pathname === '/bank'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/games" label="مصنع الألعاب" icon={Gamepad2} color="text-orange-500" isActive={location.pathname === '/games'} isCollapsed={!isSidebarOpen} />
                     </div>
@@ -68,23 +70,25 @@ const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => 
                     <div className="pt-4">
                         <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الذكاء والتحليل</label>
                         <NavItem path="/lab" label="مختبر الأنماط" icon={BrainCircuit} color="text-indigo-500" isActive={location.pathname === '/lab'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/behavior-ai" label="محلل السلوك AI" icon={Bot} color="text-violet-600" isActive={location.pathname === '/behavior-ai'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/reports" label="مركز التقارير" icon={Activity} color="text-purple-500" isActive={location.pathname === '/reports'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/behavior" label="سجل السلوك" icon={Zap} color="text-yellow-500" isActive={location.pathname === '/behavior'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/followup" label="الملف الموحد" icon={User} color="text-blue-600" isActive={location.pathname === '/followup'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/interventions" label="التدخلات" icon={ShieldAlert} color="text-red-500" isActive={location.pathname === '/interventions'} isCollapsed={!isSidebarOpen} />
                     </div>
 
-                    {(isManager || isSuperAdmin) && (
-                        <div className="pt-4">
-                            <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الإدارة والضبط</label>
-                            {isSuperAdmin && <NavItem path="/admin" label="لوحة النظام" icon={Shield} color="text-slate-900" isActive={location.pathname === '/admin'} isCollapsed={!isSidebarOpen} />}
-                            <NavItem path="/principal" label="لوحة القائد" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/principal'} isCollapsed={!isSidebarOpen} />
-                            <NavItem path="/school-mgmt" label="إدارة المنشأة" icon={Settings} color="text-blue-700" isActive={location.pathname === '/school-mgmt'} isCollapsed={!isSidebarOpen} />
-                            <NavItem path="/custom-tables" label="جداول سحابية" icon={Table} color="text-teal-600" isActive={location.pathname === '/custom-tables'} isCollapsed={!isSidebarOpen} />
-                        </div>
-                    )}
+                    <div className="pt-4">
+                        <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الإدارة والضبط</label>
+                        {isSuperAdmin && <NavItem path="/admin" label="لوحة النظام" icon={Shield} color="text-slate-900" isActive={location.pathname === '/admin'} isCollapsed={!isSidebarOpen} />}
+                        <NavItem path="/principal" label="لوحة القائد" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/principal'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/noor-export" label="مصدّر نور" icon={DownloadCloud} color="text-teal-600" isActive={location.pathname === '/noor-export'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/school-mgmt" label="إدارة المنشأة" icon={Settings} color="text-blue-700" isActive={location.pathname === '/school-mgmt'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/custom-tables" label="جداول سحابية" icon={Table} color="text-teal-600" isActive={location.pathname === '/custom-tables'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/meetings" label="اللقاءات" icon={Calendar} color="text-amber-600" isActive={location.pathname === '/meetings'} isCollapsed={!isSidebarOpen} />
+                    </div>
 
                     <div className="pt-4">
-                        <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>الموارد</label>
+                        <label className={`px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>التواصل والموارد</label>
+                        <NavItem path="/wall" label="حائط المدرسة" icon={Globe} color="text-indigo-400" isActive={location.pathname === '/wall'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/badges" label="الأوسمة الذكية" icon={Star} color="text-yellow-500" isActive={location.pathname === '/badges'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/certificates" label="الشهادات" icon={Award} color="text-purple-500" isActive={location.pathname === '/certificates'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/library" label="المكتبة" icon={Library} color="text-blue-600" isActive={location.pathname === '/library'} isCollapsed={!isSidebarOpen} />
