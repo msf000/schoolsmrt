@@ -1,9 +1,8 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, MessageLog, AttendanceStatus, BehaviorStatus, Assignment, TermPeriod, Badge, Reward, WeeklyChallenge, PurchaseRequest, ScheduleItem, Exam } from '../types';
 import { downloadFromSupabase, getAcademicTerms, getAssignments, getMessages, updateStudent, getChallenges, savePurchaseRequest, getSchedules, getRewards, getExams, getExamResults } from '../services/storageService';
 import { 
-    LogOut, LayoutGrid, Bell, Zap, Star, Radar as RadarIcon, TrendingUp, BookOpen, ClipboardList, CheckCircle, BrainCircuit, Medal, Globe, Info, Sparkles, Trophy, Target, ShieldCheck, Flame, ChevronRight, Crown, ShoppingBag, ShoppingCart, Heart, Share2, Download, X, ListChecks, Clock, QrCode, CreditCard, CalendarDays, FileQuestion, Activity, UserCircle, Wand2, Bot
+    LogOut, LayoutGrid, Bell, Zap, Star, Radar as RadarIcon, TrendingUp, BookOpen, ClipboardList, CheckCircle, BrainCircuit, Medal, Globe, Info, Sparkles, Trophy, Target, ShieldCheck, Flame, ChevronRight, Crown, ShoppingBag, ShoppingCart, Heart, Share2, Download, X, ListChecks, Clock, QrCode, CreditCard, CalendarDays, FileQuestion, Activity, UserCircle, Wand2, Bot, Camera, MessageSquare
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip } from 'recharts';
@@ -16,6 +15,7 @@ import StudentDigitalID from './StudentDigitalID';
 import StudentQuestSystem from './StudentQuestSystem';
 import StudentAvatarGen from './StudentAvatarGen';
 import StudentAITutor from './StudentAITutor';
+import StudentQRScanner from './StudentQRScanner';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -32,6 +32,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
     const [rewards, setRewards] = useState<Reward[]>([]);
     const [availableExams, setAvailableExams] = useState<Exam[]>([]);
     const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+    const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
     useEffect(() => {
         const loadData = async () => {
@@ -76,8 +77,8 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
 
     return (
         <div className="flex h-screen bg-[#020617] overflow-hidden text-right font-tajawal" dir="rtl">
-            {/* AI Tutor Floating Always Available */}
             <StudentAITutor student={currentUser} />
+            {isQRScannerOpen && <StudentQRScanner student={currentUser} onClose={() => setIsQRScannerOpen(false)} />}
 
             <aside className="hidden lg:flex flex-col w-80 bg-slate-950 border-l border-white/5 shadow-2xl z-30">
                 <div className="p-10 border-b border-white/5 flex flex-col items-center bg-gradient-to-b from-indigo-950/40 to-transparent">
@@ -108,7 +109,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
             <div className="flex-1 flex flex-col overflow-hidden relative">
                 <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-[#020617] pb-24 lg:pb-10">
                     <Routes>
-                        <Route path="/" element={<StudentDashboard stats={stats} student={currentUser} onStartTest={() => navigate('/lab')} />} />
+                        <Route path="/" element={<StudentDashboard stats={stats} student={currentUser} onStartTest={() => navigate('/lab')} onOpenQR={() => setIsQRScannerOpen(true)} />} />
                         <Route path="/quests" element={<StudentQuestSystem student={currentUser} />} />
                         <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />
                         <Route path="/achievements" element={<StudentAchievements student={currentUser} />} />
@@ -177,7 +178,28 @@ const StudentShop = ({ stats, onPurchase, rewards }: any) => (
     </div>
 );
 
-const StudentDashboard = ({ stats, student, onStartTest }: any) => {
+// Fix: Added missing StatBox component
+const StatBox = ({ label, value, icon }: any) => (
+    <div className="bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10 flex flex-col items-center justify-center gap-2">
+        <div className="p-3 bg-white/10 rounded-2xl mb-1">{icon}</div>
+        <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">{label}</p>
+        <p className="text-2xl font-black text-white">{value}</p>
+    </div>
+);
+
+// Fix: Added missing QuickAction component
+const QuickAction = ({ path, label, icon }: any) => {
+    const navigate = useNavigate();
+    return (
+        <button onClick={() => navigate(path)} className="w-full flex items-center gap-4 p-5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all text-right group">
+            <div className="text-indigo-400 group-hover:scale-110 transition-transform">{icon}</div>
+            <span className="text-sm font-black text-slate-200">{label}</span>
+            <ChevronRight className="mr-auto text-white/20 group-hover:text-white transition-colors" size={16}/>
+        </button>
+    );
+};
+
+const StudentDashboard = ({ stats, student, onStartTest, onOpenQR }: any) => {
     const navigate = useNavigate();
     return (
         <div className="space-y-6 md:space-y-8 animate-fade-in">
@@ -210,6 +232,23 @@ const StudentDashboard = ({ stats, student, onStartTest }: any) => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
+                    {/* QR Attendance Button Mobile Focus */}
+                    <button 
+                        onClick={onOpenQR}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 p-8 rounded-[2.5rem] shadow-2xl flex items-center justify-between group hover:scale-[1.02] transition-all"
+                    >
+                        <div className="flex items-center gap-6">
+                            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
+                                <QrCode size={32} className="text-white"/>
+                            </div>
+                            <div className="text-right">
+                                <h3 className="text-xl font-black text-white">تسجيل حضور الحصة</h3>
+                                <p className="text-indigo-100 text-xs font-bold opacity-60">امسح كود QR من سبورة المعلم</p>
+                            </div>
+                        </div>
+                        <ChevronRight className="text-white opacity-40 group-hover:translate-x-[-8px] transition-transform"/>
+                    </button>
+
                     <div className="bg-slate-900/50 rounded-[2.5rem] p-10 border border-white/5 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
                         <div className="flex items-center gap-6">
                             <div className="w-20 h-20 bg-indigo-600/20 text-indigo-400 rounded-[2rem] flex items-center justify-center border border-indigo-500/30"><BrainCircuit size={40}/></div>
@@ -220,83 +259,83 @@ const StudentDashboard = ({ stats, student, onStartTest }: any) => {
                         </div>
                         <button onClick={onStartTest} className="px-10 py-4 bg-indigo-600 text-white rounded-3xl font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-3">ابدأ الاختبار <ChevronRight/></button>
                     </div>
-
-                    <div className="bg-white/5 rounded-[2.5rem] p-10 border border-white/5 shadow-xl">
-                        <h3 className="text-lg font-black text-white mb-6 flex items-center gap-3"><Sparkles className="text-yellow-500"/> نصيحة المحلل الذكي</h3>
-                        <div className="bg-indigo-600/10 p-6 rounded-3xl border border-indigo-500/20 text-indigo-100 font-bold leading-relaxed">
-                            يا بطل، نمط تعلمك يميل إلى "البصري". حاول استخدام الألوان والخرائط الذهنية في مذاكرتك اليوم لزيادة سرعة استيعابك للمعلومات بنسبة 40%.
-                        </div>
-                    </div>
                 </div>
 
-                <div className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col gap-6">
-                    <h3 className="text-lg font-black text-white flex items-center gap-3"><Zap className="text-indigo-400"/> أفعال سريعة</h3>
+                <div className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col gap-4">
+                    <h3 className="text-lg font-black text-white flex items-center gap-3 mb-2"><Zap className="text-indigo-400"/> أفعال سريعة</h3>
                     <QuickAction path="/avatar" label="تحديث الأفاتار" icon={<Wand2 size={24}/>}/>
                     <QuickAction path="/quizzes" label="تحديات نشطة" icon={<FileQuestion size={24}/>}/>
                     <QuickAction path="/quests" label="مهماتي" icon={<Target size={24}/>}/>
+                    <button onClick={onOpenQR} className="w-full flex items-center gap-4 p-5 bg-indigo-600/20 hover:bg-indigo-600/30 rounded-2xl border border-indigo-500/20 transition-all text-right group">
+                        <div className="text-indigo-400 group-hover:scale-110 transition-transform"><Camera size={24}/></div>
+                        <span className="text-sm font-black text-slate-200">مسح كود الحضور</span>
+                    </button>
                 </div>
             </div>
         </div>
     );
 };
 
-const StatBox = ({ label, value, icon }: any) => (
-    <div className="bg-white/5 backdrop-blur-md p-6 rounded-[2rem] border border-white/5 text-center flex flex-col items-center shadow-inner">
-        <div className="mb-2">{icon}</div>
-        <p className="text-2xl font-black">{value}</p>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
-    </div>
-);
-
-const QuickAction = ({ path, label, icon }: any) => {
-    const navigate = useNavigate();
+// Fix: Added missing StudentEvaluationView component
+const StudentEvaluationView = ({ student, performance }: { student: Student, performance: PerformanceRecord[] }) => {
+    const myPerf = performance.filter(p => p.studentId === student.id).sort((a,b) => b.date.localeCompare(a.date));
     return (
-        <button onClick={() => navigate(path)} className="w-full flex items-center gap-4 p-5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-right group">
-            <div className="text-indigo-400 group-hover:scale-110 transition-transform">{icon}</div>
-            <span className="text-sm font-black text-slate-200">{label}</span>
-        </button>
+        <div className="space-y-8 animate-fade-in">
+            <h2 className="text-3xl font-black text-white flex items-center gap-4"><Activity className="text-emerald-400" size={32}/> سجل التحصيل الدراسي</h2>
+            <div className="bg-slate-900/50 rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
+                <table className="w-full text-right">
+                    <thead className="bg-white/5 text-indigo-300 font-black text-[10px] uppercase tracking-widest border-b border-white/5">
+                        <tr><th className="p-6">التاريخ</th><th className="p-6">المادة / التقييم</th><th className="p-6 text-center">الدرجة</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {myPerf.map(p => (
+                            <tr key={p.id} className="hover:bg-white/5 transition-colors">
+                                <td className="p-6 text-slate-400 text-xs font-mono">{p.date}</td>
+                                <td className="p-6">
+                                    <p className="font-black text-white">{p.title}</p>
+                                    <p className="text-[10px] text-slate-500 uppercase">{p.subject}</p>
+                                </td>
+                                <td className="p-6 text-center">
+                                    <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-400 px-4 py-2 rounded-2xl font-black">
+                                        <span className="text-lg">{p.score}</span>
+                                        <span className="text-[10px] opacity-40">/ {p.maxScore}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     );
 };
 
-const StudentEvaluationView = ({ student, performance }: { student: Student, performance: PerformanceRecord[] }) => {
-    const myPerf = performance.filter((p: PerformanceRecord) => p.studentId === student.id);
+// Fix: Added missing StudentMessages component
+const StudentMessages = ({ messages }: { messages: MessageLog[] }) => {
     return (
-        <div className="space-y-10 animate-fade-in">
-            <h2 className="text-3xl font-black text-white flex items-center gap-4"><Activity className="text-indigo-400" size={32}/> سجل الإنجازات</h2>
+        <div className="space-y-8 animate-fade-in">
+            <h2 className="text-3xl font-black text-white flex items-center gap-4"><Bell className="text-indigo-400" size={32}/> التنبيهات والرسائل</h2>
             <div className="space-y-4">
-                {myPerf.slice().reverse().map((p: PerformanceRecord) => (
-                    <div key={p.id} className="bg-slate-900/50 p-6 rounded-[2rem] border border-white/5 flex items-center justify-between group hover:border-indigo-50 transition-all">
-                        <div className="flex items-center gap-5">
-                            <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-2xl group-hover:bg-indigo-600 transition-colors"><BookOpen size={24}/></div>
-                            <div>
-                                <h4 className="font-black text-white text-lg">{p.title}</h4>
-                                <p className="text-slate-500 text-xs font-bold mt-1">{p.subject} • {formatDualDate(p.date)}</p>
+                {messages.map(msg => (
+                    <div key={msg.id} className="bg-slate-900/50 p-6 rounded-[2rem] border border-white/5 shadow-xl flex gap-6 items-start">
+                        <div className="p-4 bg-indigo-600/20 text-indigo-400 rounded-2xl"><MessageSquare size={24}/></div>
+                        <div className="flex-1">
+                            <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-black text-white text-lg">{msg.sentBy}</h4>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">{formatDualDate(msg.date)}</span>
                             </div>
-                        </div>
-                        <div className="text-left bg-white/5 px-6 py-3 rounded-2xl">
-                            <span className="text-3xl font-black text-indigo-400">{p.score}</span>
-                            <span className="text-sm text-slate-500 font-bold mr-1">/ {p.maxScore}</span>
+                            <p className="text-slate-300 leading-relaxed">{msg.content}</p>
                         </div>
                     </div>
                 ))}
+                {messages.length === 0 && (
+                    <div className="py-20 text-center text-slate-500 font-bold border-4 border-dashed border-white/5 rounded-[3rem]">
+                        <p className="text-xl">لا توجد رسائل جديدة.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
-
-const StudentMessages = ({ messages }: { messages: MessageLog[] }) => (
-    <div className="space-y-6 animate-fade-in">
-        <h2 className="text-3xl font-black text-white flex items-center gap-4"><Bell className="text-indigo-400" size={32}/> مركز التنبيهات</h2>
-        <div className="space-y-4">
-            {messages.map(m => (
-                <div key={m.id} className="bg-slate-900/50 p-6 rounded-[2rem] border-r-[6px] border-indigo-500 shadow-xl">
-                    <p className="text-[10px] font-black text-slate-500 uppercase mb-2">{formatDualDate(m.date)}</p>
-                    <p className="text-white leading-relaxed font-bold">"{m.content}"</p>
-                    <div className="mt-4 pt-4 border-t border-white/5 text-[10px] font-black text-indigo-400 uppercase tracking-widest">المرسل: {m.sentBy}</div>
-                </div>
-            ))}
-        </div>
-    </div>
-);
 
 export default StudentPortal;
