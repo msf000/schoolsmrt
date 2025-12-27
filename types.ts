@@ -58,7 +58,6 @@ export interface Student {
   badges?: Badge[];
   purchasedRewards?: string[];
   streak?: number;
-  // التخصيصات البصرية المشتراة
   auraColor?: string;
   activeTitle?: string;
 }

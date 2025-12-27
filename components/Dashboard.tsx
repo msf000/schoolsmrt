@@ -45,14 +45,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       avgGrade: performance.length > 0 ? Math.round(performance.reduce((a,b)=>a+(b.score/b.maxScore),0)/performance.length*100) : 0
   }), [students, attendance, performance]);
 
-  const recentActivity = useMemo(() => {
-      const combined = [
-          ...attendance.slice(0, 10).map(a => ({ ...a, type: 'ATT' })),
-          ...performance.slice(0, 10).map(p => ({ ...p, type: 'PERF' }))
-      ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
-      return combined;
-  }, [attendance, performance]);
-
   return (
     <div className="p-4 md:p-10 space-y-10 animate-fade-in bg-[#F8FAFC] pb-32 font-tajawal overflow-x-hidden">
       
@@ -107,37 +99,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
 
           <div className="space-y-8">
-              {/* Live Pulse Feed */}
-              <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
-                  <div className="flex justify-between items-center mb-8">
-                      <div>
-                        <h3 className="text-xl font-black text-slate-800">نبض الفصل اللحظي</h3>
-                        <p className="text-[10px] text-slate-400 font-bold">آخر الإجراءات المرصودة</p>
-                      </div>
-                      <div className="p-2.5 bg-indigo-50 rounded-xl"><Activity size={18} className="text-indigo-600 animate-pulse"/></div>
-                  </div>
-                  <div className="space-y-4">
-                      {recentActivity.map((act: any, idx) => {
-                          const student = students.find(s => s.id === act.studentId);
-                          return (
-                              <div key={idx} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-all border border-transparent hover:border-slate-100">
-                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${act.type === 'ATT' ? (act.status === AttendanceStatus.ABSENT ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500') : 'bg-indigo-50 text-indigo-600'}`}>
-                                      {student?.name.charAt(0)}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-black text-slate-700 truncate">{student?.name}</p>
-                                      <p className="text-[9px] text-slate-400 font-bold">
-                                          {act.type === 'ATT' ? `تم رصد: ${act.status === AttendanceStatus.PRESENT ? 'حاضر' : 'غائب'}` : `تم رصد درجة: ${act.score}/${act.maxScore}`}
-                                      </p>
-                                  </div>
-                                  <span className="text-[8px] font-black text-slate-300">{act.date.slice(5)}</span>
-                              </div>
-                          );
-                      })}
-                      {recentActivity.length === 0 && <p className="text-center py-10 text-slate-300 text-xs font-bold">لا يوجد نشاط مؤخراً</p>}
-                  </div>
-              </div>
-
               <div className="bg-slate-900 rounded-[3.5rem] p-8 text-white relative overflow-hidden shadow-2xl group min-h-[420px]">
                   <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none group-hover:scale-110 transition-transform duration-700"><Bot size={200}/></div>
                   <div className="relative z-10">
@@ -170,10 +131,47 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                       )}
                   </div>
               </div>
+
+              <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
+                  <div className="absolute -bottom-10 -left-10 opacity-[0.03] group-hover:scale-110 transition-transform duration-700"><TrendingUp size={200}/></div>
+                  <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
+                    <Activity className="text-indigo-600" size={20}/> نبض الحضور الأسبوعي
+                  </h3>
+                  <div className="h-48 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={pulseData}>
+                            <defs>
+                                <linearGradient id="colorPulse" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/></linearGradient>
+                            </defs>
+                            <Area type="monotone" dataKey="participation" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorPulse)" />
+                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold text-center mt-4 uppercase tracking-widest">توقعات الحضور للأيام الـ 7 القادمة</p>
+              </div>
           </div>
       </div>
 
-      <LiveAssistant isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} students={students} onAction={()=>{}} />
+      {/* Action Buttons Overlay */}
+      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] flex gap-4">
+           <button 
+                onClick={() => setIsAssistantOpen(true)}
+                className="bg-indigo-600 text-white px-10 py-5 rounded-[2.5rem] font-black shadow-[0_20px_50px_rgba(79,70,229,0.4)] hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-3"
+            >
+                <Bot size={24} className="animate-pulse"/>
+                تحدث مع Gemini
+           </button>
+      </div>
+
+      <LiveAssistant isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} students={students} onAction={(action, data) => {
+          // التعامل مع أوامر المساعد الصوتي
+          if (action === 'mark_attendance') {
+              const student = students.find(s => s.name.includes(data.studentName) || data.studentName.includes(s.name));
+              if (student) navigate('/attendance', { state: { className: student.className } });
+          }
+      }} />
+
       <OmniSearch isOpen={isOmniOpen} onClose={() => setIsOmniOpen(false)} students={students} />
     </div>
   );

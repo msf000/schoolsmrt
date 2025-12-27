@@ -15,17 +15,9 @@ interface StudentQuestSystemProps {
 const StudentQuestSystem: React.FC<StudentQuestSystemProps> = ({ student }) => {
     const [quests, setQuests] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    // Fix: Remove incorrect use of new Set() with a function argument. Use useState lazy initialization instead.
     const [claimedIds, setClaimedIds] = useState<Set<string>>(() => {
         const saved = localStorage.getItem(`claimed_quests_${student.id}`);
-        if (saved) {
-            try {
-                return new Set<string>(JSON.parse(saved));
-            } catch (e) {
-                return new Set<string>();
-            }
-        }
-        return new Set<string>();
+        return saved ? new Set(JSON.parse(saved)) : new Set();
     });
 
     const loadQuests = async () => {
