@@ -94,6 +94,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(sheetUrl);
             const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
             setSheetHeaders(headers);
+            // Fixed error: Changed setRawSheetData to setSheetData
             setSheetData(data);
             saveWorksMasterUrl(sheetUrl);
             
@@ -343,7 +344,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students: initialStudents
                                     </div>
                                 )}
                                 
-                                {settingsTab === 'MANUAL' && (
+                                {settingsTab === 'MANUAL' && currentUser && (
                                     <ManualColumnForm 
                                         onAdded={() => setAssignments(getAssignments('ALL', currentUser.id, isManager))}
                                         currentUser={currentUser}
