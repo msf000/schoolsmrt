@@ -4,7 +4,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, A
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus, BehaviorIncident, Exam } from '../types';
 import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts } from '../services/analysisService';
 import { 
-    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles, Swords, Layout, ShieldAlert, Target, Users
+    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles, Swords, Layout, ShieldAlert, Target, Users, Mic, BrainCircuit
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSchedules, saveAttendance, saveBehaviorIncident, getExams } from '../services/storageService';
@@ -15,6 +15,7 @@ import OmniSearch from './OmniSearch';
 import DailyAgenda from './DailyAgenda';
 import RecommendationHub from './RecommendationHub';
 import QuizBattle from './QuizBattle';
+import VoiceObservation from './VoiceObservation';
 import { useToast } from './ToastProvider';
 
 const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null, onNavigate: (view: string) => void }> = ({ students, attendance, performance, currentUser }) => {
@@ -23,6 +24,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isOmniOpen, setIsOmniOpen] = useState(false);
   const [isBattleOpen, setIsBattleOpen] = useState(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [battleExams, setBattleExams] = useState<Exam[]>([]);
   const [classPulse, setClassPulse] = useState<string | null>(null);
 
@@ -62,6 +64,10 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
           <QuizBattle students={students} questions={battleExams[0].questions} onClose={() => setIsBattleOpen(false)} />
       )}
 
+      {isVoiceOpen && currentUser && (
+          <VoiceObservation students={students} teacherId={currentUser.id} onClose={() => setIsVoiceOpen(false)} />
+      )}
+
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
            <div className="flex items-center gap-5">
                 <div className="relative group cursor-pointer" onClick={() => navigate('/school-mgmt')}>
@@ -76,6 +82,9 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
            </div>
            
            <div className="flex items-center gap-3 w-full lg:w-auto">
+                <button onClick={() => setIsVoiceOpen(true)} className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 shadow-sm hover:bg-indigo-600 hover:text-white transition-all">
+                    <Mic size={24}/>
+                </button>
                 <button onClick={() => setIsOmniOpen(true)} className="flex-1 lg:w-80 flex items-center gap-3 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-xl text-slate-400 hover:border-indigo-300 transition-all group">
                     <Search size={20} className="group-hover:text-indigo-50"/>
                     <span className="text-sm font-bold">البحث الذكي (Cmd+K)</span>
@@ -100,9 +109,14 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                             <span className="text-[10px] font-black uppercase tracking-widest">تحليل النبض المباشر</span>
                           </div>
                           <h3 className="text-2xl md:text-3xl font-black mb-4">"{classPulse || 'جاري استشعار طاقة الفصل...'}"</h3>
-                          <button onClick={() => setIsBattleOpen(true)} className="bg-yellow-400 text-slate-900 px-8 py-3 rounded-2xl font-black text-sm shadow-xl flex items-center gap-2 hover:scale-105 active:scale-95 transition-all mx-auto md:mx-0">
-                            <Swords size={18}/> بدء معركة العلم (Battle Mode)
-                          </button>
+                          <div className="flex gap-3 justify-center md:justify-start">
+                              <button onClick={() => setIsBattleOpen(true)} className="bg-yellow-400 text-slate-900 px-8 py-3 rounded-2xl font-black text-sm shadow-xl flex items-center gap-2 hover:scale-105 active:scale-95 transition-all">
+                                <Swords size={18}/> بدء معركة العلم
+                              </button>
+                              <button onClick={() => navigate('/lab')} className="bg-white/10 text-white px-8 py-3 rounded-2xl font-black text-sm border border-white/20 hover:bg-white/20 transition-all flex items-center gap-2">
+                                <BrainCircuit size={18}/> مختبر VARK
+                              </button>
+                          </div>
                       </div>
                       <div className="hidden lg:flex items-center gap-4">
                           <div className="p-6 bg-white/5 rounded-full border-4 border-white/10 flex items-center justify-center backdrop-blur-md"><Zap size={48} className="text-yellow-400 animate-pulse"/></div>

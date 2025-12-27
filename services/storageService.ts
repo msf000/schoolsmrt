@@ -468,10 +468,14 @@ export const fetchTrackingSheets = async (tid?: string): Promise<TrackingSheet[]
     } catch { return getTrackingSheets(tid); }
 };
 
+/**
+ * Fix: Error in file services/storageService.ts on line 474: Property 'teacher_id' does not exist on type 'TrackingSheet'. Did you mean 'teacherId'?
+ */
 export const saveTrackingSheet = async (s: TrackingSheet) => {
     const cur = getTrackingSheets(s.teacherId);
     localStorage.setItem(`local_tracking_${s.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==s.id), s]));
-    await supabase.from('tracking_sheets').upsert({ id: s.id, title: s.title, subject: s.subject, class_name: s.className, teacher_id: s.teacher_id, columns: s.columns, scores: s.scores });
+    // Fix: Corrected s.teacher_id to s.teacherId
+    await supabase.from('tracking_sheets').upsert({ id: s.id, title: s.title, subject: s.subject, class_name: s.className, teacher_id: s.teacherId, columns: s.columns, scores: s.scores });
 };
 
 export const deleteTrackingSheet = async (id: string) => {

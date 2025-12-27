@@ -5,9 +5,9 @@ import {
     fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
     addPerformance, deletePerformance, getUserTheme,
     addStudent, updateStudent, deleteStudent, downloadFromSupabase,
-    getTeachers
+    getTeachers, getLessonPlans
 } from './services/storageService';
-import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
+import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme, StoredLessonPlan } from './types';
 
 // Components
 import Login from './components/Login';
@@ -50,6 +50,7 @@ import StudentAchievementTimeline from './components/StudentAchievementTimeline'
 import SchoolWall from './components/SchoolWall';
 import SharedLibrary from './components/SharedLibrary';
 import CertificatesCenter from './components/CertificatesCenter';
+import TeacherStats from './components/TeacherStats';
 import { RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -63,6 +64,7 @@ const App: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
+    const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
     const [theme] = useState<UserTheme>(getUserTheme());
     const [isLoading, setIsLoading] = useState(false);
     
@@ -79,6 +81,7 @@ const App: React.FC = () => {
             setStudents(JSON.parse(localStorage.getItem('local_students') || '[]'));
             setAttendance(JSON.parse(localStorage.getItem('local_attendance') || '[]'));
             setPerformance(JSON.parse(localStorage.getItem('local_performance') || '[]'));
+            setLessonPlans(getLessonPlans(userId));
         } catch (e) {
             console.error("Data fetch error:", e);
         } finally {
@@ -120,6 +123,7 @@ const App: React.FC = () => {
                 <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
                 <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
                 <Route path="/library" element={<SharedLibrary currentUser={currentUser as SystemUser} />} />
+                <Route path="/portfolio" element={<TeacherStats students={students} attendance={attendance} performance={performance} plans={lessonPlans} />} />
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={async (s) => { await addStudent(s); refreshCloudData(); }} onUpdateStudent={async (s) => { await updateStudent(s); refreshCloudData(); }} onDeleteStudent={async (id) => { await deleteStudent(id); refreshCloudData(); }} onImportStudents={() => refreshCloudData()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />

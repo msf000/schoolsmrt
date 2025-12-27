@@ -75,6 +75,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                     )}
 
                     <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} isActive={location.pathname === '/'} isCollapsed={!isSidebarOpen} />
+                    <NavItem path="/portfolio" label="سجل إنجازي" icon={Award} color="text-indigo-600" isActive={location.pathname === '/portfolio'} isCollapsed={!isSidebarOpen} />
                     <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} color="text-indigo-600" isActive={location.pathname === '/wall'} isCollapsed={!isSidebarOpen} />
                     <NavItem path="/inbox" label="بريد المعلم" icon={Inbox} color="text-indigo-600" isActive={location.pathname === '/inbox'} isCollapsed={!isSidebarOpen} />
                     
@@ -159,6 +160,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                                 <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} isActive={location.pathname === '/admin'} />
                              )}
                              <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
+                             <NavItem path="/portfolio" label="سجل إنجازي" icon={Award} isActive={location.pathname === '/portfolio'} />
                              <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} isActive={location.pathname === '/wall'} />
                              <NavItem path="/inbox" label="البريد" icon={Inbox} isActive={location.pathname === '/inbox'} />
                              <NavItem path="/students" label="الطلاب" icon={Users} isActive={location.pathname === '/students'} />
