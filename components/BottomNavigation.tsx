@@ -20,8 +20,8 @@ const BottomNavigation: React.FC<BottomNavProps> = ({ role, onMenuClick }) => {
         TEACHER: [
             { path: '/', label: 'الرئيسية', icon: LayoutGrid },
             { path: '/inbox', label: 'البريد', icon: Inbox },
+            { path: '/works', label: 'الرصد', icon: ClipboardList },
             { path: '/attendance', label: 'التحضير', icon: CheckSquare },
-            { path: '/classroom', label: 'الفصل', icon: MonitorPlay },
         ],
         STUDENT: [
             { path: '/', label: 'الرئيسية', icon: LayoutGrid },

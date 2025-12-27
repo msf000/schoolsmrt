@@ -5,7 +5,7 @@ import {
   LayoutGrid, Users, CheckSquare, Table, Monitor, 
   BarChart2, Settings, LogOut, Menu, X, 
   CalendarDays, Trophy, BookOpen, 
-  Sparkles, BrainCircuit, ShieldCheck, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Zap, ShoppingBag
+  Sparkles, BrainCircuit, ShieldCheck, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Zap, ShoppingBag, ClipboardList
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -70,7 +70,8 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                         {isSidebarOpen && <label className="px-4 text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest opacity-60">المتابعة اليومية</label>}
                         <NavItem path="/students" label="الطلاب" icon={Users} isActive={location.pathname === '/students'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/attendance" label="التحضير" icon={CheckSquare} isActive={location.pathname === '/attendance'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/performance" label="الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/works" label="سجل الرصد (الأعمال)" icon={ClipboardList} color="text-blue-600" isActive={location.pathname === '/works'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/performance" label="كشف الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} isCollapsed={!isSidebarOpen} />
                         <NavItem path="/behavior" label="السلوك" icon={ShieldCheck} color="text-amber-600" isActive={location.pathname === '/behavior'} isCollapsed={!isSidebarOpen} />
                     </div>
 
@@ -138,6 +139,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                              <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
                              <NavItem path="/inbox" label="البريد" icon={Inbox} isActive={location.pathname === '/inbox'} />
                              <NavItem path="/students" label="الطلاب" icon={Users} isActive={location.pathname === '/students'} />
+                             <NavItem path="/works" label="سجل الرصد" icon={ClipboardList} isActive={location.pathname === '/works'} />
                              <NavItem path="/attendance" label="التحضير" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
                              <NavItem path="/performance" label="الدرجات" icon={FileSpreadsheet} isActive={location.pathname === '/performance'} />
                              <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} isActive={location.pathname === '/classroom'} />
