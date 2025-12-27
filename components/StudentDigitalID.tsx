@@ -12,7 +12,6 @@ const StudentDigitalID: React.FC<StudentDigitalIDProps> = ({ student, stats }) =
     return (
         <div className="flex flex-col items-center justify-center min-h-full py-10 animate-zoom-in font-tajawal">
              <div className="w-full max-w-sm bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-800 rounded-[3.5rem] p-1 shadow-2xl relative overflow-hidden group">
-                 {/* Shiny Effect */}
                  <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                  
                  <div className="bg-[#020617] rounded-[3.4rem] p-10 flex flex-col items-center text-center relative z-10 border border-white/10">

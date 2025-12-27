@@ -142,13 +142,11 @@ const AIFlashcardsView = () => {
                         onClick={() => setIsFlipped(!isFlipped)}
                     >
                         <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
-                            {/* Front */}
                             <div className="absolute inset-0 backface-hidden bg-indigo-600 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 text-center border-4 border-white/10">
                                 <span className="text-indigo-200 text-xs font-black uppercase mb-4 tracking-widest">السؤال {currentIndex + 1}</span>
                                 <h4 className="text-3xl md:text-4xl font-black leading-tight">{cards[currentIndex].q}</h4>
                                 <p className="mt-8 text-white/40 text-xs font-bold animate-pulse">اضغط للكشف عن الإجابة</p>
                             </div>
-                            {/* Back */}
                             <div className="absolute inset-0 backface-hidden rotate-y-180 bg-emerald-600 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 text-center border-4 border-white/10">
                                 <span className="text-emerald-200 text-xs font-black uppercase mb-4 tracking-widest">الإجابة النموذجية</span>
                                 <h4 className="text-2xl md:text-3xl font-black leading-relaxed">{cards[currentIndex].a}</h4>
