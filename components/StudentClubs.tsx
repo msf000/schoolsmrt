@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { Student, SystemUser } from '../types';
-// Fix: Added ArrowLeft to the lucide-react imports
 import { Sparkles, Users, Star, Trophy, Zap, Plus, Search, Map, Palette, Code, Book, Music, Trash2, ArrowLeft } from 'lucide-react';
 
 interface Club {
@@ -45,7 +44,8 @@ const StudentClubs: React.FC<{ students: Student[], currentUser: SystemUser }> =
                         <div key={club.id} className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col h-80">
                             <div className={`absolute top-0 right-0 w-2 h-full ${club.color}`}></div>
                             <div className={`w-16 h-16 rounded-[1.5rem] ${club.color} text-white flex items-center justify-center mb-6 shadow-xl group-hover:scale-110 transition-transform`}>
-                                {React.cloneElement(club.icon as React.ReactElement, { size: 32 })}
+                                {/* Fix: Cast icon to ReactElement<any> to avoid size property error */}
+                                {React.cloneElement(club.icon as React.ReactElement<any>, { size: 32 })}
                             </div>
                             <h3 className="text-xl font-black text-slate-800 mb-2">{club.name}</h3>
                             <p className="text-xs text-slate-400 font-bold leading-relaxed flex-1">{club.description}</p>
