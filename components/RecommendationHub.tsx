@@ -4,6 +4,14 @@ import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, Behavio
 import { Lightbulb, ArrowRight, Zap, AlertCircle, TrendingUp, Trophy, UserPlus, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+interface Recommendation {
+    type: string;
+    title: string;
+    desc: string;
+    action: () => void;
+    icon: React.ReactNode;
+}
+
 interface Props {
     students: Student[];
     attendance: AttendanceRecord[];
@@ -14,7 +22,7 @@ const RecommendationHub: React.FC<Props> = ({ students, attendance, performance 
     const navigate = useNavigate();
 
     const recommendations = useMemo(() => {
-        const recs = [];
+        const recs: Recommendation[] = [];
         const today = new Date().toISOString().split('T')[0];
 
         // 1. اكتشاف تراجع المستوى
@@ -66,7 +74,7 @@ const RecommendationHub: React.FC<Props> = ({ students, attendance, performance 
         });
 
         return recs.slice(0, 5);
-    }, [students, attendance, performance]);
+    }, [students, attendance, performance, navigate]);
 
     if (recommendations.length === 0) return null;
 

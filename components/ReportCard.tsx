@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, ReportHeaderConfig } from '../types';
 import { getReportHeaderConfig } from '../services/storageService';
@@ -117,7 +118,7 @@ const ReportCard: React.FC<Props> = ({ student, performance, attendance, onClose
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 border-x border-b">
-                                    {stats.childPerf.map((p, i) => (
+                                    {stats.myPerf.map((p: PerformanceRecord, i: number) => (
                                         <tr key={i} className="text-sm font-bold">
                                             <td className="p-4">
                                                 <p className="text-slate-800">{p.title}</p>
@@ -132,7 +133,7 @@ const ReportCard: React.FC<Props> = ({ student, performance, attendance, onClose
                                             </td>
                                         </tr>
                                     ))}
-                                    {stats.childPerf.length === 0 && (
+                                    {stats.myPerf.length === 0 && (
                                         <tr><td colSpan={4} className="p-10 text-center text-slate-300 italic font-medium">لا توجد درجات مرصودة حالياً</td></tr>
                                     )}
                                 </tbody>
