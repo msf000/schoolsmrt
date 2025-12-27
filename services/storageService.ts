@@ -75,7 +75,20 @@ export const getCloudSystemStatus = async () => {
 };
 
 export const getDatabaseSchemaSQL = () => `
--- الجداول السحابية لمركز التقارير والسجلات المرنة
+-- كود ترقية وإصلاح قاعدة البيانات (إضافة الأعمدة المفقودة تلقائياً)
+
+-- 1. جدول روابط المصادر التعليمية
+CREATE TABLE IF NOT EXISTS lesson_links (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    teacher_id TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS grade_level TEXT;
+ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS class_name TEXT;
+
+-- 2. جدول السجلات المرنة
 CREATE TABLE IF NOT EXISTS tracking_sheets (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -87,6 +100,7 @@ CREATE TABLE IF NOT EXISTS tracking_sheets (
     scores JSONB DEFAULT '{}'
 );
 
+-- 3. جدول الخطط الأسبوعية
 CREATE TABLE IF NOT EXISTS weekly_plans (
     id TEXT PRIMARY KEY,
     teacher_id TEXT,
@@ -99,16 +113,7 @@ CREATE TABLE IF NOT EXISTS weekly_plans (
     homework TEXT
 );
 
-CREATE TABLE IF NOT EXISTS lesson_links (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    url TEXT NOT NULL,
-    teacher_id TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    grade_level TEXT,
-    class_name TEXT
-);
-
+-- 4. جدول التحديات الأسبوعية
 CREATE TABLE IF NOT EXISTS weekly_challenges (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -121,48 +126,44 @@ CREATE TABLE IF NOT EXISTS weekly_challenges (
     type TEXT
 );
 
+-- 5. جدول الرسائل والتنبيهات
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     student_id TEXT,
     student_name TEXT,
     parent_phone TEXT,
-    type TEXT, -- 'WHATSAPP', 'SMS', 'PORTAL'
+    type TEXT,
     content TEXT,
-    status TEXT, -- 'SENT', 'FAILED'
+    status TEXT,
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     sent_by TEXT,
     teacher_id TEXT
 );
 
--- تحديثات الجداول السابقة
-CREATE TABLE IF NOT EXISTS academic_terms (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    start_date DATE,
-    end_date DATE,
-    is_current BOOLEAN DEFAULT FALSE,
-    teacher_id TEXT,
-    periods JSONB DEFAULT '[]'
-);
+-- 6. ترقيات الجداول الأساسية لضمان وجود حقول التميز والألعاب
+ALTER TABLE students ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS behavior_points INTEGER DEFAULT 0;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS seat_index INTEGER;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS learning_style TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS badges JSONB DEFAULT '[]';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS purchased_rewards JSONB DEFAULT '[]';
 
-CREATE TABLE IF NOT EXISTS assignments (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    category TEXT,
-    max_score NUMERIC DEFAULT 10,
-    is_visible BOOLEAN DEFAULT TRUE,
-    teacher_id TEXT,
-    term_id TEXT,
-    period_id TEXT,
-    sort_order INTEGER DEFAULT 0,
-    url TEXT
-);
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS behavior_status TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS behavior_note TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS participation_score INTEGER DEFAULT 0;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_note TEXT;
 
+ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subject_specialty TEXT;
+ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'FREE';
+
+-- 7. جداول إضافية (أعذار، مهام، اختبارات)
 CREATE TABLE IF NOT EXISTS behavior_incidents (
     id TEXT PRIMARY KEY,
     student_id TEXT,
     teacher_id TEXT,
-    type TEXT, -- 'POSITIVE', 'NEGATIVE'
+    type TEXT,
     category TEXT,
     points INTEGER,
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -170,22 +171,17 @@ CREATE TABLE IF NOT EXISTS behavior_incidents (
     action_taken TEXT
 );
 
-CREATE TABLE IF NOT EXISTS curriculum_units (
+CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     teacher_id TEXT,
+    class_id TEXT,
     subject TEXT,
-    grade_level TEXT,
-    title TEXT NOT NULL,
-    order_index INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS curriculum_lessons (
-    id TEXT PRIMARY KEY,
-    unit_id TEXT REFERENCES curriculum_units(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    order_index INTEGER,
-    is_completed BOOLEAN DEFAULT FALSE,
-    completed_at TIMESTAMP WITH TIME ZONE
+    title TEXT,
+    description TEXT,
+    due_date DATE,
+    type TEXT,
+    max_score NUMERIC,
+    submissions JSONB DEFAULT '[]'
 );
 `;
 
@@ -372,14 +368,14 @@ export const saveWorksMasterUrl = (u: string) => localStorage.setItem(KEYS.WORKS
 
 export const getTasks = (tid?: string): Task[] => JSON.parse(localStorage.getItem(`local_tasks_${tid || 'global'}`) || '[]');
 
-export const saveTask = async (t: Task) => { const cur = getTasks(t.teacherId); localStorage.setItem(`local_tasks_${t.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); };
+export const saveTask = async (t: Task) => { const cur = getTasks(t.teacherId); localStorage.setItem(`local_tasks_${t.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==t.id), t])); await supabase.from('tasks').upsert({ ...t, teacher_id: t.teacherId, class_id: t.classId, due_date: t.dueDate, max_score: t.maxScore }); };
 
 export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => JSON.parse(localStorage.getItem(`local_behavior_${tid || 'global'}`) || '[]');
 
 export const saveBehaviorIncident = async (i: BehaviorIncident) => {
     const cur = getBehaviorIncidents(i.teacherId);
     localStorage.setItem(`local_behavior_${i.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==i.id), i]));
-    await supabase.from('behavior_incidents').upsert(i);
+    await supabase.from('behavior_incidents').upsert({ ...i, student_id: i.studentId, teacher_id: i.teacherId, action_taken: i.actionTaken });
 };
 
 export const fetchBehaviorIncidents = async (tid?: string): Promise<BehaviorIncident[]> => {
@@ -387,7 +383,7 @@ export const fetchBehaviorIncidents = async (tid?: string): Promise<BehaviorInci
         let query = supabase.from('behavior_incidents').select('*');
         if (tid) query = query.eq('teacher_id', tid);
         const { data } = await query;
-        const mapped = (data || []) as BehaviorIncident[];
+        const mapped = (data || []).map((d: any) => ({ ...d, studentId: d.student_id, teacherId: d.teacher_id, actionTaken: d.action_taken })) as BehaviorIncident[];
         localStorage.setItem(`local_behavior_${tid || 'global'}`, JSON.stringify(mapped));
         return mapped;
     } catch { return getBehaviorIncidents(tid); }
@@ -418,7 +414,7 @@ export const deleteChallenge = async (id: string, tid: string) => {
 
 export const getPurchaseRequests = (tid?: string): PurchaseRequest[] => JSON.parse(localStorage.getItem(`local_purchase_reqs_${tid || 'global'}`) || '[]');
 
-export const savePurchaseRequest = async (r: PurchaseRequest) => { const cur = getPurchaseRequests(r.teacherId); localStorage.setItem(`local_purchase_reqs_${r.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==r.id), r])); await supabase.from('purchase_requests').upsert(r); };
+export const savePurchaseRequest = async (r: PurchaseRequest) => { const cur = getPurchaseRequests(r.teacherId); localStorage.setItem(`local_purchase_reqs_${r.teacherId}`, JSON.stringify([...cur.filter(x=>x.id!==r.id), r])); await supabase.from('purchase_requests').upsert({ ...r, student_id: r.studentId, student_name: r.studentName, reward_id: r.rewardId, reward_title: r.rewardTitle, teacher_id: r.teacherId }); };
 
 export const updatePurchaseStatus = async (id: string, status: 'PENDING' | 'APPROVED' | 'REJECTED') => { const keys = Object.keys(localStorage).filter(k => k.startsWith('local_purchase_reqs_')); keys.forEach(k => { const cur = JSON.parse(localStorage.getItem(k) || '[]'); const updated = cur.map((r: PurchaseRequest) => r.id === id ? { ...r, status } : r); localStorage.setItem(k, JSON.stringify(updated)); }); await supabase.from('purchase_requests').update({ status }).eq('id', id); };
 
@@ -539,8 +535,6 @@ export const deleteLessonLink = async (id: string) => {
     await supabase.from('lesson_links').delete().eq('id', id);
 };
 
-/* --- Added missing functions with explicit types to fix TS7006 errors --- */
-
 export const getCustomTables = (tid?: string): CustomTable[] => JSON.parse(localStorage.getItem(`local_custom_tables_${tid || 'global'}`) || '[]');
 export const addCustomTable = async (t: CustomTable) => {
     const cur = getCustomTables(t.teacherId);
@@ -564,7 +558,7 @@ export const saveReward = async (r: Reward, tid: string) => {
 };
 export const deleteReward = async (id: string, tid: string) => {
     const cur = getRewards(tid);
-    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify(cur.filter((r: Reward) => r.id !== id)));
+    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify(cur.filter(r => r.id !== id)));
     await supabase.from('rewards').delete().eq('id', id);
 };
 
@@ -591,7 +585,7 @@ export const saveQuestionToBank = async (q: Question) => {
 export const deleteQuestionFromBank = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_questions_'));
     keys.forEach(k => {
-        const cur: Question[] = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((q: Question) => q.id !== id)));
     });
 };
@@ -668,12 +662,12 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
     await supabase.from('curriculum_lessons').upsert({ ...l, unit_id: l.unitId, order_index: l.orderIndex, is_completed: l.isCompleted, completed_at: l.completedAt });
 };
 export const deleteCurriculumLesson = async (id: string) => {
-    const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
+    const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     localStorage.setItem('local_curriculum_lessons', JSON.stringify(all.filter((l: CurriculumLesson) => l.id !== id)));
     await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => {
-    const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
+    const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     const updated = all.map((l: CurriculumLesson) => l.id === id ? { ...l, isCompleted: completed, completedAt: completed ? new Date().toISOString() : null } : l);
     localStorage.setItem('local_curriculum_lessons', JSON.stringify(updated));
     await supabase.from('curriculum_lessons').update({ is_completed: completed, completed_at: completed ? new Date().toISOString() : null }).eq('id', id);
