@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord } from './types';
 import TeacherPortal from './components/TeacherPortal';
 import StudentPortal from './components/StudentPortal';
@@ -18,7 +18,17 @@ import ExamsManager from './components/ExamsManager';
 import QuestionBank from './components/QuestionBank';
 import GamesBuilder from './components/GamesBuilder';
 import SharedLibrary from './components/SharedLibrary';
-import { fetchStudents, fetchAttendance, fetchPerformance } from './services/storageService';
+import BehaviorTracking from './components/BehaviorTracking';
+import LearningLab from './components/LearningLab';
+import ReportsCenter from './components/ReportsCenter';
+import TeacherInbox from './components/TeacherInbox';
+import LessonPlanning from './components/LessonPlanning';
+import CertificatesCenter from './components/CertificatesCenter';
+import SmartBadges from './components/SmartBadges';
+import InterventionLog from './components/InterventionLog';
+import ScheduleView from './components/ScheduleView';
+import HallOfFame from './components/HallOfFame';
+import { fetchStudents, fetchAttendance, fetchPerformance, getBehaviorIncidents } from './services/storageService';
 import Login from './components/Login';
 import ReloadPrompt from './components/ReloadPrompt';
 import AIChatBot from './components/AIChatBot';
@@ -67,13 +77,22 @@ const App: React.FC = () => {
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={loadData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/performance" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={loadData} onDeletePerformance={loadData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/works" element={<WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={loadData} currentUser={currentUser as SystemUser} />} />
-                <Route path="/reports" element={<AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/followup" element={<StudentFollowUp students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={loadData} onImportAttendance={loadData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
                 <Route path="/bank" element={<QuestionBank currentUser={currentUser as SystemUser} />} />
                 <Route path="/games" element={<GamesBuilder currentUser={currentUser as SystemUser} />} />
                 <Route path="/library" element={<SharedLibrary currentUser={currentUser as SystemUser} />} />
+                <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
+                <Route path="/lab" element={<LearningLab students={students} currentUserId={(currentUser as SystemUser).id} />} />
+                <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/inbox" element={<TeacherInbox currentUser={currentUser as SystemUser} />} />
+                <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
+                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadData} />} />
+                <Route path="/badges" element={<SmartBadges students={students} />} />
+                <Route path="/interventions" element={<InterventionLog students={students} incidents={getBehaviorIncidents()} currentUser={currentUser as SystemUser} />} />
+                <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
+                <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
             </Routes>
         </TeacherPortal>
     );
