@@ -5,7 +5,7 @@ import {
     fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
     addPerformance, deletePerformance, getUserTheme,
     addStudent, updateStudent, deleteStudent, downloadFromSupabase,
-    getTeachers, getLessonPlans
+    getTeachers, getLessonPlans, getBehaviorIncidents
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme, StoredLessonPlan } from './types';
 
@@ -51,6 +51,9 @@ import SchoolWall from './components/SchoolWall';
 import SharedLibrary from './components/SharedLibrary';
 import CertificatesCenter from './components/CertificatesCenter';
 import TeacherStats from './components/TeacherStats';
+import StudentClubs from './components/StudentClubs';
+import MeetingScheduler from './components/MeetingScheduler';
+import InterventionLog from './components/InterventionLog';
 import { RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -124,6 +127,9 @@ const App: React.FC = () => {
                 <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
                 <Route path="/library" element={<SharedLibrary currentUser={currentUser as SystemUser} />} />
                 <Route path="/portfolio" element={<TeacherStats students={students} attendance={attendance} performance={performance} plans={lessonPlans} />} />
+                <Route path="/clubs" element={<StudentClubs students={students} currentUser={currentUser as SystemUser} />} />
+                <Route path="/meetings" element={<MeetingScheduler currentUser={currentUser as SystemUser} isTeacherView={true} />} />
+                <Route path="/interventions" element={<InterventionLog students={students} incidents={getBehaviorIncidents()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={async (s) => { await addStudent(s); refreshCloudData(); }} onUpdateStudent={async (s) => { await updateStudent(s); refreshCloudData(); }} onDeleteStudent={async (id) => { await deleteStudent(id); refreshCloudData(); }} onImportStudents={() => refreshCloudData()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={async (recs) => { await saveAttendance(recs); refreshCloudData(); }} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />

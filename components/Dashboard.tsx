@@ -4,7 +4,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, A
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus, BehaviorIncident, Exam } from '../types';
 import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts } from '../services/analysisService';
 import { 
-    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles, Swords, Layout, ShieldAlert, Target, Users, Mic, BrainCircuit
+    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles, Swords, Layout, ShieldAlert, Target, Users, Mic, BrainCircuit, CalendarCheck, Sparkle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSchedules, saveAttendance, saveBehaviorIncident, getExams } from '../services/storageService';
@@ -113,8 +113,8 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                               <button onClick={() => setIsBattleOpen(true)} className="bg-yellow-400 text-slate-900 px-8 py-3 rounded-2xl font-black text-sm shadow-xl flex items-center gap-2 hover:scale-105 active:scale-95 transition-all">
                                 <Swords size={18}/> بدء معركة العلم
                               </button>
-                              <button onClick={() => navigate('/lab')} className="bg-white/10 text-white px-8 py-3 rounded-2xl font-black text-sm border border-white/20 hover:bg-white/20 transition-all flex items-center gap-2">
-                                <BrainCircuit size={18}/> مختبر VARK
+                              <button onClick={() => navigate('/clubs')} className="bg-white/10 text-white px-8 py-3 rounded-2xl font-black text-sm border border-white/20 hover:bg-white/20 transition-all flex items-center gap-2">
+                                <Users size={18}/> الأندية الطلابية
                               </button>
                           </div>
                       </div>
@@ -126,9 +126,9 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <QuickAccessCard icon={<UserCheck/>} label="التحضير" color="bg-indigo-600" onClick={()=>navigate('/attendance')}/>
-                  <QuickAccessCard icon={<Trophy/>} label="الأبطال" color="bg-yellow-500" onClick={()=>navigate('/leaderboard')}/>
+                  <QuickAccessCard icon={<CalendarCheck/>} label="اللقاءات" color="bg-teal-500" onClick={()=>navigate('/meetings')}/>
                   <QuickAccessCard icon={<Layout/>} label="سجل الرصد" color="bg-emerald-600" onClick={()=>navigate('/works')}/>
-                  <QuickAccessCard icon={<ShieldAlert/>} label="السلوك" color="bg-rose-600" onClick={()=>navigate('/behavior')}/>
+                  <QuickAccessCard icon={<ShieldAlert/>} label="التدخلات" color="bg-rose-600" onClick={()=>navigate('/interventions')}/>
               </div>
 
               <DailyAgenda schedule={getSchedules().filter(s=>s.teacherId===currentUser?.id)} onAction={(cls)=>navigate('/attendance', {state:{className:cls}})} />
