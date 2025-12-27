@@ -7,7 +7,9 @@ import {
     RemedialPlan, Teacher, School, ExamResult, Question, CurriculumUnit, 
     CurriculumLesson, LessonLink, WeeklyPlanItem, TrackingSheet, Task, 
     PurchaseRequest, Reward, WeeklyChallenge, FormsDetailedResult, 
-    CustomTable, ParentRequest, EnvironmentRecord, StoredLessonPlan, WallPost
+    CustomTable, ParentRequest, EnvironmentRecord, StoredLessonPlan, WallPost,
+    // Fix: Added missing LearningStyle import from types
+    LearningStyle
 } from '../types';
 
 // Helper for local storage
@@ -336,7 +338,7 @@ export const saveLessonLink = (l: LessonLink) => {
     setLocal('lesson_links', [...all, l]);
 };
 export const deleteLessonLink = (id: string) => {
-    const all = getLocal('lesson_links');
+    const all = getLessonLinks();
     setLocal('lesson_links', all.filter((l: any) => l.id !== id));
 };
 
@@ -446,7 +448,7 @@ export const getWorksMasterUrl = () => localStorage.getItem('works_master_url') 
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem('works_master_url', url);
 export const getLessonPlans = (tid: string): StoredLessonPlan[] => getLocal('lesson_plans').filter((p: any) => p.teacherId === tid);
 export const saveLessonPlan = (p: StoredLessonPlan) => {
-    const all = getLocal('lesson_plans');
+    const all = getLessonPlans(p.teacherId);
     setLocal('lesson_plans', [...all.filter((x: any) => x.id !== p.id), p]);
 };
 export const deleteLessonPlan = (id: string) => {
@@ -512,4 +514,38 @@ export const saveParentRequest = async (req: ParentRequest) => {
 export const fetchParentRequests = async (tid: string) => {
     const { data } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
     return data || [];
+};
+
+// Environment Records
+// Fix: Added missing export getEnvironmentRecords
+export const getEnvironmentRecords = (classId?: string): EnvironmentRecord[] => {
+    const all = getLocal('env_records');
+    return classId ? all.filter((r: EnvironmentRecord) => r.classId === classId) : all;
+};
+
+// Fix: Added missing export saveEnvironmentRecord
+export const saveEnvironmentRecord = async (record: EnvironmentRecord) => {
+    const all = getLocal('env_records');
+    setLocal('env_records', [...all.filter((r: any) => r.id !== record.id), record]);
+    await supabase.from('environment_records').upsert({
+        id: record.id,
+        teacher_id: record.teacherId,
+        class_id: record.classId,
+        date: record.date,
+        lighting: record.lighting,
+        noise_level: record.noiseLevel,
+        mood: record.mood
+    });
+};
+
+// Update Learning Style
+// Fix: Added missing export updateStudentLearningStyle
+export const updateStudentLearningStyle = async (studentId: string, style: LearningStyle) => {
+    const all = getStudents();
+    const student = all.find(s => s.id === studentId);
+    if (student) {
+        student.learningStyle = style;
+        setLocal('students', all.map(s => s.id === studentId ? student : s));
+        await supabase.from('students').update({ learning_style: style }).eq('id', studentId);
+    }
 };
