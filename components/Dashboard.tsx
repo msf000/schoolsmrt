@@ -4,21 +4,24 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, PurchaseRequest } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, SystemUser, PurchaseRequest, ScheduleItem } from '../types';
 import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts, calculateClassHealth } from '../services/analysisService';
 import { 
     CheckCircle, Sparkles, Bot, Loader2, 
     Calendar, ClipboardList, 
     Trophy, Zap, PlusCircle, Search, Radio, Waves, Mic, Flame,
     Settings, Star, LayoutGrid, Users, Clock, ArrowRight, Bell,
-    Activity, AlertTriangle, TrendingUp, Siren
+    Activity, AlertTriangle, TrendingUp, Siren, MonitorPlay, CalendarDays,
+    /* Added missing Shield icon import */
+    Shield
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getBehaviorIncidents, getTeacherAssignments, getPurchaseRequests, getMessages } from '../services/storageService';
+import { getBehaviorIncidents, getTeacherAssignments, getPurchaseRequests, getMessages, getSchedules } from '../services/storageService';
 import LiveAssistant from './LiveAssistant';
 import ActivityWheel from './ActivityWheel';
 import NarrativeAIInsights from './NarrativeAIInsights';
 import OmniSearch from './OmniSearch';
+import DailyAgenda from './DailyAgenda';
 
 interface DashboardProps {
   students: Student[];
@@ -34,8 +37,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   const [isWheelOpen, setIsWheelOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState('');
   const [isOmniOpen, setIsOmniOpen] = useState(false);
-  const [pendingOrders, setPendingOrders] = useState<PurchaseRequest[]>([]);
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [teacherSchedule, setTeacherSchedule] = useState<ScheduleItem[]>([]);
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -46,10 +48,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   useEffect(() => {
     if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
     if (currentUser) {
-        setPendingOrders(getPurchaseRequests('global').filter(r => r.status === 'PENDING'));
-        const msgs = getMessages(currentUser.id).slice(0, 5).map(m => ({ ...m, type: 'MESSAGE' }));
-        const behaviors = getBehaviorIncidents(currentUser.id).slice(0, 5).map(b => ({ ...b, type: 'BEHAVIOR' }));
-        setRecentActivities([...msgs, ...behaviors].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5));
+        setTeacherSchedule(getSchedules().filter(s => s.teacherId === currentUser.id));
     }
   }, [uniqueClasses, currentUser]);
 
@@ -58,155 +57,122 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       health: selectedClass ? calculateClassHealth(selectedClass, students, attendance, performance) : 0,
       focusCount: getDailyFocusStudents(students, attendance, performance).length,
       alertCount: getUrgentAlerts(students, attendance, performance).length,
-      recentBehavior: recentActivities.filter(a => a.type === 'BEHAVIOR').length
-  }), [selectedClass, students, attendance, performance, recentActivities]);
+  }), [selectedClass, students, attendance, performance]);
 
   return (
     <div className="p-4 md:p-10 space-y-10 animate-fade-in bg-[#F8FAFC] pb-32 font-tajawal">
       
-      {/* Welcome & Search Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-           <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-[2rem] bg-indigo-600 flex items-center justify-center text-white text-3xl font-black shadow-2xl shadow-indigo-100">
-                    {currentUser?.name.charAt(0)}
+      {/* Teacher Command Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+           <div className="flex items-center gap-5">
+                <div className="relative">
+                    <div className="w-20 h-20 rounded-[2.5rem] bg-indigo-600 flex items-center justify-center text-white text-4xl font-black shadow-2xl shadow-indigo-200">
+                        {currentUser?.name.charAt(0)}
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 w-6 h-6 rounded-full border-4 border-white"></div>
                 </div>
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800">أهلاً بك، أ. {currentUser?.name.split(' ')[0]} 👋</h1>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-1 flex items-center gap-2">
-                        <Clock size={12}/> {new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
+                    <h1 className="text-3xl font-black text-slate-800">طاب يومك، أ. {currentUser?.name.split(' ')[0]} 🍎</h1>
+                    <div className="flex items-center gap-3 mt-2">
+                        <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-1">
+                            <Shield size={12}/> معلم معتمد
+                        </span>
+                        <p className="text-slate-400 font-bold text-xs flex items-center gap-2">
+                            <CalendarDays size={14}/> {new Date().toLocaleDateString('ar-SA', { day: 'numeric', month: 'long' })}
+                        </p>
+                    </div>
                 </div>
            </div>
-           <button 
-                onClick={() => setIsOmniOpen(true)}
-                className="w-full md:w-80 flex items-center gap-3 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 text-slate-400 hover:border-indigo-300 transition-all group"
-            >
-                <Search size={20} className="group-hover:text-indigo-500 transition-colors"/>
-                <span className="text-sm font-bold">البحث الشامل... (Ctrl+K)</span>
-            </button>
+           
+           <div className="flex items-center gap-3 w-full lg:w-auto">
+               <button 
+                    onClick={() => setIsOmniOpen(true)}
+                    className="flex-1 lg:w-80 flex items-center gap-3 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/20 text-slate-400 hover:border-indigo-300 transition-all group"
+                >
+                    <Search size={20} className="group-hover:text-indigo-500 transition-colors"/>
+                    <span className="text-sm font-bold">البحث والتحكم السريع...</span>
+                </button>
+                <button onClick={() => navigate('/inbox')} className="p-4 bg-white rounded-full border border-slate-100 shadow-xl relative text-slate-600 hover:text-indigo-600 transition-all">
+                    <Bell size={24}/>
+                    <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-bounce"></span>
+                </button>
+           </div>
       </div>
 
-      {/* Hero AI Insight Section */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          <div className="xl:col-span-2">
+          {/* Main Command Center Widgets */}
+          <div className="xl:col-span-2 space-y-8">
+              {/* Daily Agenda - Critical for Teacher */}
+              <DailyAgenda schedule={teacherSchedule} onAction={(cls) => navigate('/attendance', { state: { className: cls } })} />
+              
+              {/* AI Insight Story */}
               <NarrativeAIInsights stats={dashboardStats} />
-          </div>
-          <div className="bg-white p-8 rounded-[3.5rem] border border-slate-50 shadow-xl shadow-slate-200/20 flex flex-col justify-between group hover:border-indigo-100 transition-all relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Siren size={150}/></div>
-              <div className="flex justify-between items-start mb-6">
-                  <div className="p-4 bg-orange-50 text-orange-600 rounded-[1.5rem]"><Flame size={28} fill="currentColor"/></div>
-                  <div className="text-right">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">نقاط تفاعل الفصل</p>
-                      <h3 className="text-3xl font-black text-slate-800">1,240 <span className="text-xs text-orange-500">XP</span></h3>
-                  </div>
+
+              {/* Advanced Actions Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <CommandCard icon={<CheckCircle/>} label="تحضير الفصل" sub="رصد الحضور" onClick={()=>navigate('/attendance')} color="bg-indigo-600"/>
+                  <CommandCard icon={<Trophy/>} label="لوحة الأبطال" sub="التنافسية" onClick={()=>navigate('/leaderboard')} color="bg-yellow-500"/>
+                  <CommandCard icon={<MonitorPlay/>} label="بدء الحصة" sub="شاشة العرض" onClick={()=>navigate('/screen')} color="bg-purple-600"/>
+                  <CommandCard icon={<PlusCircle/>} label="رصد درجات" sub="تقييم سريع" onClick={()=>navigate('/works')} color="bg-emerald-600"/>
               </div>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-6">
-                  <TrendingUp size={16} className="text-emerald-500"/>
-                  <span>ارتفاع بنسبة 12% عن الأسبوع الماضي</span>
-              </div>
-              <button onClick={()=>navigate('/leaderboard')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs shadow-xl hover:bg-black transition-all flex items-center justify-center gap-2">
-                  <Trophy size={16}/> لوحة الصدارة العامة
-              </button>
-          </div>
-      </div>
-
-      {/* Main Grid Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-          <QuickActionBtn icon={<CheckCircle/>} label="تحضير" onClick={()=>navigate('/attendance')} color="bg-indigo-600 shadow-indigo-100"/>
-          <QuickActionBtn icon={<PlusCircle/>} label="درجة" onClick={()=>navigate('/performance')} color="bg-emerald-600 shadow-emerald-100"/>
-          <QuickActionBtn icon={<Radio/>} label="القرعة" onClick={()=>setIsWheelOpen(true)} color="bg-orange-500 shadow-orange-100"/>
-          <QuickActionBtn icon={<Sparkles/>} label="الأوسمة" onClick={()=>navigate('/badges')} color="bg-purple-600 shadow-purple-100"/>
-          <QuickActionBtn icon={<Mic/>} label="مساعد" onClick={()=>setIsAssistantOpen(true)} color="bg-red-600 shadow-red-100"/>
-          <QuickActionBtn icon={<ClipboardList/>} label="سجل نور" onClick={()=>navigate('/noor')} color="bg-blue-600 shadow-blue-100"/>
-          <QuickActionBtn icon={<Waves/>} label="النبض" onClick={()=>navigate('/analytics')} color="bg-cyan-600 shadow-cyan-100"/>
-          <QuickActionBtn icon={<Settings/>} label="إعدادات" onClick={()=>navigate('/school-mgmt')} color="bg-slate-800 shadow-slate-200"/>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
-          {/* Main Chart Card */}
-          <div className="xl:col-span-2 bg-white rounded-[4rem] p-10 border border-slate-50 shadow-2xl shadow-slate-200/30 flex flex-col min-h-[450px]">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
-                    <div>
-                        <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-                            <Activity size={24} className="text-indigo-600"/> نبض التفاعل
-                        </h3>
-                        <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest">تتبع متوسط الأداء والحضور خلال الأسبوع</p>
-                    </div>
-                    <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100">
-                        <Users size={16} className="text-slate-400 mr-2"/>
-                        <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="bg-transparent font-black text-xs outline-none min-w-[120px] text-slate-700">
-                            {uniqueClasses.map(c=><option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                </div>
-                <div className="flex-1">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={pulseData}>
-                            <defs>
-                                <linearGradient id="colorPart" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient>
-                                <linearGradient id="colorGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                            <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'black', fill: '#94A3B8'}} axisLine={false} tickLine={false} />
-                            <YAxis hide domain={[0, 100]} />
-                            <Tooltip contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} />
-                            <Area type="monotone" dataKey="participation" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorPart)" />
-                            <Area type="monotone" dataKey="grades" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorGrad)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-                <div className="mt-8 flex justify-center gap-10">
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-indigo-500 shadow-lg shadow-indigo-200"></div>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">المشاركة الصفية</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-lg shadow-emerald-200"></div>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">متوسط الدرجات</span>
-                    </div>
-                </div>
           </div>
 
-          {/* Side Focus Card */}
-          <div className="flex flex-col gap-8">
-              <div className="bg-slate-900 rounded-[3.5rem] p-8 text-white flex flex-col justify-between relative overflow-hidden shadow-2xl min-h-[250px] group">
+          {/* Teacher Stats & Focus */}
+          <div className="space-y-8">
+              <div className="bg-slate-900 rounded-[3.5rem] p-8 text-white relative overflow-hidden shadow-2xl group min-h-[400px]">
                   <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none group-hover:scale-110 transition-transform duration-700"><Bot size={200}/></div>
                   <div className="relative z-10">
                       <div className="bg-white/10 w-fit p-3 rounded-2xl mb-4 backdrop-blur-md border border-white/10"><Zap className="text-yellow-400" fill="currentColor"/></div>
-                      <h3 className="text-2xl font-black mb-2">طلاب للمتابعة</h3>
-                      <p className="text-indigo-200 text-sm font-bold leading-relaxed mb-6">النظام رصد تراجعاً في تفاعل طلاب معينين.</p>
+                      <h3 className="text-2xl font-black mb-1">طلاب تحت الرصد</h3>
+                      <p className="text-indigo-200 text-xs font-bold leading-relaxed mb-8 opacity-60 uppercase tracking-widest">تنبيهات التدخل المبكر (AI)</p>
                   </div>
-                  <div className="space-y-3 relative z-10">
+                  <div className="space-y-4 relative z-10">
                       {getDailyFocusStudents(students, attendance, performance).map(s => (
                           <div key={s!.student.id} onClick={()=>navigate('/followup', {state:{studentId: s!.student.id}})} className="flex justify-between items-center bg-white/5 hover:bg-white/10 p-4 rounded-2xl border border-white/5 cursor-pointer transition-all">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-xs shadow-lg">{s!.student.name.charAt(0)}</div>
-                                  <span className="text-xs font-black">{s!.student.name.split(' ')[0]}</span>
+                              <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-sm shadow-lg">{s!.student.name.charAt(0)}</div>
+                                  <div>
+                                      <p className="text-sm font-black">{s!.student.name}</p>
+                                      <p className="text-[10px] text-indigo-300 font-bold">{s!.student.className}</p>
+                                  </div>
                               </div>
                               <ArrowRight size={14} className="text-white/40"/>
                           </div>
                       ))}
                       {getDailyFocusStudents(students, attendance, performance).length === 0 && (
-                          <div className="py-4 text-center opacity-40 font-bold text-xs italic">لا توجد حالات طارئة</div>
+                          <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+                              <CheckCircle size={48} className="text-emerald-500"/>
+                              <p className="text-sm font-black">جميع الطلاب مستقرون أكاديمياً</p>
+                          </div>
                       )}
                   </div>
+                  <button onClick={()=>navigate('/reports')} className="w-full mt-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest border border-white/10 transition-all relative z-10">تحليل التعثر الشامل</button>
               </div>
 
-              <div className="bg-white p-8 rounded-[3.5rem] border border-slate-50 shadow-xl flex flex-col justify-between flex-1 relative overflow-hidden">
-                  <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2"><Bell className="text-indigo-600" size={20}/> تنبيهات ذكية</h3>
-                  <div className="space-y-4">
-                      {getUrgentAlerts(students, attendance, performance).map((alert, i) => (
-                          <div key={i} className="flex gap-4 p-4 bg-red-50/50 rounded-2xl border border-red-50">
-                              <div className="p-2 bg-white rounded-xl shadow-sm text-red-500"><AlertTriangle size={18}/></div>
-                              <p className="text-xs text-red-900 font-bold leading-relaxed">{alert}</p>
-                          </div>
-                      ))}
-                      {getUrgentAlerts(students, attendance, performance).length === 0 && (
-                          <div className="py-10 text-center opacity-30 flex flex-col items-center gap-3">
-                              <CheckCircle size={48} className="text-emerald-500"/>
-                              <p className="text-xs font-black uppercase tracking-widest">كافة الأمور مستقرة</p>
-                          </div>
-                      )}
+              {/* Class Pulse Chart */}
+              <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl">
+                  <div className="flex justify-between items-center mb-8">
+                      <h3 className="text-xl font-black text-slate-800">نبض الأداء</h3>
+                      <div className="p-2 bg-slate-50 rounded-xl"><Activity size={18} className="text-indigo-600"/></div>
+                  </div>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={pulseData}>
+                            <defs>
+                                <linearGradient id="colorPart" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                            <XAxis dataKey="name" hide />
+                            <YAxis hide domain={[0, 100]} />
+                            <Tooltip contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                            <Area type="monotone" dataKey="participation" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorPart)" />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-4 flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                      <span>السبت</span>
+                      <span className="text-indigo-600">متوسط تفاعل الفصل: 88%</span>
+                      <span>الجمعة</span>
                   </div>
               </div>
           </div>
@@ -219,12 +185,15 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   );
 };
 
-const QuickActionBtn = ({ icon, label, onClick, color }: any) => (
-    <button onClick={onClick} className="flex flex-col items-center gap-3 group">
-        <div className={`w-16 h-16 md:w-20 md:h-20 rounded-[2rem] md:rounded-[2.5rem] ${color} text-white flex items-center justify-center shadow-2xl group-hover:scale-110 active:scale-95 transition-all duration-300`}>
-            {React.cloneElement(icon, { size: 28, strokeWidth: 2.5 })}
+const CommandCard = ({ icon, label, sub, onClick, color }: any) => (
+    <button onClick={onClick} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:border-indigo-400 hover:shadow-xl transition-all group text-right flex flex-col gap-4">
+        <div className={`w-12 h-12 rounded-2xl ${color} text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
+            {React.cloneElement(icon, { size: 24 })}
         </div>
-        <span className="text-[10px] font-black text-slate-500 text-center uppercase tracking-tighter transition-colors group-hover:text-indigo-600">{label}</span>
+        <div>
+            <h4 className="font-black text-slate-800 text-sm">{label}</h4>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{sub}</p>
+        </div>
     </button>
 );
 

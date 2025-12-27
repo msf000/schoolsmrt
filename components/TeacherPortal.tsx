@@ -6,7 +6,7 @@ import {
   BarChart2, Settings, LogOut, Menu, X, 
   CalendarDays, Trophy, BookOpen, 
   Sparkles, BrainCircuit, ShieldCheck, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Zap, ShoppingBag, ClipboardList,
-  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield
+  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield, Camera, Plus, ScanLine
 } from 'lucide-react';
 import { SystemUser } from '../types';
 import BottomNavigation from './BottomNavigation';
@@ -38,6 +38,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isFloatingMenuOpen, setIsFloatingMenuOpen] = useState(false);
     const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
 
     return (
@@ -144,6 +145,23 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
                 </main>
 
                 <BottomNavigation role={currentUser.role} onMenuClick={() => setIsMobileMenuOpen(true)} />
+                
+                {/* Floating Quick Action Menu */}
+                <div className="fixed bottom-24 right-6 lg:bottom-10 lg:right-10 z-[100] flex flex-col items-end gap-3">
+                    {isFloatingMenuOpen && (
+                        <div className="flex flex-col gap-3 mb-3 animate-slide-up">
+                            <QuickActionBtn icon={<Plus/>} label="طالب" onClick={()=>navigate('/students')} color="bg-emerald-500"/>
+                            <QuickActionBtn icon={<Camera/>} label="رصد AI" onClick={()=>navigate('/attendance')} color="bg-purple-600"/>
+                            <QuickActionBtn icon={<ScanLine/>} label="تصحيح" onClick={()=>navigate('/exams')} color="bg-indigo-600"/>
+                        </div>
+                    )}
+                    <button 
+                        onClick={() => setIsFloatingMenuOpen(!isFloatingMenuOpen)}
+                        className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-500 ${isFloatingMenuOpen ? 'bg-red-500 rotate-[135deg]' : 'bg-indigo-600 shadow-indigo-200'}`}
+                    >
+                        <Plus size={32}/>
+                    </button>
+                </div>
             </div>
 
             {/* Mobile Sidebar Overlay */}
@@ -180,5 +198,14 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, ch
         </div>
     );
 };
+
+const QuickActionBtn = ({ icon, label, onClick, color }: any) => (
+    <div className="flex items-center gap-3 group cursor-pointer" onClick={onClick}>
+        <span className="bg-white/90 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-black text-slate-800 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{label}</span>
+        <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl ${color} text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform`}>
+            {icon}
+        </div>
+    </div>
+);
 
 export default TeacherPortal;

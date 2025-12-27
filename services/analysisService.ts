@@ -67,17 +67,6 @@ export const getUrgentAlerts = (students: Student[], attendance: AttendanceRecor
     
     dangerAbsence.forEach(x => alerts.push(`الطالب ${x.student.name.split(' ')[0]} غاب ${x.count} أيام متتالية.`));
 
-    const lowPerf = students.map(s => {
-        const sPerf = performance.filter(p => p.studentId === s.id).slice(-3);
-        if (sPerf.length < 2) return null;
-        const avg = sPerf.reduce((a,b)=>a+(b.score/(b.maxScore||1)),0)/sPerf.length;
-        return avg < 0.6 ? s : null;
-    }).filter(x => x !== null).slice(0, 1);
-
-    if (lowPerf.length > 0) {
-        alerts.push(`انخفاض ملحوظ في مستوى ${lowPerf[0]!.name.split(' ')[0]} أكاديمياً.`);
-    }
-
     return alerts;
 };
 
@@ -96,12 +85,24 @@ export const detectAtRiskStudents = (students: Student[], attendance: Attendance
 
 export const getDailyFocusStudents = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
     return students.map(s => {
+        const sPerf = performance.filter(p => p.studentId === s.id).sort((a,b) => b.date.localeCompare(a.date));
         const sAtt = attendance.filter(a => a.studentId === s.id).slice(-5);
+        
         let priority = 0;
+        
+        // 1. تراجع في آخر درجة
+        if (sPerf.length >= 2) {
+            const last = sPerf[0].score / sPerf[0].maxScore;
+            const prev = sPerf[1].score / sPerf[1].maxScore;
+            if (last < prev - 0.2) priority += 5; // هبوط حاد
+        }
+        
+        // 2. غياب متكرر مؤخراً
         const recentAbsences = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
         if (recentAbsences >= 2) priority += 3;
+        
         return priority > 0 ? { student: s, priority } : null;
-    }).filter(x => x !== null).sort((a, b) => b!.priority - a!.priority).slice(0, 3);
+    }).filter(x => x !== null).sort((a, b) => b!.priority - a!.priority).slice(0, 4);
 };
 
 export const generateVarkBalancedGroups = (students: Student[], groupSize: number): Student[][] => {
