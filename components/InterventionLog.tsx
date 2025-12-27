@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Student, BehaviorIncident, SystemUser } from '../types';
-import { ShieldAlert, FileText, CheckCircle, Clock, Info, User, Plus, X, Search, Sparkles, TrendingUp, Trash2 } from 'lucide-react';
+import { ShieldAlert, FileText, CheckCircle, Clock, Info, User, Plus, X, Search, Sparkles, TrendingUp, Trash2, History } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 interface Props {
