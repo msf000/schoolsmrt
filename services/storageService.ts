@@ -75,45 +75,229 @@ export const getCloudSystemStatus = async () => {
 };
 
 export const getDatabaseSchemaSQL = () => `
--- كود ترقية وإصلاح قاعدة البيانات (إضافة الأعمدة المفقودة تلقائياً)
+-- السكربت الشامل لإعداد قاعدة بيانات نظام المتابع الذكي v2.5
+-- اذهب إلى SQL Editor في Supabase والصق الكود بالكامل ثم Run
 
--- 1. جدول روابط المصادر التعليمية
-CREATE TABLE IF NOT EXISTS lesson_links (
+-- 1. الجداول الأساسية (Core)
+CREATE TABLE IF NOT EXISTS schools (
     id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    url TEXT NOT NULL,
-    teacher_id TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    name TEXT NOT NULL,
+    ministry_code TEXT UNIQUE,
+    manager_name TEXT,
+    manager_national_id TEXT,
+    type TEXT,
+    phone TEXT,
+    student_count INTEGER DEFAULT 0,
+    education_administration TEXT
 );
-ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS grade_level TEXT;
-ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS class_name TEXT;
 
--- 2. جدول السجلات المرنة
-CREATE TABLE IF NOT EXISTS tracking_sheets (
+CREATE TABLE IF NOT EXISTS system_users (
     id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    subject TEXT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    national_id TEXT UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL, -- 'SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER', 'PARENT'
+    school_id TEXT REFERENCES schools(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'ACTIVE',
+    phone TEXT,
+    subject_specialty TEXT,
+    subscription_status TEXT DEFAULT 'FREE'
+);
+
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT UNIQUE,
+    class_id TEXT,
+    school_id TEXT REFERENCES schools(id) ON DELETE SET NULL,
+    grade_level TEXT,
     class_name TEXT,
-    teacher_id TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    columns JSONB DEFAULT '[]',
-    scores JSONB DEFAULT '{}'
+    email TEXT,
+    phone TEXT,
+    parent_name TEXT,
+    parent_phone TEXT,
+    parent_email TEXT,
+    password TEXT DEFAULT '123456',
+    xp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 1,
+    behavior_points INTEGER DEFAULT 0,
+    streak INTEGER DEFAULT 0,
+    learning_style TEXT,
+    badges JSONB DEFAULT '[]',
+    purchased_rewards JSONB DEFAULT '[]',
+    created_by_id TEXT REFERENCES system_users(id) ON DELETE SET NULL,
+    seat_index INTEGER
 );
 
--- 3. جدول الخطط الأسبوعية
-CREATE TABLE IF NOT EXISTS weekly_plans (
+-- 2. جداول المتابعة (Tracking)
+CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
-    teacher_id TEXT,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    status TEXT NOT NULL, -- 'PRESENT', 'ABSENT', 'LATE', 'EXCUSED'
+    subject TEXT,
+    period INTEGER,
+    created_by_id TEXT REFERENCES system_users(id),
+    behavior_status TEXT,
+    behavior_note TEXT,
+    participation_score INTEGER DEFAULT 0,
+    excuse_note TEXT
+);
+
+CREATE TABLE IF NOT EXISTS performance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    subject TEXT,
+    title TEXT,
+    score NUMERIC,
+    max_score NUMERIC,
+    date DATE,
+    created_by_id TEXT REFERENCES system_users(id),
+    category TEXT, -- 'HOMEWORK', 'ACTIVITY', 'EXAM'
+    notes TEXT,
+    url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS behavior_incidents (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    teacher_id TEXT REFERENCES system_users(id),
+    type TEXT, -- 'POSITIVE', 'NEGATIVE'
+    category TEXT,
+    points INTEGER,
+    date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    note TEXT,
+    action_taken TEXT
+);
+
+-- 3. جداول التخطيط والمحتوى (Planning & Content)
+CREATE TABLE IF NOT EXISTS subjects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
     class_id TEXT,
     subject_name TEXT,
-    day TEXT,
+    day TEXT, -- 'Sunday', 'Monday', etc.
     period INTEGER,
-    week_start_date DATE,
-    lesson_topic TEXT,
-    homework TEXT
+    teacher_id TEXT REFERENCES system_users(id) ON DELETE CASCADE
 );
 
--- 4. جدول التحديات الأسبوعية
+CREATE TABLE IF NOT EXISTS academic_terms (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    is_current BOOLEAN DEFAULT FALSE,
+    teacher_id TEXT REFERENCES system_users(id),
+    periods JSONB DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS lesson_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    lesson_id TEXT,
+    subject TEXT,
+    topic TEXT,
+    content_json JSONB,
+    resources JSONB DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_units (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    subject TEXT,
+    grade_level TEXT,
+    title TEXT NOT NULL,
+    order_index INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS curriculum_lessons (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT REFERENCES curriculum_units(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    order_index INTEGER,
+    is_completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 4. جداول الاختبارات والمهام (Assessment)
+CREATE TABLE IF NOT EXISTS tasks (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    class_id TEXT,
+    subject TEXT,
+    title TEXT,
+    description TEXT,
+    due_date DATE,
+    type TEXT,
+    max_score NUMERIC,
+    submissions JSONB DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT,
+    max_score NUMERIC DEFAULT 10,
+    is_visible BOOLEAN DEFAULT TRUE,
+    teacher_id TEXT REFERENCES system_users(id),
+    term_id TEXT REFERENCES academic_terms(id) ON DELETE SET NULL,
+    period_id TEXT,
+    sort_order INTEGER DEFAULT 0,
+    url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    title TEXT NOT NULL,
+    subject TEXT,
+    grade_level TEXT,
+    duration_minutes INTEGER DEFAULT 30,
+    questions JSONB DEFAULT '[]',
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS exam_results (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT REFERENCES exams(id) ON DELETE CASCADE,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    score NUMERIC,
+    total_score NUMERIC,
+    answers JSONB DEFAULT '[]',
+    date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. جداول التفاعل والمتجر (Engagement)
+CREATE TABLE IF NOT EXISTS rewards (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    title TEXT NOT NULL,
+    cost INTEGER NOT NULL,
+    icon TEXT,
+    description TEXT,
+    category TEXT -- 'ITEM', 'PRIVILEGE'
+);
+
+CREATE TABLE IF NOT EXISTS purchase_requests (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id),
+    student_name TEXT,
+    reward_id TEXT REFERENCES rewards(id),
+    reward_title TEXT,
+    cost INTEGER,
+    status TEXT DEFAULT 'PENDING',
+    date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    teacher_id TEXT REFERENCES system_users(id)
+);
+
 CREATE TABLE IF NOT EXISTS weekly_challenges (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -126,25 +310,76 @@ CREATE TABLE IF NOT EXISTS weekly_challenges (
     type TEXT
 );
 
--- 5. جدول الرسائل والتنبيهات
+-- 6. جداول البيانات والتواصل (Data & Messaging)
+CREATE TABLE IF NOT EXISTS custom_tables (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    columns JSONB DEFAULT '[]',
+    rows JSONB DEFAULT '[]',
+    source_url TEXT,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    teacher_id TEXT REFERENCES system_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tracking_sheets (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    subject TEXT,
+    class_name TEXT,
+    teacher_id TEXT REFERENCES system_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    columns JSONB DEFAULT '[]',
+    scores JSONB DEFAULT '{}'
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
-    student_id TEXT,
+    student_id TEXT REFERENCES students(id),
     student_name TEXT,
     parent_phone TEXT,
     type TEXT,
     content TEXT,
-    status TEXT,
+    status TEXT DEFAULT 'SENT',
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     sent_by TEXT,
-    teacher_id TEXT
+    teacher_id TEXT REFERENCES system_users(id)
 );
 
--- 6. ترقيات الجداول الأساسية لضمان وجود حقول التميز والألعاب
-ALTER TABLE students ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS behavior_points INTEGER DEFAULT 0;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS streak INTEGER DEFAULT 0;
+CREATE TABLE IF NOT EXISTS environment_records (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    class_id TEXT,
+    date DATE DEFAULT CURRENT_DATE,
+    lighting INTEGER,
+    noise_level INTEGER,
+    mood TEXT,
+    notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lesson_links (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    teacher_id TEXT REFERENCES system_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    grade_level TEXT,
+    class_name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS weekly_plans (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    class_id TEXT,
+    subject_name TEXT,
+    day TEXT,
+    period INTEGER,
+    week_start_date DATE,
+    lesson_topic TEXT,
+    homework TEXT
+);
+
+-- 7. ترقيات الأعمدة (لضمان عمل التحديثات الجديدة)
 ALTER TABLE students ADD COLUMN IF NOT EXISTS seat_index INTEGER;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS learning_style TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS badges JSONB DEFAULT '[]';
@@ -155,34 +390,11 @@ ALTER TABLE attendance ADD COLUMN IF NOT EXISTS behavior_note TEXT;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS participation_score INTEGER DEFAULT 0;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS excuse_note TEXT;
 
+ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS grade_level TEXT;
+ALTER TABLE lesson_links ADD COLUMN IF NOT EXISTS class_name TEXT;
+
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subject_specialty TEXT;
 ALTER TABLE system_users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'FREE';
-
--- 7. جداول إضافية (أعذار، مهام، اختبارات)
-CREATE TABLE IF NOT EXISTS behavior_incidents (
-    id TEXT PRIMARY KEY,
-    student_id TEXT,
-    teacher_id TEXT,
-    type TEXT,
-    category TEXT,
-    points INTEGER,
-    date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    note TEXT,
-    action_taken TEXT
-);
-
-CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT,
-    class_id TEXT,
-    subject TEXT,
-    title TEXT,
-    description TEXT,
-    due_date DATE,
-    type TEXT,
-    max_score NUMERIC,
-    submissions JSONB DEFAULT '[]'
-);
 `;
 
 export const exportToWord = (elementId: string, filename: string = 'report.doc') => {
@@ -342,9 +554,28 @@ export const saveReportHeaderConfig = (c: ReportHeaderConfig) => localStorage.se
 
 export const getSchedules = (): ScheduleItem[] => JSON.parse(localStorage.getItem('local_schedules') || '[]');
 
-export const saveScheduleItem = (s: ScheduleItem) => { const cur = getSchedules(); localStorage.setItem('local_schedules', JSON.stringify([...cur, s])); };
+export const fetchSchedules = async (tid?: string): Promise<ScheduleItem[]> => {
+    try {
+        let query = supabase.from('schedules').select('*');
+        if (tid) query = query.eq('teacher_id', tid);
+        const { data } = await query;
+        const mapped = (data || []).map((d: any) => ({ ...d, classId: d.class_id, subjectName: d.subject_name, teacherId: d.teacher_id })) as ScheduleItem[];
+        localStorage.setItem('local_schedules', JSON.stringify(mapped));
+        return mapped;
+    } catch { return getSchedules(); }
+};
 
-export const deleteScheduleItem = (id: string) => { const cur = getSchedules(); localStorage.setItem('local_schedules', JSON.stringify(cur.filter(s => s.id !== id))); };
+export const saveScheduleItem = async (s: ScheduleItem) => {
+    const cur = getSchedules();
+    localStorage.setItem('local_schedules', JSON.stringify([...cur.filter(x => x.id !== s.id), s]));
+    await supabase.from('schedules').upsert({ id: s.id, class_id: s.classId, subject_name: s.subjectName, day: s.day, period: s.period, teacher_id: s.teacherId });
+};
+
+export const deleteScheduleItem = async (id: string) => {
+    const cur = getSchedules();
+    localStorage.setItem('local_schedules', JSON.stringify(cur.filter(s => s.id !== id)));
+    await supabase.from('schedules').delete().eq('id', id);
+};
 
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => JSON.parse(localStorage.getItem(`local_assignments_map_${tid || 'global'}`) || '[]');
 
@@ -558,7 +789,7 @@ export const saveReward = async (r: Reward, tid: string) => {
 };
 export const deleteReward = async (id: string, tid: string) => {
     const cur = getRewards(tid);
-    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify(cur.filter(r => r.id !== id)));
+    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify(cur.filter((r: Reward) => r.id !== id)));
     await supabase.from('rewards').delete().eq('id', id);
 };
 
@@ -585,7 +816,7 @@ export const saveQuestionToBank = async (q: Question) => {
 export const deleteQuestionFromBank = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_questions_'));
     keys.forEach(k => {
-        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur: Question[] = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((q: Question) => q.id !== id)));
     });
 };
@@ -667,7 +898,7 @@ export const deleteCurriculumLesson = async (id: string) => {
     await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => {
-    const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
+    const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     const updated = all.map((l: CurriculumLesson) => l.id === id ? { ...l, isCompleted: completed, completedAt: completed ? new Date().toISOString() : null } : l);
     localStorage.setItem('local_curriculum_lessons', JSON.stringify(updated));
     await supabase.from('curriculum_lessons').update({ is_completed: completed, completed_at: completed ? new Date().toISOString() : null }).eq('id', id);
@@ -690,6 +921,7 @@ export const downloadFromSupabase = async (tid?: string) => {
     await Promise.all([
         fetchStudents(), fetchAttendance(tid), fetchPerformance(tid), fetchSchools(), fetchSystemUsers(), fetchTeachers(),
         fetchAcademicTerms(tid), fetchAssignments(tid), fetchTrackingSheets(tid), fetchWeeklyPlans(tid),
-        fetchLessonLinks(tid), fetchChallenges(tid), fetchMessages(tid), fetchBehaviorIncidents(tid)
+        fetchLessonLinks(tid), fetchChallenges(tid), fetchMessages(tid), fetchBehaviorIncidents(tid),
+        fetchSchedules(tid)
     ]); 
 };
