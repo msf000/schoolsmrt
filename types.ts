@@ -58,6 +58,9 @@ export interface Student {
     purchasedRewards?: string[];
     auraColor?: string;
     activeTitle?: string;
+    seatIndex?: number;
+    learningStyle?: LearningStyle;
+    badges?: Badge[];
 }
 
 export interface AttendanceRecord {

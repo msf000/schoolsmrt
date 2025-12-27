@@ -36,12 +36,13 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     });
 
     useEffect(() => {
-        const terms = getAcademicTerms(currentUser?.id);
+        if (!currentUser) return;
+        const terms = getAcademicTerms(currentUser.id);
         const currentTerm = terms.find((t: AcademicTerm) => t.isCurrent);
         if (currentTerm) {
             setCustomText(`نظير جهوده المتميزة ومستواه الرائع خلال ${currentTerm.name}، متمنين له دوام التوفيق.`);
         }
-        setHeaderConfig(getReportHeaderConfig(currentUser?.id));
+        setHeaderConfig(getReportHeaderConfig(currentUser.id));
         
         if (location.state && (location.state as any).studentIds) {
             const ids = (location.state as any).studentIds as string[];
@@ -56,8 +57,10 @@ const CertificatesCenter: React.FC<CertificatesCenterProps> = ({ students, curre
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => { if (s.className) classes.add(s.className); });
-        const manualClasses = getTeacherAssignments(currentUser?.id).map((a: TeacherAssignment) => a.classId);
-        manualClasses.forEach((c: string) => classes.add(c));
+        if (currentUser) {
+            const manualClasses = getTeacherAssignments(currentUser.id).map((a: TeacherAssignment) => a.classId);
+            manualClasses.forEach((c: string) => classes.add(c));
+        }
         return Array.from(classes).sort();
     }, [students, currentUser]);
 

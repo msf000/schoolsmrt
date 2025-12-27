@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, AcademicTerm, SystemUser, TeacherAssignment } from '../types';
 import { getMessages, saveMessage, getAcademicTerms, getTeacherAssignments } from '../services/storageService';
@@ -10,7 +11,7 @@ interface MessageCenterProps {
     students: Student[];
     attendance: AttendanceRecord[];
     performance: PerformanceRecord[];
-    currentUser?: SystemUser | null; // Added
+    currentUser?: SystemUser | null;
 }
 
 const TEMPLATES = [
@@ -59,8 +60,9 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
     const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
 
     useEffect(() => {
-        setHistory(getMessages(currentUser?.id)); // Filter by current user
-        const loadedTerms = getAcademicTerms(currentUser?.id);
+        if (!currentUser) return;
+        setHistory(getMessages(currentUser.id)); 
+        const loadedTerms = getAcademicTerms(currentUser.id);
         setTerms(loadedTerms);
         const active = loadedTerms.find((t: AcademicTerm) => t.isCurrent) || (loadedTerms.length > 0 ? loadedTerms[0] : null);
         setCurrentTerm(active);
@@ -76,15 +78,16 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                 if (firstStudent) setSelectedClass(firstStudent.className || '');
             }
         }
-    }, [currentUser, location.state]);
+    }, [currentUser, location.state, students]);
 
     // Unique Classes
     const uniqueClasses = useMemo(() => {
         const classes = new Set<string>();
         students.forEach(s => s.className && classes.add(s.className));
-        // Add manual classes
-        const manualClasses = getTeacherAssignments(currentUser?.id).map((a: TeacherAssignment) => a.classId);
-        manualClasses.forEach((c: string) => classes.add(c));
+        if (currentUser) {
+            const manualClasses = getTeacherAssignments(currentUser.id).map((a: TeacherAssignment) => a.classId);
+            manualClasses.forEach((c: string) => classes.add(c));
+        }
         return Array.from(classes).sort();
     }, [students, currentUser]);
 
@@ -188,7 +191,6 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
             const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(finalMsg)}`;
             window.open(url, '_blank');
         }
-        // If PORTAL, it's already saved to log, which the student portal reads.
     };
 
     const toggleStudentSelection = (id: string) => {
