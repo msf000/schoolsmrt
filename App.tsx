@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord } from './types';
 import TeacherPortal from './components/TeacherPortal';
 import StudentPortal from './components/StudentPortal';
@@ -34,6 +34,7 @@ import PrincipalDashboard from './components/PrincipalDashboard';
 import TeacherProfile from './components/TeacherProfile';
 import TeacherAIConfig from './components/TeacherAIConfig';
 import TeacherSubscription from './components/TeacherSubscription';
+import CustomTablesView from './components/CustomTablesView';
 import { fetchStudents, fetchAttendance, fetchPerformance, getBehaviorIncidents, fetchTeachers } from './services/storageService';
 import Login from './components/Login';
 import ReloadPrompt from './components/ReloadPrompt';
@@ -54,14 +55,18 @@ const App: React.FC = () => {
     }, []);
 
     const loadData = async () => {
-        const stds = await fetchStudents();
-        const att = await fetchAttendance();
-        const perf = await fetchPerformance();
-        const tchs = await fetchTeachers();
-        setStudents(stds);
-        setAttendance(att);
-        setPerformance(perf);
-        setTeachers(tchs);
+        try {
+            const stds = await fetchStudents();
+            const att = await fetchAttendance();
+            const perf = await fetchPerformance();
+            const tchs = await fetchTeachers();
+            setStudents(stds || []);
+            setAttendance(att || []);
+            setPerformance(perf || []);
+            setTeachers(tchs || []);
+        } catch (e) {
+            console.error("Data Load Error:", e);
+        }
     };
 
     const handleLoginSuccess = (user: any) => {
@@ -78,6 +83,7 @@ const App: React.FC = () => {
 
     if (!currentUser) return <Login onLoginSuccess={handleLoginSuccess} />;
 
+    // مسارات المعلم والإدارة
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             <Routes>
@@ -102,14 +108,17 @@ const App: React.FC = () => {
                 <Route path="/interventions" element={<InterventionLog students={students} incidents={getBehaviorIncidents()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
+                <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser as SystemUser} />} />
                 
-                {/* Advanced Routes */}
+                {/* الإدارة المتقدمة */}
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/school-mgmt" element={<SchoolManagement students={students} onImportStudents={loadData} onImportPerformance={loadData} onImportAttendance={loadData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/principal" element={<PrincipalDashboard students={students} attendance={attendance} performance={performance} teachers={teachers} />} />
                 <Route path="/profile" element={<TeacherProfile currentUser={currentUser as SystemUser} />} />
                 <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
                 <Route path="/subscription" element={<TeacherSubscription currentUser={currentUser as SystemUser} />} />
+                
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </TeacherPortal>
     );
