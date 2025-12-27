@@ -43,6 +43,8 @@ import QuestionBank from './components/QuestionBank';
 import AutoGrading from './components/AutoGrading';
 import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import TeacherAIConfig from './components/TeacherAIConfig';
+import ScheduleView from './components/ScheduleView';
+import LessonPlanning from './components/LessonPlanning';
 import { RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -111,6 +113,7 @@ const App: React.FC = () => {
                 {/* الرئيسية والبريد */}
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(v: string) => navigate(v)} />} />
                 <Route path="/inbox" element={<TeacherInbox currentUser={currentUser as SystemUser} />} />
+                <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
                 <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
 
                 {/* المتابعة اليومية */}
@@ -134,6 +137,7 @@ const App: React.FC = () => {
                 <Route path="/forms" element={<FormsAnalyzer students={students} currentUserId={currentUser?.id || ''} />} />
                 <Route path="/lab" element={<LearningLab students={students} currentUserId={currentUser?.id || ''} />} />
                 <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser as SystemUser} />} />
+                <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
                 <Route path="/badges" element={<SmartBadges students={students} />} />
                 <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
 
