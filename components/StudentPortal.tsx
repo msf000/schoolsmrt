@@ -1,148 +1,78 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, Exam, Reward, PurchaseRequest } from '../types';
-import { downloadFromSupabase, getMessages, updateStudent, getRewards, getExams, savePurchaseRequest, getFormsDetailedResults } from '../services/storageService';
-import { 
-    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode, Swords, Activity, BookOpen, Clock, Newspaper, Map
-} from 'lucide-react';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { InteractiveGame, Student } from '../types';
+import GamePlayer from './GamePlayer';
+import { getGames } from '../services/storageService';
+import { Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, Bell } from 'lucide-react';
 import StudentJourney from './StudentJourney';
-import StudentQuestSystem from './StudentQuestSystem';
-import StudentAvatarGen from './StudentAvatarGen';
-import StudentAchievements from './StudentAchievements';
-import StudentShop from './StudentShop';
 import StudentEvaluationView from './StudentEvaluationView';
 import StudentMessages from './StudentMessages';
 import StudentAITutor from './StudentAITutor';
-import StudentQRScanner from './StudentQRScanner';
-import StudentLearningTest from './StudentLearningTest';
-import StudentQuizPlayer from './StudentQuizPlayer';
+import StudentAchievements from './StudentAchievements';
+import StudentQuestSystem from './StudentQuestSystem';
+import StudentShop from './StudentShop';
 import StudentDigitalID from './StudentDigitalID';
-import SmartStudyPlan from './SmartStudyPlan';
-import StudentAchievementTimeline from './StudentAchievementTimeline';
-import SchoolWall from './SchoolWall';
-import KnowledgeTree from './KnowledgeTree';
 
-const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[], onLogout: () => void }> = ({ currentUser: initialUser, attendance, performance, onLogout }) => {
-    const navigate = useNavigate();
-    const location = useLocation();
-    const [currentUser, setCurrentUser] = useState<Student>(initialUser);
-    const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
-    const [availableRewards, setAvailableRewards] = useState<Reward[]>([]);
+const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
+    const [selectedGame, setSelectedGame] = useState<InteractiveGame | null>(null);
+    const [availableGames, setAvailableGames] = useState<InteractiveGame[]>([]);
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'MSG' | 'SHOP' | 'ID'>('DASHBOARD');
 
     useEffect(() => {
-        if (currentUser.createdById) {
-            setAvailableRewards(getRewards(currentUser.createdById));
-        }
+        setAvailableGames(getGames().filter(g => g.targetClass === currentUser.className));
     }, [currentUser]);
 
-    const stats = useMemo(() => {
-        const myPerf = performance.filter(p => p.studentId === currentUser.id);
-        const xp = currentUser.xp || 0;
-        const avg = myPerf.length > 0 ? Math.round(myPerf.reduce((a,c)=>a+(c.score/c.maxScore),0)/myPerf.length*100) : 0;
-        return { xp, level: Math.floor(xp / 500) + 1, progress: ((xp % 500) / 500) * 100, avg };
-    }, [currentUser, performance]);
-
-    const handlePurchaseComplete = (updatedStudent: Student) => {
-        setCurrentUser(updatedStudent);
-        localStorage.setItem('current_user', JSON.stringify(updatedStudent));
-    };
-
     return (
-        <div className="flex h-screen bg-[#020617] overflow-hidden text-right font-tajawal" dir="rtl">
-            <StudentAITutor student={currentUser} />
-            {isQRScannerOpen && <StudentQRScanner student={currentUser} onClose={() => setIsQRScannerOpen(false)} />}
-
-            <aside className="hidden lg:flex flex-col w-80 bg-slate-950 border-l border-white/5 shadow-2xl z-30">
-                <div className="p-10 border-b border-white/5 flex flex-col items-center bg-gradient-to-b from-indigo-950/40 to-transparent">
-                    <div className="relative mb-6 group cursor-pointer" onClick={() => navigate('/avatar')}>
-                        <div className="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-[2rem] flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden ring-4 ring-white/5 group-hover:scale-105 transition-transform duration-500">
-                            {currentUser.email?.startsWith('data:image') ? <img src={currentUser.email} className="w-full h-full object-cover" alt="Avatar"/> : currentUser.name.charAt(0)}
-                        </div>
-                        <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-950 w-10 h-10 rounded-2xl flex items-center justify-center font-black border-4 border-slate-950 shadow-xl">{stats.level}</div>
-                    </div>
-                    <h1 className="text-xl font-black text-white text-center mb-1">{currentUser.name}</h1>
-                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{currentUser.activeTitle || 'بطل المتابع الذكي'}</p>
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col font-tajawal pb-20">
+            {selectedGame && <GamePlayer game={selectedGame} student={currentUser} onClose={() => setSelectedGame(null)} />}
+            
+            <header className="p-6 border-b border-white/5 flex justify-between items-center bg-black/20">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black">S</div>
+                    <h1 className="font-black">بوابة الطالب الذكية</h1>
                 </div>
-                <nav className="flex-1 p-6 space-y-1 overflow-y-auto custom-scrollbar">
-                    <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
-                    <NavItem path="/mastery" label="خريطة المهارات" icon={Map} isActive={location.pathname === '/mastery'} />
-                    <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} isActive={location.pathname === '/wall'} />
-                    <NavItem path="/timeline" label="خط النجاح" icon={Clock} isActive={location.pathname === '/timeline'} />
-                    <NavItem path="/id" label="هويتي الرقمية" icon={QrCode} isActive={location.pathname === '/id'} />
-                    <NavItem path="/avatar" label="مصنع الأفاتار" icon={UserCircle} isActive={location.pathname === '/avatar'} />
-                    <NavItem path="/shop" label="متجر المكافآت" icon={ShoppingBag} isActive={location.pathname === '/shop'} />
-                    <NavItem path="/study-plan" label="خطة المذاكرة" icon={BookOpen} isActive={location.pathname === '/study-plan'} />
-                    <NavItem path="/evaluation" label="سجل الدرجات" icon={TrendingUp} isActive={location.pathname === '/evaluation'} />
-                    <button onClick={onLogout} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-red-400 hover:bg-red-500/10 mt-10 font-black transition-colors"><LogOut size={22}/> خروج آمن</button>
-                </nav>
-            </aside>
+                <button onClick={onLogout} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg"><LogOut/></button>
+            </header>
 
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-                <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-[#020617] pb-24 lg:pb-10">
-                    <Routes>
-                        <Route path="/" element={
-                            <div className="space-y-8 animate-fade-in">
-                                <div className="bg-gradient-to-br from-indigo-900 via-slate-950 to-indigo-950 rounded-[2rem] md:rounded-[3.5rem] p-8 md:p-16 text-white relative overflow-hidden shadow-2xl border border-white/5">
-                                    <div className="absolute top-0 right-0 p-10 opacity-10 pointer-events-none rotate-12"><Trophy size={300}/></div>
-                                    <div className="relative z-10">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="bg-yellow-400 text-slate-900 px-4 py-1 rounded-2xl font-black text-xs shadow-xl">المستوى {stats.level}</div>
-                                            {!currentUser.learningStyle && (
-                                                <button onClick={() => navigate('/test')} className="bg-purple-600 text-white px-4 py-1 rounded-2xl font-black text-xs animate-pulse">اكتشف نمط تعلمك الآن!</button>
-                                            )}
-                                        </div>
-                                        <h2 className="text-4xl md:text-6xl font-black mb-8 leading-tight">بطلنا المبدع، {currentUser.name.split(' ')[0]}! 🚀</h2>
-                                        <div className="w-full max-w-md bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10">
-                                            <div className="flex justify-between mb-3 text-xs font-black uppercase text-indigo-300"><span>التقدم للمستوى {stats.level + 1}</span><span>{Math.round(stats.progress)}%</span></div>
-                                            <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1"><div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000" style={{width:`${stats.progress}%`}}></div></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <FeatureCard icon={<QrCode/>} title="تحضير QR" sub="سجل حضورك للحصة" onClick={() => setIsQRScannerOpen(true)} color="bg-indigo-600" />
-                                    <FeatureCard icon={<Map/>} title="خريطة التمكن" sub="شاهد نمو مهاراتك" onClick={() => navigate('/mastery')} color="bg-emerald-600" />
-                                </div>
-                                
-                                <StudentJourney xp={stats.xp} level={stats.level} />
-                                <StudentQuestSystem student={currentUser} />
-                            </div>
-                        } />
-                        <Route path="/mastery" element={<KnowledgeTree student={currentUser} performance={performance} formsResults={getFormsDetailedResults(currentUser.createdById)} />} />
-                        <Route path="/wall" element={<SchoolWall currentUser={currentUser} students={[]} />} />
-                        <Route path="/timeline" element={<StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />} />
-                        <Route path="/id" element={<StudentDigitalID student={currentUser} stats={stats} />} />
-                        <Route path="/test" element={<StudentLearningTest student={currentUser} onComplete={() => navigate('/')} />} />
-                        <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />
-                        <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
-                        <Route path="/study-plan" element={<SmartStudyPlan student={currentUser} />} />
-                        <Route path="/shop" element={<StudentShop xp={stats.xp} rewards={availableRewards} student={currentUser} onPurchaseComplete={handlePurchaseComplete} />} />
-                        <Route path="*" element={<Navigate to="/" />} />
-                    </Routes>
-                </main>
-            </div>
+            <main className="flex-1 p-6 space-y-10 max-w-6xl mx-auto w-full">
+                {activeTab === 'DASHBOARD' && (
+                    <>
+                        <StudentJourney xp={currentUser.xp || 0} level={currentUser.level || 1} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {availableGames.map(game => (
+                                <button key={game.id} onClick={() => setSelectedGame(game)} className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl hover:border-indigo-500 transition-all text-right group relative overflow-hidden">
+                                     <div className="absolute top-0 right-0 w-1 h-full bg-indigo-500 group-hover:w-2 transition-all"></div>
+                                     <Gamepad2 className="text-indigo-400 mb-4" size={32}/>
+                                     <h4 className="text-white font-black text-lg">{game.title}</h4>
+                                     <p className="text-slate-500 text-[10px] font-bold uppercase mt-1">تحدي من المعلم • {game.xpReward} XP</p>
+                                </button>
+                            ))}
+                        </div>
+                        <StudentQuestSystem student={currentUser} />
+                    </>
+                )}
+            </main>
+            
+            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/5 h-20 flex justify-around items-center px-4">
+                <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
+                <NavBtn icon={<Activity/>} label="درجاتي" active={activeTab==='ACAD'} onClick={()=>setActiveTab('ACAD')}/>
+                <NavBtn icon={<Star/>} label="المتجر" active={activeTab==='SHOP'} onClick={()=>setActiveTab('SHOP')}/>
+                <NavBtn icon={<ShieldCheck/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
+            </nav>
+            <StudentAITutor student={currentUser} />
         </div>
     );
 };
 
-const NavItem = ({ path, label, icon: Icon, isActive }: any) => {
-    const navigate = useNavigate();
-    return (
-        <button onClick={() => navigate(path)} className={`w-full flex items-center gap-4 px-6 py-3.5 rounded-2xl transition-all font-black text-sm ${isActive ? 'bg-indigo-600 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:bg-white/5'}`}>
-            <Icon size={20}/> {label}
-        </button>
-    );
-};
-
-const FeatureCard = ({ icon, title, sub, onClick, color }: any) => (
-    <button onClick={onClick} className={`p-8 ${color} rounded-[2.5rem] shadow-xl flex items-center gap-6 group hover:scale-[1.02] transition-all text-white`}>
-        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">{React.cloneElement(icon, {size:32})}</div>
-        <div className="text-right">
-            <h3 className="text-xl font-black">{title}</h3>
-            <p className="text-white/60 text-xs font-bold">{sub}</p>
-        </div>
+const NavBtn = ({ icon, label, active, onClick }: any) => (
+    <button onClick={onClick} className={`flex flex-col items-center gap-1 ${active ? 'text-indigo-400' : 'text-slate-500'}`}>
+        {icon}
+        <span className="text-[10px] font-bold">{label}</span>
     </button>
+);
+
+const ShieldCheck = ({ size = 24 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
 );
 
 export default StudentPortal;

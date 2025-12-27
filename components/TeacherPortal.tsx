@@ -1,178 +1,111 @@
 
 import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { 
-  LayoutGrid, Users, CheckSquare, Table, Monitor, 
-  BarChart2, Settings, LogOut, Menu, X, 
-  CalendarDays, Trophy, BookOpen, 
-  Sparkles, BrainCircuit, ShieldCheck, Inbox, FileSpreadsheet, Award, Globe, LineChart, Crown, User, Lightbulb, Zap, ShoppingBag, ClipboardList,
-  FileQuestion, Send, Library, FileStack, GraduationCap, Share2, ClipboardCheck, Shield, Camera, Plus, ScanLine, ListChecks, History, Database, Newspaper, CalendarCheck
-} from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { SystemUser } from '../types';
-import BottomNavigation from './BottomNavigation';
+import { 
+    LayoutGrid, Users, CheckSquare, BarChart3, BookOpen, 
+    Settings, LogOut, Monitor, Gamepad2, Inbox, 
+    ChevronLeft, ChevronRight, Menu, Bell, Search,
+    FileQuestion, Library, Trophy, Award, Sparkles, Database
+} from 'lucide-react';
 
-interface TeacherPortalProps {
+interface Props {
     currentUser: SystemUser;
     onLogout: () => void;
     children: React.ReactNode;
 }
 
-const NavItem = ({ path, label, icon: Icon, color, isActive, isCollapsed }: any) => {
-    return (
-        <Link 
-            to={path} 
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-300 group ${
-                isActive 
-                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-200 scale-[1.02]' 
-                : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
-            } ${isCollapsed ? 'justify-center px-0' : ''}`}
-        >
-            <Icon size={18} className={`${isActive ? 'text-white' : color || 'text-slate-400 group-hover:text-indigo-600'}`} />
-            {!isCollapsed && <span className={`text-xs font-bold ${isActive ? 'font-black' : ''}`}>{label}</span>}
-        </Link>
-    );
-};
-
-const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser, onLogout, children }) => {
+const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isFloatingMenuOpen, setIsFloatingMenuOpen] = useState(false);
-    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+
+    const NavItem = ({ path, label, icon: Icon, color, isActive, isCollapsed }: any) => (
+        <button 
+            onClick={() => navigate(path)}
+            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 group ${isActive ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-200' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+        >
+            <div className={`shrink-0 ${isActive ? 'text-white' : color}`}>
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+            </div>
+            {!isCollapsed && <span className="font-black text-sm whitespace-nowrap">{label}</span>}
+            {!isCollapsed && isActive && <div className="mr-auto w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>}
+        </button>
+    );
 
     return (
         <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-tajawal" dir="rtl">
-            {/* Sidebar Desktop */}
-            <aside className={`hidden lg:flex flex-col bg-white border-l border-slate-100 transition-all duration-500 z-30 shadow-2xl shadow-slate-200/50 ${isSidebarOpen ? 'w-72' : 'w-24'}`}>
-                <div className="p-6 border-b border-slate-50 flex items-center justify-between shrink-0">
-                    {isSidebarOpen ? (
-                        <div className="flex items-center gap-3 animate-fade-in">
-                            <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                                <Sparkles size={20}/>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="font-black text-slate-800 text-sm leading-tight">المتابع الذكي</span>
-                                <span className="text-[8px] font-black text-indigo-50 tracking-widest uppercase">Elite System v2.5</span>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="w-full flex justify-center">
-                            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                                <Sparkles size={16}/>
-                            </div>
-                        </div>
-                    )}
+            {/* Sidebar */}
+            <aside className={`${isSidebarOpen ? 'w-80' : 'w-24'} bg-white border-l border-slate-100 flex flex-col transition-all duration-500 relative z-50 shadow-2xl`}>
+                <div className="p-8 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0">
+                        <Sparkles size={24} />
+                    </div>
+                    {isSidebarOpen && <h1 className="font-black text-xl text-slate-800 tracking-tight">المتابع الذكي</h1>}
                 </div>
 
-                <nav className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-1 mt-2">
-                    {/* Admin Access Section */}
-                    {isSuperAdmin && (
-                        <div className="mb-4">
-                            {isSidebarOpen && <label className="px-4 text-[9px] font-black text-indigo-600 block mb-2 uppercase tracking-widest">إدارة النظام المركزية</label>}
-                            <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} color="text-indigo-600" isActive={location.pathname === '/admin'} isCollapsed={!isSidebarOpen} />
-                        </div>
-                    )}
-
-                    <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} isActive={location.pathname === '/'} isCollapsed={!isSidebarOpen} />
-                    <NavItem path="/portfolio" label="سجل إنجازي" icon={Award} color="text-indigo-600" isActive={location.pathname === '/portfolio'} isCollapsed={!isSidebarOpen} />
-                    <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} color="text-indigo-600" isActive={location.pathname === '/wall'} isCollapsed={!isSidebarOpen} />
-                    <NavItem path="/inbox" label="بريد المعلم" icon={Inbox} color="text-indigo-600" isActive={location.pathname === '/inbox'} isCollapsed={!isSidebarOpen} />
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+                    <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} color="text-blue-500" isActive={location.pathname === '/'} isCollapsed={!isSidebarOpen} />
+                    <NavItem path="/students" label="إدارة الطلاب" icon={Users} color="text-teal-500" isActive={location.pathname === '/students'} isCollapsed={!isSidebarOpen} />
+                    <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} color="text-emerald-500" isActive={location.pathname === '/attendance'} isCollapsed={!isSidebarOpen} />
+                    <NavItem path="/works" label="سجل الرصد" icon={BarChart3} color="text-amber-500" isActive={location.pathname === '/works'} isCollapsed={!isSidebarOpen} />
+                    <NavItem path="/exams" label="الاختبارات" icon={FileQuestion} color="text-purple-500" isActive={location.pathname === '/exams'} isCollapsed={!isSidebarOpen} />
                     
-                    <div className="pt-4 mt-4 border-t border-slate-50">
-                        {isSidebarOpen && <label className="px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest opacity-60">المتابعة اليومية</label>}
-                        <NavItem path="/students" label="قائمة الطلاب" icon={Users} isActive={location.pathname === '/students'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/attendance" label="تحضير الحصص" icon={CheckSquare} isActive={location.pathname === '/attendance'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/meetings" label="اللقاءات الرسمية" icon={CalendarCheck} color="text-teal-600" isActive={location.pathname === '/meetings'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/interventions" label="التدخلات التربوية" icon={ShieldCheck} color="text-rose-600" isActive={location.pathname === '/interventions'} isCollapsed={!isSidebarOpen} />
-                    </div>
-
-                    <div className="pt-4 mt-4 border-t border-slate-50">
-                        {isSidebarOpen && <label className="px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest opacity-60">التقييم والرصد</label>}
-                        <NavItem path="/works" label="سجل الرصد (الأعمال)" icon={ClipboardList} color="text-blue-600" isActive={location.pathname === '/works'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/performance" label="كشف الدرجات" icon={FileSpreadsheet} color="text-emerald-600" isActive={location.pathname === '/performance'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/tasks" label="المهام والواجبات" icon={BookOpen} color="text-orange-600" isActive={location.pathname === '/tasks'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/exams" label="بنك الاختبارات" icon={FileQuestion} color="text-purple-600" isActive={location.pathname === '/exams'} isCollapsed={!isSidebarOpen} />
-                    </div>
-
                     <div className="pt-4 mt-4 border-t border-slate-50">
                         {isSidebarOpen && <label className="px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest opacity-60">الأدوات الذكية</label>}
                         <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} color="text-indigo-600" isActive={location.pathname === '/classroom'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/clubs" label="الأندية والاهتمامات" icon={Users} color="text-pink-600" isActive={location.pathname === '/clubs'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/library" label="المكتبة التشاركية" icon={Library} color="text-indigo-600" isActive={location.pathname === '/library'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/lab" label="مختبر VARK" icon={BrainCircuit} color="text-orange-600" isActive={location.pathname === '/lab'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/games" label="مصنع الألعاب" icon={Gamepad2} color="text-purple-600" isActive={location.pathname === '/games'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/library" label="المكتبة العامة" icon={Library} color="text-pink-600" isActive={location.pathname === '/library'} isCollapsed={!isSidebarOpen} />
+                        <NavItem path="/inbox" label="صندوق الوارد" icon={Inbox} color="text-rose-500" isActive={location.pathname === '/inbox'} isCollapsed={!isSidebarOpen} />
                     </div>
+                </div>
 
-                    <div className="pt-4 mt-4 border-t border-slate-50 pb-10">
-                        {isSidebarOpen && <label className="px-4 text-[9px] font-black text-slate-400 block mb-2 uppercase tracking-widest opacity-60">التحفيز والتقارير</label>}
-                        <NavItem path="/certificates" label="مركز الشهادات" icon={GraduationCap} color="text-blue-700" isActive={location.pathname === '/certificates'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/leaderboard" label="لوحة الصدارة" icon={Trophy} color="text-yellow-600" isActive={location.pathname === '/leaderboard'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/reports" label="التقارير التحليلية" icon={BarChart2} isActive={location.pathname === '/reports'} isCollapsed={!isSidebarOpen} />
-                        <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} isCollapsed={!isSidebarOpen} />
-                    </div>
-                </nav>
-
-                <div className="p-4 border-t border-slate-50 space-y-1 shrink-0 bg-white">
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-50 transition-all">
-                        <Menu size={18}/>
-                        {isSidebarOpen && <span className="text-xs font-bold">طي القائمة</span>}
-                    </button>
-                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-red-500 hover:bg-red-50 font-black transition-all">
-                        <LogOut size={18}/>
-                        {isSidebarOpen && <span className="text-xs">خروج</span>}
+                <div className="p-4 border-t border-slate-50">
+                    <button onClick={onLogout} className="w-full flex items-center gap-4 p-4 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all font-black text-sm">
+                        <LogOut size={22} />
+                        {isSidebarOpen && <span>تسجيل الخروج</span>}
                     </button>
                 </div>
+
+                <button 
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="absolute -left-4 top-20 bg-white border border-slate-100 p-1.5 rounded-full shadow-lg text-slate-400 hover:text-indigo-600 transition-all z-50"
+                >
+                    {isSidebarOpen ? <ChevronRight size={18}/> : <ChevronLeft size={18}/>}
+                </button>
             </aside>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC] relative">
-                {/* Mobile Header */}
-                <header className="lg:hidden h-14 bg-white border-b border-slate-100 flex items-center justify-between px-6 z-40 shrink-0">
-                    <div className="flex items-center gap-2">
-                         <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
-                            <Sparkles size={16}/>
+            <main className="flex-1 flex flex-col min-w-0 relative">
+                <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-8 shrink-0 relative z-40">
+                    <div className="flex items-center gap-4">
+                        <div className="lg:hidden p-2 text-slate-400" onClick={() => setIsSidebarOpen(true)}>
+                            <Menu />
                         </div>
-                        <span className="font-black text-slate-800 text-xs">المتابع الذكي</span>
+                        <h2 className="font-black text-slate-800 hidden md:block">أهلاً بك مجدداً</h2>
                     </div>
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-500 bg-slate-50 rounded-xl">
-                        <Menu size={18}/>
-                    </button>
+
+                    <div className="flex items-center gap-6">
+                        <button className="relative p-2.5 bg-slate-50 text-slate-400 rounded-2xl hover:text-indigo-600 transition-all">
+                            <Bell size={20} />
+                            <div className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></div>
+                        </button>
+                        <div className="flex items-center gap-4 pr-6 border-r border-slate-100">
+                            <div className="text-left hidden sm:block">
+                                <p className="text-xs font-black text-slate-800 leading-none">{currentUser.name}</p>
+                                <p className="text-[10px] font-bold text-indigo-500 mt-1 uppercase">{currentUser.role}</p>
+                            </div>
+                            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-indigo-600 shadow-inner">
+                                {currentUser.name.charAt(0)}
+                            </div>
+                        </div>
+                    </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto custom-scrollbar relative">
+                <div className="flex-1 overflow-hidden relative">
                     {children}
-                </main>
-
-                <BottomNavigation role={currentUser.role} onMenuClick={() => setIsMobileMenuOpen(true)} />
-            </div>
-
-            {/* Mobile Sidebar Overlay */}
-            {isMobileMenuOpen && (
-                <div className="fixed inset-0 z-[150] lg:hidden">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
-                    <div className="absolute top-0 right-0 h-full w-[80%] bg-white shadow-2xl flex flex-col animate-slide-right">
-                        <div className="p-6 border-b flex items-center justify-between bg-indigo-600 text-white">
-                            <span className="font-black">القائمة الرئيسية</span>
-                            <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-white/10 rounded-full"><X size={20}/></button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
-                             {isSuperAdmin && (
-                                <NavItem path="/admin" label="لوحة المدير العام" icon={Shield} isActive={location.pathname === '/admin'} />
-                             )}
-                             <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
-                             <NavItem path="/portfolio" label="سجل إنجازي" icon={Award} isActive={location.pathname === '/portfolio'} />
-                             <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} isActive={location.pathname === '/wall'} />
-                             <NavItem path="/inbox" label="البريد" icon={Inbox} isActive={location.pathname === '/inbox'} />
-                             <NavItem path="/students" label="الطلاب" icon={Users} isActive={location.pathname === '/students'} />
-                             <NavItem path="/attendance" label="التحضير" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
-                             <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} isActive={location.pathname === '/classroom'} />
-                             <NavItem path="/library" label="المكتبة التشاركية" icon={Library} isActive={location.pathname === '/library'} />
-                             <NavItem path="/reports" label="التقارير" icon={BarChart2} isActive={location.pathname === '/reports'} />
-                             <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} isActive={location.pathname === '/school-mgmt'} />
-                        </div>
-                    </div>
                 </div>
-            )}
+            </main>
         </div>
     );
 };
